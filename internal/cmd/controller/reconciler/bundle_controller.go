@@ -99,26 +99,7 @@ func (r *BundleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(
 			// Fan out from bundledeployment to bundle, this is useful to update the
 			// bundle's status fields.
-			&fleet.BundleDeployment{},
-			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []ctrl.Request {
-				bd := a.(*fleet.BundleDeployment)
-				labels := bd.GetLabels()
-				if labels == nil {
-					return nil
-				}
-
-				ns, name := target.BundleFromDeployment(labels)
-				if ns != "" && name != "" {
-					return []ctrl.Request{{
-						NamespacedName: types.NamespacedName{
-							Namespace: ns,
-							Name:      name,
-						},
-					}}
-				}
-
-				return nil
-			}),
+			&fleet.BundleDeployment{}, handler.EnqueueRequestsFromMapFunc(BundleDeploymentMapFunc(r)),
 			builder.WithPredicates(bundleDeploymentStatusChangedPredicate()),
 		).
 		Watches(
@@ -132,6 +113,9 @@ func (r *BundleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				}
 				requests := []ctrl.Request{}
 				for _, bundle := range bundlesToRefresh {
+					if !sharding.ShouldProcess(bundle, r.ShardID) {
+						continue
+					}
 					requests = append(requests, ctrl.Request{
 						NamespacedName: types.NamespacedName{
 							Namespace: bundle.Namespace,
@@ -1006,5 +990,52 @@ func upper(op controllerutil.OperationResult) string {
 		return "Updated"
 	default:
 		return "Unknown"
+	}
+}
+
+// BundleDeploymentMapFunc returns a function that maps a BundleDeployment to a Bundle.
+func BundleDeploymentMapFunc(r *BundleReconciler) func(ctx context.Context, a client.Object) []reconcile.Request {
+	return func(ctx context.Context, a client.Object) []reconcile.Request {
+		bd, ok := a.(*fleet.BundleDeployment)
+		if !ok {
+			return nil
+		}
+
+		if !sharding.ShouldProcess(bd, r.ShardID) {
+			return nil
+		}
+		labels := bd.GetLabels()
+		if labels == nil {
+			return nil
+		}
+
+		ns, name := target.BundleFromDeployment(labels)
+		if ns != "" && name != "" {
+			return []reconcile.Request{{
+				NamespacedName: types.NamespacedName{
+					Namespace: ns,
+					Name:      name,
+				},
+			}}
+		}
+
+		return nil
+	}
+}
+
+// BundleDeploymentStatusChangedPredicate returns true if the bundledeployment
+// status has changed, or the bundledeployment was created or is being deleted.
+func BundleDeploymentStatusChangedPredicate() predicate.Funcs {
+	return predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool { return true },
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			n, nOK := e.ObjectNew.(*fleet.BundleDeployment)
+			o, oOK := e.ObjectOld.(*fleet.BundleDeployment)
+			if !nOK || !oOK {
+				return false
+			}
+			return !n.DeletionTimestamp.IsZero() || !reflect.DeepEqual(n.Status, o.Status)
+		},
+		GenericFunc: func(e event.GenericEvent) bool { return false },
 	}
 }

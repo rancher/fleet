@@ -10,12 +10,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/rancher/fleet/internal/cmd/controller/errorutil"
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	"github.com/rancher/fleet/internal/cmd/controller/reconciler"
 	"github.com/rancher/fleet/internal/cmd/controller/target"
 	"github.com/rancher/fleet/internal/mocks"
 	fleetv1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/sharding"
 	"github.com/rancher/wrangler/v3/pkg/genericcondition"
 
 	"go.uber.org/mock/gomock"
@@ -31,6 +33,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
@@ -1076,4 +1079,185 @@ func getBundleReadyCondition(b *fleetv1.Bundle) (genericcondition.GenericConditi
 		}
 	}
 	return genericcondition.GenericCondition{}, false
+}
+
+func TestBundleDeploymentMapFunc(t *testing.T) {
+	r := &reconciler.BundleReconciler{ShardID: "test-shard"}
+	mapFunc := reconciler.BundleDeploymentMapFunc(r)
+
+	testCases := []struct {
+		name     string
+		obj      client.Object
+		expected []reconcile.Request
+	}{
+		{
+			name: "Matching Shard ID",
+			obj: &fleetv1.BundleDeployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "bd-1",
+					Namespace: "cluster-ns",
+					Labels: map[string]string{
+						fleetv1.BundleLabel:          "my-bundle",
+						fleetv1.BundleNamespaceLabel: "fleet-ns",
+						sharding.ShardingRefLabel:    "test-shard",
+					},
+				},
+			},
+			expected: []reconcile.Request{
+				{NamespacedName: types.NamespacedName{Namespace: "fleet-ns", Name: "my-bundle"}},
+			},
+		},
+		{
+			name: "Non-matching Shard ID",
+			obj: &fleetv1.BundleDeployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "bd-2",
+					Namespace: "cluster-ns",
+					Labels: map[string]string{
+						fleetv1.BundleLabel:          "my-bundle",
+						fleetv1.BundleNamespaceLabel: "fleet-ns",
+						sharding.ShardingRefLabel:    "other-shard",
+					},
+				},
+			},
+			expected: nil,
+		},
+		{
+			name: "Default Shard, Object has no shard label",
+			obj: &fleetv1.BundleDeployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "bd-3",
+					Namespace: "cluster-ns",
+					Labels: map[string]string{
+						fleetv1.BundleLabel:          "my-bundle",
+						fleetv1.BundleNamespaceLabel: "fleet-ns",
+					},
+				},
+			},
+			expected: nil, // default shard is "", not "test-shard"
+		},
+		{
+			name: "Missing bundle labels",
+			obj: &fleetv1.BundleDeployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "bd-4",
+					Namespace: "cluster-ns",
+					Labels: map[string]string{
+						sharding.ShardingRefLabel: "test-shard",
+					},
+				},
+			},
+			expected: nil,
+		},
+		{
+			name: "Nil labels",
+			obj: &fleetv1.BundleDeployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "bd-5",
+					Namespace: "cluster-ns",
+				},
+			},
+			expected: nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			reqs := mapFunc(context.Background(), tc.obj)
+			if diff := cmp.Diff(tc.expected, reqs); diff != "" {
+				t.Errorf("mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+
+	t.Run("Default Shard ID", func(t *testing.T) {
+		r := &reconciler.BundleReconciler{ShardID: ""}
+		mapFunc := reconciler.BundleDeploymentMapFunc(r)
+
+		bd := &fleetv1.BundleDeployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "bd-default",
+				Namespace: "cluster-ns",
+				Labels: map[string]string{
+					fleetv1.BundleLabel:          "my-bundle",
+					fleetv1.BundleNamespaceLabel: "fleet-ns",
+				},
+			},
+		}
+
+		expected := []reconcile.Request{
+			{NamespacedName: types.NamespacedName{Namespace: "fleet-ns", Name: "my-bundle"}},
+		}
+
+		reqs := mapFunc(context.Background(), bd)
+		if diff := cmp.Diff(expected, reqs); diff != "" {
+			t.Errorf("mismatch (-want +got):\n%s", diff)
+		}
+	})
+}
+
+func TestBundleDeploymentStatusChangedPredicate(t *testing.T) {
+	p := reconciler.BundleDeploymentStatusChangedPredicate()
+
+	t.Run("Create", func(t *testing.T) {
+		e := event.CreateEvent{Object: &fleetv1.BundleDeployment{}}
+		if !p.Create(e) {
+			t.Error("expected true for create event")
+		}
+	})
+
+	t.Run("Delete", func(t *testing.T) {
+		// Delete is not defined, so it should be false
+		e := event.DeleteEvent{Object: &fleetv1.BundleDeployment{}}
+		if !p.Delete(e) {
+			t.Error("expected true for delete event")
+		}
+	})
+
+	t.Run("Generic", func(t *testing.T) {
+		// Generic is not defined, so it should be false
+		e := event.GenericEvent{Object: &fleetv1.BundleDeployment{}}
+		if p.Generic(e) {
+			t.Error("expected false for generic event")
+		}
+	})
+
+	t.Run("Update", func(t *testing.T) {
+		oldBD := &fleetv1.BundleDeployment{
+			Status: fleetv1.BundleDeploymentStatus{Ready: false},
+		}
+		newBD := oldBD.DeepCopy()
+
+		// No change
+		e := event.UpdateEvent{ObjectOld: oldBD, ObjectNew: newBD}
+		if p.Update(e) {
+			t.Error("should be false when status is identical")
+		}
+
+		// Status changed
+		newBD.Status.Ready = true
+		e = event.UpdateEvent{ObjectOld: oldBD, ObjectNew: newBD}
+		if !p.Update(e) {
+			t.Error("should be true when status changes")
+		}
+
+		// Deletion timestamp added
+		newBD = oldBD.DeepCopy()
+		now := metav1.Now()
+		newBD.DeletionTimestamp = &now
+		e = event.UpdateEvent{ObjectOld: oldBD, ObjectNew: newBD}
+		if !p.Update(e) {
+			t.Error("should be true when deletion timestamp is set")
+		}
+
+		// Nil objects
+		e = event.UpdateEvent{ObjectOld: nil, ObjectNew: newBD}
+		if p.Update(e) {
+			t.Error("should be false for nil old object")
+		}
+		e = event.UpdateEvent{ObjectOld: oldBD, ObjectNew: nil}
+		if p.Update(e) {
+			t.Error("should be false for nil new object")
+		}
+	})
 }
