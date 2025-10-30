@@ -41,7 +41,7 @@ jobs:
           echo "KUBEBUILDER_ASSETS=${KUBEBUILDER_ASSETS}" >> $GITHUB_ENV
       -
         name: Run monitor integration tests
-        run: ginkgo --github-output --trace ./integrationtests/cli/monitor
+        run: ginkgo --github-output --trace ./integrationtests/cli/monitor ./integrationtests/cli/analyze
 
   release-fleet-util:
     runs-on: ubuntu-latest
