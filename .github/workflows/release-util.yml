@@ -70,14 +70,10 @@ jobs:
           GOOS=darwin GOARCH=arm64 go build -o dist/fleet-util-darwin-arm64 -ldflags="-s -w -X main.Version=${VERSION}" ./cmd/fleetcli
           GOOS=windows GOARCH=amd64 go build -o dist/fleet-util-windows-amd64.exe -ldflags="-s -w -X main.Version=${VERSION}" ./cmd/fleetcli
           
-          # Copy analyze script
-          cp package/analyze-fleet-monitoring.sh dist/
-          chmod +x dist/analyze-fleet-monitoring.sh
-
       - name: Create checksums
         run: |
           cd dist
-          sha256sum fleet-util-* analyze-fleet-monitoring.sh > checksums.txt
+          sha256sum fleet-util-* > checksums.txt
 
       - name: Create GitHub Release
         env:
@@ -112,7 +108,6 @@ jobs:
           ## Included Files
           
           - \`fleet-util-*\`: CLI binaries for various platforms
-          - \`analyze-fleet-monitoring.sh\`: Shell script for analyzing monitor output
           - \`checksums.txt\`: SHA256 checksums for all files
           EOF
           
@@ -121,5 +116,4 @@ jobs:
             --title "Fleet Utilities ${VERSION}" \
             --notes-file release-notes.md \
             dist/fleet-util-* \
-            dist/analyze-fleet-monitoring.sh \
             dist/checksums.txt

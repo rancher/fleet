@@ -26,9 +26,6 @@ fleet-util analyze --diff monitor.json
 
 # Show only issues
 fleet-util analyze --issues monitor.json
-
-# Legacy: Use the bash script
-./analyze-fleet-monitoring.sh monitor.json
 ```
 
 ## What It Detects
@@ -233,9 +230,6 @@ fleet-util monitor -n fleet-default | jq
 # Collect snapshots every 60 seconds using watch mode
 fleet-util monitor --watch --interval 60 >> monitor.json
 
-# In another terminal, watch for changes
-./analyze-fleet-monitoring.sh --live monitor.json
-
 # Or monitor with a shorter interval (every 30 seconds)
 fleet-util monitor --watch --interval 30 >> monitor.json
 ```
@@ -279,25 +273,24 @@ kubectl edit gitrepo my-repo
 fleet-util monitor > after.json
 
 # Compare
-./analyze-fleet-monitoring.sh --compare before.json after.json
+fleet-util analyze --compare after.json before.json
 ```
 
 ## Analyzing Monitor Output
 
-The `analyze-fleet-monitoring.sh` script provides powerful analysis capabilities for monitor output.
+The `fleet-util analyze` command provides powerful analysis capabilities for monitor output.
 
 ### Basic Analysis
 
 ```bash
 # Show summary of latest snapshot
-./analyze-fleet-monitoring.sh monitor.json
-./analyze-fleet-monitoring.sh --summary monitor.json
+fleet-util analyze monitor.json
 
 # Show only issues (useful for quick health checks)
-./analyze-fleet-monitoring.sh --issues monitor.json
+fleet-util analyze --issues monitor.json
 
 # Show detailed analysis with all information
-./analyze-fleet-monitoring.sh --detailed monitor.json
+fleet-util analyze --detailed monitor.json
 ```
 
 ### Multi-Snapshot Analysis
@@ -306,26 +299,16 @@ When your monitor.json file contains multiple snapshots (one JSON object per lin
 
 ```bash
 # Show summary of latest snapshot only
-./analyze-fleet-monitoring.sh monitor.json
+fleet-util analyze monitor.json
 
 # Show differences between consecutive snapshots
-./analyze-fleet-monitoring.sh --diff monitor.json
+fleet-util analyze --diff monitor.json
 
 # Show summary of all snapshots
-./analyze-fleet-monitoring.sh --all monitor.json
+fleet-util analyze --all monitor.json
 
 # Compare two specific snapshot files
-./analyze-fleet-monitoring.sh --compare snapshot1.json snapshot2.json
-```
-
-### Live Monitoring
-
-```bash
-# Terminal 1: Collect snapshots every 60 seconds
-fleet-util monitor --watch --interval 60 >> monitor.json
-
-# Terminal 2: Watch for changes in real-time
-./analyze-fleet-monitoring.sh --live monitor.json
+fleet-util analyze --compare snapshot2.json snapshot1.json
 ```
 
 ### Example Output
@@ -476,10 +459,10 @@ For long-term monitoring and trend analysis:
 nohup fleet-util monitor --watch --interval 60 >> /var/log/fleet-monitor.json 2>&1 &
 
 # 2. Periodically analyze for issues
-watch -n 300 "./analyze-fleet-monitoring.sh --issues /var/log/fleet-monitor.json | tail -30"
+watch -n 300 "fleet-util analyze --issues /var/log/fleet-monitor.json | tail -30"
 
 # 3. Generate daily reports
-./analyze-fleet-monitoring.sh --diff /var/log/fleet-monitor.json > fleet-report-$(date +%Y%m%d).txt
+fleet-util analyze --diff /var/log/fleet-monitor.json > fleet-report-$(date +%Y%m%d).txt
 
 # 4. Log rotation (keep last 7 days)
 find /var/log -name "fleet-report-*.txt" -mtime +7 -delete
@@ -571,7 +554,7 @@ fleet-util monitor --verbose 2>&1 | tee monitor-debug.log
 
 ## Analyze Command
 
-The `fleet-util analyze` command provides human-readable analysis of monitor snapshots. It replaces the `analyze-fleet-monitoring.sh` bash script with a native Go implementation.
+The `fleet-util analyze` command provides human-readable analysis of monitor snapshots.
 
 ### Usage
 
@@ -622,17 +605,17 @@ fleet-util analyze --no-color monitor.json
 - **Integrated**: Shares types with monitor command
 - **Better Errors**: Clear error messages
 
-### Migration from Bash Script
+### Command Examples
 
-The bash script `analyze-fleet-monitoring.sh` is still available for backward compatibility, but the analyze command provides the same functionality with better usability:
+Common analysis commands:
 
-| Bash Script | Analyze Command |
-|-------------|-----------------|
-| `./analyze-fleet-monitoring.sh monitor.json` | `fleet-util analyze monitor.json` |
-| `./analyze-fleet-monitoring.sh --diff monitor.json` | `fleet-util analyze --diff monitor.json` |
-| `./analyze-fleet-monitoring.sh --issues monitor.json` | `fleet-util analyze --issues monitor.json` |
-| `./analyze-fleet-monitoring.sh --detailed monitor.json` | `fleet-util analyze --detailed monitor.json` |
-| `./analyze-fleet-monitoring.sh --compare a.json b.json` | `fleet-util analyze --compare b.json a.json` |
+| Task | Command |
+|------|---------|
+| Basic summary | `fleet-util analyze monitor.json` |
+| Show changes over time | `fleet-util analyze --diff monitor.json` |
+| Only show issues | `fleet-util analyze --issues monitor.json` |
+| Detailed analysis | `fleet-util analyze --detailed monitor.json` |
+| Compare two snapshots | `fleet-util analyze --compare after.json before.json` |
 
 ## Building Fleet Util
 
@@ -662,7 +645,6 @@ To create releases of fleet-util for distribution:
    ```
 4. GitHub Actions will automatically:
    - Build binaries for Linux (amd64/arm64), macOS (amd64/arm64), and Windows (amd64)
-   - Include the `analyze-fleet-monitoring.sh` script
    - Generate SHA256 checksums
    - Create a GitHub release with all artifacts using `gh` CLI
 5. Download binaries from the GitHub releases page
