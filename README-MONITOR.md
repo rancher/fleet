@@ -12,10 +12,22 @@ The `fleet-util monitor` command provides deep insights into Fleet's GitOps life
 # Single snapshot with formatted output
 fleet-util monitor | jq
 
+# Single snapshot with human-readable analysis
+fleet-util monitor | fleet-util analyze
+
 # Continuous monitoring with built-in watch mode (every 60 seconds)
 fleet-util monitor --watch --interval 60 >> monitor.json
 
-# Analyze collected snapshots
+# Analyze collected snapshots (now built into fleet-util!)
+fleet-util analyze monitor.json
+
+# Show changes between snapshots
+fleet-util analyze --diff monitor.json
+
+# Show only issues
+fleet-util analyze --issues monitor.json
+
+# Legacy: Use the bash script
 ./analyze-fleet-monitoring.sh monitor.json
 ```
 
@@ -557,9 +569,74 @@ kubectl get crds | grep fleet.cattle.io
 fleet-util monitor --verbose 2>&1 | tee monitor-debug.log
 ```
 
+## Analyze Command
+
+The `fleet-util analyze` command provides human-readable analysis of monitor snapshots. It replaces the `analyze-fleet-monitoring.sh` bash script with a native Go implementation.
+
+### Usage
+
+```bash
+# Analyze latest snapshot
+fleet-util analyze monitor.json
+
+# Analyze from stdin
+fleet-util monitor | fleet-util analyze
+
+# Show all snapshots in file
+fleet-util analyze --all monitor.json
+
+# Show changes between consecutive snapshots
+fleet-util analyze --diff monitor.json
+
+# Show only resources with issues
+fleet-util analyze --issues monitor.json
+
+# Detailed analysis with controller info and events
+fleet-util analyze --detailed monitor.json
+
+# Compare two specific snapshot files
+fleet-util analyze --compare before.json after.json
+
+# JSON output for programmatic use
+fleet-util analyze --json monitor.json
+
+# Disable colored output
+fleet-util analyze --no-color monitor.json
+```
+
+### Output Modes
+
+- **Summary (default)**: High-level overview of resources and diagnostics
+- **All**: Summary of all snapshots in a multi-snapshot file
+- **Diff**: Shows changes between consecutive snapshots
+- **Issues**: Shows only resources with detected problems
+- **Detailed**: Complete analysis including controller info, API consistency, and events
+- **JSON**: Machine-readable output for scripts and automation
+
+### Benefits Over Bash Script
+
+- **No Dependencies**: Single binary, no bash/jq required
+- **Cross-Platform**: Works on Windows, Linux, and macOS
+- **Type Safe**: No JSON parsing errors
+- **Faster**: Direct processing without subprocess overhead
+- **Integrated**: Shares types with monitor command
+- **Better Errors**: Clear error messages
+
+### Migration from Bash Script
+
+The bash script `analyze-fleet-monitoring.sh` is still available for backward compatibility, but the analyze command provides the same functionality with better usability:
+
+| Bash Script | Analyze Command |
+|-------------|-----------------|
+| `./analyze-fleet-monitoring.sh monitor.json` | `fleet-util analyze monitor.json` |
+| `./analyze-fleet-monitoring.sh --diff monitor.json` | `fleet-util analyze --diff monitor.json` |
+| `./analyze-fleet-monitoring.sh --issues monitor.json` | `fleet-util analyze --issues monitor.json` |
+| `./analyze-fleet-monitoring.sh --detailed monitor.json` | `fleet-util analyze --detailed monitor.json` |
+| `./analyze-fleet-monitoring.sh --compare a.json b.json` | `fleet-util analyze --compare b.json a.json` |
+
 ## Building Fleet Util
 
-The monitor command is built as part of the Fleet CLI:
+The monitor and analyze commands are built as part of the Fleet CLI:
 
 ```bash
 # Build the fleetcli binary
@@ -567,6 +644,9 @@ go build -o fleet-util ./cmd/fleetcli
 
 # Run monitor
 ./fleet-util monitor | jq
+
+# Analyze snapshots
+./fleet-util analyze monitor.json
 ```
 
 ## Creating Releases
@@ -589,13 +669,20 @@ To create releases of fleet-util for distribution:
 
 ## Contributing
 
-To contribute improvements to the monitor command:
+To contribute improvements to the monitor or analyze commands:
 
-1. Source code: `internal/cmd/cli/monitor.go` and `internal/cmd/cli/monitor_diagnostics.go`
-2. Integration tests: `integrationtests/cli/monitor/`
-3. Follow the patterns in `AGENTS.md` for code structure
-4. Add new diagnostics to the `detectIssues()` function
-5. Update this README with new diagnostic types
+1. **Monitor Source Code**: 
+   - `internal/cmd/cli/monitor.go` - Main monitor command
+   - `internal/cmd/cli/monitor_diagnostics.go` - Diagnostic detection logic
+2. **Analyze Source Code**:
+   - `internal/cmd/cli/analyze.go` - Analysis and visualization
+3. **Tests**:
+   - Integration tests: `integrationtests/cli/monitor/`
+4. **Development**:
+   - Follow the patterns in `AGENTS.md` for code structure
+   - Add new diagnostics to the `detectIssues()` function in monitor
+   - Add new analysis modes to analyze command as needed
+   - Update this README with new diagnostic types or features
 
 ## See Also
 
