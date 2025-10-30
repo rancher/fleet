@@ -69,4 +69,3 @@ var _ = AfterSuite(func() {
 	cancel()
 	_ = testEnv.Stop()
 })
-

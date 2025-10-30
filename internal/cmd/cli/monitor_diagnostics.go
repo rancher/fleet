@@ -152,33 +152,31 @@ func (m *Monitor) collectDiagnostics(gitRepos []fleet.GitRepo, bundles []fleet.B
 	resourcesWithMultipleFinalizers := m.detectMultipleFinalizers(gitRepos, bundles, bundleDeployments)
 
 	return &Diagnostics{
-		StuckBundleDeployments:                 m.convertBundleDeployments(m.detectStuckBundleDeployments(bundleDeployments)),
-		GitRepoBundleInconsistencies:           m.convertBundles(gitRepoBundleInconsistencies),
-		InvalidSecretOwners:                    m.convertSecrets(invalidSecretOwners),
-		ResourcesWithMultipleFinalizers:        resourcesWithMultipleFinalizers,
-		LargeBundles:                           m.convertBundles(m.detectLargeBundles(bundles, contents)),
-		BundlesWithMissingContent:              m.convertBundles(m.detectBundlesWithMissingContent(bundles, contents)),
-		BundlesWithNoDeployments:               m.convertBundles(m.detectBundlesWithNoDeployments(bundles, bundleDeployments)),
-		GitReposWithNoBundles:                  m.convertGitRepos(m.detectGitReposWithNoBundles(gitRepos, bundles)),
-		ClustersWithAgentIssues:                m.convertClusters(m.detectClustersWithAgentIssues(clusters)),
-		ClusterGroupsWithNoClusters:            m.convertClusterGroups(m.detectClusterGroupsWithNoClusters(clusterGroups)),
-		BundlesWithMissingGitRepo:              m.convertBundles(m.detectBundlesWithMissingGitRepo(bundles, gitRepos)),
-		BundleDeploymentsWithMissingBundle:     m.convertBundleDeployments(m.detectBundleDeploymentsWithMissingBundle(bundleDeployments, bundles)),
-		GitReposWithGenerationMismatch:         m.convertGitRepos(m.detectGitReposWithGenerationMismatch(gitRepos)),
-		BundlesWithGenerationMismatch:          m.convertBundles(m.detectBundlesWithGenerationMismatch(bundles)),
+		StuckBundleDeployments:                      m.convertBundleDeployments(m.detectStuckBundleDeployments(bundleDeployments)),
+		GitRepoBundleInconsistencies:                m.convertBundles(gitRepoBundleInconsistencies),
+		InvalidSecretOwners:                         m.convertSecrets(invalidSecretOwners),
+		ResourcesWithMultipleFinalizers:             resourcesWithMultipleFinalizers,
+		LargeBundles:                                m.convertBundles(m.detectLargeBundles(bundles)),
+		BundlesWithMissingContent:                   m.convertBundles(m.detectBundlesWithMissingContent(bundles, contents)),
+		BundlesWithNoDeployments:                    m.convertBundles(m.detectBundlesWithNoDeployments(bundles, bundleDeployments)),
+		GitReposWithNoBundles:                       m.convertGitRepos(m.detectGitReposWithNoBundles(gitRepos, bundles)),
+		ClustersWithAgentIssues:                     m.convertClusters(m.detectClustersWithAgentIssues(clusters)),
+		ClusterGroupsWithNoClusters:                 m.convertClusterGroups(m.detectClusterGroupsWithNoClusters(clusterGroups)),
+		BundlesWithMissingGitRepo:                   m.convertBundles(m.detectBundlesWithMissingGitRepo(bundles, gitRepos)),
+		BundleDeploymentsWithMissingBundle:          m.convertBundleDeployments(m.detectBundleDeploymentsWithMissingBundle(bundleDeployments, bundles)),
+		GitReposWithGenerationMismatch:              m.convertGitRepos(m.detectGitReposWithGenerationMismatch(gitRepos)),
+		BundlesWithGenerationMismatch:               m.convertBundles(m.detectBundlesWithGenerationMismatch(bundles)),
 		BundleDeploymentsWithSyncGenerationMismatch: m.convertBundleDeployments(m.detectBundleDeploymentsWithSyncGenerationMismatch(bundleDeployments)),
-		OrphanedSecretsCount:                   len(orphanedSecrets),
-		InvalidSecretOwnersCount:               len(invalidSecretOwners),
-		ContentIssuesCount:                     len(contentIssues),
-		GitRepoBundleInconsistenciesCount:      len(gitRepoBundleInconsistencies),
-		ResourcesWithMultipleFinalizersCount:   len(resourcesWithMultipleFinalizers),
-		BundlesWithDeletionTimestamp:           m.countBundlesWithDeletionTimestamp(bundles),
-		BundleDeploymentsWithDeletionTimestamp: m.countBundleDeploymentsWithDeletionTimestamp(bundleDeployments),
-		ContentsWithDeletionTimestamp:          m.countContentsWithDeletionTimestamp(contents),
+		OrphanedSecretsCount:                        len(orphanedSecrets),
+		InvalidSecretOwnersCount:                    len(invalidSecretOwners),
+		ContentIssuesCount:                          len(contentIssues),
+		GitRepoBundleInconsistenciesCount:           len(gitRepoBundleInconsistencies),
+		ResourcesWithMultipleFinalizersCount:        len(resourcesWithMultipleFinalizers),
+		BundlesWithDeletionTimestamp:                m.countBundlesWithDeletionTimestamp(bundles),
+		BundleDeploymentsWithDeletionTimestamp:      m.countBundleDeploymentsWithDeletionTimestamp(bundleDeployments),
+		ContentsWithDeletionTimestamp:               m.countContentsWithDeletionTimestamp(contents),
 	}
 }
-
-
 
 // detectStuckBundleDeployments identifies bundledeployments stuck due to various issues
 func (m *Monitor) detectStuckBundleDeployments(bundleDeployments []fleet.BundleDeployment) []fleet.BundleDeployment {
@@ -367,7 +365,7 @@ func (m *Monitor) detectMultipleFinalizers(gitRepos []fleet.GitRepo, bundles []f
 }
 
 // detectLargeBundles detects bundles larger than 1MB (etcd performance threshold)
-func (m *Monitor) detectLargeBundles(bundles []fleet.Bundle, contents []fleet.Content) []fleet.Bundle {
+func (m *Monitor) detectLargeBundles(bundles []fleet.Bundle) []fleet.Bundle {
 	var largeBundles []fleet.Bundle
 	const oneMB = 1024 * 1024
 
