@@ -1022,20 +1022,3 @@ func BundleDeploymentMapFunc(r *BundleReconciler) func(ctx context.Context, a cl
 		return nil
 	}
 }
-
-// BundleDeploymentStatusChangedPredicate returns true if the bundledeployment
-// status has changed, or the bundledeployment was created or is being deleted.
-func BundleDeploymentStatusChangedPredicate() predicate.Funcs {
-	return predicate.Funcs{
-		CreateFunc: func(e event.CreateEvent) bool { return true },
-		UpdateFunc: func(e event.UpdateEvent) bool {
-			n, nOK := e.ObjectNew.(*fleet.BundleDeployment)
-			o, oOK := e.ObjectOld.(*fleet.BundleDeployment)
-			if !nOK || !oOK {
-				return false
-			}
-			return !n.DeletionTimestamp.IsZero() || !reflect.DeepEqual(n.Status, o.Status)
-		},
-		GenericFunc: func(e event.GenericEvent) bool { return false },
-	}
-}
