@@ -165,9 +165,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	bundleOrig := bundle.DeepCopy()
 
-	if err := r.ensureFinalizer(ctx, bundle); err != nil {
-		// Retry without updating the status, as this should be a transient error about which users can't do
-		// anything.
+	if err := finalize.EnsureFinalizer(ctx, r.Client, bundle, finalize.BundleFinalizer); err != nil {
 		return ctrl.Result{}, fmt.Errorf("%w, failed to add finalizer to bundle: %w", fleetutil.ErrRetryable, err)
 	}
 
@@ -444,16 +442,6 @@ func (r *BundleReconciler) handleDelete(ctx context.Context, logger logr.Logger,
 	}
 
 	return ctrl.Result{}, err
-}
-
-// ensureFinalizer adds a finalizer to a recently created bundle.
-func (r *BundleReconciler) ensureFinalizer(ctx context.Context, bundle *fleet.Bundle) error {
-	if controllerutil.ContainsFinalizer(bundle, finalize.BundleFinalizer) {
-		return nil
-	}
-
-	controllerutil.AddFinalizer(bundle, finalize.BundleFinalizer)
-	return r.Update(ctx, bundle)
 }
 
 // removeDisplayNameLabel removes the obsolete created-by-display-name label from the bundle if it exists.

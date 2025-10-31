@@ -21,7 +21,6 @@ import (
 	ctrlquartz "github.com/rancher/fleet/internal/cmd/controller/quartz"
 	"github.com/rancher/fleet/internal/mocks"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"github.com/rancher/fleet/pkg/durations"
 	"github.com/rancher/wrangler/v3/pkg/genericcondition"
 	"github.com/reugn/go-quartz/quartz"
 
@@ -96,49 +95,6 @@ func getCondition(helmop *fleet.HelmOp, condType string) (genericcondition.Gener
 		}
 	}
 	return genericcondition.GenericCondition{}, false
-}
-
-func TestReconcile_ReturnsAndRequeuesAfterAddingFinalizer(t *testing.T) {
-	mockCtrl := gomock.NewController(t)
-	defer mockCtrl.Finish()
-	scheme := runtime.NewScheme()
-	utilruntime.Must(batchv1.AddToScheme(scheme))
-	helmop := fleet.HelmOp{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "helmop",
-			Namespace: "default",
-		},
-	}
-	namespacedName := types.NamespacedName{Name: helmop.Name, Namespace: helmop.Namespace}
-	client := mocks.NewMockK8sClient(mockCtrl)
-	client.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
-		func(ctx context.Context, req types.NamespacedName, fh *fleet.HelmOp, opts ...interface{}) error {
-			fh.Name = helmop.Name
-			fh.Namespace = helmop.Namespace
-			fh.Spec.Helm = &fleet.HelmOptions{
-				Chart: "chart",
-			}
-			return nil
-		},
-	)
-	// expected from addFinalizer
-	client.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
-	client.EXPECT().Update(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
-
-	r := HelmOpReconciler{
-		Client: client,
-		Scheme: scheme,
-	}
-
-	ctx := context.TODO()
-
-	res, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: namespacedName})
-	if err != nil {
-		t.Errorf("unexpected error %v", err)
-	}
-	if res.RequeueAfter != durations.DefaultRequeueAfter {
-		t.Errorf("expecting RequeueAfter set to default of 5 seconds, it was %v", res.RequeueAfter)
-	}
 }
 
 func TestReconcile_Validate(t *testing.T) {

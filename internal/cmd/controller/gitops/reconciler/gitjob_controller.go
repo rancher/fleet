@@ -187,14 +187,8 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, nil
 	}
 
-	if !controllerutil.ContainsFinalizer(gitrepo, finalize.GitRepoFinalizer) {
-		err := r.addGitRepoFinalizer(ctx, req.NamespacedName)
-		if client.IgnoreNotFound(err) != nil {
-			return ctrl.Result{}, err
-		}
-
-		// requeue as adding the finalizer changes the spec
-		return ctrl.Result{RequeueAfter: durations.DefaultRequeueAfter}, nil
+	if err := finalize.EnsureFinalizer(ctx, r.Client, gitrepo, finalize.GitRepoFinalizer); err != nil {
+		return ctrl.Result{}, err
 	}
 
 	// Migration: Remove the obsolete created-by-display-name label if it exists
@@ -427,24 +421,6 @@ func (r *GitJobReconciler) updateGenerationValuesIfNeeded(gitrepo *v1alpha1.GitR
 	if generationChanged(gitrepo) {
 		gitrepo.Status.ObservedGeneration = gitrepo.Generation
 	}
-}
-
-func (r *GitJobReconciler) addGitRepoFinalizer(ctx context.Context, nsName types.NamespacedName) error {
-	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		gitrepo := &v1alpha1.GitRepo{}
-		if err := r.Get(ctx, nsName, gitrepo); err != nil {
-			return err
-		}
-
-		controllerutil.AddFinalizer(gitrepo, finalize.GitRepoFinalizer)
-
-		return r.Update(ctx, gitrepo)
-	})
-	if err != nil {
-		return client.IgnoreNotFound(err)
-	}
-
-	return nil
 }
 
 // removeDisplayNameLabel removes the obsolete created-by-display-name label from the gitrepo if it exists.

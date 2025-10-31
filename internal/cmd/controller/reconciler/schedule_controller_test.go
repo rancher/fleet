@@ -6,6 +6,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/wrangler/v3/pkg/condition"
 	"github.com/reugn/go-quartz/quartz"
@@ -113,7 +114,7 @@ var _ = Describe("ScheduleReconciler", func() {
 			updatedSchedule := &fleet.Schedule{}
 			err = k8sclient.Get(ctx, req.NamespacedName, updatedSchedule)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(updatedSchedule.Finalizers).To(ContainElement(scheduleFinalizer))
+			Expect(updatedSchedule.Finalizers).To(ContainElement(finalize.ScheduleFinalizer))
 
 			// Check job in scheduler
 			jobKey := scheduleKey(schedule)

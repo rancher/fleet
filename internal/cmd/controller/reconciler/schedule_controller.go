@@ -8,6 +8,7 @@ import (
 	"time"
 
 	fleetutil "github.com/rancher/fleet/internal/cmd/controller/errorutil"
+	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/sharding"
 	"github.com/rancher/wrangler/v3/pkg/condition"
@@ -26,10 +27,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
-)
-
-const (
-	scheduleFinalizer = "fleet.cattle.io/schedule-finalizer"
 )
 
 // ScheduleReconciler reconciles a Schedule object
@@ -79,7 +76,7 @@ func (r *ScheduleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return r.handleDelete(ctx, schedule)
 	}
 
-	if err := r.ensureFinalizer(ctx, schedule); err != nil {
+	if err := finalize.EnsureFinalizer(ctx, r.Client, schedule, finalize.ScheduleFinalizer); err != nil {
 		return ctrl.Result{}, err
 	}
 
@@ -138,7 +135,7 @@ func (r *ScheduleReconciler) handleSchedule(ctx context.Context, s *fleet.Schedu
 }
 
 func (r *ScheduleReconciler) handleDelete(ctx context.Context, schedule *fleet.Schedule) (ctrl.Result, error) {
-	if !controllerutil.ContainsFinalizer(schedule, scheduleFinalizer) {
+	if !controllerutil.ContainsFinalizer(schedule, finalize.ScheduleFinalizer) {
 		return ctrl.Result{}, nil
 	}
 
@@ -146,20 +143,12 @@ func (r *ScheduleReconciler) handleDelete(ctx context.Context, schedule *fleet.S
 		return ctrl.Result{}, err
 	}
 
-	controllerutil.RemoveFinalizer(schedule, scheduleFinalizer)
+	controllerutil.RemoveFinalizer(schedule, finalize.ScheduleFinalizer)
 	if err := r.Update(ctx, schedule); err != nil {
 		return ctrl.Result{}, err
 	}
 
 	return ctrl.Result{}, nil
-}
-
-func (r *ScheduleReconciler) ensureFinalizer(ctx context.Context, schedule *fleet.Schedule) error {
-	if controllerutil.ContainsFinalizer(schedule, scheduleFinalizer) {
-		return nil
-	}
-	controllerutil.AddFinalizer(schedule, scheduleFinalizer)
-	return r.Update(ctx, schedule)
 }
 
 // mapClustersToSchedules is a mapping function used to trigger a reconciliation of Schedules
