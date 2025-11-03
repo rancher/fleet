@@ -449,32 +449,7 @@ func TestReconcile_OptionsSecretCreateUpdateError(t *testing.T) {
 			mockClient := mocks.NewMockK8sClient(mockCtrl)
 			expectGetWithFinalizer(mockClient, bundle)
 
-			expectContentCreationAndUpdate(mockClient)
-
-			// Get + Update (CreateOrUpdate) expected from createBundleDeployment
-			mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.BundleDeployment{}), gomock.Any()).
-				DoAndReturn(
-					func(ctx context.Context, req types.NamespacedName, bd *fleetv1.BundleDeployment, opts ...interface{}) error {
-						bd.Spec.Options = fleetv1.BundleDeploymentOptions{
-							Helm: &fleetv1.HelmOptions{
-								Values: &fleetv1.GenericMap{
-									Data: map[string]interface{}{"foo": "bar"}, // non-empty
-								},
-							},
-						}
-
-						return nil
-					},
-				)
-
-			mockClient.EXPECT().Update(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.BundleDeployment{}), gomock.Any()).
-				DoAndReturn(
-					func(ctx context.Context, bd *fleetv1.BundleDeployment, opts ...interface{}) error {
-						bd.Spec.ValuesHash = "foo" // non-empty, to force secret create or update
-
-						return nil
-					},
-				)
+			// No content creation/update expected, as options secret management happens before creating the BD
 
 			c.secretCalls(mockClient)
 
@@ -495,8 +470,17 @@ func TestReconcile_OptionsSecretCreateUpdateError(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Namespace: "my-bd", // non-empty
 						},
+						Spec: fleetv1.BundleDeploymentSpec{
+							DeploymentID: "newdeploymentID", // allows the deployment to be updated from staged.
+							Options: fleetv1.BundleDeploymentOptions{
+								Helm: &fleetv1.HelmOptions{
+									Values: &fleetv1.GenericMap{
+										Data: map[string]interface{}{"foo": "bar"}, // non-empty, to generate a non-empty hash and force secret creation/update
+									},
+								},
+							},
+						},
 					},
-					DeploymentID: "foo",
 				},
 			}
 			targetBuilderMock := mocks.NewMockTargetBuilder(mockCtrl)
@@ -548,10 +532,7 @@ func TestReconcile_OptionsSecretDeletionError(t *testing.T) {
 	mockClient := mocks.NewMockK8sClient(mockCtrl)
 	expectGetWithFinalizer(mockClient, bundle)
 
-	expectContentCreationAndUpdate(mockClient)
-
-	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.BundleDeployment{}), gomock.Any()).
-		Return(nil)
+	// No content creation/update expected, as options secret management happens before creating the BD
 
 	mockClient.EXPECT().Delete(gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{}), gomock.Any()).
 		Return(errors.New("something went wrong"))
@@ -815,11 +796,11 @@ func TestReconcile_DownstreamObjectsHandlingError(t *testing.T) {
 
 			expectContentCreationAndUpdate(mockClient)
 
-			mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.BundleDeployment{}), gomock.Any()).
-				Return(nil)
-
 			// Options secret: deletion attempt in case it exists, as the bundle deployment's values hash is empty
 			mockClient.EXPECT().Delete(gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{}), gomock.Any()).
+				Return(nil)
+
+			mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.BundleDeployment{}), gomock.Any()).
 				Return(nil)
 
 			c.downstreamResourcesGetCalls(mockClient)
