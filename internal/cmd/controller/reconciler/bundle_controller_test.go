@@ -818,7 +818,7 @@ func TestReconcile_DownstreamObjectsHandlingError(t *testing.T) {
 			mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.BundleDeployment{}), gomock.Any()).
 				Return(nil)
 
-			// options secret
+			// Options secret: deletion attempt in case it exists, as the bundle deployment's values hash is empty
 			mockClient.EXPECT().Delete(gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{}), gomock.Any()).
 				Return(nil)
 
@@ -912,6 +912,7 @@ func TestReconcile_AccessSecretsHandlingError(t *testing.T) {
 	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.BundleDeployment{}), gomock.Any()).
 		Return(nil)
 
+	// Options secret: deletion attempt in case it exists, as the bundle deployment's values hash is empty
 	mockClient.EXPECT().Delete(gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{}), gomock.Any()).
 		Return(nil)
 
