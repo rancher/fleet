@@ -400,102 +400,130 @@ func TestReconcile_ManifestStorageError(t *testing.T) {
 	}
 }
 
-func TestReconcile_OptionsSecretCreationError(t *testing.T) {
-	mockCtrl := gomock.NewController(t)
-	defer mockCtrl.Finish()
-	scheme := runtime.NewScheme()
-	utilruntime.Must(batchv1.AddToScheme(scheme))
-
-	bundle := fleetv1.Bundle{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "my-bundle",
-			Namespace: "default",
+func TestReconcile_OptionsSecretCreateUpdateError(t *testing.T) {
+	cases := []struct {
+		name        string
+		secretCalls func(*mocks.MockK8sClient)
+	}{
+		{
+			"create",
+			func(mc *mocks.MockK8sClient) {
+				// Get + Create (CreateOrUpdate) of new options secret
+				mc.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{}), gomock.Any()).
+					Return(&k8serrors.StatusError{ErrStatus: metav1.Status{Code: http.StatusNotFound}})
+				mc.EXPECT().Create(gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{}), gomock.Any()).
+					Return(errors.New("something went wrong"))
+			},
 		},
-		Spec: fleetv1.BundleSpec{
-			RolloutStrategy: nil,
+		{
+			"update",
+			func(mc *mocks.MockK8sClient) {
+				// Get + Update (CreateOrUpdate) of existing options secret
+				mc.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{}), gomock.Any()).
+					Return(nil)
+				mc.EXPECT().Update(gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{}), gomock.Any()).
+					Return(errors.New("something went wrong"))
+			},
 		},
 	}
 
-	namespacedName := types.NamespacedName{Name: bundle.Name, Namespace: bundle.Namespace}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			mockCtrl := gomock.NewController(t)
+			defer mockCtrl.Finish()
+			scheme := runtime.NewScheme()
+			utilruntime.Must(batchv1.AddToScheme(scheme))
 
-	mockClient := mocks.NewMockK8sClient(mockCtrl)
-	expectGetWithFinalizer(mockClient, bundle)
+			bundle := fleetv1.Bundle{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "my-bundle",
+					Namespace: "default",
+				},
+				Spec: fleetv1.BundleSpec{
+					RolloutStrategy: nil,
+				},
+			}
 
-	expectContentCreationAndUpdate(mockClient)
+			namespacedName := types.NamespacedName{Name: bundle.Name, Namespace: bundle.Namespace}
 
-	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.BundleDeployment{}), gomock.Any()).
-		DoAndReturn(
-			func(ctx context.Context, req types.NamespacedName, bd *fleetv1.BundleDeployment, opts ...interface{}) error {
-				bd.Spec.Options = fleetv1.BundleDeploymentOptions{
-					Helm: &fleetv1.HelmOptions{
-						Values: &fleetv1.GenericMap{
-							Data: map[string]interface{}{"foo": "bar"}, // non-empty
+			mockClient := mocks.NewMockK8sClient(mockCtrl)
+			expectGetWithFinalizer(mockClient, bundle)
+
+			expectContentCreationAndUpdate(mockClient)
+
+			// Get + Update (CreateOrUpdate) expected from createBundleDeployment
+			mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.BundleDeployment{}), gomock.Any()).
+				DoAndReturn(
+					func(ctx context.Context, req types.NamespacedName, bd *fleetv1.BundleDeployment, opts ...interface{}) error {
+						bd.Spec.Options = fleetv1.BundleDeploymentOptions{
+							Helm: &fleetv1.HelmOptions{
+								Values: &fleetv1.GenericMap{
+									Data: map[string]interface{}{"foo": "bar"}, // non-empty
+								},
+							},
+						}
+
+						return nil
+					},
+				)
+
+			mockClient.EXPECT().Update(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.BundleDeployment{}), gomock.Any()).
+				DoAndReturn(
+					func(ctx context.Context, bd *fleetv1.BundleDeployment, opts ...interface{}) error {
+						bd.Spec.ValuesHash = "foo" // non-empty, to force secret create or update
+
+						return nil
+					},
+				)
+
+			c.secretCalls(mockClient)
+
+			// No expected status update (retryable error)
+
+			recorderMock := mocks.NewMockEventRecorder(mockCtrl)
+
+			matchedTargets := []*target.Target{
+				{
+					Bundle: &bundle,
+					Cluster: &fleetv1.Cluster{
+						ObjectMeta: metav1.ObjectMeta{
+							Namespace: "my-ns",
+							Name:      "my-cluster",
 						},
 					},
-				}
-
-				return nil
-			},
-		)
-
-	mockClient.EXPECT().Update(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.BundleDeployment{}), gomock.Any()).
-		DoAndReturn(
-			func(ctx context.Context, bd *fleetv1.BundleDeployment, opts ...interface{}) error {
-				bd.Spec.ValuesHash = "foo" // non-empty, to force secret create or update
-
-				return nil
-			},
-		)
-
-	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{}), gomock.Any()).
-		Return(nil)
-	mockClient.EXPECT().Update(gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{}), gomock.Any()).
-		Return(errors.New("something went wrong"))
-
-	// No expected status update (retryable error)
-
-	recorderMock := mocks.NewMockEventRecorder(mockCtrl)
-
-	matchedTargets := []*target.Target{
-		{
-			Bundle: &bundle,
-			Cluster: &fleetv1.Cluster{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: "my-ns",
-					Name:      "my-cluster",
+					Deployment: &fleetv1.BundleDeployment{
+						ObjectMeta: metav1.ObjectMeta{
+							Namespace: "my-bd", // non-empty
+						},
+					},
+					DeploymentID: "foo",
 				},
-			},
-			Deployment: &fleetv1.BundleDeployment{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: "my-bd", // non-empty
-				},
-			},
-			DeploymentID: "foo",
-		},
-	}
-	targetBuilderMock := mocks.NewMockTargetBuilder(mockCtrl)
-	targetBuilderMock.EXPECT().Targets(gomock.Any(), gomock.Any(), gomock.Any()).Return(matchedTargets, nil)
+			}
+			targetBuilderMock := mocks.NewMockTargetBuilder(mockCtrl)
+			targetBuilderMock.EXPECT().Targets(gomock.Any(), gomock.Any(), gomock.Any()).Return(matchedTargets, nil)
 
-	storeMock := mocks.NewMockStore(mockCtrl)
-	storeMock.EXPECT().Store(gomock.Any(), gomock.Any()).Return(nil)
+			storeMock := mocks.NewMockStore(mockCtrl)
+			storeMock.EXPECT().Store(gomock.Any(), gomock.Any()).Return(nil)
 
-	r := reconciler.BundleReconciler{
-		Client:   mockClient,
-		Scheme:   scheme,
-		Recorder: recorderMock,
-		Builder:  targetBuilderMock,
-		Store:    storeMock,
-	}
+			r := reconciler.BundleReconciler{
+				Client:   mockClient,
+				Scheme:   scheme,
+				Recorder: recorderMock,
+				Builder:  targetBuilderMock,
+				Store:    storeMock,
+			}
 
-	ctx := context.TODO()
-	rs, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: namespacedName})
+			ctx := context.TODO()
+			rs, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: namespacedName})
 
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
 
-	if rs.RequeueAfter == 0 {
-		t.Errorf("expected non-zero RequeueAfter in result")
+			if rs.RequeueAfter == 0 {
+				t.Errorf("expected non-zero RequeueAfter in result")
+			}
+		})
 	}
 }
 
