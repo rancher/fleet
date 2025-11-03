@@ -369,7 +369,7 @@ func pruneBundlesNotFoundInRepo(
 			for _, inClusterRsc := range bundle.Spec.Resources {
 				for _, grb := range gitRepoBundlesMap {
 					logrus.Debugf("gitRepo bundle: %v", grb)
-					for _, grRsc := range grb.Spec.Resources { // FIXME nil pointer here: are resources not populated?
+					for _, grRsc := range grb.Spec.Resources {
 						if inClusterRsc.Name != grRsc.Name {
 							continue
 						}
@@ -378,7 +378,7 @@ func pruneBundlesNotFoundInRepo(
 
 						ow1, err := getKindNS(grRsc, grb.Name)
 						if err != nil {
-							// XXX: error
+							logrus.Debugf("for bundle from git repo, failed to get kind and namespace for resource %v", grRsc)
 							continue
 						}
 						if ow1.Kind == "" {
@@ -389,7 +389,7 @@ func pruneBundlesNotFoundInRepo(
 
 						ow2, err := getKindNS(inClusterRsc, bundle.Name)
 						if err != nil {
-							// XXX: error
+							logrus.Debugf("for in-cluster bundle, failed to get kind and namespace for resource %v", grRsc)
 							continue
 						}
 						if ow2.Kind == "" {
@@ -398,7 +398,6 @@ func pruneBundlesNotFoundInRepo(
 
 						if ow1.Kind == ow2.Kind && ow1.Name == ow2.Name && ow1.Namespace == ow2.Namespace {
 							// Warning: this will not work with bundlenamespacemappings
-
 							grb.Spec.Overwrites = append(grb.Spec.Overwrites, ow1)
 						}
 					}
