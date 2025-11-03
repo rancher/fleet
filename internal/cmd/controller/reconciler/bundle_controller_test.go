@@ -421,9 +421,7 @@ func TestReconcile_OptionsSecretCreationError(t *testing.T) {
 	mockClient := mocks.NewMockK8sClient(mockCtrl)
 	expectGetWithFinalizer(mockClient, bundle)
 
-	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Content{}), gomock.Any()).
-		Return(nil)
-	mockClient.EXPECT().Update(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Content{}), gomock.Any()).Return(nil)
+	expectContentCreationAndUpdate(mockClient)
 
 	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.BundleDeployment{}), gomock.Any()).
 		DoAndReturn(
@@ -522,9 +520,7 @@ func TestReconcile_OptionsSecretDeletionError(t *testing.T) {
 	mockClient := mocks.NewMockK8sClient(mockCtrl)
 	expectGetWithFinalizer(mockClient, bundle)
 
-	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Content{}), gomock.Any()).
-		Return(nil)
-	mockClient.EXPECT().Update(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Content{}), gomock.Any()).Return(nil)
+	expectContentCreationAndUpdate(mockClient)
 
 	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.BundleDeployment{}), gomock.Any()).
 		Return(nil)
@@ -789,9 +785,7 @@ func TestReconcile_DownstreamObjectsHandlingError(t *testing.T) {
 			mockClient := mocks.NewMockK8sClient(mockCtrl)
 			expectGetWithFinalizer(mockClient, bundle)
 
-			mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Content{}), gomock.Any()).
-				Return(nil)
-			mockClient.EXPECT().Update(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Content{}), gomock.Any()).Return(nil)
+			expectContentCreationAndUpdate(mockClient)
 
 			mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.BundleDeployment{}), gomock.Any()).
 				Return(nil)
@@ -1108,4 +1102,12 @@ func expectGetWithFinalizer(mockCli *mocks.MockK8sClient, bundle fleetv1.Bundle)
 			return nil
 		},
 	)
+}
+
+func expectContentCreationAndUpdate(mockCli *mocks.MockK8sClient) {
+	// Get content and update it, adding a finalizer, from createBundleDeployment
+	mockCli.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Content{}), gomock.Any()).
+		Return(nil)
+
+	mockCli.EXPECT().Update(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Content{}), gomock.Any()).Return(nil)
 }
