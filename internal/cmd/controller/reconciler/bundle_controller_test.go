@@ -55,6 +55,7 @@ func TestReconcile_FinalizerUpdateError(t *testing.T) {
 	namespacedName := types.NamespacedName{Name: bundle.Name, Namespace: bundle.Namespace}
 
 	mockClient := mocks.NewMockK8sClient(mockCtrl)
+
 	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Bundle{}), gomock.Any()).DoAndReturn(
 		func(ctx context.Context, req types.NamespacedName, b *fleetv1.Bundle, opts ...interface{}) error {
 			b.Name = bundle.Name
@@ -116,17 +117,7 @@ func TestReconcile_HelmValuesLoadError(t *testing.T) {
 	namespacedName := types.NamespacedName{Name: bundle.Name, Namespace: bundle.Namespace}
 
 	mockClient := mocks.NewMockK8sClient(mockCtrl)
-	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Bundle{}), gomock.Any()).DoAndReturn(
-		func(ctx context.Context, req types.NamespacedName, b *fleetv1.Bundle, opts ...interface{}) error {
-			b.Name = bundle.Name
-			b.Namespace = bundle.Namespace
-			controllerutil.AddFinalizer(b, finalize.BundleFinalizer)
-
-			b.Spec = bundle.Spec
-
-			return nil
-		},
-	)
+	expectGetWithFinalizer(mockClient, bundle)
 
 	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{}), gomock.Any()).
 		Return(errors.New("something went wrong"))
@@ -182,17 +173,7 @@ func TestReconcile_HelmVersionResolutionError(t *testing.T) {
 	namespacedName := types.NamespacedName{Name: bundle.Name, Namespace: bundle.Namespace}
 
 	mockClient := mocks.NewMockK8sClient(mockCtrl)
-	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Bundle{}), gomock.Any()).DoAndReturn(
-		func(ctx context.Context, req types.NamespacedName, b *fleetv1.Bundle, opts ...interface{}) error {
-			b.Name = bundle.Name
-			b.Namespace = bundle.Namespace
-			controllerutil.AddFinalizer(b, finalize.BundleFinalizer)
-
-			b.Spec = bundle.Spec
-
-			return nil
-		},
-	)
+	expectGetWithFinalizer(mockClient, bundle)
 
 	expectedErrorMsg := "chart version cannot be deployed; check HelmOp status for more details:"
 
@@ -236,17 +217,7 @@ func TestReconcile_TargetsBuildingError(t *testing.T) {
 	namespacedName := types.NamespacedName{Name: bundle.Name, Namespace: bundle.Namespace}
 
 	mockClient := mocks.NewMockK8sClient(mockCtrl)
-	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Bundle{}), gomock.Any()).DoAndReturn(
-		func(ctx context.Context, req types.NamespacedName, b *fleetv1.Bundle, opts ...interface{}) error {
-			b.Name = bundle.Name
-			b.Namespace = bundle.Namespace
-			controllerutil.AddFinalizer(b, finalize.BundleFinalizer)
-
-			b.Spec = bundle.Spec
-
-			return nil
-		},
-	)
+	expectGetWithFinalizer(mockClient, bundle)
 
 	expectedErrorMsg := "targeting error: something went wrong"
 
@@ -299,17 +270,7 @@ func TestReconcile_StatusResetFromTargetsError(t *testing.T) {
 	namespacedName := types.NamespacedName{Name: bundle.Name, Namespace: bundle.Namespace}
 
 	mockClient := mocks.NewMockK8sClient(mockCtrl)
-	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Bundle{}), gomock.Any()).DoAndReturn(
-		func(ctx context.Context, req types.NamespacedName, b *fleetv1.Bundle, opts ...interface{}) error {
-			b.Name = bundle.Name
-			b.Namespace = bundle.Namespace
-			controllerutil.AddFinalizer(b, finalize.BundleFinalizer)
-
-			b.Spec = bundle.Spec
-
-			return nil
-		},
-	)
+	expectGetWithFinalizer(mockClient, bundle)
 
 	expectedErrorMsg := "failed to reset bundle status from targets: invalid maxUnavailable"
 
@@ -397,17 +358,7 @@ func TestReconcile_ManifestStorageError(t *testing.T) {
 			namespacedName := types.NamespacedName{Name: bundle.Name, Namespace: bundle.Namespace}
 
 			mockClient := mocks.NewMockK8sClient(mockCtrl)
-			mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Bundle{}), gomock.Any()).DoAndReturn(
-				func(ctx context.Context, req types.NamespacedName, b *fleetv1.Bundle, opts ...interface{}) error {
-					b.Name = bundle.Name
-					b.Namespace = bundle.Namespace
-					controllerutil.AddFinalizer(b, finalize.BundleFinalizer)
-
-					b.Spec = bundle.Spec
-
-					return nil
-				},
-			)
+			expectGetWithFinalizer(mockClient, bundle)
 
 			if c.expectedStatusPatchErrMsg != "" {
 				statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
@@ -468,17 +419,7 @@ func TestReconcile_OptionsSecretCreationError(t *testing.T) {
 	namespacedName := types.NamespacedName{Name: bundle.Name, Namespace: bundle.Namespace}
 
 	mockClient := mocks.NewMockK8sClient(mockCtrl)
-	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Bundle{}), gomock.Any()).DoAndReturn(
-		func(ctx context.Context, req types.NamespacedName, b *fleetv1.Bundle, opts ...interface{}) error {
-			b.Name = bundle.Name
-			b.Namespace = bundle.Namespace
-			controllerutil.AddFinalizer(b, finalize.BundleFinalizer)
-
-			b.Spec = bundle.Spec
-
-			return nil
-		},
-	)
+	expectGetWithFinalizer(mockClient, bundle)
 
 	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Content{}), gomock.Any()).
 		Return(nil)
@@ -579,17 +520,7 @@ func TestReconcile_OptionsSecretDeletionError(t *testing.T) {
 	namespacedName := types.NamespacedName{Name: bundle.Name, Namespace: bundle.Namespace}
 
 	mockClient := mocks.NewMockK8sClient(mockCtrl)
-	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Bundle{}), gomock.Any()).DoAndReturn(
-		func(ctx context.Context, req types.NamespacedName, b *fleetv1.Bundle, opts ...interface{}) error {
-			b.Name = bundle.Name
-			b.Namespace = bundle.Namespace
-			controllerutil.AddFinalizer(b, finalize.BundleFinalizer)
-
-			b.Spec = bundle.Spec
-
-			return nil
-		},
-	)
+	expectGetWithFinalizer(mockClient, bundle)
 
 	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Content{}), gomock.Any()).
 		Return(nil)
@@ -694,17 +625,7 @@ func TestReconcile_OCIReferenceSecretResolutionError(t *testing.T) {
 			namespacedName := types.NamespacedName{Name: bundle.Name, Namespace: bundle.Namespace}
 
 			mockClient := mocks.NewMockK8sClient(mockCtrl)
-			mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Bundle{}), gomock.Any()).DoAndReturn(
-				func(ctx context.Context, req types.NamespacedName, b *fleetv1.Bundle, opts ...interface{}) error {
-					b.Name = bundle.Name
-					b.Namespace = bundle.Namespace
-					controllerutil.AddFinalizer(b, finalize.BundleFinalizer)
-
-					b.Spec = bundle.Spec
-
-					return nil
-				},
-			)
+			expectGetWithFinalizer(mockClient, bundle)
 
 			// OCI reference secret
 			mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{}), gomock.Any()).
@@ -866,17 +787,7 @@ func TestReconcile_DownstreamObjectsHandlingError(t *testing.T) {
 			namespacedName := types.NamespacedName{Name: bundle.Name, Namespace: bundle.Namespace}
 
 			mockClient := mocks.NewMockK8sClient(mockCtrl)
-			mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Bundle{}), gomock.Any()).DoAndReturn(
-				func(ctx context.Context, req types.NamespacedName, b *fleetv1.Bundle, opts ...interface{}) error {
-					b.Name = bundle.Name
-					b.Namespace = bundle.Namespace
-					controllerutil.AddFinalizer(b, finalize.BundleFinalizer)
-
-					b.Spec = bundle.Spec
-
-					return nil
-				},
-			)
+			expectGetWithFinalizer(mockClient, bundle)
 
 			mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Content{}), gomock.Any()).
 				Return(nil)
@@ -974,17 +885,7 @@ func TestReconcile_AccessSecretsHandlingError(t *testing.T) {
 	namespacedName := types.NamespacedName{Name: bundle.Name, Namespace: bundle.Namespace}
 
 	mockClient := mocks.NewMockK8sClient(mockCtrl)
-	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Bundle{}), gomock.Any()).DoAndReturn(
-		func(ctx context.Context, req types.NamespacedName, b *fleetv1.Bundle, opts ...interface{}) error {
-			b.Name = bundle.Name
-			b.Namespace = bundle.Namespace
-			controllerutil.AddFinalizer(b, finalize.BundleFinalizer)
-
-			b.Spec = bundle.Spec
-
-			return nil
-		},
-	)
+	expectGetWithFinalizer(mockClient, bundle)
 
 	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.BundleDeployment{}), gomock.Any()).
 		Return(nil)
@@ -1193,4 +1094,18 @@ func TestBundleDeploymentMapFunc(t *testing.T) {
 			t.Errorf("mismatch (-want +got):\n%s", diff)
 		}
 	})
+}
+
+func expectGetWithFinalizer(mockCli *mocks.MockK8sClient, bundle fleetv1.Bundle) {
+	mockCli.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Bundle{}), gomock.Any()).DoAndReturn(
+		func(ctx context.Context, req types.NamespacedName, b *fleetv1.Bundle, opts ...interface{}) error {
+			b.Name = bundle.Name
+			b.Namespace = bundle.Namespace
+			controllerutil.AddFinalizer(b, finalize.BundleFinalizer)
+
+			b.Spec = bundle.Spec
+
+			return nil
+		},
+	)
 }
