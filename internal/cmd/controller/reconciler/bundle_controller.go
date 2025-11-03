@@ -344,7 +344,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			bundleDeploymentUIDs.Insert(target.Deployment.UID)
 		}
 
-		bd, err = r.createBundleDeployment(
+		op, bd, err := r.createBundleDeployment(
 			ctx,
 			logger,
 			bd,
@@ -366,8 +366,12 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 		// At this stage, we know the UID of our bundle deployment, hence we can use it to populate the owner reference in the
 		// options secret.
-		if err := r.ensureOwnerReferences(ctx, bd, optionsSecret); err != nil {
-			return r.computeResult(ctx, logger, bundleOrig, bundle, "failed to ensure owner references are set in options secret", err)
+		// If the bundle deployment already existed and has simply been updated, the secret will already bear an owner
+		// reference from its creation or latest update.
+		if op == controllerutil.OperationResultCreated {
+			if err := r.ensureOwnerReferences(ctx, bd, optionsSecret); err != nil {
+				return r.computeResult(ctx, logger, bundleOrig, bundle, "failed to ensure owner references are set in options secret", err)
+			}
 		}
 
 		if err := r.handleDownstreamObjects(ctx, bundle, bd); err != nil {
@@ -455,19 +459,22 @@ func (r *BundleReconciler) createBundleDeployment(
 	contentsInOCI bool,
 	contentsInHelmChart bool,
 	manifestID string,
-) (*fleet.BundleDeployment, error) {
+) (controllerutil.OperationResult, *fleet.BundleDeployment, error) {
 	logger := l.WithValues("deploymentID", bd.Spec.DeploymentID)
 
 	// When content resources are stored in etcd, we need to add finalizers.
 	if !contentsInOCI && !contentsInHelmChart {
 		content := &fleet.Content{}
 		if err := r.Get(ctx, types.NamespacedName{Name: manifestID}, content); err != nil {
-			return nil, fmt.Errorf("failed to get content resource: %w", err)
+			return controllerutil.OperationResultNone, nil, fmt.Errorf("failed to get content resource: %w", err)
 		}
 
 		if added := controllerutil.AddFinalizer(content, bd.Name); added {
 			if err := r.Update(ctx, content); err != nil {
-				return nil, fmt.Errorf("could not add finalizer to content resource, thus cannot create/update bundledeployment: %w", err)
+				return controllerutil.OperationResultNone, nil, fmt.Errorf(
+					"could not add finalizer to content resource, thus cannot create/update bundledeployment: %w",
+					err,
+				)
 			}
 		}
 	}
@@ -500,11 +507,11 @@ func (r *BundleReconciler) createBundleDeployment(
 	})
 	if err != nil {
 		logger.Error(err, "Reconcile failed to create or update bundledeployment", "operation", op)
-		return nil, err
+		return controllerutil.OperationResultNone, nil, err
 	}
 	logger.Info(upper(op)+" bundledeployment", "operation", op)
 
-	return bd, nil
+	return op, bd, nil
 }
 
 // manageOptionsSecret creates a secret, or updates the existing one, containing options extracted from bd, ensuring
@@ -538,21 +545,17 @@ func (r *BundleReconciler) manageOptionsSecret(
 			Namespace: bd.Namespace,
 		},
 	}
-	/*
-		owners := []metav1.OwnerReference{
-			{
-				APIVersion:         fleet.SchemeGroupVersion.String(),
-				Kind:               "BundleDeployment",
-				Name:               bd.GetName(),
-				UID:                bd.GetUID(),
-				BlockOwnerDeletion: ptr.To(true),
-				Controller:         ptr.To(true),
-			},
-		}
-	*/
 
 	if _, err := controllerutil.CreateOrUpdate(ctx, r.Client, secret, func() error {
-		//secret.OwnerReferences = owners
+		// Setting the owner reference on the secret at create/update time is more efficient than doing it separately
+		// after the bundle deployment is updated, if the bundle deployment already exists (in which case its UID is
+		// non-empty and immutable).
+		if bd.GetUID() != "" {
+			if err := controllerutil.SetControllerReference(bd, secret, r.Scheme); err != nil {
+				return err
+			}
+		}
+
 		secret.Data = map[string][]byte{
 			helmvalues.ValuesKey:       options,
 			helmvalues.StagedValuesKey: stagedOptions,
