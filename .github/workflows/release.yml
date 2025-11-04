@@ -81,7 +81,9 @@ jobs:
 
       - name: Install Cosign
         uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3.9.1
-      - uses: rancherlabs/slsactl/actions/install-slsactl@43385ab2deb538998c480617f2939c5ddc7067ab # v0.0.14
+      - uses: rancherlabs/slsactl/actions/install-slsactl@2539cebd3fe5c291e5431f042e225c5b65850f50 # v0.1.1
+        with:
+          version: v0.1.1
 
       - name: "Read Vault Secrets"
         uses: rancher-eio/read-vault-secrets@main
