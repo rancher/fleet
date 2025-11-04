@@ -145,6 +145,10 @@ var _ = Describe("Fleet doctor report", func() {
 				&testCluster,
 				&testClusterGroup,
 			}
+
+			DeferCleanup(func() {
+				objs = nil // prevent conflicts with other test cases
+			})
 		})
 
 		It("returns an archive containing all of these resources", func() {
@@ -266,38 +270,42 @@ var _ = Describe("Fleet doctor report", func() {
 	})
 
 	When("the cluster contains events from multiple namespaces", func() {
-		It("returns an archive containing all of these resources", func() {
+		It("returns an archive containing all of these events", func() {
 			tgzPath := "test_events.tgz"
 
 			nss := []string{"cattle-fleet-system", "default", "cattle-fleet-local-system", "kube-system"}
 			nsWithNoEvents := "cattle-fleet-local-system"
 			for _, ns := range nss {
-				fakeClient.EXPECT().List(gomock.Any(), gomock.Any(), client.InNamespace(ns)).DoAndReturn(
-					func(_ context.Context, evts *corev1.EventList, _ ...client.ListOption) error {
-						if ns == nsWithNoEvents {
-							return nil // Test absence of file if no events exist.
-						}
+				fakeClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&corev1.EventList{}), client.InNamespace(ns)).
+					DoAndReturn(
+						func(_ context.Context, evts *corev1.EventList, _ ...client.ListOption) error {
+							if ns == nsWithNoEvents {
+								return nil // Test absence of file if no events exist.
+							}
 
-						evts.Items = []corev1.Event{
-							{
-								ObjectMeta: metav1.ObjectMeta{
-									Namespace: ns,
+							evts.Items = []corev1.Event{
+								{
+									ObjectMeta: metav1.ObjectMeta{
+										Namespace: ns,
+									},
+									Reason:         "reason-1",
+									FirstTimestamp: metav1.Time{Time: time.Now()},
 								},
-								Reason:         "reason-1",
-								FirstTimestamp: metav1.Time{Time: time.Now()},
-							},
-							{
-								ObjectMeta: metav1.ObjectMeta{
-									Namespace: ns,
+								{
+									ObjectMeta: metav1.ObjectMeta{
+										Namespace: ns,
+									},
+									Reason:         "reason-2",
+									FirstTimestamp: metav1.Time{Time: time.Now()},
 								},
-								Reason:         "reason-2",
-								FirstTimestamp: metav1.Time{Time: time.Now()},
-							},
-						}
+							}
 
-						return nil
-					})
+							return nil
+						})
 			}
+
+			fakeClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&corev1.ServiceList{}), gomock.Any()).
+				Return(nil)
 
 			err := fleetDoctor(fakeDynClient, fakeClient, tgzPath)
 			Expect(err).ToNot(HaveOccurred())
@@ -362,6 +370,12 @@ var _ = Describe("Fleet doctor report", func() {
 					Expect(e.Reason).To(Equal(fmt.Sprintf("reason-%d", i+1)))
 				}
 			}
+		})
+	})
+
+	When("the cluster has Fleet installed with metrics enabled", func() {
+		It("includes metrics into the archive", func() {
+			// TODO
 		})
 	})
 })

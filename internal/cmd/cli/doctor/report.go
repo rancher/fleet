@@ -4,14 +4,20 @@ import (
 	"archive/tar"
 	"compress/gzip"
 	"context"
+	_ "embed"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/rancher/fleet/internal/config"
 	"gopkg.in/yaml.v2"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -20,16 +26,33 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	errutil "k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/apimachinery/pkg/util/httpstream"
 	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/portforward"
+	"k8s.io/client-go/transport/spdy"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/sharding"
 )
 
-func CreateReport(ctx context.Context, d dynamic.Interface, c client.Client, path string) error {
+func CreateReport(ctx context.Context, cfg *rest.Config, path string) error {
+	c, err := createClient(cfg)
+	if err != nil {
+		return fmt.Errorf("failed to create Kubernetes client: %w", err)
+	}
+
+	d, err := createDynamicClient(cfg)
+	if err != nil {
+		return fmt.Errorf("failed to create dynamic Kubernetes client: %w", err)
+	}
+
+	return CreateReportWithClients(ctx, cfg, d, c, path)
+}
+
+func CreateReportWithClients(ctx context.Context, cfg *rest.Config, d dynamic.Interface, c client.Client, path string) error {
 	logger := log.FromContext(ctx).WithName("fleet-doctor-report")
 	// XXX: be smart about memory management, progressively write data to disk instead of keeping everything in memory?
-
-	// XXX: order by namespace or by kind?
 
 	tgz, err := os.Create(path)
 	if err != nil {
@@ -57,9 +80,12 @@ func CreateReport(ctx context.Context, d dynamic.Interface, c client.Client, pat
 		}
 	}
 
-	// TODO add metrics
 	if err := addEventsToArchive(ctx, d, c, logger, w); err != nil {
 		return fmt.Errorf("failed to add events to archive: %w", err)
+	}
+
+	if err := addMetricsToArchive(ctx, c, logger, cfg, w); err != nil {
+		return fmt.Errorf("failed to add metrics to archive: %w", err)
 	}
 
 	if err := w.Close(); err != nil {
@@ -217,4 +243,165 @@ func addEventsToArchive(
 	}
 
 	return errutil.NewAggregate(merr)
+}
+
+func addMetricsToArchive(ctx context.Context, c client.Client, logger logr.Logger, cfg *rest.Config, w *tar.Writer) error {
+	ns := config.DefaultNamespace // XXX: support installation in non-default namespace, and check for services across all namespaces, by label?
+
+	var svcs corev1.ServiceList
+	if err := c.List(ctx, &svcs, client.InNamespace(ns)); err != nil {
+		return fmt.Errorf("failed to list services for extracting metrics: %w", err)
+	}
+
+	var monitoringSvcs []corev1.Service
+	for _, svc := range svcs.Items {
+		if !strings.HasPrefix(svc.Name, "monitoring-") {
+			continue
+		}
+
+		monitoringSvcs = append(monitoringSvcs, svc)
+	}
+
+	if len(monitoringSvcs) == 0 {
+		logger.Info("No monitoring services found; Fleet has probably been installed with metrics disabled.", "namespace", ns)
+
+		return nil
+	}
+
+	extPort := 8888
+
+	// XXX: how about HelmOps? report missing svc?
+	for idx, svc := range monitoringSvcs {
+		svcPort := svc.Spec.Ports[0].Port
+
+		dl, err := createDialer(ctx, cfg, c, &svc)
+		if err != nil {
+			return fmt.Errorf("failed to create dialer for port forwarding for service %s/%s: %w", svc.Namespace, svc.Name, err)
+		}
+
+		ports := []string{fmt.Sprintf("%d:%d", extPort+idx, svcPort)} // XXX: randomise host port, or retry if collision?
+		stopChan := make(chan struct{})
+		readyChan := make(chan struct{})
+		fwder, err := portforward.New(dl, ports, stopChan, readyChan, os.Stdout, os.Stderr) // XXX use other dests for out and err?
+		if err != nil {
+			return fmt.Errorf("failed to create ports forwarder for fetching metrics: %w", err)
+		}
+
+		errChan := make(chan error)
+
+		go func() {
+			if err := fwder.ForwardPorts(); err != nil {
+				errChan <- err
+			}
+		}()
+
+		defer func() {
+			fwder.Close()
+		}()
+
+		select {
+		case <-readyChan:
+			logger.Info("Port forwarding ready")
+		case err = <-errChan:
+			return fmt.Errorf("failed to forward ports for fetching metrics: %w", err)
+		}
+
+		resp, err := http.Get(fmt.Sprintf("http://localhost:%d/metrics", extPort+idx))
+		if err != nil {
+			return fmt.Errorf("failed to get response from metrics service: %w", err)
+		}
+
+		defer resp.Body.Close()
+
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("failed to read response body from metrics service: %w", err)
+		}
+
+		logger.Info("Extracted metrics", "service", svc.Name, "metrics", string(body))
+
+		if err := addFileToArchive(body, fmt.Sprintf("metrics_%s", svc.Name), w); err != nil {
+			return fmt.Errorf("failed to write metrics to archive from service %s: %w", svc.Name, err)
+		}
+	}
+
+	return nil
+}
+
+func createClient(cfg *rest.Config) (client.Client, error) {
+	c, err := client.New(cfg, client.Options{Scheme: clientgoscheme.Scheme})
+	if err != nil {
+		return nil, err
+	}
+
+	return c, nil
+}
+
+func createDynamicClient(cfg *rest.Config) (dynamic.Interface, error) {
+	di, err := dynamic.NewForConfig(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	return di, nil
+}
+
+// createDialer creates a dialer needed to build a port forwarder from the service svc.
+// It involves identifying the pod exposed by svc, since building a port forwarder using the service's K8s API URL
+// directly does not work.
+func createDialer(ctx context.Context, cfg *rest.Config, c client.Client, svc *corev1.Service) (httpstream.Dialer, error) {
+	var (
+		appLabel   string
+		shardKey   string
+		shardValue string
+	)
+	for k, v := range svc.Spec.Selector {
+		switch k {
+		case "app":
+			appLabel = v
+			continue
+		case sharding.ShardingIDLabel, sharding.ShardingDefaultLabel:
+			shardKey = k
+			shardValue = v
+			continue
+		}
+	}
+
+	if appLabel == "" {
+		return nil, fmt.Errorf("no app label found on service %s/%s", svc.Namespace, svc.Name)
+	}
+
+	var pods corev1.PodList
+
+	matchingLabels := client.MatchingLabels{
+		"app":    appLabel,
+		shardKey: shardValue,
+	}
+
+	if err := c.List(ctx, &pods, client.InNamespace(svc.Namespace), matchingLabels); err != nil {
+		return nil, fmt.Errorf("failed to get pod behind service %s/%s: %w", svc.Namespace, svc.Name, err)
+	}
+
+	if len(pods.Items) == 0 {
+		return nil, fmt.Errorf("no pod found behind service %s/%s", svc.Namespace, svc.Name)
+	}
+
+	if len(pods.Items) > 1 {
+		return nil, fmt.Errorf("found more than one pod behind service %s/%s", svc.Namespace, svc.Name)
+	}
+
+	pod := pods.Items[0]
+
+	rt, up, err := spdy.RoundTripperFor(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create upgrader for fetching metrics: %w", err)
+	}
+
+	u := url.URL{
+		Scheme: "https",
+		Path:   fmt.Sprintf("/api/v1/namespaces/%s/pods/%s/portforward", pod.Namespace, pod.Name),
+		Host:   strings.TrimLeft(cfg.Host, "htps:/"),
+	}
+
+	return spdy.NewDialer(up, &http.Client{Transport: rt}, http.MethodPost, &u), nil
 }
