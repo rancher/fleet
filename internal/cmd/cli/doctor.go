@@ -6,7 +6,9 @@ import (
 
 	"github.com/spf13/cobra"
 	"k8s.io/client-go/dynamic"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
@@ -72,8 +74,13 @@ func (d *Doctor) Run(cmd *cobra.Command, args []string) error {
 
 	di, err := dynamic.NewForConfig(cfg)
 	if err != nil {
-		return fmt.Errorf("failed to create dynamic client: %w", err)
+		return fmt.Errorf("failed to create dynamic Kubernetes client: %w", err)
 	}
 
-	return doctor.CreateReport(ctx, di, d.DumpPath)
+	c, err := client.New(cfg, client.Options{Scheme: clientgoscheme.Scheme})
+	if err != nil {
+		return fmt.Errorf("failed to create Kubernetes client: %w", err)
+	}
+
+	return doctor.CreateReport(ctx, di, c, d.DumpPath)
 }

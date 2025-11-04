@@ -2,7 +2,6 @@ package doctor
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"github.com/rancher/fleet/internal/cmd/cli/doctor"
@@ -16,6 +15,7 @@ import (
 	"k8s.io/client-go/dynamic"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
 
@@ -24,7 +24,6 @@ var (
 )
 
 func TestFleetDoctor(t *testing.T) {
-	os.Setenv("KUBEBUILDER_ASSETS", "/home/tan/.local/share/kubebuilder-envtest/k8s/1.34.1-linux-amd64")
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Fleet CLI Doctor Suite")
 }
@@ -39,6 +38,6 @@ var _ = BeforeSuite(func() {
 })
 
 // simulates fleet cli online execution, with mocked client
-func fleetDoctor(d dynamic.Interface, path string) error {
-	return doctor.CreateReport(context.Background(), d, path)
+func fleetDoctor(d dynamic.Interface, c client.Client, path string) error {
+	return doctor.CreateReport(context.Background(), d, c, path)
 }
