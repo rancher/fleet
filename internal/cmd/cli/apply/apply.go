@@ -47,6 +47,7 @@ const (
 	JSONOutputEnvVar                    = "FLEET_JSON_OUTPUT"
 	JobNameEnvVar                       = "JOB_NAME"
 	FleetApplyConflictRetriesEnv        = "FLEET_APPLY_CONFLICT_RETRIES"
+	BundleCreationMaxConcurrencyEnv     = "FLEET_BUNDLE_CREATION_MAX_CONCURRENCY"
 	defaultApplyConflictRetries         = 1
 	defaultBundleCreationMaxConcurrency = 4
 )
@@ -827,18 +828,24 @@ func setAuthByPath(opts *Options, path string) error {
 	return nil
 }
 
-func GetOnConflictRetries() (int, error) {
-	s := os.Getenv(FleetApplyConflictRetriesEnv)
-	if s != "" {
-		// check if we have a valid value
-		// it must be an integer
-		r, err := strconv.Atoi(s)
-		if err != nil {
-			return defaultApplyConflictRetries, err
-		} else {
-			return r, nil
-		}
+// getIntEnvVar reads an integer from an environment variable, returning the default if unset or invalid.
+func getIntEnvVar(envVarName string, defaultValue int) (int, error) {
+	s := os.Getenv(envVarName)
+	if s == "" {
+		return defaultValue, nil
 	}
 
-	return defaultApplyConflictRetries, nil
+	val, err := strconv.Atoi(s)
+	if err != nil {
+		return defaultValue, err
+	}
+	return val, nil
+}
+
+func GetOnConflictRetries() (int, error) {
+	return getIntEnvVar(FleetApplyConflictRetriesEnv, defaultApplyConflictRetries)
+}
+
+func GetBundleCreationMaxConcurrency() (int, error) {
+	return getIntEnvVar(BundleCreationMaxConcurrencyEnv, defaultBundleCreationMaxConcurrency)
 }
