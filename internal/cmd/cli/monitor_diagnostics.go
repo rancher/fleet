@@ -506,7 +506,8 @@ func (m *Monitor) detectClusterGroupsWithNoClusters(clusterGroups []fleet.Cluste
 	return clusterGroupsWithNoClusters
 }
 
-// detectBundlesWithMissingGitRepo detects Bundles with missing GitRepo owner reference
+// detectBundlesWithMissingGitRepo detects Bundles that reference a missing GitRepo.
+// Bundles without the repo-name label (e.g., agent bundles) are excluded.
 func (m *Monitor) detectBundlesWithMissingGitRepo(bundles []fleet.Bundle, gitRepos []fleet.GitRepo) []fleet.Bundle {
 	var bundlesWithMissingGitRepo []fleet.Bundle
 
@@ -519,11 +520,13 @@ func (m *Monitor) detectBundlesWithMissingGitRepo(bundles []fleet.Bundle, gitRep
 
 	for _, bundle := range bundles {
 		repoName := bundle.Labels["fleet.cattle.io/repo-name"]
-		if repoName != "" {
-			key := bundle.Namespace + "/" + repoName
-			if !gitRepoExists[key] {
-				bundlesWithMissingGitRepo = append(bundlesWithMissingGitRepo, bundle)
-			}
+		// Skip bundles without repo-name label (e.g., agent bundles)
+		if repoName == "" {
+			continue
+		}
+		key := bundle.Namespace + "/" + repoName
+		if !gitRepoExists[key] {
+			bundlesWithMissingGitRepo = append(bundlesWithMissingGitRepo, bundle)
 		}
 	}
 
