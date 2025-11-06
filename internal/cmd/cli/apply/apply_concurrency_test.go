@@ -58,7 +58,7 @@ func TestGetBundleCreationMaxConcurrency(t *testing.T) {
 			expectedError: true,
 		},
 		{
-			name:          "zero is treated as invalid by atoi",
+			name:          "zero is valid but caller handles default",
 			envValue:      "0",
 			expectedValue: 0,
 			expectedError: false,
