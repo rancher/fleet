@@ -2134,17 +2134,11 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 				}
 			}
 
-			bundleCreationMaxConcurrency, err := fleetapply.GetBundleCreationMaxConcurrency()
-			if err != nil {
-				t.Logf("failed to parse FLEET_BUNDLE_CREATION_MAX_CONCURRENCY, using defaults")
-			}
-
 			r := GitJobReconciler{
-				Client:                       getFakeClient([]corev1.Toleration{}),
-				Image:                        "test",
-				Clock:                        RealClock{},
-				SystemNamespace:              config.DefaultNamespace,
-				BundleCreationMaxConcurrency: bundleCreationMaxConcurrency,
+				Client:          getFakeClient([]corev1.Toleration{}),
+				Image:           "test",
+				Clock:           RealClock{},
+				SystemNamespace: config.DefaultNamespace,
 				KnownHosts: mockKnownHostsGetter{
 					strict: test.strictSSHHostKeyChecks,
 				},

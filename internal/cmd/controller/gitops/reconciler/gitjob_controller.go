@@ -115,18 +115,17 @@ type KnownHostsGetter interface {
 // GitJobReconciler reconciles a GitRepo resource to create a git cloning k8s job
 type GitJobReconciler struct {
 	client.Client
-	Scheme                       *runtime.Scheme
-	Image                        string
-	Scheduler                    quartz.Scheduler
-	Workers                      int
-	ShardID                      string
-	JobNodeSelector              string
-	GitFetcher                   GitFetcher
-	Clock                        TimeGetter
-	Recorder                     record.EventRecorder
-	SystemNamespace              string
-	KnownHosts                   KnownHostsGetter
-	BundleCreationMaxConcurrency int
+	Scheme          *runtime.Scheme
+	Image           string
+	Scheduler       quartz.Scheduler
+	Workers         int
+	ShardID         string
+	JobNodeSelector string
+	GitFetcher      GitFetcher
+	Clock           TimeGetter
+	Recorder        record.EventRecorder
+	SystemNamespace string
+	KnownHosts      KnownHostsGetter
 }
 
 func (r *GitJobReconciler) SetupWithManager(mgr ctrl.Manager) error {

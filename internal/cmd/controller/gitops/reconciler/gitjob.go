@@ -413,7 +413,7 @@ func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.Git
 
 	saName := names.SafeConcatName("git", gitrepo.Name)
 	logger := log.FromContext(ctx)
-	args, envs := argsAndEnvs(gitrepo, logger, CACertsFilePathOverride, r.KnownHosts, drivenScanSeparator, helmInsecure, helmBasicHTTP, r.BundleCreationMaxConcurrency)
+	args, envs := argsAndEnvs(gitrepo, logger, CACertsFilePathOverride, r.KnownHosts, drivenScanSeparator, helmInsecure, helmBasicHTTP)
 
 	zero := int32(0)
 
@@ -603,6 +603,16 @@ func (r *GitJobReconciler) newGitCloner(
 	}, nil
 }
 
+// readIntEnvVar reads an integer from an environment variable using the provided getter function.
+// If an error occurs, it logs the error and returns the default value.
+func readIntEnvVar(logger logr.Logger, getter func() (int, error), envVarName string) int {
+	val, err := getter()
+	if err != nil {
+		logger.Error(err, "failed parsing env variable, using defaults", "env_var_name", envVarName)
+	}
+	return val
+}
+
 func argsAndEnvs(
 	gitrepo *v1alpha1.GitRepo,
 	logger logr.Logger,
@@ -611,7 +621,6 @@ func argsAndEnvs(
 	drivenScanSeparator string,
 	helmInsecureSkipTLS bool,
 	helmBasicHTTP bool,
-	bundleCreationMaxConcurrency int,
 ) ([]string, []corev1.EnvVar) {
 	args := []string{
 		"fleet",
@@ -654,10 +663,9 @@ func argsAndEnvs(
 		}
 	}
 
-	fleetApplyRetries, err := fleetapply.GetOnConflictRetries()
-	if err != nil {
-		logger.Error(err, "failed parsing env variable, using defaults", "env_var_name", fleetapply.FleetApplyConflictRetriesEnv)
-	}
+	fleetApplyRetries := readIntEnvVar(logger, fleetapply.GetOnConflictRetries, fleetapply.FleetApplyConflictRetriesEnv)
+	bundleCreationMaxConcurrency := readIntEnvVar(logger, fleetapply.GetBundleCreationMaxConcurrency, fleetapply.BundleCreationMaxConcurrencyEnv)
+
 	env := []corev1.EnvVar{
 		{
 			Name:  "HOME",
@@ -676,7 +684,7 @@ func argsAndEnvs(
 			Value: strconv.Itoa(fleetApplyRetries),
 		},
 		{
-			Name:  "FLEET_BUNDLE_CREATION_MAX_CONCURRENCY",
+			Name:  fleetapply.BundleCreationMaxConcurrencyEnv,
 			Value: strconv.Itoa(bundleCreationMaxConcurrency),
 		},
 	}

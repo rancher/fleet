@@ -23,7 +23,6 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	command "github.com/rancher/fleet/internal/cmd"
-	fleetapply "github.com/rancher/fleet/internal/cmd/cli/apply"
 	"github.com/rancher/fleet/internal/cmd/controller/gitops/reconciler"
 	fcreconciler "github.com/rancher/fleet/internal/cmd/controller/reconciler"
 	"github.com/rancher/fleet/internal/metrics"
@@ -139,27 +138,21 @@ func (g *GitOperator) Run(cmd *cobra.Command, args []string) error {
 		workers = w
 	}
 
-	bundleCreationMaxConcurrency, err := fleetapply.GetBundleCreationMaxConcurrency()
-	if err != nil {
-		setupLog.Error(err, "failed to parse FLEET_BUNDLE_CREATION_MAX_CONCURRENCY, using defaults", "env_var_name", fleetapply.BundleCreationMaxConcurrencyEnv)
-	}
-
 	kh := ssh.KnownHosts{EnforceHostKeyChecks: !g.SkipHostKeyChecks}
 
 	gitJobReconciler := &reconciler.GitJobReconciler{
-		Client:                       mgr.GetClient(),
-		Scheme:                       mgr.GetScheme(),
-		Image:                        g.Image,
-		Scheduler:                    sched,
-		Workers:                      workers,
-		ShardID:                      g.ShardID,
-		JobNodeSelector:              g.ShardNodeSelector,
-		GitFetcher:                   &git.Fetch{KnownHosts: kh},
-		Clock:                        reconciler.RealClock{},
-		Recorder:                     mgr.GetEventRecorderFor(fmt.Sprintf("fleet-gitops%s", shardIDSuffix)),
-		SystemNamespace:              namespace,
-		KnownHosts:                   kh,
-		BundleCreationMaxConcurrency: bundleCreationMaxConcurrency,
+		Client:          mgr.GetClient(),
+		Scheme:          mgr.GetScheme(),
+		Image:           g.Image,
+		Scheduler:       sched,
+		Workers:         workers,
+		ShardID:         g.ShardID,
+		JobNodeSelector: g.ShardNodeSelector,
+		GitFetcher:      &git.Fetch{KnownHosts: kh},
+		Clock:           reconciler.RealClock{},
+		Recorder:        mgr.GetEventRecorderFor(fmt.Sprintf("fleet-gitops%s", shardIDSuffix)),
+		SystemNamespace: namespace,
+		KnownHosts:      kh,
 	}
 
 	statusReconciler := &reconciler.StatusReconciler{
