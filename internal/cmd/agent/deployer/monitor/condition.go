@@ -143,7 +143,7 @@ func findCond(obj interface{}, val reflect.Value, name string) *reflect.Value {
 }
 
 func getValue(obj interface{}, name ...string) reflect.Value {
-	if obj == nil {
+	if obj == nil || len(name) == 0 {
 		return reflect.Value{}
 	}
 	v := reflect.ValueOf(obj)
