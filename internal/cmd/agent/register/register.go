@@ -140,7 +140,7 @@ func runRegistration(ctx context.Context, k8s coreInterface, namespace string) (
 		return nil, fmt.Errorf("failed to look up client config %s/%s: %w", secret.Namespace, config.AgentConfigName, err)
 	}
 
-	clientConfig, undoBypass := createClientConfigFromSecret(secret, cfg.AgentTLSMode == config.AgentTLSModeSystemStore)
+	clientConfig, undoBypass := createClientConfigFromSecret(ctx, secret, cfg.AgentTLSMode == config.AgentTLSModeSystemStore)
 	defer undoBypass()
 
 	ns, _, err := clientConfig.Namespace()
@@ -288,7 +288,7 @@ func values(data map[string][]byte) map[string][]byte {
 
 // createClientConfigFromSecret reads the fleet-agent-bootstrap secret and
 // creates a clientConfig to access the upstream cluster
-func createClientConfigFromSecret(secret *corev1.Secret, trustSystemStoreCAs bool) (clientcmd.ClientConfig, func()) {
+func createClientConfigFromSecret(ctx context.Context, secret *corev1.Secret, trustSystemStoreCAs bool) (clientcmd.ClientConfig, func()) {
 	data := values(secret.Data)
 	apiServerURL := string(data[config.APIServerURLKey])
 	apiServerCA := data[config.APIServerCAKey]
@@ -299,9 +299,12 @@ func createClientConfigFromSecret(secret *corev1.Secret, trustSystemStoreCAs boo
 
 	if trustSystemStoreCAs { // Save a request to the API server URL if system CAs are not to be trusted.
 		// NOTE(manno): client-go will use the system trust store even if a CA is configured. So, why do this?
-		if resp, err := http.Get(apiServerURL); err == nil {
-			resp.Body.Close()
-			apiServerCA = nil
+		req, err := http.NewRequestWithContext(ctx, "GET", apiServerURL, nil)
+		if err == nil {
+			if resp, err := http.DefaultClient.Do(req); err == nil {
+				resp.Body.Close()
+				apiServerCA = nil
+			}
 		}
 	} else {
 		undoBypass = config.BypassSystemCAStore()

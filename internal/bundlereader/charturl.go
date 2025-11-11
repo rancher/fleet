@@ -75,7 +75,7 @@ func ChartVersion(ctx context.Context, location fleet.HelmOptions, a Auth) (stri
 		location.Repo = location.Repo + "/"
 	}
 
-	chart, err := getHelmChartVersion(location, a)
+	chart, err := getHelmChartVersion(ctx, location, a)
 	if err != nil {
 		return "", err
 	}
@@ -89,7 +89,7 @@ func ChartVersion(ctx context.Context, location fleet.HelmOptions, a Auth) (stri
 
 // chartURL returns the URL to the helm chart from a helm repo server, by
 // inspecting the repo's index.yaml
-func chartURL(location fleet.HelmOptions, auth Auth, isHelmOps bool) (string, error) {
+func chartURL(ctx context.Context, location fleet.HelmOptions, auth Auth, isHelmOps bool) (string, error) {
 	OCIField := location.Chart
 	if isHelmOps {
 		OCIField = location.Repo
@@ -107,7 +107,7 @@ func chartURL(location fleet.HelmOptions, auth Auth, isHelmOps bool) (string, er
 		location.Repo = location.Repo + "/"
 	}
 
-	chart, err := getHelmChartVersion(location, auth)
+	chart, err := getHelmChartVersion(ctx, location, auth)
 	if err != nil {
 		return "", err
 	}
@@ -135,8 +135,8 @@ func chartURL(location fleet.HelmOptions, auth Auth, isHelmOps bool) (string, er
 
 // getHelmChartVersion returns the ChartVersion struct with the information to the given location
 // using the given authentication configuration
-func getHelmChartVersion(location fleet.HelmOptions, auth Auth) (*repov1.ChartVersion, error) {
-	request, err := http.NewRequest("GET", location.Repo+"index.yaml", nil)
+func getHelmChartVersion(ctx context.Context, location fleet.HelmOptions, auth Auth) (*repov1.ChartVersion, error) {
+	request, err := http.NewRequestWithContext(ctx, "GET", location.Repo+"index.yaml", nil)
 	if err != nil {
 		return nil, err
 	}

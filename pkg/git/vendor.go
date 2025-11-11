@@ -1,6 +1,7 @@
 package git
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -55,7 +56,7 @@ func getRancherCommitsURL(url *neturl.URL, branch string) string {
 }
 
 // latestCommitFromCommitsURL returns the latest commit using the given commits url
-func latestCommitFromCommitsURL(commitsUrl string, opts *options) (string, error) {
+func latestCommitFromCommitsURL(ctx context.Context, commitsUrl string, opts *options) (string, error) {
 	client, err := GetHTTPClientFromSecret(
 		opts.Credential,
 		opts.CABundle,
@@ -67,7 +68,7 @@ func latestCommitFromCommitsURL(commitsUrl string, opts *options) (string, error
 	}
 	defer client.CloseIdleConnections()
 
-	req, err := http.NewRequest("GET", commitsUrl, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", commitsUrl, nil)
 	if err != nil {
 		return "", err
 	}

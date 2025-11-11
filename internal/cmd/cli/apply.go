@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -241,7 +242,7 @@ func (a *Apply) addAuthToOpts(opts *apply.Options, readFile readFile, helmBasicH
 }
 
 func currentCommit() string {
-	cmd := exec.Command("git", "rev-parse", "HEAD")
+	cmd := exec.CommandContext(context.Background(), "git", "rev-parse", "HEAD")
 	buf := &bytes.Buffer{}
 	cmd.Stdout = buf
 	err := cmd.Run()

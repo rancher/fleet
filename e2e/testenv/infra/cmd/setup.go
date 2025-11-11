@@ -331,7 +331,7 @@ func spinUpHelmRegistry(k kubectl.Command, wg *sync.WaitGroup) {
 }
 
 func packageHelmChart() error {
-	cmd := exec.Command("helm", "package", testenv.AssetPath("gitrepo/sleeper-chart/")) // nolint: gosec
+	cmd := exec.CommandContext(context.Background(), "helm", "package", testenv.AssetPath("gitrepo/sleeper-chart/")) // nolint: gosec
 
 	_, err := cmd.Output()
 
