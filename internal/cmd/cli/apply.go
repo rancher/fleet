@@ -172,7 +172,7 @@ func (a *Apply) run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("setting git SSH command env var for known hosts: %w", err)
 	}
 
-	defer restoreEnv() // nolint: errcheck // best-effort
+	defer restoreEnv() //nolint: errcheck // best-effort
 
 	ctx := cmd.Context()
 	cfg := ctrl.GetConfigOrDie()

@@ -157,8 +157,7 @@ func createAuthFromOpts(opts *GitCloner) (transport.AuthMethod, error) {
 
 			auth.HostKeyCallback = knownHostsCallBack
 		} else {
-			//nolint G106: Use of ssh InsecureIgnoreHostKey should be audited
-			//this will run in an init-container, so there is no persistence
+			//nolint:gosec // G106: Use of ssh InsecureIgnoreHostKey should be audited - this will run in an init-container, so there is no persistence
 			auth.HostKeyCallback = ssh.InsecureIgnoreHostKey()
 		}
 		return auth, nil

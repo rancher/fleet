@@ -2,7 +2,7 @@
 package names
 
 import (
-	"crypto/md5" // nolint:gosec // Non-crypto use
+	"crypto/md5" //nolint:gosec // Non-crypto use
 	"encoding/hex"
 	"fmt"
 	"regexp"
@@ -53,7 +53,7 @@ func Limit(s string, count int) string {
 // Hex returns a hex-encoded hash of the string and truncates it to length.
 // Warning: truncating the 32 character hash makes collisions more likely.
 func Hex(s string, length int) string {
-	h := md5.Sum([]byte(s)) // nolint:gosec // Non-crypto use
+	h := md5.Sum([]byte(s)) //nolint:gosec // Non-crypto use
 	d := hex.EncodeToString(h[:])
 	return d[:length]
 }

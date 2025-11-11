@@ -409,7 +409,7 @@ func createGogsContainerWithHTTPS() (testcontainers.Container, error) {
 	// because we need to create the certificates first.
 	Eventually(func() error {
 		c := gogs.NewClient(url, "")
-		//nolint:gosec // need insecure TLS option for testing
+
 		conf := &tls.Config{InsecureSkipVerify: true}
 
 		// only continue if it's a TLS connection

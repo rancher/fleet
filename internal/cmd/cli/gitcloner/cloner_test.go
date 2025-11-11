@@ -27,7 +27,7 @@ func TestCloneRepo(t *testing.T) {
 		passwordFile        = "passFile"
 		passwordFileContent = "1234"
 		sshPrivateKeyFile   = "sshFile"
-		//nolint:gosec // it's only test data
+
 		sshPrivateKeyFileContent = `-----BEGIN RSA PRIVATE KEY-----
 MIICXQIBAAKBgQC1ZuFGlFeAFqeS6p04QsliOXG3NH1/lQC4UMXdQ0F73ciYBPKq
 iQZcoyOu8a2Hsi5HvxDqR1rreTAkJ37C3ErrmKcE1CUJwxBVqkgE17Fzw63QBu0X

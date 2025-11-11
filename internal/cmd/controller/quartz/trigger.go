@@ -65,5 +65,5 @@ func jitter(d time.Duration, jitterPercent int) time.Duration {
 	maxJitter := float64(d) * jitterFraction
 
 	// Generate a random float64 between 0 and maxJitter
-	return time.Duration(rand.Float64() * maxJitter) // nolint:gosec // non-crypto usage
+	return time.Duration(rand.Float64() * maxJitter) //nolint:gosec // non-crypto usage
 }

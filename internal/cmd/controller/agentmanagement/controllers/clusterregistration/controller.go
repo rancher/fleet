@@ -34,7 +34,7 @@ import (
 )
 
 const (
-	AgentCredentialSecretType     = "fleet.cattle.io/agent-credential" // nolint:gosec // not a credential
+	AgentCredentialSecretType     = "fleet.cattle.io/agent-credential" //nolint:gosec // not a credential
 	clusterByClientID             = "clusterByClientID"
 	clusterRegistrationByClientID = "clusterRegistrationByClientID"
 	deleteSecretAfter             = durations.ClusterRegistrationDeleteDelay

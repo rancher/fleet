@@ -26,7 +26,6 @@ type fsNode struct {
 	isDir bool
 }
 
-// nolint: funlen
 func TestGetContent(t *testing.T) {
 	cases := []struct {
 		name               string

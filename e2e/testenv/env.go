@@ -82,7 +82,7 @@ func (e *Env) Unmarshal(out string, obj interface{}) error {
 // run. e.g. as a targetNamespace for workloads
 func NewNamespaceName(name string, s rand.Source) string {
 	p := make([]byte, 12)
-	r := rand.New(s) // nolint:gosec // non-crypto usage
+	r := rand.New(s)
 	_, err := r.Read(p)
 	if err != nil {
 		panic(err)
@@ -93,7 +93,7 @@ func NewNamespaceName(name string, s rand.Source) string {
 // AddRandomSuffix adds a random suffix to a given name.
 func AddRandomSuffix(name string, s rand.Source) string {
 	p := make([]byte, 6)
-	r := rand.New(s) // nolint:gosec // non-crypto usage
+	r := rand.New(s)
 	_, err := r.Read(p)
 	if err != nil {
 		panic(err)

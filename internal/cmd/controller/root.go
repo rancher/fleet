@@ -135,7 +135,7 @@ func (f *FleetController) Run(cmd *cobra.Command, args []string) error {
 	}
 
 	go func() {
-		log.Println(http.ListenAndServe("localhost:6060", nil)) // nolint:gosec // Debugging only
+		log.Println(http.ListenAndServe("localhost:6060", nil)) //nolint:gosec // Debugging only
 	}()
 	if err := start(
 		ctx,

@@ -238,7 +238,7 @@ func getHTTPClient(auth Auth) *http.Client {
 
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.TLSClientConfig = &tls.Config{
-		InsecureSkipVerify: auth.InsecureSkipVerify, // nolint:gosec
+		InsecureSkipVerify: auth.InsecureSkipVerify, //nolint:gosec
 	}
 
 	if auth.CABundle != nil {

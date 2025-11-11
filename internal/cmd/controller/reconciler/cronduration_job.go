@@ -123,7 +123,7 @@ func (c *CronDurationJob) durationToNextStart() (time.Duration, error) {
 
 // checkScheduleAndDuration verifies that the given schedule start time and the duration are feasible.
 // If the duration is longer than 2 consecutive triggers it is considered as non valid.
-func checkScheduleAndDuration(schedule *fleet.Schedule, location *time.Location) error { //nolint:revive
+func checkScheduleAndDuration(schedule *fleet.Schedule, location *time.Location) error {
 	trigger, err := quartz.NewCronTriggerWithLoc(schedule.Spec.Schedule, location)
 	if err != nil {
 		return err

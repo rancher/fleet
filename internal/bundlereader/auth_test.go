@@ -14,7 +14,6 @@ import (
 	"github.com/rancher/fleet/internal/mocks"
 )
 
-// nolint: funlen
 func TestReadHelmAuthFromSecret(t *testing.T) {
 	cases := []struct {
 		name              string
