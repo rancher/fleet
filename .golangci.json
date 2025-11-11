@@ -26,6 +26,7 @@
       "noctx",
       "revive",
       "staticcheck",
+      "testifylint",
       "thelper",
       "unconvert",
       "unparam",

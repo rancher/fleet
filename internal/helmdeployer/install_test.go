@@ -18,6 +18,7 @@ import (
 
 func TestValuesFrom(t *testing.T) {
 	a := assert.New(t)
+	r := require.New(t)
 	key := "values.yaml"
 	newline := "\n"
 	if runtime.GOOS == "windows" {
@@ -46,7 +47,7 @@ func TestValuesFrom(t *testing.T) {
 			key: configMapPayload,
 		},
 	})
-	require.NoError(t, err)
+	r.NoError(err)
 
 	secretName := "secret-name"
 	secretNamespace := "secret-namespace"
@@ -59,7 +60,7 @@ func TestValuesFrom(t *testing.T) {
 			key: []byte(secretPayload),
 		},
 	})
-	require.NoError(t, err)
+	r.NoError(err)
 
 	totalValues = mergeValues(totalValues, secretValues)
 	totalValues = mergeValues(totalValues, configMapValues)

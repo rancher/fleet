@@ -584,14 +584,14 @@ func TestGetContent(t *testing.T) {
 			}
 			files, err := bundlereader.GetContent(context.Background(), root, c.source, "", c.auth, false, ignoreApplyConfigs)
 			if c.expectedErr == nil {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			} else {
 				if !c.expectedErr.Match([]byte(err.Error())) {
 					assert.Failf(t, "expected error to match", "expected: %s, got: %s", c.expectedErr.String(), err.Error())
 				}
 			}
 
-			assert.Equal(t, len(c.expectedFiles), len(files))
+			assert.Len(t, files, len(c.expectedFiles))
 			for k, v := range c.expectedFiles {
 				assert.Equal(t, v, files[k])
 			}
@@ -726,7 +726,7 @@ func TestGetContentOCI(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			result, err := bundlereader.GetContent(context.Background(), base, c.source, c.version, bundlereader.Auth{}, false, []string{})
 			if c.expectedErr == "" {
-				assert.NoError(err)
+				require.NoError(t, err)
 				for k := range result {
 					assert.Contains(c.result, k)
 				}

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 )
@@ -50,14 +51,14 @@ func TestConditionalTypeStatusErrorMapping_MarshalJSON(t *testing.T) {
 			output, err := json.Marshal(&tc.input)
 
 			if tc.expectedErr == nil {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			} else {
-				assert.Error(t, err)
+				require.Error(t, err)
 			}
 
 			actual := []conditionTypeStatusJSON{}
 			expected := []conditionTypeStatusJSON{}
-			assert.NoError(t, json.Unmarshal(output, &actual))
+			require.NoError(t, json.Unmarshal(output, &actual))
 			assert.NoError(t, json.Unmarshal(tc.expected, &expected))
 
 			sort.Slice(actual, func(i, j int) bool { return actual[i].GVK < actual[j].GVK })
@@ -173,9 +174,9 @@ func TestConditionalTypeStatusErrorMapping_UnmarshalJSON(t *testing.T) {
 
 			err := json.Unmarshal(tc.input, &gvkConditionMappings)
 			if tc.errorIsExpected {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 
 			assert.Equal(t, tc.expected, gvkConditionMappings)

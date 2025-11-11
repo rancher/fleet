@@ -6,6 +6,8 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/stretchr/testify/assert"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -395,17 +397,17 @@ func TestPerClusterStateTruncation(t *testing.T) {
 	assert.Less(t, sizeOf(status.Resources), 1024*1024, "resources should be truncated to be less than 1MB")
 
 	js, err := json.Marshal(status.Resources)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// and the truncation is stable
 	SetResources(items, &status.StatusBase)
 	js2, err := json.Marshal(status.Resources)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	// avoid the long diff from assert.Equal
-	assert.True(t, string(js) == string(js2), "truncation should produce stable json for the same input")
+	assert.Equal(t, string(js), string(js2), "truncation should produce stable json for the same input")
 
 	SetResources(ritems, &status.StatusBase)
 	js2, err = json.Marshal(status.Resources)
-	assert.NoError(t, err)
-	assert.True(t, string(js) == string(js2), "truncation should produce stable json, when items are in a different order")
+	require.NoError(t, err)
+	assert.Equal(t, string(js), string(js2), "truncation should produce stable json, when items are in a different order")
 }

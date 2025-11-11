@@ -6,6 +6,7 @@ import (
 	"github.com/rancher/fleet/internal/helmdeployer"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	chartv2 "helm.sh/helm/v4/pkg/chart/v2"
 	releasev1 "helm.sh/helm/v4/pkg/release/v1"
@@ -88,7 +89,7 @@ func TestListDeployments(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			listAction := &fakeList{releases: test.releases}
 			result, err := h.ListDeployments(listAction)
-			r.NoError(err)
+			require.NoError(t, err)
 
 			r.Len(result, len(test.expectedBundleIDs))
 			for _, deployedBundle := range result {

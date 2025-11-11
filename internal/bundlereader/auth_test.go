@@ -205,6 +205,6 @@ func TestReadHelmAuthFromSecret(t *testing.T) {
 		if err != nil && c.expectedErrNotNil {
 			assert.Equal(c.expectedError, err.Error())
 		}
-		assert.Equal(auth, c.expectedAuth)
+		assert.Equal(c.expectedAuth, auth)
 	}
 }
