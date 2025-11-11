@@ -2,7 +2,7 @@ package desiredset
 
 import (
 	"context"
-	"crypto/sha1" // nolint:gosec // non crypto usage
+	"crypto/sha1" //nolint:gosec // non crypto usage
 	"encoding/hex"
 	"fmt"
 	"sync"
@@ -168,7 +168,7 @@ func setLabels(meta metav1.Object, labels map[string]string) {
 }
 
 func objectSetHash(labels map[string]string) string {
-	dig := sha1.New() // nolint:gosec // non crypto usage
+	dig := sha1.New() //nolint:gosec // non crypto usage
 	for _, key := range hashOrder {
 		dig.Write([]byte(labels[key]))
 	}

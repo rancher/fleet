@@ -30,7 +30,7 @@ var _ = Describe("GitRepo", func() {
 		Expect(k8sClient.Create(ctx, ns)).ToNot(HaveOccurred())
 
 		p := make([]byte, 12)
-		s := rand.New(rand.NewSource(GinkgoRandomSeed())) // nolint:gosec // non-crypto usage
+		s := rand.New(rand.NewSource(GinkgoRandomSeed()))
 		if _, err := s.Read(p); err != nil {
 			panic(err)
 		}

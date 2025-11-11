@@ -24,6 +24,7 @@
       "nakedret",
       "nilerr",
       "noctx",
+      "nolintlint",
       "revive",
       "staticcheck",
       "testifylint",

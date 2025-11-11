@@ -145,7 +145,7 @@ func Template(output string, tmplPath string, data any) error {
 	if err != nil {
 		return err
 	}
-	err = os.WriteFile(output, []byte(sb.String()), 0644) // nolint:gosec // Non-crypto use
+	err = os.WriteFile(output, []byte(sb.String()), 0644)
 	if err != nil {
 		return err
 	}
@@ -156,6 +156,6 @@ func Template(output string, tmplPath string, data any) error {
 func RandomFilename(filename string, r *rand.Rand) string {
 	ext := path.Ext(filename)
 	filename = path.Base(filename)
-	rv := strconv.Itoa(r.Intn(99999)) // nolint:gosec // Non-crypto use
+	rv := strconv.Itoa(r.Intn(99999))
 	return strings.TrimSuffix(filename, ext) + rv + ext
 }

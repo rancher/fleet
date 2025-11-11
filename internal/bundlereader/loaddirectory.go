@@ -432,11 +432,11 @@ func newHttpGetter(auth Auth) *getter.HttpGetter {
 		transport.TLSClientConfig = &tls.Config{
 			RootCAs:            pool,
 			MinVersion:         tls.VersionTLS12,
-			InsecureSkipVerify: auth.InsecureSkipVerify, // nolint:gosec
+			InsecureSkipVerify: auth.InsecureSkipVerify, //nolint:gosec
 		}
 	} else if auth.InsecureSkipVerify {
 		transport.TLSClientConfig = &tls.Config{
-			InsecureSkipVerify: auth.InsecureSkipVerify, // nolint:gosec
+			InsecureSkipVerify: auth.InsecureSkipVerify, //nolint:gosec
 		}
 	}
 	httpGetter.Client.Transport = transport

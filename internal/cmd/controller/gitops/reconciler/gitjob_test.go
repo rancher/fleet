@@ -313,7 +313,7 @@ func TestReconcile_Error_WhenSecretDoesNotExist(t *testing.T) {
 	}
 }
 
-func TestNewJob(t *testing.T) { // nolint:funlen
+func TestNewJob(t *testing.T) {
 	securityContext := &corev1.SecurityContext{
 		AllowPrivilegeEscalation: &[]bool{false}[0],
 		ReadOnlyRootFilesystem:   &[]bool{true}[0],

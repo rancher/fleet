@@ -247,7 +247,7 @@ func spinUpOCIRegistry(k kubectl.Command, wg *sync.WaitGroup) {
 	}
 
 	var err error
-	htpasswd := "fleet-ci:$2y$05$0WcEGGqsUKcyPhBFU7l07uJ3ND121p/FQCY90Q.dcsZjTkr.b45Lm" // nolint: gosec
+	htpasswd := "fleet-ci:$2y$05$0WcEGGqsUKcyPhBFU7l07uJ3ND121p/FQCY90Q.dcsZjTkr.b45Lm"
 	if os.Getenv("CI_OCI_USERNAME") != "" && os.Getenv("CI_OCI_PASSWORD") != "" {
 		p, err := bcrypt.GenerateFromPassword([]byte(os.Getenv("CI_OCI_PASSWORD")), bcrypt.MinCost)
 		if err != nil {
@@ -331,7 +331,7 @@ func spinUpHelmRegistry(k kubectl.Command, wg *sync.WaitGroup) {
 }
 
 func packageHelmChart() error {
-	cmd := exec.CommandContext(context.Background(), "helm", "package", testenv.AssetPath("gitrepo/sleeper-chart/")) // nolint: gosec
+	cmd := exec.CommandContext(context.Background(), "helm", "package", testenv.AssetPath("gitrepo/sleeper-chart/"))
 
 	_, err := cmd.Output()
 
