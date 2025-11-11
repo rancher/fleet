@@ -537,7 +537,8 @@ func (i *importHandler) restConfigFromKubeConfig(data []byte, agentTLSMode strin
 	if agentTLSMode == config.AgentTLSModeSystemStore && raw.Contexts[raw.CurrentContext] != nil {
 		cluster := raw.Contexts[raw.CurrentContext].Cluster
 		if raw.Clusters[cluster] != nil {
-			if _, err := http.Get(raw.Clusters[cluster].Server); err == nil {
+			if resp, err := http.Get(raw.Clusters[cluster].Server); err == nil {
+				resp.Body.Close()
 				raw.Clusters[cluster].CertificateAuthorityData = nil
 			}
 		}
