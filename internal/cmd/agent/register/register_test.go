@@ -3,7 +3,6 @@ package register
 import (
 	"context"
 	"net/http"
-	"regexp"
 	"testing"
 	"time"
 
@@ -65,5 +64,5 @@ func TestRunRegistrationLabelSmokeTest(t *testing.T) {
 	assert.Nil(t, agentSecret)
 	// expecting an error at cluster registration creation time because the API server URL is a dummy.
 	// this may be a timeout or a simple 'connection refused' error.
-	assert.Regexp(t, regexp.MustCompile("cannot create clusterregistration.*"), err.Error())
+	assert.Regexp(t, "cannot create clusterregistration.*", err.Error())
 }

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -13,6 +14,7 @@ import (
 
 func TestValuesFrom(t *testing.T) {
 	a := assert.New(t)
+	r := require.New(t)
 	key := "values.yaml"
 	newline := "\n"
 	if runtime.GOOS == "windows" {
@@ -41,7 +43,7 @@ func TestValuesFrom(t *testing.T) {
 			key: configMapPayload,
 		},
 	})
-	a.NoError(err)
+	r.NoError(err)
 
 	secretName := "secret-name"
 	secretNamespace := "secret-namespace"
@@ -54,7 +56,7 @@ func TestValuesFrom(t *testing.T) {
 			key: []byte(secretPayload),
 		},
 	})
-	a.NoError(err)
+	r.NoError(err)
 
 	totalValues = mergeValues(totalValues, secretValues)
 	totalValues = mergeValues(totalValues, configMapValues)
