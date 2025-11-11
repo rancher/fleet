@@ -136,7 +136,7 @@ func chartURL(ctx context.Context, location fleet.HelmOptions, auth Auth, isHelm
 // getHelmChartVersion returns the ChartVersion struct with the information to the given location
 // using the given authentication configuration
 func getHelmChartVersion(ctx context.Context, location fleet.HelmOptions, auth Auth) (*repov1.ChartVersion, error) {
-	request, err := http.NewRequestWithContext(ctx, "GET", location.Repo+"index.yaml", nil)
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, location.Repo+"index.yaml", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -158,7 +158,7 @@ func getHelmChartVersion(ctx context.Context, location fleet.HelmOptions, auth A
 		return nil, err
 	}
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("failed to read helm repo from %s, error code: %v", location.Repo+"index.yaml", resp.StatusCode)
 	}
 
