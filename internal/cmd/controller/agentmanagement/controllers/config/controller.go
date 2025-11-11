@@ -31,6 +31,7 @@ func Register(ctx context.Context,
 
 func reloadConfig(namespace string, configMap *v1.ConfigMap) (*v1.ConfigMap, error) {
 	if configMap == nil {
+		// ConfigMap was deleted, nothing to reload. This is a normal deletion event.
 		return nil, nil
 	}
 
