@@ -739,6 +739,7 @@ func TestGetContentOCI(t *testing.T) {
 
 // createDirStruct generates and populates a directory structure which root is node, placing it at basePath.
 func createDirStruct(t *testing.T, basePath string, node fsNode) string {
+	t.Helper()
 	path := filepath.Join(basePath, node.name)
 
 	if !node.isDir {

@@ -24,6 +24,7 @@
       "noctx",
       "revive",
       "staticcheck",
+      "thelper",
       "unconvert",
       "unparam",
       "unused"
