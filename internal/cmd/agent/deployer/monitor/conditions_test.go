@@ -1,6 +1,7 @@
 package monitor
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -73,7 +74,7 @@ func TestExcludeIgnoredConditions(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			obj := test.obj
 			err := excludeIgnoredConditions(obj, test.ignoreOptions)
-			if err != test.expectedErr {
+			if !errors.Is(err, test.expectedErr) {
 				t.Errorf("expected error doesn't match: expected %v, got %v", test.expectedErr, err)
 			}
 			if !cmp.Equal(obj, test.expectedObj) {

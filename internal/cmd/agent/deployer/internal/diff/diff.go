@@ -401,7 +401,7 @@ func GetLastAppliedConfigAnnotation(live *unstructured.Unstructured) (*unstructu
 	var obj unstructured.Unstructured
 	err := json.Unmarshal([]byte(lastAppliedStr), &obj)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal %s in %s: %v", corev1.LastAppliedConfigAnnotation, live.GetName(), err)
+		return nil, fmt.Errorf("failed to unmarshal %s in %s: %w", corev1.LastAppliedConfigAnnotation, live.GetName(), err)
 	}
 	return &obj, nil
 }
@@ -615,7 +615,7 @@ func HideSecretData(target *unstructured.Unstructured, live *unstructured.Unstru
 				var err error
 				data, _, err = unstructured.NestedMap(obj.Object, "data")
 				if err != nil {
-					return nil, nil, fmt.Errorf("unstructured.NestedMap error: %s", err)
+					return nil, nil, fmt.Errorf("unstructured.NestedMap error: %w", err)
 				}
 			}
 			if data == nil {
@@ -635,7 +635,7 @@ func HideSecretData(target *unstructured.Unstructured, live *unstructured.Unstru
 			data[k] = replacement
 			err := unstructured.SetNestedField(obj.Object, data, "data")
 			if err != nil {
-				return nil, nil, fmt.Errorf("unstructured.SetNestedField error: %s", err)
+				return nil, nil, fmt.Errorf("unstructured.SetNestedField error: %w", err)
 			}
 		}
 	}
@@ -646,7 +646,7 @@ func HideSecretData(target *unstructured.Unstructured, live *unstructured.Unstru
 		}
 		lastAppliedData, err := json.Marshal(orig)
 		if err != nil {
-			return nil, nil, fmt.Errorf("error marshaling json: %s", err)
+			return nil, nil, fmt.Errorf("error marshaling json: %w", err)
 		}
 		annotations[corev1.LastAppliedConfigAnnotation] = string(lastAppliedData)
 		live.SetAnnotations(annotations)

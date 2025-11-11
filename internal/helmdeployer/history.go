@@ -2,6 +2,7 @@ package helmdeployer
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"strconv"
 
@@ -21,7 +22,7 @@ func (h *Helm) EnsureInstalled(bundleID, resourcesID string) (bool, error) {
 		return false, err
 	}
 
-	if _, err := h.getRelease(releaseName, namespace, version); err == ErrNoRelease {
+	if _, err := h.getRelease(releaseName, namespace, version); errors.Is(err, ErrNoRelease) {
 		return false, nil
 	} else if err != nil {
 		return false, err
@@ -37,7 +38,7 @@ func (h *Helm) Resources(bundleID, resourcesID string) (*Resources, error) {
 	}
 
 	release, err := h.getRelease(releaseName, namespace, version)
-	if err == ErrNoRelease {
+	if errors.Is(err, ErrNoRelease) {
 		return &Resources{}, nil
 	} else if err != nil {
 		return nil, err
@@ -55,7 +56,7 @@ func (h *Helm) ResourcesFromPreviousReleaseVersion(bundleID, resourcesID string)
 	}
 
 	release, err := h.getRelease(releaseName, namespace, version-1)
-	if err == ErrNoRelease {
+	if errors.Is(err, ErrNoRelease) {
 		return &Resources{}, nil
 	} else if err != nil {
 		return nil, err
@@ -87,7 +88,7 @@ func (h *Helm) getRelease(releaseName, namespace string, version int) (*release.
 	hist := action.NewHistory(&h.globalCfg)
 
 	releases, err := hist.Run(releaseName)
-	if err == driver.ErrReleaseNotFound {
+	if errors.Is(err, driver.ErrReleaseNotFound) {
 		return nil, ErrNoRelease
 	} else if err != nil {
 		return nil, err

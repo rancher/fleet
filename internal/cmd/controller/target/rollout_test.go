@@ -121,7 +121,7 @@ func partitionsEqual(got, want []partition) error {
 	}
 	for i := range want {
 		if err := targetsEqual(got[i].Targets, want[i].Targets); err != nil {
-			return fmt.Errorf("partition %d has different targets: %v\nstats of got: %s", i, err, spew.Sdump(stats()))
+			return fmt.Errorf("partition %d has different targets: %w\nstats of got: %s", i, err, spew.Sdump(stats()))
 		}
 
 		if got[i].Status.MaxUnavailable != want[i].Status.MaxUnavailable {
