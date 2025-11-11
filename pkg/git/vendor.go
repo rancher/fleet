@@ -68,7 +68,7 @@ func latestCommitFromCommitsURL(ctx context.Context, commitsUrl string, opts *op
 	}
 	defer client.CloseIdleConnections()
 
-	req, err := http.NewRequestWithContext(ctx, "GET", commitsUrl, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, commitsUrl, nil)
 	if err != nil {
 		return "", err
 	}

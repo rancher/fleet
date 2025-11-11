@@ -299,7 +299,7 @@ func createClientConfigFromSecret(ctx context.Context, secret *corev1.Secret, tr
 
 	if trustSystemStoreCAs { // Save a request to the API server URL if system CAs are not to be trusted.
 		// NOTE(manno): client-go will use the system trust store even if a CA is configured. So, why do this?
-		req, err := http.NewRequestWithContext(ctx, "GET", apiServerURL, nil)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiServerURL, nil)
 		if err == nil {
 			if resp, err := http.DefaultClient.Do(req); err == nil {
 				resp.Body.Close()

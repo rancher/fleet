@@ -537,7 +537,7 @@ func (i *importHandler) restConfigFromKubeConfig(data []byte, agentTLSMode strin
 	if agentTLSMode == config.AgentTLSModeSystemStore && raw.Contexts[raw.CurrentContext] != nil {
 		cluster := raw.Contexts[raw.CurrentContext].Cluster
 		if raw.Clusters[cluster] != nil {
-			req, err := http.NewRequestWithContext(context.Background(), "GET", raw.Clusters[cluster].Server, nil)
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, raw.Clusters[cluster].Server, nil)
 			if err == nil {
 				if resp, err := http.DefaultClient.Do(req); err == nil {
 					resp.Body.Close()

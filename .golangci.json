@@ -28,7 +28,8 @@
       "thelper",
       "unconvert",
       "unparam",
-      "unused"
+      "unused",
+      "usestdlibvars"
     ],
     "exclusions": {
       "generated": "lax",
