@@ -228,12 +228,14 @@ func (h *handler) resolveNS(namespace, _ string, obj runtime.Object) ([]relatedr
 // OnNamespace updates agent bundles for all clusters in the namespace
 func (h *handler) OnNamespace(key string, namespace *corev1.Namespace) (*corev1.Namespace, error) {
 	if namespace == nil {
+		// Namespace was deleted, nothing to process. This is a normal deletion event.
 		return nil, nil
 	}
 
 	cfg := config.Get()
 	// managed agents are disabled, so we don't need to create the bundle
 	if cfg.ManageAgent != nil && !*cfg.ManageAgent {
+		// Agent management is disabled via configuration. Nothing to do.
 		return nil, nil
 	}
 

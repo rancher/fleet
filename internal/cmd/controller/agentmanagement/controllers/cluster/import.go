@@ -109,6 +109,8 @@ func RegisterImport(
 				logrus.WithError(err).Errorf("cluster %s/%s: could not check for config changes", cluster.Namespace, cluster.Name)
 			}
 		}
+		// Successfully checked all clusters for config changes. No secret modification needed,
+		// and no error occurred. The secret watcher processed the event successfully.
 		return nil, nil
 	})
 }

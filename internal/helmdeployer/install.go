@@ -96,6 +96,9 @@ func (h *Helm) install(ctx context.Context, bundleID string, manifest *manifest.
 			return nil, err
 		}
 		if dryRunCfg.DryRun {
+			// In dry run mode, we've validated that uninstall is needed but can't proceed
+			// with install/upgrade since the old release conceptually still exists.
+			// Returning (nil, nil) indicates successful dry run completion with no release object.
 			return nil, nil
 		}
 	}
