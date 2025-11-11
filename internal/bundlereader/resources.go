@@ -281,7 +281,6 @@ func loadDirectories(ctx context.Context, opts loadOpts, directories ...director
 			continue
 		}
 		alreadyLoaded[dirId] = struct{}{}
-		dir := dir
 		eg.Go(func() error {
 			if err := sem.Acquire(ctx, 1); err != nil {
 				return fmt.Errorf("waiting to load directory %s, %s: %w", dir.prefix, dir.base, err)
