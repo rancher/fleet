@@ -40,6 +40,7 @@ func Test_updateFromResources(t *testing.T) {
 				},
 			},
 			assert: func(t *testing.T, status fleet.BundleDeploymentStatus) {
+				t.Helper()
 				assert.Equal(t, status.ResourceCounts, fleet.ResourceCounts{DesiredReady: 2, Ready: 2})
 				assert.Truef(t, status.Ready, "unexpected ready status")
 				assert.Truef(t, status.NonModified, "unexpected non-modified status")
@@ -70,6 +71,7 @@ func Test_updateFromResources(t *testing.T) {
 				},
 			},
 			assert: func(t *testing.T, status fleet.BundleDeploymentStatus) {
+				t.Helper()
 				assert.Equal(t, status.ResourceCounts, fleet.ResourceCounts{DesiredReady: 1, Ready: 1, Orphaned: 1})
 				assert.Truef(t, status.Ready, "unexpected ready status")
 				assert.Falsef(t, status.NonModified, "unexpected non-modified status")
@@ -94,6 +96,7 @@ func Test_updateFromResources(t *testing.T) {
 				},
 			},
 			assert: func(t *testing.T, status fleet.BundleDeploymentStatus) {
+				t.Helper()
 				assert.Equal(t, status.ResourceCounts, fleet.ResourceCounts{DesiredReady: 1, Missing: 1})
 				assert.Truef(t, status.Ready, "unexpected ready status")
 				assert.Falsef(t, status.NonModified, "unexpected non-modified status")
@@ -125,6 +128,7 @@ func Test_updateFromResources(t *testing.T) {
 				},
 			},
 			assert: func(t *testing.T, status fleet.BundleDeploymentStatus) {
+				t.Helper()
 				assert.Equal(t, status.ResourceCounts, fleet.ResourceCounts{DesiredReady: 1, Modified: 1})
 				assert.Truef(t, status.Ready, "unexpected ready status")
 				assert.Falsef(t, status.NonModified, "unexpected non-modified status")
@@ -169,6 +173,7 @@ func Test_updateFromResources(t *testing.T) {
 				},
 			},
 			assert: func(t *testing.T, status fleet.BundleDeploymentStatus) {
+				t.Helper()
 				assert.Equal(t, status.ResourceCounts, fleet.ResourceCounts{DesiredReady: 2, Missing: 1, NotReady: 1})
 				assert.Falsef(t, status.Ready, "unexpected ready status")
 				assert.Falsef(t, status.NonModified, "unexpected non-modified status")
@@ -224,6 +229,7 @@ func Test_updateFromResources(t *testing.T) {
 				}(12),
 			},
 			assert: func(t *testing.T, status fleet.BundleDeploymentStatus) {
+				t.Helper()
 				assert.Equal(t, status.ResourceCounts, fleet.ResourceCounts{DesiredReady: 24, Missing: 12, NotReady: 12})
 				assert.Falsef(t, status.Ready, "unexpected ready status")
 				assert.Falsef(t, status.NonModified, "unexpected non-modified status")
