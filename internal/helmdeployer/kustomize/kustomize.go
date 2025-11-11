@@ -63,7 +63,7 @@ func modifyKustomize(f filesys.FileSystem, dir string) error {
 
 	data := map[string]interface{}{}
 	if err := yaml.Unmarshal(fileBytes, &data); err != nil {
-		return nil
+		return err
 	}
 
 	resources := convert.ToStringSlice(data["resources"])

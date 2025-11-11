@@ -2,12 +2,14 @@ package helmdeployer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/go-logr/logr"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/release"
+	"helm.sh/helm/v3/pkg/storage/driver"
 
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/kv"
 	"github.com/rancher/fleet/internal/experimental"
@@ -57,7 +59,7 @@ func (h *Helm) deleteByRelease(ctx context.Context, bundleID, releaseName string
 			r.Chart.Metadata.Annotations[AgentNamespaceAnnotation] == h.agentNamespace
 	})
 	if err != nil {
-		return nil
+		return err
 	}
 	if len(rels) == 0 {
 		return nil
@@ -102,13 +104,21 @@ func (h *Helm) delete(ctx context.Context, bundleID string, options fleet.Bundle
 
 	r, err := h.globalCfg.Releases.Last(releaseName)
 	if err != nil {
-		return nil
+		// If the release doesn't exist, there's nothing to delete
+		if errors.Is(err, driver.ErrReleaseNotFound) || errors.Is(err, driver.ErrNoDeployedReleases) {
+			return nil
+		}
+		return err
 	}
 
 	if r.Chart.Metadata.Annotations[BundleIDAnnotation] != bundleID {
 		rels, err := h.globalCfg.Releases.History(releaseName)
 		if err != nil {
-			return nil
+			// If we can't get the history, treat it as not found
+			if errors.Is(err, driver.ErrReleaseNotFound) || errors.Is(err, driver.ErrNoDeployedReleases) {
+				return nil
+			}
+			return err
 		}
 		r = nil
 		for _, rel := range rels {

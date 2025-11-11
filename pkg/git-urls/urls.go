@@ -68,7 +68,7 @@ func Parse(rawurl string) (u *url.URL, err error) {
 	for _, p := range parsers {
 		u, err = p(rawurl)
 		if err == nil {
-			return u, err
+			return u, nil
 		}
 	}
 

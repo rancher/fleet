@@ -84,7 +84,9 @@ func (r *StatusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	// Restrictions / Overrides, gitrepo reconciler is responsible for setting error in status
 	if err := AuthorizeAndAssignDefaults(ctx, r.Client, gitrepo); err != nil {
-		// the gitjob_controller will handle the error
+		// the gitjob_controller will handle the error (records event, updates status)
+		// status_controller just computes display status, no action needed on restriction errors
+		//nolint:nilerr // Intentionally delegating error handling to gitjob_controller
 		return ctrl.Result{}, nil
 	}
 
