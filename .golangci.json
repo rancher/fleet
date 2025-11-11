@@ -6,6 +6,7 @@
     "default": "none",
     "enable": [
       "bodyclose",
+      "contextcheck",
       "copyloopvar",
       "dupl",
       "errcheck",

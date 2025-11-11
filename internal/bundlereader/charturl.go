@@ -24,7 +24,7 @@ import (
 
 // ChartVersion returns the version of the helm chart from a helm repo server, by
 // inspecting the repo's index.yaml
-func ChartVersion(location fleet.HelmOptions, a Auth) (string, error) {
+func ChartVersion(ctx context.Context, location fleet.HelmOptions, a Auth) (string, error) {
 	if hasOCIURL.MatchString(location.Repo) {
 		repo := strings.TrimPrefix(location.Repo, "oci://")
 
@@ -53,7 +53,7 @@ func ChartVersion(location fleet.HelmOptions, a Auth) (string, error) {
 			r.PlainHTTP = true
 		}
 
-		tag, err := GetOCITag(r, location.Version)
+		tag, err := GetOCITag(ctx, r, location.Version)
 
 		if len(tag) == 0 || err != nil {
 			return "", fmt.Errorf(
@@ -180,13 +180,13 @@ func getHelmChartVersion(location fleet.HelmOptions, auth Auth) (*repov1.ChartVe
 // GetOCITag fetches the highest available tag matching version v in repository r.
 // Returns an error if the remote repository itself returns an error, for instance if the OCI repository is not found.
 // If no error is returned, it is the caller's responsibility to check that the returned tag is non-empty.
-func GetOCITag(r *remote.Repository, v string) (string, error) {
+func GetOCITag(ctx context.Context, r *remote.Repository, v string) (string, error) {
 	constraint, err := semver.NewConstraint(v)
 	if err != nil {
 		return "", fmt.Errorf("failed to compute version constraint from version %q: %w", v, err)
 	}
 
-	availableTags, err := registry.Tags(context.TODO(), r)
+	availableTags, err := registry.Tags(ctx, r)
 	if err != nil {
 		var regErr errcode.Error
 		if errors.As(err, &regErr) {
