@@ -3,9 +3,9 @@ package helmdeployer
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
-	"strings"
 	"time"
 
 	"helm.sh/helm/v4/pkg/action"
@@ -14,6 +14,7 @@ import (
 	"helm.sh/helm/v4/pkg/kube"
 	releasecommon "helm.sh/helm/v4/pkg/release/common"
 	releasev1 "helm.sh/helm/v4/pkg/release/v1"
+	"helm.sh/helm/v4/pkg/storage/driver"
 
 	"github.com/rancher/fleet/internal/helmdeployer/render"
 	"github.com/rancher/fleet/internal/manifest"
@@ -334,16 +335,20 @@ func assertRelease(rel interface{}) (*releasev1.Release, error) {
 func (h *Helm) mustUninstall(cfg *action.Configuration, releaseName string) (bool, error) {
 	r, err := getLastRelease(cfg.Releases, releaseName)
 	if err != nil {
-		return false, nil
+		// If the release doesn't exist, there's nothing to uninstall
+		if errors.Is(err, driver.ErrReleaseNotFound) || errors.Is(err, driver.ErrNoDeployedReleases) {
+			return false, nil
+		}
+		return false, err
 	}
-	return r.Info.Status == releasecommon.StatusUninstalling || r.Info.Status == releasecommon.StatusPendingInstall, err
+	return r.Info.Status == releasecommon.StatusUninstalling || r.Info.Status == releasecommon.StatusPendingInstall, nil
 }
 
 // mustInstall checks if a fresh install is required by verifying if there is no deployed release.
 // Returns true if no deployed release exists for the given release name.
 func (h *Helm) mustInstall(cfg *action.Configuration, releaseName string) (bool, error) {
 	_, err := cfg.Releases.Deployed(releaseName)
-	if err != nil && strings.Contains(err.Error(), "has no deployed releases") {
+	if err != nil && errors.Is(err, driver.ErrNoDeployedReleases) {
 		return true, nil
 	}
 	return false, err

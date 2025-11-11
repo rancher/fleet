@@ -219,6 +219,8 @@ func (h *handler) updateClusterStatus(cluster *fleet.Cluster, status fleet.Clust
 func (h *handler) resolveNS(namespace, _ string, obj runtime.Object) ([]relatedresource.Key, error) {
 	if cluster, ok := obj.(*fleet.Cluster); ok {
 		if _, err := h.bundleCache.Get(namespace, names.SafeConcatName(AgentBundleName, cluster.Name)); err != nil {
+			// Bundle doesn't exist (or can't be retrieved), enqueue the namespace to create/reconcile it
+			//nolint:nilerr // Intentionally ignoring error - "not found" is expected and should trigger reconciliation
 			return []relatedresource.Key{{Name: namespace}}, nil
 		}
 	}

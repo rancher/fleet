@@ -121,6 +121,7 @@ func (r *ScreeningLocalReader) Read() ([]*yaml.RNode, error) {
 		// this file as problematic, and continue.
 		if err != nil {
 			r.ProblemFiles = append(r.ProblemFiles, path)
+			//nolint:nilerr // Intentionally continue processing other files to collect all problems
 			return nil
 		}
 		result = append(result, nodes...)

@@ -15,6 +15,7 @@
       "ineffassign",
       "misspell",
       "nakedret",
+      "nilerr",
       "revive",
       "staticcheck",
       "unparam",

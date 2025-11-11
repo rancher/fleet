@@ -944,7 +944,7 @@ func getKindNS(br fleet.BundleResource, bundleName string) (fleet.OverwrittenRes
 		if err != nil {
 			logrus.Debugf("could not uncompress contents of resource %s in bundle %s;"+
 				" skipping overlap detection for this resource", br.Name, bundleName)
-			return fleet.OverwrittenResource{}, nil
+			return fleet.OverwrittenResource{}, nil //nolint:nilerr // intentionally skipping this resource
 		}
 	} else {
 		// encoding should be empty
