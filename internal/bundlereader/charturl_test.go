@@ -3,6 +3,7 @@ package bundlereader_test
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"net/http"
 	"strings"
@@ -101,7 +102,7 @@ func Test_getOCITag(t *testing.T) {
 
 			mockCli.EXPECT().Do(gomock.Any()).Return(&resp, nil).MaxTimes(1)
 
-			tag, err := bundlereader.GetOCITag(r, c.inputVersion)
+			tag, err := bundlereader.GetOCITag(context.Background(), r, c.inputVersion)
 
 			if err != nil {
 				if len(c.expectedErrMsg) == 0 || !strings.Contains(err.Error(), c.expectedErrMsg) {

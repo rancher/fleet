@@ -247,7 +247,7 @@ func (c *CronDurationJob) executeStop(ctx context.Context) error {
 	// Sets ActiveSchedule to false for all matching clusters.
 	// This action disables the creation of BundleDeployments on the clusters.
 	for _, cluster := range c.MatchingClusters {
-		if err := setClusterActiveSchedule(context.Background(), c.client, cluster, c.Schedule.Namespace, false); err != nil {
+		if err := setClusterActiveSchedule(ctx, c.client, cluster, c.Schedule.Namespace, false); err != nil {
 			return err
 		}
 	}
