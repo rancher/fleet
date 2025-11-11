@@ -21,6 +21,7 @@
       "misspell",
       "nakedret",
       "nilerr",
+      "noctx",
       "revive",
       "staticcheck",
       "unconvert",

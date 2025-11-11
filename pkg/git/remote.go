@@ -1,6 +1,7 @@
 package git
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -132,7 +133,7 @@ func (r *Remote) RevisionCommit(revision string) (string, error) {
 }
 
 // LatestBranchCommit returns the latest commit for the given branch
-func (r *Remote) LatestBranchCommit(branch string) (string, error) {
+func (r *Remote) LatestBranchCommit(ctx context.Context, branch string) (string, error) {
 	if err := validateBranch(branch); err != nil {
 		return "", err
 	}
@@ -142,7 +143,7 @@ func (r *Remote) LatestBranchCommit(branch string) (string, error) {
 	if commitsURL != "" {
 		// it is supported. Get the last commit with the vendor's url
 		// (this is faster than running a whole ls-remote like operation)
-		if commit, err := latestCommitFromCommitsURL(commitsURL, r.Options); err == nil {
+		if commit, err := latestCommitFromCommitsURL(ctx, commitsURL, r.Options); err == nil {
 			// in case of error it tries the full List operation
 			return commit, nil
 		}
