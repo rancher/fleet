@@ -2,6 +2,7 @@ package helmdeployer
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"strconv"
 
@@ -22,7 +23,7 @@ func (h *Helm) EnsureInstalled(bundleID, resourcesID string) (bool, error) {
 		return false, err
 	}
 
-	if _, err := h.getRelease(releaseName, namespace, version); err == ErrNoRelease {
+	if _, err := h.getRelease(releaseName, namespace, version); errors.Is(err, ErrNoRelease) {
 		return false, nil
 	} else if err != nil {
 		return false, err
@@ -38,7 +39,7 @@ func (h *Helm) Resources(bundleID, resourcesID string) (*Resources, error) {
 	}
 
 	release, err := h.getRelease(releaseName, namespace, version)
-	if err == ErrNoRelease {
+	if errors.Is(err, ErrNoRelease) {
 		return &Resources{}, nil
 	} else if err != nil {
 		return nil, err
@@ -56,7 +57,7 @@ func (h *Helm) ResourcesFromPreviousReleaseVersion(bundleID, resourcesID string)
 	}
 
 	release, err := h.getRelease(releaseName, namespace, version-1)
-	if err == ErrNoRelease {
+	if errors.Is(err, ErrNoRelease) {
 		return &Resources{}, nil
 	} else if err != nil {
 		return nil, err
@@ -87,14 +88,14 @@ func getReleaseNameVersionAndNamespace(bundleID, resourcesID string) (string, in
 func (h *Helm) getRelease(releaseName, namespace string, version int) (*releasev1.Release, error) {
 	hist := action.NewHistory(h.globalCfg)
 
-	releasers, err := hist.Run(releaseName)
-	if err == driver.ErrReleaseNotFound {
+	releases, err := hist.Run(releaseName)
+	if errors.Is(err, driver.ErrReleaseNotFound) {
 		return nil, ErrNoRelease
 	} else if err != nil {
 		return nil, err
 	}
 
-	for _, releaser := range releasers {
+	for _, releaser := range releases {
 		release, err := releaserToV1Release(releaser)
 		if err != nil {
 			klog.V(1).InfoS("Skipping release entry with unsupported type during history lookup",

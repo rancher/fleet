@@ -180,7 +180,7 @@ func TestLatestCommit_BasicAuth(t *testing.T) {
 			f := git.Fetch{}
 			client := fake.NewClientBuilder().WithRuntimeObjects(secret).Build()
 			latestCommit, err := f.LatestCommit(ctx, test.gitrepo, client)
-			if err != test.expectedErr {
+			if !errors.Is(err, test.expectedErr) {
 				t.Errorf("expecter error is: %v, but got %v", test.expectedErr, err)
 			}
 			if latestCommit != test.expectedCommit {
@@ -360,7 +360,7 @@ func TestLatestCommit_Revision(t *testing.T) {
 				t.Errorf("latestCommit doesn't match. got %s, expected %s", latestCommit, test.expectedCommit)
 			}
 
-			if err != test.expectedError && err.Error() != test.expectedError.Error() {
+			if !errors.Is(err, test.expectedError) && err.Error() != test.expectedError.Error() {
 				t.Errorf("expecting error: [%v], but got: [%v]", test.expectedError, err)
 			}
 		})

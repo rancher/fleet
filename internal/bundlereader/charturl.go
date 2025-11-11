@@ -57,7 +57,7 @@ func ChartVersion(location fleet.HelmOptions, a Auth) (string, error) {
 
 		if len(tag) == 0 || err != nil {
 			return "", fmt.Errorf(
-				"could not find tag matching constraint %q in registry %s: %v",
+				"could not find tag matching constraint %q in registry %s: %w",
 				location.Version,
 				location.Repo,
 				err,

@@ -330,7 +330,7 @@ func (r *BundleDeploymentReconciler) copyResourcesFromUpstream(
 				return nil
 			})
 			if err != nil {
-				return false, fmt.Errorf("failed to create or update secret %s/%s downstream: %v", bd.Namespace, rsc.Name, err)
+				return false, fmt.Errorf("failed to create or update secret %s/%s downstream: %w", bd.Namespace, rsc.Name, err)
 			}
 
 			requiresBDUpdate = op == controllerutil.OperationResultUpdated
@@ -364,7 +364,7 @@ func (r *BundleDeploymentReconciler) copyResourcesFromUpstream(
 				return nil
 			})
 			if err != nil {
-				return false, fmt.Errorf("failed to create or update configmap %s/%s downstream: %v", bd.Namespace, rsc.Name, err)
+				return false, fmt.Errorf("failed to create or update configmap %s/%s downstream: %w", bd.Namespace, rsc.Name, err)
 			}
 
 			requiresBDUpdate = op == controllerutil.OperationResultUpdated

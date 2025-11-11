@@ -32,7 +32,7 @@ func eventually(f func() (string, error)) string {
 	for {
 		select {
 		case <-ctx.Done():
-			fail(fmt.Errorf("timed out: %v", ctx.Err()))
+			fail(fmt.Errorf("timed out: %w", ctx.Err()))
 		default:
 			out, err := f()
 			if err != nil {
@@ -63,7 +63,7 @@ var setupCmd = &cobra.Command{
 		if minutes := os.Getenv("CI_OCI_TIMEOUT_DURATION"); minutes != "" {
 			timeoutDuration, err = time.ParseDuration(minutes)
 			if err != nil {
-				fail(fmt.Errorf("parse timeout duration: %v", err))
+				fail(fmt.Errorf("parse timeout duration: %w", err))
 			}
 		}
 		fmt.Printf("Timeout duration: %v\n", timeoutDuration)
@@ -79,7 +79,7 @@ var setupCmd = &cobra.Command{
 		}
 		repoRoot, err := repoRootCmd.CombinedOutput()
 		if err != nil {
-			fail(fmt.Errorf("get repo root in %s: output: %q, error: %v", cwd, repoRoot, err))
+			fail(fmt.Errorf("get repo root in %s: output: %q, error: %w", cwd, repoRoot, err))
 		}
 
 		env := testenv.New()
@@ -90,7 +90,7 @@ var setupCmd = &cobra.Command{
 		k := env.Kubectl.Namespace(InfraNamespace)
 
 		if err := packageHelmChart(); err != nil {
-			fail(fmt.Errorf("package Helm chart: %v", err))
+			fail(fmt.Errorf("package Helm chart: %w", err))
 		}
 
 		// Only act on specified components, unless none is specified in which case all are affected.
@@ -114,7 +114,7 @@ var setupCmd = &cobra.Command{
 				"--key", path.Join(os.Getenv("CI_OCI_CERTS_DIR"), "helm.key"),
 			)
 			if err != nil && !strings.Contains(out, "already exists") {
-				fail(fmt.Errorf("create helm-tls secret: %s with error %v", out, err))
+				fail(fmt.Errorf("create helm-tls secret: %s with error %w", out, err))
 			}
 
 			out, err = k.Namespace(env.Namespace).Create(
@@ -124,7 +124,7 @@ var setupCmd = &cobra.Command{
 				"--from-file=cacerts="+path.Join(os.Getenv("CI_OCI_CERTS_DIR"), "root.crt"),
 			)
 			if err != nil && !strings.Contains(out, "already exists") {
-				fail(fmt.Errorf("create helm-secret: %s with error %v", out, err))
+				fail(fmt.Errorf("create helm-secret: %s with error %w", out, err))
 			}
 		}
 
@@ -146,7 +146,7 @@ var setupCmd = &cobra.Command{
 				}),
 			)
 			if err != nil {
-				fail(fmt.Errorf("create OCI registry client: %v", err))
+				fail(fmt.Errorf("create OCI registry client: %w", err))
 			}
 
 			if externalIP == "" {
@@ -163,7 +163,7 @@ var setupCmd = &cobra.Command{
 					registry.LoginOptInsecure(true),
 				)
 				if err != nil {
-					return "", fmt.Errorf("logging into OCI registry: %v", err)
+					return "", fmt.Errorf("logging into OCI registry: %w", err)
 				}
 
 				return "", nil
@@ -171,10 +171,10 @@ var setupCmd = &cobra.Command{
 
 			chartArchive, err := os.ReadFile("sleeper-chart-0.1.0.tgz")
 			if err != nil {
-				fail(fmt.Errorf("reading helm chart: %v", err))
+				fail(fmt.Errorf("reading helm chart: %w", err))
 			}
 			if _, err := OCIClient.Push(chartArchive, fmt.Sprintf("%s/sleeper-chart:0.1.0", OCIHost)); err != nil {
-				fail(fmt.Errorf("push to OCI registry: %v", err))
+				fail(fmt.Errorf("push to OCI registry: %w", err))
 			}
 		}
 
@@ -197,11 +197,11 @@ var setupCmd = &cobra.Command{
 					chartmuseum.InsecureSkipVerify(true),
 				)
 				if err != nil {
-					return "", fmt.Errorf("creating chartmuseum client: %v", err)
+					return "", fmt.Errorf("creating chartmuseum client: %w", err)
 				}
 				resp, err := c.UploadChartPackage("sleeper-chart-0.1.0.tgz", true)
 				if err != nil {
-					return "", fmt.Errorf("POST request to ChartMuseum failed: %v", err)
+					return "", fmt.Errorf("POST request to ChartMuseum failed: %w", err)
 				}
 				defer resp.Body.Close()
 
@@ -225,12 +225,12 @@ func spinUpGitServer(k kubectl.Command, wg *sync.WaitGroup) {
 
 	out, err := k.Apply("-f", testenv.AssetPath("gitrepo/nginx_deployment.yaml"))
 	if err != nil {
-		fail(fmt.Errorf("apply git server deployment: %s with error %v", out, err))
+		fail(fmt.Errorf("apply git server deployment: %s with error %w", out, err))
 	}
 
 	out, err = k.Apply("-f", testenv.AssetPath("gitrepo/nginx_service.yaml"))
 	if err != nil {
-		fail(fmt.Errorf("apply git server service: %s with error %v", out, err))
+		fail(fmt.Errorf("apply git server service: %s with error %w", out, err))
 	}
 
 	waitForPodReady(k, "git-server")
@@ -243,7 +243,7 @@ func spinUpOCIRegistry(k kubectl.Command, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	failOCI := func(err error) {
-		fail(fmt.Errorf("spin up OCI registry: %v", err))
+		fail(fmt.Errorf("spin up OCI registry: %w", err))
 	}
 
 	var err error
@@ -251,48 +251,48 @@ func spinUpOCIRegistry(k kubectl.Command, wg *sync.WaitGroup) {
 	if os.Getenv("CI_OCI_USERNAME") != "" && os.Getenv("CI_OCI_PASSWORD") != "" {
 		p, err := bcrypt.GenerateFromPassword([]byte(os.Getenv("CI_OCI_PASSWORD")), bcrypt.MinCost)
 		if err != nil {
-			fail(fmt.Errorf("generate bcrypt password from env var: %v", err))
+			fail(fmt.Errorf("generate bcrypt password from env var: %w", err))
 		}
 		htpasswd = fmt.Sprintf("%s:%s\n", os.Getenv("CI_OCI_USERNAME"), string(p))
 	}
 	if os.Getenv("CI_OCI_READER_USERNAME") != "" && os.Getenv("CI_OCI_READER_PASSWORD") != "" {
 		p, err := bcrypt.GenerateFromPassword([]byte(os.Getenv("CI_OCI_READER_PASSWORD")), bcrypt.MinCost)
 		if err != nil {
-			fail(fmt.Errorf("generate bcrypt password from env var: %v", err))
+			fail(fmt.Errorf("generate bcrypt password from env var: %w", err))
 		}
 		htpasswd += fmt.Sprintf("\n%s:%s\n", os.Getenv("CI_OCI_READER_USERNAME"), string(p))
 	}
 	if os.Getenv("CI_OCI_NO_DELETER_USERNAME") != "" && os.Getenv("CI_OCI_NO_DELETER_PASSWORD") != "" {
 		p, err := bcrypt.GenerateFromPassword([]byte(os.Getenv("CI_OCI_NO_DELETER_PASSWORD")), bcrypt.MinCost)
 		if err != nil {
-			fail(fmt.Errorf("generate bcrypt password from env var: %v", err))
+			fail(fmt.Errorf("generate bcrypt password from env var: %w", err))
 		}
 		htpasswd += fmt.Sprintf("\n%s:%s", os.Getenv("CI_OCI_NO_DELETER_USERNAME"), string(p))
 	}
 
 	err = testenv.ApplyTemplate(k, "helm/zot_secret.yaml", struct{ HTTPPasswd string }{htpasswd})
 	if err != nil {
-		failOCI(fmt.Errorf("create Zot htpasswd secret: %v", err))
+		failOCI(fmt.Errorf("create Zot htpasswd secret: %w", err))
 	}
 
 	zotConfig, err := getZotConfig()
 	if err != nil {
-		failOCI(fmt.Errorf("getting Zot config: %v", err))
+		failOCI(fmt.Errorf("getting Zot config: %w", err))
 	}
 
 	err = testenv.ApplyTemplate(k, "helm/zot_configmap.yaml", struct{ ZotConfig template.HTML }{template.HTML(zotConfig)})
 	if err != nil {
-		failOCI(fmt.Errorf("apply Zot config map with error %v", err))
+		failOCI(fmt.Errorf("apply Zot config map with error %w", err))
 	}
 
 	out, err := k.Apply("-f", testenv.AssetPath("helm/zot_deployment.yaml"))
 	if err != nil {
-		failOCI(fmt.Errorf("apply Zot deployment: %s with error %v", out, err))
+		failOCI(fmt.Errorf("apply Zot deployment: %s with error %w", out, err))
 	}
 
 	out, err = k.Apply("-f", testenv.AssetPath("helm/zot_service.yaml"))
 	if err != nil {
-		failOCI(fmt.Errorf("apply Zot service: %s with error %v", out, err))
+		failOCI(fmt.Errorf("apply Zot service: %s with error %w", out, err))
 	}
 
 	waitForPodReady(k, "zot")
@@ -304,7 +304,7 @@ func spinUpHelmRegistry(k kubectl.Command, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	failChartMuseum := func(err error) {
-		fail(fmt.Errorf("spin up ChartMuseum: %v", err))
+		fail(fmt.Errorf("spin up ChartMuseum: %w", err))
 	}
 
 	err := testenv.ApplyTemplate(k, "helm/chartmuseum_deployment.yaml",
@@ -317,12 +317,12 @@ func spinUpHelmRegistry(k kubectl.Command, wg *sync.WaitGroup) {
 		},
 	)
 	if err != nil {
-		failChartMuseum(fmt.Errorf("apply ChartMuseum deployment: %v", err))
+		failChartMuseum(fmt.Errorf("apply ChartMuseum deployment: %w", err))
 	}
 
 	out, err := k.Apply("-f", testenv.AssetPath("helm/chartmuseum_service.yaml"))
 	if err != nil {
-		failChartMuseum(fmt.Errorf("apply ChartMuseum service: %s with error %v", out, err))
+		failChartMuseum(fmt.Errorf("apply ChartMuseum service: %s with error %w", out, err))
 	}
 
 	waitForPodReady(k, "chartmuseum")

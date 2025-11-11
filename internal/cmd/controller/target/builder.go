@@ -343,7 +343,7 @@ func processTemplateValuesData(helmTemplateData map[string]string, templateConte
 		var value interface{}
 		err = kyaml.Unmarshal(b.Bytes(), &value)
 		if err != nil {
-			return nil, fmt.Errorf("failed to interpret rendered template as helm values: %s, %v", b.String(), err)
+			return nil, fmt.Errorf("failed to interpret rendered template as helm values: %s, %w", b.String(), err)
 		}
 
 		renderedValues[k] = value
@@ -377,7 +377,7 @@ func processTemplateValues(helmValues map[string]interface{}, templateContext ma
 	var renderedValues map[string]interface{}
 	err = kyaml.Unmarshal(b.Bytes(), &renderedValues)
 	if err != nil {
-		return nil, fmt.Errorf("failed to interpret rendered template as helm values: %#v, %v", renderedValues, err)
+		return nil, fmt.Errorf("failed to interpret rendered template as helm values: %#v, %w", renderedValues, err)
 	}
 
 	return renderedValues, nil

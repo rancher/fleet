@@ -96,7 +96,7 @@ func (h *Helm) deleteByRelease(ctx context.Context, bundleID, releaseName string
 	// HookOnlyStrategy is the default behavior (equivalent to not waiting)
 	u.WaitStrategy = kube.HookOnlyStrategy
 	if _, err := u.Run(releaseName); err != nil {
-		return fmt.Errorf("failed to delete release %s: %v", releaseName, err)
+		return fmt.Errorf("failed to delete release %s: %w", releaseName, err)
 	}
 
 	return deleteResourcesCopiedFromUpstream(ctx, h.client, bundleID)

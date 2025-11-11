@@ -75,7 +75,7 @@ func isAllFilesInDirPattern(path string) bool {
 func (xt *ignoreTree) addNode(dir string) error {
 	toIgnore, err := readFleetIgnore(dir)
 	if err != nil {
-		return fmt.Errorf("read .fleetignore for %s: %v", dir, err)
+		return fmt.Errorf("read .fleetignore for %s: %w", dir, err)
 	}
 
 	if len(toIgnore) == 0 {
