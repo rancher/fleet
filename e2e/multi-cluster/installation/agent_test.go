@@ -41,7 +41,7 @@ var _ = Describe("Fleet installation with TLS agent modes", func() {
 				agentMode,
 			),
 		)
-		Expect(err).ToNot(HaveOccurred(), string(out))
+		Expect(err).ToNot(HaveOccurred(), out)
 	})
 
 	Context("with non-strict agent TLS mode", func() {
@@ -120,9 +120,7 @@ var _ = Describe("HelmOps installation with strict TLS mode", func() {
 			"-p",
 			fmt.Sprintf(`{"data":{"config":"%s"}}`, strictCfg),
 		)
-		Expect(err).ToNot(HaveOccurred(), string(out))
-
-		// Check that the config change has been applied downstream
+		Expect(err).ToNot(HaveOccurred(), out) // Check that the config change has been applied downstream
 		type configWithTLSMode struct {
 			AgentTLSMode string `json:"agentTLSMode"`
 		}

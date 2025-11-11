@@ -556,7 +556,7 @@ LgGheQaRnUi/wr4CMEfDFXuxoJGZSZOoPHzoRgaLLPIxAJSdYsiJvRmEFOml+wG4
 DXZDjC5Ty3zfDBeWUA==
 -----END CERTIFICATE-----`)
 
-		block, _ := pem.Decode([]byte(caBundlePEM))
+		block, _ := pem.Decode(caBundlePEM)
 		Expect(block).ToNot(BeNil())
 		client, err := git.GetHTTPClientFromSecret(nil, block.Bytes, true, gitClientTimeout)
 		Expect(err).ToNot(HaveOccurred())

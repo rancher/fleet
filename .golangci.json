@@ -21,6 +21,7 @@
       "nilerr",
       "revive",
       "staticcheck",
+      "unconvert",
       "unparam",
       "unused"
     ],
