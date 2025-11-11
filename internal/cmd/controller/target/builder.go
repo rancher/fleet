@@ -64,7 +64,6 @@ func (m *Manager) Targets(ctx context.Context, bundle *fleet.Bundle, manifestID 
 			return nil, err
 		}
 		for _, cluster := range clusters.Items {
-			cluster := cluster
 			logger.V(4).Info("Cluster has namespace?", "cluster", cluster.Name, "namespace", cluster.Status.Namespace)
 			clusterGroups, err := m.clusterGroupsForCluster(ctx, &cluster)
 			if err != nil {
@@ -171,7 +170,6 @@ func (m *Manager) getNamespacesForBundle(ctx context.Context, bundle *fleet.Bund
 	nses := sets.NewString(bundle.Namespace)
 	for _, mapping := range mappings.Items {
 		logger.V(4).Info("Looking for matching namespaces", "bundleNamespaceMapping", mapping)
-		mapping := mapping // fix gosec warning regarding "Implicit memory aliasing in for loop"
 		matcher, err := newBundleMapping(&mapping)
 		if err != nil {
 			logger.Error(err, "invalid BundleNamespaceMapping skipping", "mappingNamespace", mapping.Namespace, "mappingName", mapping.Name)

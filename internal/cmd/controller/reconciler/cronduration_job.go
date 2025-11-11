@@ -269,7 +269,6 @@ func matchingClusters(ctx context.Context, matcher *matcher.ScheduleMatch, c cli
 	}
 	var clusterNames []string
 	for _, cluster := range clusters.Items {
-		cluster := cluster
 		cgs, err := target.ClusterGroupsForCluster(ctx, c, &cluster)
 		if err != nil {
 			return nil, fmt.Errorf("%w, getting cluster groups from clusters: %w", fleetutil.ErrRetryable, err)
