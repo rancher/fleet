@@ -25,7 +25,6 @@ import (
 	"github.com/rancher/fleet/internal/metrics"
 	"github.com/rancher/fleet/internal/ocistorage"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"github.com/rancher/fleet/pkg/durations"
 	fleetevent "github.com/rancher/fleet/pkg/event"
 	"github.com/rancher/fleet/pkg/sharding"
 	corev1 "k8s.io/api/core/v1"
@@ -36,7 +35,6 @@ import (
 	errutil "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -328,15 +326,13 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		bd.Spec.OCIContents = contentsInOCI
 		bd.Spec.HelmChartOptions = bundle.Spec.HelmOpOptions
 
-		h, options, stagedOptions, err := helmvalues.ExtractOptions(bd)
+		valuesHash, optionsSecret, err := r.manageOptionsSecret(ctx, bd)
 		if err != nil {
-			err := fmt.Errorf("failed to extract Helm options for secret creation: %w", err)
-
-			return ctrl.Result{}, r.updateErrorStatus(ctx, bundleOrig, bundle, err)
+			return r.computeResult(ctx, logger, bundleOrig, bundle, "failed to initialize options secret", err)
 		}
-		// We need a checksum to trigger on value change, rely on later code in
-		// the reconciler to update the status
-		bd.Spec.ValuesHash = h
+
+		// Changes in the values hash trigger a bundle deployment reconcile.
+		bd.Spec.ValuesHash = valuesHash
 
 		helmvalues.ClearOptions(bd)
 
@@ -348,7 +344,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			bundleDeploymentUIDs.Insert(target.Deployment.UID)
 		}
 
-		bd, err = r.createBundleDeployment(
+		op, bd, err := r.createBundleDeployment(
 			ctx,
 			logger,
 			bd,
@@ -368,19 +364,13 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		}
 		bundleDeploymentUIDs.Insert(bd.UID)
 
-		if bd.Spec.ValuesHash != "" {
-			if err := r.createOptionsSecret(ctx, bd, options, stagedOptions); err != nil {
-				return r.computeResult(ctx, logger, bundleOrig, bundle, "failed to create options secret", err)
-			}
-		} else {
-			// No values to store, delete the secret if it exists
-			if err := r.Delete(ctx, &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{Name: bd.Name, Namespace: bd.Namespace},
-			}); err != nil && !apierrors.IsNotFound(err) {
-				err = fmt.Errorf("%w: failed to delete options secret: %w", fleetutil.ErrRetryable, err)
-				logger.Info(err.Error())
-
-				return ctrl.Result{RequeueAfter: durations.DefaultRequeueAfter}, nil
+		// At this stage, we know the UID of our bundle deployment, hence we can use it to populate the owner reference in the
+		// options secret.
+		// If the bundle deployment already existed and has simply been updated, the secret will already bear an owner
+		// reference from its creation or latest update.
+		if op == controllerutil.OperationResultCreated {
+			if err := r.ensureOwnerReferences(ctx, bd, optionsSecret); err != nil {
+				return r.computeResult(ctx, logger, bundleOrig, bundle, "failed to ensure owner references are set in options secret", err)
 			}
 		}
 
@@ -469,19 +459,22 @@ func (r *BundleReconciler) createBundleDeployment(
 	contentsInOCI bool,
 	contentsInHelmChart bool,
 	manifestID string,
-) (*fleet.BundleDeployment, error) {
+) (controllerutil.OperationResult, *fleet.BundleDeployment, error) {
 	logger := l.WithValues("deploymentID", bd.Spec.DeploymentID)
 
 	// When content resources are stored in etcd, we need to add finalizers.
 	if !contentsInOCI && !contentsInHelmChart {
 		content := &fleet.Content{}
 		if err := r.Get(ctx, types.NamespacedName{Name: manifestID}, content); err != nil {
-			return nil, fmt.Errorf("failed to get content resource: %w", err)
+			return controllerutil.OperationResultNone, nil, fmt.Errorf("failed to get content resource: %w", err)
 		}
 
 		if added := controllerutil.AddFinalizer(content, bd.Name); added {
 			if err := r.Update(ctx, content); err != nil {
-				return nil, fmt.Errorf("could not add finalizer to content resource, thus cannot create/update bundledeployment: %w", err)
+				return controllerutil.OperationResultNone, nil, fmt.Errorf(
+					"could not add finalizer to content resource, thus cannot create/update bundledeployment: %w",
+					err,
+				)
 			}
 		}
 	}
@@ -514,14 +507,37 @@ func (r *BundleReconciler) createBundleDeployment(
 	})
 	if err != nil {
 		logger.Error(err, "Reconcile failed to create or update bundledeployment", "operation", op)
-		return nil, err
+		return controllerutil.OperationResultNone, nil, err
 	}
 	logger.Info(upper(op)+" bundledeployment", "operation", op)
 
-	return bd, nil
+	return op, bd, nil
 }
 
-func (r *BundleReconciler) createOptionsSecret(ctx context.Context, bd *fleet.BundleDeployment, options []byte, stagedOptions []byte) error {
+// manageOptionsSecret creates a secret, or updates the existing one, containing options extracted from bd, ensuring
+// that said secret is up-to-date. If no options are extracted from bd, it deletes any existing options secret.
+// Returns a hash of options, a pointer to the options secret and an error, if any.
+func (r *BundleReconciler) manageOptionsSecret(
+	ctx context.Context,
+	bd *fleet.BundleDeployment,
+) (string, *corev1.Secret, error) {
+	hash, options, stagedOptions, err := helmvalues.ExtractOptions(bd)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to extract Helm options for secret creation: %w", err)
+	}
+
+	if hash == "" {
+		// No values to store, delete the secret if it exists
+		if err := r.Delete(ctx, &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: bd.Name, Namespace: bd.Namespace},
+		}); err != nil && !apierrors.IsNotFound(err) {
+			return "", nil, fmt.Errorf("%w: failed to delete options secret: %w", fleetutil.ErrRetryable, err)
+		}
+
+		return "", nil, nil
+	}
+
+	// Ensure secret is up-to-date
 	secret := &corev1.Secret{
 		Type: fleet.SecretTypeBundleDeploymentOptions,
 		ObjectMeta: metav1.ObjectMeta{
@@ -529,29 +545,43 @@ func (r *BundleReconciler) createOptionsSecret(ctx context.Context, bd *fleet.Bu
 			Namespace: bd.Namespace,
 		},
 	}
-	owners := []metav1.OwnerReference{
-		{
-			APIVersion:         fleet.SchemeGroupVersion.String(),
-			Kind:               "BundleDeployment",
-			Name:               bd.GetName(),
-			UID:                bd.GetUID(),
-			BlockOwnerDeletion: ptr.To(true),
-			Controller:         ptr.To(true),
-		},
-	}
 
 	if _, err := controllerutil.CreateOrUpdate(ctx, r.Client, secret, func() error {
-		secret.OwnerReferences = owners
+		// Setting the owner reference on the secret at create/update time is more efficient than doing it separately
+		// after the bundle deployment is updated, if the bundle deployment already exists (in which case its UID is
+		// non-empty and immutable).
+		if bd.GetUID() != "" {
+			if err := controllerutil.SetControllerReference(bd, secret, r.Scheme); err != nil {
+				return err
+			}
+		}
+
 		secret.Data = map[string][]byte{
 			helmvalues.ValuesKey:       options,
 			helmvalues.StagedValuesKey: stagedOptions,
 		}
 		return nil
 	}); err != nil {
-		return fmt.Errorf("%w: %w", fleetutil.ErrRetryable, err)
+		return "", nil, fmt.Errorf("%w: %w", fleetutil.ErrRetryable, err)
 	}
 
-	return nil
+	return hash, secret, nil
+}
+
+// ensureOwnerReferences sets bd as the owner of s, and returns any error occurring in the process.
+func (r *BundleReconciler) ensureOwnerReferences(ctx context.Context, bd *fleet.BundleDeployment, s *corev1.Secret) error {
+	if s == nil {
+		return nil
+	}
+
+	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, s, func() error {
+		return controllerutil.SetControllerReference(bd, s, r.Scheme)
+	})
+	if err != nil {
+		err = fmt.Errorf("%w: %w", fleetutil.ErrRetryable, err)
+	}
+
+	return err
 }
 
 func (r *BundleReconciler) getOCIReference(ctx context.Context, bundle *fleet.Bundle) (string, error) {
