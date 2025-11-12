@@ -57,6 +57,7 @@ func (t *Target) BundleDeployment() *fleet.BundleDeployment {
 			Name:      t.Deployment.Name,
 			Namespace: t.Deployment.Namespace,
 			Labels:    t.BundleDeploymentLabels(t.Cluster.Namespace, t.Cluster.Name),
+			UID:       t.Deployment.UID, // useful for optimised owner reference population if the BD already exists.
 		},
 		Spec: t.Deployment.Spec,
 	}
