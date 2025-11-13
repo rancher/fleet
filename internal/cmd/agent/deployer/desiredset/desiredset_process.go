@@ -260,7 +260,6 @@ func multiNamespaceList(ctx context.Context, namespaces []string, baseClient dyn
 
 	// list all namespaces concurrently
 	for _, namespace := range namespaces {
-		namespace := namespace
 		wg.Go(func() error {
 			list, err := baseClient.Namespace(namespace).List(_ctx, v1.ListOptions{
 				LabelSelector: selector.String(),

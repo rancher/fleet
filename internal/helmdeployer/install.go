@@ -3,14 +3,15 @@ package helmdeployer
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
-	"strings"
 
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/release"
+	"helm.sh/helm/v3/pkg/storage/driver"
 
 	"github.com/rancher/fleet/internal/helmdeployer/render"
 	"github.com/rancher/fleet/internal/manifest"
@@ -88,6 +89,9 @@ func (h *Helm) install(ctx context.Context, bundleID string, manifest *manifest.
 			return nil, err
 		}
 		if dryRun {
+			// In dry run mode, we've validated that uninstall is needed but can't proceed
+			// with install/upgrade since the old release conceptually still exists.
+			// Returning (nil, nil) indicates successful dry run completion with no release object.
 			return nil, nil
 		}
 	}
@@ -190,14 +194,18 @@ func (h *Helm) install(ctx context.Context, bundleID string, manifest *manifest.
 func (h *Helm) mustUninstall(cfg *action.Configuration, releaseName string) (bool, error) {
 	r, err := cfg.Releases.Last(releaseName)
 	if err != nil {
-		return false, nil
+		// If the release doesn't exist, there's nothing to uninstall
+		if errors.Is(err, driver.ErrReleaseNotFound) || errors.Is(err, driver.ErrNoDeployedReleases) {
+			return false, nil
+		}
+		return false, err
 	}
-	return r.Info.Status == release.StatusUninstalling || r.Info.Status == release.StatusPendingInstall, err
+	return r.Info.Status == release.StatusUninstalling || r.Info.Status == release.StatusPendingInstall, nil
 }
 
 func (h *Helm) mustInstall(cfg *action.Configuration, releaseName string) (bool, error) {
 	_, err := cfg.Releases.Deployed(releaseName)
-	if err != nil && strings.Contains(err.Error(), "has no deployed releases") {
+	if err != nil && errors.Is(err, driver.ErrNoDeployedReleases) {
 		return true, nil
 	}
 	return false, err

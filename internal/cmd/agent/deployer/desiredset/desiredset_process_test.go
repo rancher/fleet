@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -34,7 +35,7 @@ func Test_multiNamespaceList(t *testing.T) {
 	}
 	s := runtime.NewScheme()
 	err := appsv1.SchemeBuilder.AddToScheme(s)
-	assert.NoError(t, err, "Failed to build schema.")
+	require.NoError(t, err, "Failed to build schema.")
 	baseClient := fake.NewSimpleDynamicClient(s)
 	baseClient.PrependReactor("list", "*", func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
 		if strings.Contains(action.GetNamespace(), "error") {
@@ -102,9 +103,9 @@ func Test_multiNamespaceList(t *testing.T) {
 			})
 
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 
 			if tt.expectedCalls >= 0 {

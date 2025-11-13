@@ -147,7 +147,7 @@ var _ = Describe("Fleet apply helm release with HTTP OCI registry", Ordered, fun
 	})
 })
 
-// nolint: unparam // port is always 3000, but better store that value in one place for easier maintenance.
+//nolint:unparam // port always receives ":3000" but parameter kept for clarity
 func testHelmRepo(path, port string, applyF applyFunc) {
 	var authEnabled bool
 	var repo = repository{

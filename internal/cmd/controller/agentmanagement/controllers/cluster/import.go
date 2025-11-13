@@ -109,6 +109,8 @@ func RegisterImport(
 				logrus.WithError(err).Errorf("cluster %s/%s: could not check for config changes", cluster.Namespace, cluster.Name)
 			}
 		}
+		// Successfully checked all clusters for config changes. No secret modification needed,
+		// and no error occurred. The secret watcher processed the event successfully.
 		return nil, nil
 	})
 }
@@ -282,7 +284,8 @@ func (i *importHandler) deleteOldAgent(cluster *fleet.Cluster, kc kubernetes.Int
 
 // importCluster is triggered for manager initiated deployments and the local agent, It re-deploys the agent on the downstream cluster.
 // Since it re-creates the fleet-agent-bootstrap secret, it will also re-register the agent.
-// nolint:gocyclo
+//
+//nolint:gocyclo
 func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.ClusterStatus) (fleet.ClusterStatus, error) {
 	if manageagent.SkipCluster(cluster) {
 		return status, nil
@@ -356,7 +359,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 	tokenName := names.SafeConcatName(ImportTokenPrefix + cluster.Name)
 	token, err := i.tokens.Get(cluster.Namespace, tokenName)
 	if err != nil {
-		// ignore error
+		// If token doesn't exist, try to create it
 		_, err = i.tokenClient.Create(&fleet.ClusterRegistrationToken{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: cluster.Namespace,
@@ -374,9 +377,12 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 				TTL: &metav1.Duration{Duration: durations.ClusterImportTokenTTL},
 			},
 		})
-		logrus.Debugf("Failed to create ClusterRegistrationToken for cluster %s/%s: %v (requeuing)", cluster.Namespace, cluster.Name, err)
-		i.clusters.EnqueueAfter(cluster.Namespace, cluster.Name, durations.TokenClusterEnqueueDelay)
-		return status, nil
+		// Ignore AlreadyExists errors (race condition with another reconcile)
+		if err != nil && !apierrors.IsAlreadyExists(err) {
+			logrus.Debugf("Failed to create ClusterRegistrationToken for cluster %s/%s: %v (requeuing)", cluster.Namespace, cluster.Name, err)
+			i.clusters.EnqueueAfter(cluster.Namespace, cluster.Name, durations.TokenClusterEnqueueDelay)
+			return status, err
+		}
 	}
 
 	agentNamespace := i.systemNamespace
@@ -532,8 +538,12 @@ func (i *importHandler) restConfigFromKubeConfig(data []byte, agentTLSMode strin
 	if agentTLSMode == config.AgentTLSModeSystemStore && raw.Contexts[raw.CurrentContext] != nil {
 		cluster := raw.Contexts[raw.CurrentContext].Cluster
 		if raw.Clusters[cluster] != nil {
-			if _, err := http.Get(raw.Clusters[cluster].Server); err == nil {
-				raw.Clusters[cluster].CertificateAuthorityData = nil
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, raw.Clusters[cluster].Server, nil)
+			if err == nil {
+				if resp, err := http.DefaultClient.Do(req); err == nil {
+					resp.Body.Close()
+					raw.Clusters[cluster].CertificateAuthorityData = nil
+				}
 			}
 		}
 	}

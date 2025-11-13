@@ -88,7 +88,7 @@ func (s KnownHosts) GetWithSecret(ctx context.Context, c client.Client, secret *
 
 	kh, ok := cm.Data["known_hosts"]
 	if ok && len(kh) > 0 {
-		return string(kh), nil
+		return kh, nil
 	}
 
 	if s.EnforceHostKeyChecks {

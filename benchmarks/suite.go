@@ -263,7 +263,7 @@ func generateAsset(target string, tmplPath string, data any) error {
 	if err != nil {
 		return err
 	}
-	err = os.WriteFile(target, []byte(sb.String()), 0644) // nolint:gosec // Non-crypto use
+	err = os.WriteFile(target, []byte(sb.String()), 0644)
 	if err != nil {
 		return err
 	}

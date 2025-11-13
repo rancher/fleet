@@ -77,7 +77,7 @@ func setupSuite() func(code int) {
 	require.NoError(t, err, "creating gogs container failed")
 
 	return func(code int) {
-		terminateContainer(ctx, container, code, t)
+		terminateContainer(ctx, t, container, code)
 	}
 }
 
@@ -180,7 +180,7 @@ func TestLatestCommit_BasicAuth(t *testing.T) {
 			f := git.Fetch{}
 			client := fake.NewClientBuilder().WithRuntimeObjects(secret).Build()
 			latestCommit, err := f.LatestCommit(ctx, test.gitrepo, client)
-			if err != test.expectedErr {
+			if !errors.Is(err, test.expectedErr) {
 				t.Errorf("expecter error is: %v, but got %v", test.expectedErr, err)
 			}
 			if latestCommit != test.expectedCommit {
@@ -360,7 +360,7 @@ func TestLatestCommit_Revision(t *testing.T) {
 				t.Errorf("latestCommit doesn't match. got %s, expected %s", latestCommit, test.expectedCommit)
 			}
 
-			if err != test.expectedError && err.Error() != test.expectedError.Error() {
+			if !errors.Is(err, test.expectedError) && err.Error() != test.expectedError.Error() {
 				t.Errorf("expecting error: [%v], but got: [%v]", test.expectedError, err)
 			}
 		})
@@ -619,6 +619,7 @@ func getURL(ctx context.Context, container testcontainers.Container) (string, er
 // cleanup fails in github actions, that's why we use os.MkdirTemp instead. Container will be removed at the end in
 // github actions, so no resources are left orphaned.
 func createTempFolder(t *testing.T) string {
+	t.Helper()
 	if os.Getenv("GITHUB_ACTIONS") == "true" {
 		tmp, err := os.MkdirTemp("", "gogs")
 		require.NoError(t, err)
@@ -667,7 +668,8 @@ func makeSSHKeyPair() (string, string, error) {
 	return pubKeyBuf.String(), privKeyBuf.String(), nil
 }
 
-func terminateContainer(ctx context.Context, container testcontainers.Container, code int, t *testing.T) {
+func terminateContainer(ctx context.Context, t *testing.T, container testcontainers.Container, code int) {
+	t.Helper()
 	if code != 0 {
 		rc, err := container.Logs(ctx)
 		if err != nil {

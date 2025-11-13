@@ -1,6 +1,7 @@
 package git_test
 
 import (
+	"context"
 	"fmt"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -149,7 +150,7 @@ var _ = Describe("git's LatestBranchCommit tests", func() {
 			}
 		})
 		It("returns an error", func() {
-			commit, err := gitRemote.LatestBranchCommit("wrong_branch")
+			commit, err := gitRemote.LatestBranchCommit(context.Background(), "wrong_branch")
 			Expect(err).To(HaveOccurred())
 			Expect(commit).To(BeEmpty())
 			Expect(err).To(Equal(fmt.Errorf("commit not found for branch: wrong_branch")))
@@ -174,7 +175,7 @@ var _ = Describe("git's LatestBranchCommit tests", func() {
 			}
 		})
 		It("returns the expected commit", func() {
-			commit, err := gitRemote.LatestBranchCommit("testbranch")
+			commit, err := gitRemote.LatestBranchCommit(context.Background(), "testbranch")
 			Expect(err).ToNot(HaveOccurred())
 			Expect(commit).To(Equal("ffad72d77b26152ad74053d736cc1b96c82b7c99"))
 		})
@@ -188,7 +189,7 @@ var _ = Describe("git's LatestBranchCommit tests", func() {
 		})
 
 		It("returns the go-git List error", func() {
-			commit, error := gitRemote.LatestBranchCommit("main")
+			commit, error := gitRemote.LatestBranchCommit(context.Background(), "main")
 			Expect(commit).To(BeEmpty())
 			Expect(error).To(HaveOccurred())
 			Expect(error.Error()).To(Equal("THIS IS A TEST ERROR"))
@@ -202,7 +203,7 @@ var _ = Describe("git's LatestBranchCommit tests", func() {
 			}
 		})
 		It("LatestBranchCommitIfChanged returns an error", func() {
-			commit, err := gitRemote.LatestBranchCommit("master.lock")
+			commit, err := gitRemote.LatestBranchCommit(context.Background(), "master.lock")
 			Expect(err).To(HaveOccurred())
 			Expect(commit).To(BeEmpty())
 			Expect(err.Error()).To(Equal("invalid branch name: cannot end with \".lock\""))

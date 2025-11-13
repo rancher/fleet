@@ -40,7 +40,8 @@ func Test_updateFromResources(t *testing.T) {
 				},
 			},
 			assert: func(t *testing.T, status fleet.BundleDeploymentStatus) {
-				assert.Equal(t, status.ResourceCounts, fleet.ResourceCounts{DesiredReady: 2, Ready: 2})
+				t.Helper()
+				assert.Equal(t, fleet.ResourceCounts{DesiredReady: 2, Ready: 2}, status.ResourceCounts)
 				assert.Truef(t, status.Ready, "unexpected ready status")
 				assert.Truef(t, status.NonModified, "unexpected non-modified status")
 				assert.Lenf(t, status.Resources, 2, "unexpected resources length")
@@ -70,7 +71,8 @@ func Test_updateFromResources(t *testing.T) {
 				},
 			},
 			assert: func(t *testing.T, status fleet.BundleDeploymentStatus) {
-				assert.Equal(t, status.ResourceCounts, fleet.ResourceCounts{DesiredReady: 1, Ready: 1, Orphaned: 1})
+				t.Helper()
+				assert.Equal(t, fleet.ResourceCounts{DesiredReady: 1, Ready: 1, Orphaned: 1}, status.ResourceCounts)
 				assert.Truef(t, status.Ready, "unexpected ready status")
 				assert.Falsef(t, status.NonModified, "unexpected non-modified status")
 				assert.Lenf(t, status.Resources, 1, "unexpected resources length")
@@ -94,7 +96,8 @@ func Test_updateFromResources(t *testing.T) {
 				},
 			},
 			assert: func(t *testing.T, status fleet.BundleDeploymentStatus) {
-				assert.Equal(t, status.ResourceCounts, fleet.ResourceCounts{DesiredReady: 1, Missing: 1})
+				t.Helper()
+				assert.Equal(t, fleet.ResourceCounts{DesiredReady: 1, Missing: 1}, status.ResourceCounts)
 				assert.Truef(t, status.Ready, "unexpected ready status")
 				assert.Falsef(t, status.NonModified, "unexpected non-modified status")
 				assert.Emptyf(t, status.Resources, "expected resources to be empty")
@@ -125,7 +128,8 @@ func Test_updateFromResources(t *testing.T) {
 				},
 			},
 			assert: func(t *testing.T, status fleet.BundleDeploymentStatus) {
-				assert.Equal(t, status.ResourceCounts, fleet.ResourceCounts{DesiredReady: 1, Modified: 1})
+				t.Helper()
+				assert.Equal(t, fleet.ResourceCounts{DesiredReady: 1, Modified: 1}, status.ResourceCounts)
 				assert.Truef(t, status.Ready, "unexpected ready status")
 				assert.Falsef(t, status.NonModified, "unexpected non-modified status")
 				assert.Lenf(t, status.Resources, 1, "unexpected resources length")
@@ -169,7 +173,8 @@ func Test_updateFromResources(t *testing.T) {
 				},
 			},
 			assert: func(t *testing.T, status fleet.BundleDeploymentStatus) {
-				assert.Equal(t, status.ResourceCounts, fleet.ResourceCounts{DesiredReady: 2, Missing: 1, NotReady: 1})
+				t.Helper()
+				assert.Equal(t, fleet.ResourceCounts{DesiredReady: 2, Missing: 1, NotReady: 1}, status.ResourceCounts)
 				assert.Falsef(t, status.Ready, "unexpected ready status")
 				assert.Falsef(t, status.NonModified, "unexpected non-modified status")
 				assert.Lenf(t, status.Resources, 1, "unexpected resources length")
@@ -224,7 +229,8 @@ func Test_updateFromResources(t *testing.T) {
 				}(12),
 			},
 			assert: func(t *testing.T, status fleet.BundleDeploymentStatus) {
-				assert.Equal(t, status.ResourceCounts, fleet.ResourceCounts{DesiredReady: 24, Missing: 12, NotReady: 12})
+				t.Helper()
+				assert.Equal(t, fleet.ResourceCounts{DesiredReady: 24, Missing: 12, NotReady: 12}, status.ResourceCounts)
 				assert.Falsef(t, status.Ready, "unexpected ready status")
 				assert.Falsef(t, status.NonModified, "unexpected non-modified status")
 				assert.Lenf(t, status.Resources, 12, "unexpected resources length")

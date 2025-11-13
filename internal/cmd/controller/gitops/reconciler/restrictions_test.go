@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"reflect"
-	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -232,10 +231,10 @@ func TestAuthorizeAndAssignDefaults(t *testing.T) {
 			err := reconciler.AuthorizeAndAssignDefaults(context.TODO(), client, &c.inputGr)
 
 			if len(c.expectedErr) > 0 {
-				require.NotNil(t, err)
-				assert.Regexp(t, regexp.MustCompile(c.expectedErr), err.Error())
+				require.Error(t, err)
+				assert.Regexp(t, c.expectedErr, err.Error())
 			} else {
-				assert.Nil(t, err)
+				require.NoError(t, err)
 			}
 
 			if !reflect.DeepEqual(c.inputGr, c.expectedGr) {

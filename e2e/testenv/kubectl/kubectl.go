@@ -3,6 +3,7 @@ package kubectl
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"os"
 	"os/exec"
@@ -93,7 +94,7 @@ func (c Command) Run(args ...string) (string, error) {
 }
 
 func (c Command) exec(command string, args ...string) (string, error) {
-	cmd := exec.Command(command, args...)
+	cmd := exec.CommandContext(context.Background(), command, args...)
 
 	var b bytes.Buffer
 	if c.stdout {

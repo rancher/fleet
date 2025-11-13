@@ -31,7 +31,7 @@ func (app *GitHubApp) GetToken(ctx context.Context) (string, error) {
 	}
 
 	tr := http.DefaultTransport
-	itr, err := ghinstallation.New(tr, app.appID, app.installID, []byte(app.pem))
+	itr, err := ghinstallation.New(tr, app.appID, app.installID, app.pem)
 	if err != nil {
 		return "", err
 	}

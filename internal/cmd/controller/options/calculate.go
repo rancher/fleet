@@ -22,7 +22,7 @@ func DeploymentID(manifestID string, opts fleet.BundleDeploymentOptions) (string
 }
 
 // Merge overrides the 'base' options with the 'target customization' options, if 'custom' is present (pure function)
-func Merge(base, custom fleet.BundleDeploymentOptions) fleet.BundleDeploymentOptions { // nolint: gocyclo // business logic
+func Merge(base, custom fleet.BundleDeploymentOptions) fleet.BundleDeploymentOptions { //nolint: gocyclo // business logic
 	result := *base.DeepCopy()
 	if custom.DefaultNamespace != "" {
 		result.DefaultNamespace = custom.DefaultNamespace

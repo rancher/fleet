@@ -37,7 +37,7 @@ var (
 		collectClusterMetrics,
 	}
 
-	// nolint:dupl // Same pattern as in clustergroup metrics, but not the same definitions.
+	//nolint:dupl // Same pattern as in clustergroup metrics, but not the same definitions.
 	clusterMetrics = map[string]prometheus.Collector{
 		"desired_ready_git_repos": promauto.NewGaugeVec(
 			prometheus.GaugeOpts{

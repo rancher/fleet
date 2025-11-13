@@ -123,7 +123,7 @@ func (c *CronDurationJob) durationToNextStart() (time.Duration, error) {
 
 // checkScheduleAndDuration verifies that the given schedule start time and the duration are feasible.
 // If the duration is longer than 2 consecutive triggers it is considered as non valid.
-func checkScheduleAndDuration(schedule *fleet.Schedule, location *time.Location) error { //nolint:revive
+func checkScheduleAndDuration(schedule *fleet.Schedule, location *time.Location) error {
 	trigger, err := quartz.NewCronTriggerWithLoc(schedule.Spec.Schedule, location)
 	if err != nil {
 		return err
@@ -247,7 +247,7 @@ func (c *CronDurationJob) executeStop(ctx context.Context) error {
 	// Sets ActiveSchedule to false for all matching clusters.
 	// This action disables the creation of BundleDeployments on the clusters.
 	for _, cluster := range c.MatchingClusters {
-		if err := setClusterActiveSchedule(context.Background(), c.client, cluster, c.Schedule.Namespace, false); err != nil {
+		if err := setClusterActiveSchedule(ctx, c.client, cluster, c.Schedule.Namespace, false); err != nil {
 			return err
 		}
 	}
@@ -269,7 +269,6 @@ func matchingClusters(ctx context.Context, matcher *matcher.ScheduleMatch, c cli
 	}
 	var clusterNames []string
 	for _, cluster := range clusters.Items {
-		cluster := cluster
 		cgs, err := target.ClusterGroupsForCluster(ctx, c, &cluster)
 		if err != nil {
 			return nil, fmt.Errorf("%w, getting cluster groups from clusters: %w", fleetutil.ErrRetryable, err)

@@ -241,7 +241,8 @@ var _ = Describe("GitRepo using Helm chart with auth", Label("infra-setup"), fun
 
 // setupGitRepo creates a local clone with data from repoPath and pushes it to that same path on the git server,
 // within a common repository named `repo`.
-// nolint: unparam // repo and port are always fed with the same value - for now.
+//
+//nolint:unparam // repo and port are always fed with the same value - for now.
 func setupGitRepo(basePath, repoPath, repo string, port int) (tmpdir string, gh *githelper.Git) {
 	addr, err := githelper.GetExternalRepoAddr(env, port, repo)
 	Expect(err).ToNot(HaveOccurred())

@@ -235,7 +235,8 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 // copyResourcesFromUpstream copies bd's DownstreamResources, from the downstream cluster's namespace on the management
 // cluster to the destination namespace on the downstream cluster, creating that namespace if needed.
 // If bd does not have any DownstreamResources, this method does not issue any API server calls.
-// nolint:dupl // Same pattern between secrets and config map, but different logic.
+//
+//nolint:dupl // Same pattern between secrets and config map, but different logic.
 func (r *BundleDeploymentReconciler) copyResourcesFromUpstream(
 	ctx context.Context,
 	bd *fleetv1.BundleDeployment,
@@ -295,7 +296,7 @@ func (r *BundleDeploymentReconciler) copyResourcesFromUpstream(
 				return nil
 			})
 			if err != nil {
-				return false, fmt.Errorf("failed to create or update secret %s/%s downstream: %v", bd.Namespace, rsc.Name, err)
+				return false, fmt.Errorf("failed to create or update secret %s/%s downstream: %w", bd.Namespace, rsc.Name, err)
 			}
 
 			requiresBDUpdate = op == controllerutil.OperationResultUpdated
@@ -329,7 +330,7 @@ func (r *BundleDeploymentReconciler) copyResourcesFromUpstream(
 				return nil
 			})
 			if err != nil {
-				return false, fmt.Errorf("failed to create or update configmap %s/%s downstream: %v", bd.Namespace, rsc.Name, err)
+				return false, fmt.Errorf("failed to create or update configmap %s/%s downstream: %w", bd.Namespace, rsc.Name, err)
 			}
 
 			requiresBDUpdate = op == controllerutil.OperationResultUpdated

@@ -2,6 +2,7 @@ package deployer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"regexp"
@@ -299,7 +300,7 @@ func deployErrToStatus(err error, status fleet.BundleDeploymentStatus) (bool, fl
 
 	// The case that the bundle is already in an error state. A previous
 	// condition with the error should already be applied.
-	if err == helmdeployer.ErrNoResourceID {
+	if errors.Is(err, helmdeployer.ErrNoResourceID) {
 		return true, status
 	}
 

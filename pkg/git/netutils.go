@@ -66,7 +66,7 @@ func GetAuthFromSecret(url string, creds *corev1.Secret, knownHosts string) (tra
 				return nil, err
 			}
 		} else {
-			//nolint G106: Use of ssh InsecureIgnoreHostKey should be audited
+			//nolint:gosec // G106: Use of ssh InsecureIgnoreHostKey should be audited
 			auth.HostKeyCallback = ssh.InsecureIgnoreHostKey()
 		}
 		return auth, nil

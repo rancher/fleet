@@ -244,7 +244,6 @@ func newTLSServer(index string, withAuth bool) *httptest.Server {
 	return srv
 }
 
-// nolint: funlen
 func TestGetManifestFromHelmChart(t *testing.T) {
 	cases := []struct {
 		name                string

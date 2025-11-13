@@ -153,7 +153,7 @@ func (a *FleetAgent) Run(cmd *cobra.Command, args []string) error {
 
 		if os.Getenv("FLEET_AGENT_PPROF_DISABLED") != "true" {
 			go func() {
-				glog.Println(http.ListenAndServe("localhost:6060", nil)) // nolint:gosec // Debugging only
+				glog.Println(http.ListenAndServe("localhost:6060", nil)) //nolint:gosec // Debugging only
 			}()
 		}
 

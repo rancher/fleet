@@ -90,5 +90,5 @@ func (f *Fetch) LatestCommit(ctx context.Context, gitrepo *v1alpha1.GitRepo, cli
 	if gitrepo.Spec.Revision != "" {
 		return r.RevisionCommit(gitrepo.Spec.Revision)
 	}
-	return r.LatestBranchCommit(branch)
+	return r.LatestBranchCommit(ctx, branch)
 }

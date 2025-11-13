@@ -207,7 +207,7 @@ func (j *GitCommitJob) cloneAndReplace(ctx context.Context) {
 		}
 	}
 
-	commit, err := commitAllAndPush(context.Background(), repo, auth, *gitrepo.Spec.ImageScanCommit)
+	commit, err := commitAllAndPush(ctx, repo, auth, *gitrepo.Spec.ImageScanCommit)
 	if err != nil {
 		err = j.updateErrorStatus(ctx, gitrepo, err)
 		logger.V(1).Info("Cannot commit and push to repo", "error", err)

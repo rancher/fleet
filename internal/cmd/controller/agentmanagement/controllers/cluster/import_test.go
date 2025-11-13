@@ -27,6 +27,7 @@ func TestOnConfig(t *testing.T) {
 				AgentTLSMode: "system-store",
 			},
 			handlerWithMocks: func(t *testing.T) importHandler {
+				t.Helper()
 				ctrl := gomock.NewController(t)
 
 				secretsCache := fake.NewMockCacheInterface[*corev1.Secret](ctrl)
@@ -48,6 +49,7 @@ func TestOnConfig(t *testing.T) {
 				GarbageCollectionInterval: metav1.Duration{Duration: 10 * time.Minute},
 			},
 			handlerWithMocks: func(t *testing.T) importHandler {
+				t.Helper()
 				ctrl := gomock.NewController(t)
 
 				secretsCache := fake.NewMockCacheInterface[*corev1.Secret](ctrl)
@@ -90,6 +92,7 @@ func TestOnConfig(t *testing.T) {
 				GarbageCollectionInterval: metav1.Duration{Duration: 10 * time.Minute},
 			},
 			handlerWithMocks: func(t *testing.T) importHandler {
+				t.Helper()
 				ctrl := gomock.NewController(t)
 
 				secretsCache := fake.NewMockCacheInterface[*corev1.Secret](ctrl)
@@ -131,6 +134,7 @@ func TestOnConfig(t *testing.T) {
 				GarbageCollectionInterval: metav1.Duration{Duration: 10 * time.Minute},
 			},
 			handlerWithMocks: func(t *testing.T) importHandler {
+				t.Helper()
 				ctrl := gomock.NewController(t)
 
 				secretsCache := fake.NewMockCacheInterface[*corev1.Secret](ctrl)
@@ -173,6 +177,7 @@ func TestOnConfig(t *testing.T) {
 				GarbageCollectionInterval: metav1.Duration{Duration: 10 * time.Minute},
 			},
 			handlerWithMocks: func(t *testing.T) importHandler {
+				t.Helper()
 				ctrl := gomock.NewController(t)
 
 				secretsCache := fake.NewMockCacheInterface[*corev1.Secret](ctrl)
@@ -215,6 +220,7 @@ func TestOnConfig(t *testing.T) {
 				GarbageCollectionInterval: metav1.Duration{Duration: 5 * time.Minute},
 			},
 			handlerWithMocks: func(t *testing.T) importHandler {
+				t.Helper()
 				ctrl := gomock.NewController(t)
 
 				secretsCache := fake.NewMockCacheInterface[*corev1.Secret](ctrl)
@@ -257,6 +263,7 @@ func TestOnConfig(t *testing.T) {
 				GarbageCollectionInterval: metav1.Duration{Duration: 10 * time.Minute},
 			},
 			handlerWithMocks: func(t *testing.T) importHandler {
+				t.Helper()
 				ctrl := gomock.NewController(t)
 
 				clustersCache := fake.NewMockCacheInterface[*fleet.Cluster](ctrl)
@@ -302,6 +309,7 @@ func TestOnConfig(t *testing.T) {
 				GarbageCollectionInterval: metav1.Duration{Duration: 10 * time.Minute},
 			},
 			handlerWithMocks: func(t *testing.T) importHandler {
+				t.Helper()
 				ctrl := gomock.NewController(t)
 
 				clustersCache := fake.NewMockCacheInterface[*fleet.Cluster](ctrl)
