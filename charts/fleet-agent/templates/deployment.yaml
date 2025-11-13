@@ -38,6 +38,14 @@ spec:
         - name: CATTLE_ELECTION_RENEW_DEADLINE
           value: {{$.Values.leaderElection.renewDeadline}}
         {{- end }}
+        {{- if $.Values.proxy }}
+        - name: HTTP_PROXY
+          value: {{ $.Values.proxy }}
+        - name: HTTPS_PROXY
+          value: {{ $.Values.proxy }}
+        - name: NO_PROXY
+          value: {{ $.Values.noProxy }}
+        {{- end }}
         image: '{{ template "system_default_registry" . }}{{.Values.image.repository}}:{{.Values.image.tag}}'
         name: fleet-agent
         command:
