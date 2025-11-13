@@ -15,17 +15,19 @@ limitations under the License.
 package helmdeployer
 
 import (
+	"context"
 	"errors"
 	"path"
 
-	"helm.sh/helm/v3/pkg/action"
-	"helm.sh/helm/v3/pkg/chartutil"
+	"helm.sh/helm/v4/pkg/action"
+	"helm.sh/helm/v4/pkg/chart/common"
 
 	"k8s.io/client-go/discovery"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 // capabilities builds a Capabilities from discovery information.
-func getCapabilities(c action.Configuration) (*chartutil.Capabilities, error) {
+func getCapabilities(ctx context.Context, c *action.Configuration) (*common.Capabilities, error) {
 	if c.Capabilities != nil {
 		return c.Capabilities, nil
 	}
@@ -47,16 +49,17 @@ func getCapabilities(c action.Configuration) (*chartutil.Capabilities, error) {
 	apiVersions, err := getVersionSet(dc)
 	if err != nil {
 		if discovery.IsGroupDiscoveryFailedError(err) {
-			c.Log("WARNING: The Kubernetes server has an orphaned API service. Server reports: %s", err)
-			c.Log("WARNING: To fix this, kubectl delete apiservice <service-name>")
+			logger := log.FromContext(ctx).WithName("helm-capabilities")
+			logger.V(1).Info("WARNING: The Kubernetes server has an orphaned API service", "error", err.Error())
+			logger.V(1).Info("WARNING: To fix this, kubectl delete apiservice <service-name>")
 		} else {
 			return nil, errors.New("could not get apiVersions from Kubernetes")
 		}
 	}
 
-	c.Capabilities = chartutil.DefaultCapabilities.Copy()
+	c.Capabilities = common.DefaultCapabilities.Copy()
 	c.Capabilities.APIVersions = apiVersions
-	c.Capabilities.KubeVersion = chartutil.KubeVersion{
+	c.Capabilities.KubeVersion = common.KubeVersion{
 		Version: kubeVersion.GitVersion,
 		Major:   kubeVersion.Major,
 		Minor:   kubeVersion.Minor,
@@ -64,10 +67,13 @@ func getCapabilities(c action.Configuration) (*chartutil.Capabilities, error) {
 	return c.Capabilities, nil
 }
 
-func getVersionSet(client discovery.ServerResourcesInterface) (chartutil.VersionSet, error) {
+// getVersionSet retrieves the set of available Kubernetes API versions and resources
+// from the discovery client. It tolerates GroupDiscoveryFailedErrors which occur when
+// some API groups are unavailable.
+func getVersionSet(client discovery.ServerResourcesInterface) (common.VersionSet, error) {
 	groups, resources, err := client.ServerGroupsAndResources()
 	if err != nil && !discovery.IsGroupDiscoveryFailedError(err) {
-		return chartutil.DefaultVersionSet, errors.New("could not get apiVersions from Kubernetes")
+		return common.DefaultVersionSet, errors.New("could not get apiVersions from Kubernetes")
 	}
 
 	// FIXME: The Kubernetes test fixture for cli appears to always return nil
@@ -75,7 +81,7 @@ func getVersionSet(client discovery.ServerResourcesInterface) (chartutil.Version
 	// return the default API list. This is also a safe value to return in any
 	// other odd-ball case.
 	if len(groups) == 0 && len(resources) == 0 {
-		return chartutil.DefaultVersionSet, nil
+		return common.DefaultVersionSet, nil
 	}
 
 	versionMap := make(map[string]interface{})

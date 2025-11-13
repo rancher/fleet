@@ -21,9 +21,9 @@ import (
 	"github.com/rancher/fleet/internal/content"
 	"github.com/rancher/fleet/internal/helmupdater"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"helm.sh/helm/v3/pkg/downloader"
-	helmgetter "helm.sh/helm/v3/pkg/getter"
-	"helm.sh/helm/v3/pkg/registry"
+	"helm.sh/helm/v4/pkg/downloader"
+	helmgetter "helm.sh/helm/v4/pkg/getter"
+	"helm.sh/helm/v4/pkg/registry"
 )
 
 // ignoreTree represents a tree of ignored paths (read from .fleetignore files), each node being a directory.
@@ -381,7 +381,8 @@ func downloadOCIChart(name, version, path string, auth Auth) (string, error) {
 	getterOptions = append(getterOptions, helmgetter.WithInsecureSkipVerifyTLS(auth.InsecureSkipVerify))
 
 	c := downloader.ChartDownloader{
-		Verify: downloader.VerifyNever,
+		Verify:       downloader.VerifyNever,
+		ContentCache: path, // Required in Helm v4
 		Getters: helmgetter.Providers{
 			helmgetter.Provider{
 				Schemes: []string{registry.OCIScheme},

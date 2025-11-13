@@ -15,7 +15,7 @@ import (
 	"github.com/rancher/fleet/e2e/testenv/infra/cmd"
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"helm.sh/helm/v3/pkg/registry"
+	"helm.sh/helm/v4/pkg/registry"
 
 	"github.com/chartmuseum/helm-push/pkg/chartmuseum"
 	. "github.com/onsi/ginkgo/v2"

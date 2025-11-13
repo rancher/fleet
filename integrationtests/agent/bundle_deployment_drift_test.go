@@ -245,16 +245,17 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 			})
 		})
 
-		// Helm rollback uses three-way merge by default (without force), which fails when trying to rollback a
-		// change made on an item in the ports array.
-		Context("Drift correction fails", func() {
+		// Helm v4 with client-side apply can successfully handle drift correction on service ports,
+		// even when there are complex changes. This is an improvement over Helm v3 where three-way
+		// merge would fail on such changes.
+		Context("Drift correction succeeds on service port changes", func() {
 			BeforeEach(func() {
 				namespace = createNamespace()
 				name = "drift-test"
 				deplID = "v1"
 			})
 
-			It("Updates the BundleDeployment status as not Ready, including the error message", func() {
+			It("Corrects drift on service port modifications without requiring force", func() {
 				By("Receiving a modification on a service")
 				svc := corev1.Service{}
 				Eventually(func(g Gomega) {
@@ -268,64 +269,30 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 				patchedSvc.Spec.Ports[0].Name = "myport"
 				Expect(k8sClient.Patch(ctx, patchedSvc, client.StrategicMergeFrom(&svc))).NotTo(HaveOccurred())
 
-				By("Updating the bundle deployment status")
-				nsn := types.NamespacedName{Namespace: clusterNS, Name: name}
-
+				By("Restoring the service resource to its previous state")
 				Eventually(func(g Gomega) {
-					bd := &v1alpha1.BundleDeployment{}
-					err := k8sClient.Get(context.TODO(), nsn, bd)
-					g.Expect(err).ToNot(HaveOccurred())
+					svc, err := env.getService(svcName)
+					g.Expect(err).NotTo(HaveOccurred())
 
-					// Note: the next check depends on either Deployed or Ready condition to be set to false
-					found := false
-					for _, condition := range bd.Status.Conditions {
-						if condition.Type == "Deployed" && string(condition.Status) == "False" {
-							found = true
-							g.Expect(condition).ToNot(BeNil(), fmt.Sprintf("Condition with type %q and status %q not found in %v", "Deployed", "", bd.Status.Conditions))
-							g.Expect(condition.Message).To(ContainSubstring(`cannot patch "svc-test" with kind Service: Service "svc-test" is invalid: ` +
-								`spec.ports[1].name: Duplicate value: "myport"`))
-						} else if condition.Type == "Ready" && string(condition.Status) == "False" {
-							found = true
-							g.Expect(condition).ToNot(BeNil(), fmt.Sprintf("Condition with type %q and status %q not found in %v", "Ready", "", bd.Status.Conditions))
-							g.Expect(condition.Message).To(MatchRegexp("service.v1 test-.*/svc-test modified"))
-						}
-					}
-					g.Expect(found).To(BeTrue())
-
+					g.Expect(svc.Spec.Ports).ToNot(BeEmpty())
+					g.Expect(svc.Spec.Ports[0].Port).Should(Equal(int32(80)))
+					g.Expect(svc.Spec.Ports[0].TargetPort.IntVal).Should(BeEquivalentTo(9376))
+					g.Expect(svc.Spec.Ports[0].Name).Should(Equal("myport"))
 				}).Should(Succeed())
 
-				// TODO: This test is flaky, and the following code is commented out until the flakiness is resolved.
-				// By("Correcting drift once drift correction is set to force")
-				// bd := v1alpha1.BundleDeployment{}
-				//
-				// err := k8sClient.Get(ctx, nsn, &bd)
-				// Expect(err).ToNot(HaveOccurred())
-				//
-				// patchedBD := bd.DeepCopy()
-				// patchedBD.Spec.CorrectDrift.Force = true
-				// patchedBD.Spec.Options.CorrectDrift.Force = true
-				// Expect(k8sClient.Patch(ctx, patchedBD, client.MergeFrom(&bd))).NotTo(HaveOccurred())
-				//
-				// By("Restoring the service resource to its previous state")
-				// Eventually(func(g Gomega) {
-				// 	err = k8sClient.Get(ctx, nsn, &bd)
-				// 	g.Expect(err).ToNot(HaveOccurred())
-				//
-				// 	svc, err := env.getService(svcName)
-				// 	g.Expect(err).NotTo(HaveOccurred())
-				//
-				// 	g.Expect(svc.Spec.Ports).ToNot(BeEmpty())
-				// 	g.Expect(svc.Spec.Ports[0].Port).Should(Equal(int32(80)))
-				// 	g.Expect(svc.Spec.Ports[0].TargetPort.IntVal).Should(BeEquivalentTo(9376))
-				// 	g.Expect(svc.Spec.Ports[0].Name).Should(Equal("myport"))
-				// }).Should(Succeed())
-				//
-				// By("Updating the bundle deployment status to be ready and not modified")
-				// Eventually(env.isBundleDeploymentReadyAndNotModified).WithArguments(name).Should(BeTrue())
+				By("Updating the bundle deployment status to be ready and not modified")
+				Eventually(env.isBundleDeploymentReadyAndNotModified).WithArguments(name).Should(BeTrue())
 			})
 		})
 	})
 
+	// Force mode uses resource replacement (DELETE+CREATE) instead of patching (UPDATE).
+	// This is needed when:
+	// 1. Immutable fields need to be changed (e.g., Service type, PVC storage class, Job selector)
+	// 2. Patching fails due to complex conflicts
+	// 3. Complete resource recreation is required
+	// With Helm v4's improved client-side apply, force mode is rarely needed for common drift scenarios,
+	// but it remains available for edge cases that require resource replacement.
 	When("Drift correction is enabled with force", func() {
 		JustBeforeEach(func() {
 			correctDrift = v1alpha1.CorrectDrift{Enabled: true, Force: true}
@@ -348,7 +315,7 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 				deplID = "v1"
 			})
 
-			It("Corrects drift", func() {
+			It("Corrects drift using resource replacement", func() {
 				By("Receiving a modification on a service")
 				svc, err := env.getService(svcName)
 				Expect(err).NotTo(HaveOccurred())
@@ -359,6 +326,8 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 				Expect(k8sClient.Patch(ctx, patchedSvc, client.StrategicMergeFrom(&svc))).NotTo(HaveOccurred())
 
 				By("Restoring the service resource to its previous state")
+				// When force=true, Helm uses resource replacement (DELETE+CREATE) instead of patching
+				// This should still work for this scenario, demonstrating force mode works correctly
 				Eventually(func(g Gomega) {
 					svc, err := env.getService(svcName)
 					g.Expect(err).NotTo(HaveOccurred())
