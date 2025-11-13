@@ -9,6 +9,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -38,6 +39,8 @@ var (
 var _ = BeforeSuite(func() {
 	SetDefaultEventuallyTimeout(testenv.Timeout)
 	SetDefaultEventuallyPollingInterval(time.Second)
+	SetDefaultConsistentlyDuration(time.Minute)
+	SetDefaultConsistentlyPollingInterval(1 * time.Second)
 	testenv.SetRoot("../..")
 
 	env = testenv.New()
