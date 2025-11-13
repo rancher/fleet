@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"helm.sh/helm/v3/pkg/chart"
+	chartv2 "helm.sh/helm/v4/pkg/chart/v2"
 
 	"github.com/rancher/fleet/internal/bundlereader"
 	"github.com/rancher/fleet/internal/fleetyaml"
@@ -135,7 +135,7 @@ func addChartYAML(name string, m, newManifest *manifest.Manifest) (*manifest.Man
 	}
 
 	_, chartName := kv.RSplit(name, "/")
-	metadata := chart.Metadata{
+	metadata := chartv2.Metadata{
 		Name:       chartName,
 		Version:    "v0.0.0+" + manifestID,
 		APIVersion: "v2",

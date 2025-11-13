@@ -9,14 +9,12 @@ import (
 	"github.com/rancher/fleet/internal/manifest"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
-	"github.com/sirupsen/logrus"
-
-	"helm.sh/helm/v3/pkg/action"
-	"helm.sh/helm/v3/pkg/chartutil"
-	kubefake "helm.sh/helm/v3/pkg/kube/fake"
-	"helm.sh/helm/v3/pkg/release"
-	"helm.sh/helm/v3/pkg/storage"
-	"helm.sh/helm/v3/pkg/storage/driver"
+	"helm.sh/helm/v4/pkg/action"
+	"helm.sh/helm/v4/pkg/chart/common"
+	kubefake "helm.sh/helm/v4/pkg/kube/fake"
+	releasev1 "helm.sh/helm/v4/pkg/release/v1"
+	"helm.sh/helm/v4/pkg/storage"
+	"helm.sh/helm/v4/pkg/storage/driver"
 )
 
 var (
@@ -24,15 +22,17 @@ var (
 )
 
 // Template runs helm template and returns the resources as a list of objects, without applying them.
-func Template(ctx context.Context, bundleID string, manifest *manifest.Manifest, options fleet.BundleDeploymentOptions, kubeVersionString string) (*release.Release, error) {
+func Template(ctx context.Context, bundleID string, manifest *manifest.Manifest, options fleet.BundleDeploymentOptions, kubeVersionString string) (*releasev1.Release, error) {
 	h := &Helm{
-		globalCfg:    action.Configuration{},
+		globalCfg:    &action.Configuration{},
 		useGlobalCfg: true,
 		template:     true,
 	}
 
 	mem := driver.NewMemory()
 	mem.SetNamespace("default")
+	// Template operations use a discard logger since they don't interact with a real cluster
+	mem.SetLogger(nil) // nil sets discard handler in Helm v4
 	kubeVersionToUse := defaultKubernetesVersion
 	if kubeVersionString != "" {
 		kubeVersionToUse = kubeVersionString
@@ -41,15 +41,16 @@ func Template(ctx context.Context, bundleID string, manifest *manifest.Manifest,
 	if err != nil {
 		return nil, fmt.Errorf("invalid kubeVersion: %s", kubeVersionToUse)
 	}
-	h.globalCfg.Capabilities = chartutil.DefaultCapabilities.Copy()
-	h.globalCfg.Capabilities.KubeVersion = chartutil.KubeVersion{
+	h.globalCfg.Capabilities = common.DefaultCapabilities.Copy()
+	h.globalCfg.Capabilities.KubeVersion = common.KubeVersion{
 		Version: kubeVersion.String(),
 		Major:   fmt.Sprint(kubeVersion.Major()),
 		Minor:   fmt.Sprint(kubeVersion.Minor()),
 	}
 	h.globalCfg.KubeClient = &kubefake.PrintingKubeClient{Out: io.Discard}
-	h.globalCfg.Log = logrus.Infof
 	h.globalCfg.Releases = storage.Init(mem)
+	// Template operations don't need logging since they're just rendering
+	h.globalCfg.SetLogger(nil) // nil sets discard handler in Helm v4
 
 	return h.Deploy(ctx, bundleID, manifest, options)
 }

@@ -7,10 +7,12 @@ import (
 	"strconv"
 	"strings"
 
-	"helm.sh/helm/v3/pkg/action"
-	"helm.sh/helm/v3/pkg/chart"
-	"helm.sh/helm/v3/pkg/chart/loader"
-	"helm.sh/helm/v3/pkg/release"
+	"helm.sh/helm/v4/pkg/action"
+	chartv2 "helm.sh/helm/v4/pkg/chart/v2"
+	"helm.sh/helm/v4/pkg/chart/v2/loader"
+	"helm.sh/helm/v4/pkg/kube"
+	releasecommon "helm.sh/helm/v4/pkg/release/common"
+	releasev1 "helm.sh/helm/v4/pkg/release/v1"
 
 	"github.com/rancher/fleet/internal/helmdeployer/render"
 	"github.com/rancher/fleet/internal/manifest"
@@ -28,7 +30,7 @@ type dryRunConfig struct {
 }
 
 // Deploy deploys an unpacked content resource with helm. bundleID is the name of the bundledeployment.
-func (h *Helm) Deploy(ctx context.Context, bundleID string, manifest *manifest.Manifest, options fleet.BundleDeploymentOptions) (*release.Release, error) {
+func (h *Helm) Deploy(ctx context.Context, bundleID string, manifest *manifest.Manifest, options fleet.BundleDeploymentOptions) (*releasev1.Release, error) {
 	if options.Helm == nil {
 		options.Helm = &fleet.HelmOptions{}
 	}
@@ -68,7 +70,7 @@ func (h *Helm) Deploy(ctx context.Context, bundleID string, manifest *manifest.M
 }
 
 // install runs helm install or upgrade and supports dry running the action. Will run helm rollback in case of a failed upgrade.
-func (h *Helm) install(ctx context.Context, bundleID string, manifest *manifest.Manifest, chart *chart.Chart, options fleet.BundleDeploymentOptions, dryRunCfg dryRunConfig) (*release.Release, error) {
+func (h *Helm) install(ctx context.Context, bundleID string, manifest *manifest.Manifest, chart *chartv2.Chart, options fleet.BundleDeploymentOptions, dryRunCfg dryRunConfig) (*releasev1.Release, error) {
 	logger := log.FromContext(ctx).WithName("helm-deployer").WithName("install").WithValues("commit", manifest.Commit, "dryRun", dryRunCfg.DryRun)
 	timeout, defaultNamespace, releaseName := h.getOpts(bundleID, options)
 
@@ -82,7 +84,7 @@ func (h *Helm) install(ctx context.Context, bundleID string, manifest *manifest.
 		return nil, err
 	}
 
-	uninstall, err := h.mustUninstall(&cfg, releaseName)
+	uninstall, err := h.mustUninstall(cfg, releaseName)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +99,7 @@ func (h *Helm) install(ctx context.Context, bundleID string, manifest *manifest.
 		}
 	}
 
-	install, err := h.mustInstall(&cfg, releaseName)
+	install, err := h.mustInstall(cfg, releaseName)
 	if err != nil {
 		return nil, err
 	}
@@ -112,16 +114,13 @@ func (h *Helm) install(ctx context.Context, bundleID string, manifest *manifest.
 	}
 
 	if !h.useGlobalCfg {
-		mapper, err := cfg.RESTClientGetter.ToRESTMapper()
-		if err != nil {
-			return nil, err
-		}
+		mapper, _ := cfg.RESTClientGetter.ToRESTMapper()
 		pr.mapper = mapper
 	}
 
 	if install {
-		u := action.NewInstall(&cfg)
-		u.ClientOnly = h.template || (dryRunCfg.DryRun && dryRunCfg.DryRunOption == "")
+		u := action.NewInstall(cfg)
+
 		if cfg.Capabilities != nil {
 			if cfg.Capabilities.KubeVersion.Version != "" {
 				u.KubeVersion = &cfg.Capabilities.KubeVersion
@@ -131,77 +130,140 @@ func (h *Helm) install(ctx context.Context, bundleID string, manifest *manifest.
 			}
 		}
 		u.TakeOwnership = options.Helm.TakeOwnership
+		// Disable server-side apply when taking ownership to avoid managedFields validation errors.
+		// When adopting existing resources, they have managedFields populated by Kubernetes,
+		// but server-side apply requires managedFields to be nil. Using client-side apply (three-way merge) instead.
+		if u.TakeOwnership {
+			u.ServerSideApply = false
+		}
 		u.EnableDNS = !options.Helm.DisableDNS
 		u.Replace = true
-		u.Atomic = options.Helm.Atomic
+		u.RollbackOnFailure = options.Helm.Atomic
 		u.ReleaseName = releaseName
 		u.CreateNamespace = true
 		u.Namespace = defaultNamespace
 		u.Timeout = timeout
-		u.DryRun = dryRunCfg.DryRun
-		u.DryRunOption = dryRunCfg.DryRunOption
+		// Configure dry-run strategy based on dryRunConfig.
+		// If DryRunOption is "server", use DryRunServer to allow lookup functions to query the cluster.
+		// Otherwise, use DryRunClient for client-only dry run or DryRunNone for actual execution.
+		if dryRunCfg.DryRun {
+			if dryRunCfg.DryRunOption == "server" {
+				u.DryRunStrategy = action.DryRunServer
+			} else {
+				u.DryRunStrategy = action.DryRunClient
+			}
+		} else {
+			u.DryRunStrategy = action.DryRunNone
+		}
 		u.SkipSchemaValidation = options.Helm.SkipSchemaValidation
 		u.PostRenderer = pr
 		u.WaitForJobs = options.Helm.WaitForJobs
+		// When timeout is set, use StatusWatcherStrategy to wait for resources.
+		// Otherwise use HookOnlyStrategy (the default, equivalent to not waiting).
 		if u.Timeout > 0 {
-			u.Wait = true
+			u.WaitStrategy = kube.StatusWatcherStrategy
+		} else {
+			u.WaitStrategy = kube.HookOnlyStrategy
 		}
+
 		if !dryRunCfg.DryRun {
 			logger.Info("Installing helm release")
 		}
-		return u.Run(chart, values)
+
+		rel, err := u.Run(chart, values)
+		if err != nil {
+			return nil, err
+		}
+
+		if v1Rel, ok := rel.(*releasev1.Release); ok {
+			return v1Rel, nil
+		}
+		return nil, fmt.Errorf("unexpected release type: %T", rel)
 	}
 
-	u := action.NewUpgrade(&cfg)
+	u := action.NewUpgrade(cfg)
+
 	u.TakeOwnership = true
+	// Use "auto" for ServerSideApply to respect the previous release's apply method.
+	// This ensures consistency: if the initial install used client-side apply (due to TakeOwnership),
+	// subsequent upgrades including drift correction will also use client-side apply.
+	u.ServerSideApply = "auto"
 	u.EnableDNS = !options.Helm.DisableDNS
-	u.Force = options.Helm.Force
+	u.ForceReplace = options.Helm.Force
 	if options.CorrectDrift != nil {
-		u.Force = u.Force || options.CorrectDrift.Force
+		u.ForceReplace = u.ForceReplace || options.CorrectDrift.Force
 	}
-	u.Atomic = options.Helm.Atomic
+	u.RollbackOnFailure = options.Helm.Atomic
 	u.MaxHistory = options.Helm.MaxHistory
 	if u.MaxHistory == 0 {
 		u.MaxHistory = MaxHelmHistory
 	}
 	u.Namespace = defaultNamespace
 	u.Timeout = timeout
-	u.DryRun = dryRunCfg.DryRun
-	u.DryRunOption = dryRunCfg.DryRunOption
+	// Configure dry-run strategy based on dryRunConfig.
+	// If DryRunOption is "server", use DryRunServer to allow lookup functions to query the cluster.
+	// Otherwise, use DryRunClient for client-only dry run or DryRunNone for actual execution.
+	if dryRunCfg.DryRun {
+		if dryRunCfg.DryRunOption == "server" {
+			u.DryRunStrategy = action.DryRunServer
+		} else {
+			u.DryRunStrategy = action.DryRunClient
+		}
+	} else {
+		u.DryRunStrategy = action.DryRunNone
+	}
 	u.SkipSchemaValidation = options.Helm.SkipSchemaValidation
 	u.DisableOpenAPIValidation = h.template || dryRunCfg.DryRun
 	u.PostRenderer = pr
 	u.WaitForJobs = options.Helm.WaitForJobs
+	// When timeout is set, use StatusWatcherStrategy to wait for resources.
+	// Otherwise use HookOnlyStrategy (the default, equivalent to not waiting).
 	if u.Timeout > 0 {
-		u.Wait = true
+		u.WaitStrategy = kube.StatusWatcherStrategy
+	} else {
+		u.WaitStrategy = kube.HookOnlyStrategy
 	}
+
 	if !dryRunCfg.DryRun {
 		logger.Info("Upgrading helm release")
 	}
+
 	rel, err := u.Run(releaseName, chart, values)
 	if err != nil && err.Error() == HelmUpgradeInterruptedError {
 		logger.Info("Helm doing a rollback", "error", HelmUpgradeInterruptedError)
-		r := action.NewRollback(&cfg)
-		err = r.Run(releaseName)
+
+		r := action.NewRollback(cfg)
+		err := r.Run(releaseName)
 		if err != nil {
 			return nil, err
 		}
-		logger.V(1).Info("Retrying upgrade after rollback")
 
-		return u.Run(releaseName, chart, values)
+		logger.V(1).Info("Retrying upgrade after rollback")
+		rel, err = u.Run(releaseName, chart, values)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if err != nil {
+		return nil, err
 	}
 
-	return rel, err
+	if v1Rel, ok := rel.(*releasev1.Release); ok {
+		return v1Rel, nil
+	}
+	return nil, fmt.Errorf("unexpected release type: %T", rel)
 }
 
 func (h *Helm) mustUninstall(cfg *action.Configuration, releaseName string) (bool, error) {
-	r, err := cfg.Releases.Last(releaseName)
+	r, err := getLastRelease(cfg.Releases, releaseName)
 	if err != nil {
 		return false, nil
 	}
-	return r.Info.Status == release.StatusUninstalling || r.Info.Status == release.StatusPendingInstall, err
+	return r.Info.Status == releasecommon.StatusUninstalling || r.Info.Status == releasecommon.StatusPendingInstall, err
 }
 
+// mustInstall checks if a fresh install is required by verifying if there is no deployed release.
+// Returns true if no deployed release exists for the given release name.
 func (h *Helm) mustInstall(cfg *action.Configuration, releaseName string) (bool, error) {
 	_, err := cfg.Releases.Deployed(releaseName)
 	if err != nil && strings.Contains(err.Error(), "has no deployed releases") {
@@ -362,7 +424,7 @@ func mergeValues(dest, src map[string]interface{}) map[string]interface{} {
 // If the chart contains the "lookup" function, DryRunOption is set to "server"
 // to allow the lookup function to interact with the Kubernetes API during a dry-run.
 // Otherwise, DryRunOption remains empty, implying a client-side dry-run.
-func getDryRunConfig(chart *chart.Chart, dryRun bool) dryRunConfig {
+func getDryRunConfig(chart *chartv2.Chart, dryRun bool) dryRunConfig {
 	cfg := dryRunConfig{DryRun: dryRun}
 	if dryRun && hasLookupFunction(chart) {
 		cfg.DryRunOption = "server"

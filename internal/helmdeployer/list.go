@@ -3,18 +3,31 @@ package helmdeployer
 import (
 	"strconv"
 
-	"helm.sh/helm/v3/pkg/action"
-	"helm.sh/helm/v3/pkg/release"
+	"helm.sh/helm/v4/pkg/action"
+	releasev1 "helm.sh/helm/v4/pkg/release/v1"
 )
 
 type ListAction interface {
-	Run() ([]*release.Release, error)
+	Run() ([]*releasev1.Release, error)
 }
 
-func (h *Helm) NewListAction() *action.List {
-	list := action.NewList(&h.globalCfg)
+type listWrapper struct {
+	list *action.List
+}
+
+func (lw *listWrapper) Run() ([]*releasev1.Release, error) {
+	releasers, err := lw.list.Run()
+	if err != nil {
+		return nil, err
+	}
+
+	return releaseListToV1List(releasers)
+}
+
+func (h *Helm) NewListAction() ListAction {
+	list := action.NewList(h.globalCfg)
 	list.All = true
-	return list
+	return &listWrapper{list: list}
 }
 
 // ListDeployments returns a list of deployedBundles by listing all helm releases via
