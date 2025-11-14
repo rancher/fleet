@@ -22,6 +22,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
+type dryRunConfig struct {
+	DryRun       bool
+	DryRunOption string
+}
+
 // Deploy deploys an unpacked content resource with helm. bundleID is the name of the bundledeployment.
 func (h *Helm) Deploy(ctx context.Context, bundleID string, manifest *manifest.Manifest, options fleet.BundleDeploymentOptions) (*release.Release, error) {
 	if options.Helm == nil {
@@ -53,18 +58,18 @@ func (h *Helm) Deploy(ctx context.Context, bundleID string, manifest *manifest.M
 		chart.Metadata.Annotations[CommitAnnotation] = manifest.Commit
 	}
 
-	if release, err := h.install(ctx, bundleID, manifest, chart, options, true); err != nil {
+	if release, err := h.install(ctx, bundleID, manifest, chart, options, getDryRunConfig(chart, true)); err != nil {
 		return nil, err
 	} else if h.template {
 		return release, nil
 	}
 
-	return h.install(ctx, bundleID, manifest, chart, options, false)
+	return h.install(ctx, bundleID, manifest, chart, options, getDryRunConfig(chart, false))
 }
 
 // install runs helm install or upgrade and supports dry running the action. Will run helm rollback in case of a failed upgrade.
-func (h *Helm) install(ctx context.Context, bundleID string, manifest *manifest.Manifest, chart *chart.Chart, options fleet.BundleDeploymentOptions, dryRun bool) (*release.Release, error) {
-	logger := log.FromContext(ctx).WithName("helm-deployer").WithName("install").WithValues("commit", manifest.Commit, "dryRun", dryRun)
+func (h *Helm) install(ctx context.Context, bundleID string, manifest *manifest.Manifest, chart *chart.Chart, options fleet.BundleDeploymentOptions, dryRunCfg dryRunConfig) (*release.Release, error) {
+	logger := log.FromContext(ctx).WithName("helm-deployer").WithName("install").WithValues("commit", manifest.Commit, "dryRun", dryRunCfg.DryRun)
 	timeout, defaultNamespace, releaseName := h.getOpts(bundleID, options)
 
 	values, err := h.getValues(ctx, options, defaultNamespace)
@@ -84,10 +89,10 @@ func (h *Helm) install(ctx context.Context, bundleID string, manifest *manifest.
 
 	if uninstall {
 		logger.Info("Uninstalling helm release first")
-		if err := h.delete(ctx, bundleID, options, dryRun); err != nil {
+		if err := h.delete(ctx, bundleID, options, dryRunCfg.DryRun); err != nil {
 			return nil, err
 		}
-		if dryRun {
+		if dryRunCfg.DryRun {
 			return nil, nil
 		}
 	}
@@ -116,7 +121,7 @@ func (h *Helm) install(ctx context.Context, bundleID string, manifest *manifest.
 
 	if install {
 		u := action.NewInstall(&cfg)
-		u.ClientOnly = h.template || dryRun
+		u.ClientOnly = h.template || (dryRunCfg.DryRun && dryRunCfg.DryRunOption == "")
 		if cfg.Capabilities != nil {
 			if cfg.Capabilities.KubeVersion.Version != "" {
 				u.KubeVersion = &cfg.Capabilities.KubeVersion
@@ -133,14 +138,15 @@ func (h *Helm) install(ctx context.Context, bundleID string, manifest *manifest.
 		u.CreateNamespace = true
 		u.Namespace = defaultNamespace
 		u.Timeout = timeout
-		u.DryRun = dryRun
+		u.DryRun = dryRunCfg.DryRun
+		u.DryRunOption = dryRunCfg.DryRunOption
 		u.SkipSchemaValidation = options.Helm.SkipSchemaValidation
 		u.PostRenderer = pr
 		u.WaitForJobs = options.Helm.WaitForJobs
 		if u.Timeout > 0 {
 			u.Wait = true
 		}
-		if !dryRun {
+		if !dryRunCfg.DryRun {
 			logger.Info("Installing helm release")
 		}
 		return u.Run(chart, values)
@@ -160,15 +166,16 @@ func (h *Helm) install(ctx context.Context, bundleID string, manifest *manifest.
 	}
 	u.Namespace = defaultNamespace
 	u.Timeout = timeout
-	u.DryRun = dryRun
+	u.DryRun = dryRunCfg.DryRun
+	u.DryRunOption = dryRunCfg.DryRunOption
 	u.SkipSchemaValidation = options.Helm.SkipSchemaValidation
-	u.DisableOpenAPIValidation = h.template || dryRun
+	u.DisableOpenAPIValidation = h.template || dryRunCfg.DryRun
 	u.PostRenderer = pr
 	u.WaitForJobs = options.Helm.WaitForJobs
 	if u.Timeout > 0 {
 		u.Wait = true
 	}
-	if !dryRun {
+	if !dryRunCfg.DryRun {
 		logger.Info("Upgrading helm release")
 	}
 	rel, err := u.Run(releaseName, chart, values)
@@ -348,4 +355,18 @@ func mergeValues(dest, src map[string]interface{}) map[string]interface{} {
 		dest[k] = mergeValues(destMap, nextMap)
 	}
 	return dest
+}
+
+// getDryRunConfig determines the dry-run configuration based on whether the chart
+// uses the Helm "lookup" function.
+// If the chart contains the "lookup" function, DryRunOption is set to "server"
+// to allow the lookup function to interact with the Kubernetes API during a dry-run.
+// Otherwise, DryRunOption remains empty, implying a client-side dry-run.
+func getDryRunConfig(chart *chart.Chart, dryRun bool) dryRunConfig {
+	cfg := dryRunConfig{DryRun: dryRun}
+	if dryRun && hasLookupFunction(chart) {
+		cfg.DryRunOption = "server"
+	}
+
+	return cfg
 }
