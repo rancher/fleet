@@ -15,7 +15,6 @@ import (
 
 	helmdeployer "github.com/rancher/fleet/internal/helmdeployer"
 	gomock "go.uber.org/mock/gomock"
-	action "helm.sh/helm/v3/pkg/action"
 )
 
 // MockHelmDeployer is a mock of HelmDeployer interface.
@@ -86,10 +85,10 @@ func (mr *MockHelmDeployerMockRecorder) ListDeployments(list any) *gomock.Call {
 }
 
 // NewListAction mocks base method.
-func (m *MockHelmDeployer) NewListAction() *action.List {
+func (m *MockHelmDeployer) NewListAction() helmdeployer.ListAction {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "NewListAction")
-	ret0, _ := ret[0].(*action.List)
+	ret0, _ := ret[0].(helmdeployer.ListAction)
 	return ret0
 }
 

@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strconv"
 
-	"helm.sh/helm/v3/pkg/action"
-	"helm.sh/helm/v3/pkg/release"
-	"helm.sh/helm/v3/pkg/storage/driver"
+	"helm.sh/helm/v4/pkg/action"
+	releasev1 "helm.sh/helm/v4/pkg/release/v1"
+	"helm.sh/helm/v4/pkg/storage/driver"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/kv"
@@ -83,17 +83,21 @@ func getReleaseNameVersionAndNamespace(bundleID, resourcesID string) (string, in
 	return releaseName, version, namespace, nil
 }
 
-func (h *Helm) getRelease(releaseName, namespace string, version int) (*release.Release, error) {
-	hist := action.NewHistory(&h.globalCfg)
+func (h *Helm) getRelease(releaseName, namespace string, version int) (*releasev1.Release, error) {
+	hist := action.NewHistory(h.globalCfg)
 
-	releases, err := hist.Run(releaseName)
+	releasers, err := hist.Run(releaseName)
 	if err == driver.ErrReleaseNotFound {
 		return nil, ErrNoRelease
 	} else if err != nil {
 		return nil, err
 	}
 
-	for _, release := range releases {
+	for _, releaser := range releasers {
+		release, err := releaserToV1Release(releaser)
+		if err != nil {
+			continue
+		}
 		if release.Name == releaseName && release.Version == version && release.Namespace == namespace {
 			return release, nil
 		}
@@ -102,11 +106,14 @@ func (h *Helm) getRelease(releaseName, namespace string, version int) (*release.
 	return nil, ErrNoRelease
 }
 
-func ReleaseToResourceID(release *release.Release) string {
+// ReleaseToResourceID converts a Helm release to Fleet's resource ID format.
+// The resource ID uniquely identifies a release by namespace, name, and version.
+func ReleaseToResourceID(release *releasev1.Release) string {
 	return fmt.Sprintf("%s/%s:%d", release.Namespace, release.Name, release.Version)
 }
 
-func ReleaseToObjects(release *release.Release) ([]runtime.Object, error) {
+// ReleaseToObjects parses the manifest from a Helm release and converts it to Kubernetes runtime objects.
+func ReleaseToObjects(release *releasev1.Release) ([]runtime.Object, error) {
 	var err error
 
 	objs, err := yaml.ToObjects(bytes.NewBufferString(release.Manifest))

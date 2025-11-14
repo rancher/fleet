@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	"helm.sh/helm/v3/pkg/action"
 
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/kv"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/merr"
@@ -27,7 +26,7 @@ import (
 )
 
 type HelmDeployer interface {
-	NewListAction() *action.List
+	NewListAction() helmdeployer.ListAction
 	ListDeployments(list helmdeployer.ListAction) ([]helmdeployer.DeployedBundle, error)
 	DeleteRelease(ctx context.Context, deployed helmdeployer.DeployedBundle) error
 	Delete(ctx context.Context, name string) error

@@ -8,8 +8,8 @@ import (
 	"reflect"
 
 	"github.com/spf13/cobra"
-	"helm.sh/helm/v3/pkg/cli"
-	"helm.sh/helm/v3/pkg/release"
+	"helm.sh/helm/v4/pkg/cli"
+	releasev1 "helm.sh/helm/v4/pkg/release/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	command "github.com/rancher/fleet/internal/cmd"
@@ -164,7 +164,7 @@ func (d *Deploy) Run(cmd *cobra.Command, args []string) error {
 	return printRelease(cmd, rel)
 }
 
-func printRelease(cmd *cobra.Command, rel *release.Release) error {
+func printRelease(cmd *cobra.Command, rel *releasev1.Release) error {
 	resources, err := wyaml.ToObjects(bytes.NewBufferString(rel.Manifest))
 	if err != nil {
 		return err

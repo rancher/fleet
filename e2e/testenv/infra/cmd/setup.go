@@ -18,7 +18,7 @@ import (
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
 	"github.com/spf13/cobra"
 	"golang.org/x/crypto/bcrypt"
-	"helm.sh/helm/v3/pkg/registry"
+	"helm.sh/helm/v4/pkg/registry"
 )
 
 var timeoutDuration = 10 * time.Minute // default timeout duration
