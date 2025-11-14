@@ -24,13 +24,14 @@ import (
 var _ = Describe("Fleet apply online", Label("online"), func() {
 
 	var (
-		ctrl       *gomock.Controller
-		clientMock *mocks.MockK8sClient
-		name       string
-		dirs       []string
-		options    apply.Options
-		oldBundle  *fleet.Bundle
-		newBundle  *fleet.Bundle
+		ctrl          *gomock.Controller
+		clientMock    *mocks.MockK8sClient
+		name          string
+		dirs          []string
+		options       apply.Options
+		oldBundle     *fleet.Bundle
+		newBundle     *fleet.Bundle
+		listedBundles []fleet.Bundle
 	)
 
 	JustBeforeEach(func() {
@@ -48,7 +49,14 @@ var _ = Describe("Fleet apply online", Label("online"), func() {
 				return nil
 			},
 		).AnyTimes()
-		clientMock.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+		// Set listedBundles to a non-empty list to test bundle pruning behaviour (pruneBundlesNotFoundInRepo)
+		clientMock.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+			func(_ context.Context, l *fleet.BundleList, _ ...interface{}) error {
+				l.Items = listedBundles
+
+				return nil
+			},
+		).AnyTimes()
 		clientMock.EXPECT().Delete(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 		// so it does not try to use OCI storage
 		clientMock.EXPECT().Get(
@@ -210,6 +218,58 @@ data:
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("is being deleted"))
 		})
+	})
 
+	When("A bundle with a different name and overlapping resources already exists in the same namespace", func() {
+		BeforeEach(func() {
+			name = "labels_update"
+			dirs = []string{cli.AssetsPath + "labels_update"}
+			//bundle in the cluster
+			oldBundle = &fleet.Bundle{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+					Name:      "labels_update",
+				},
+				Spec: fleet.BundleSpec{
+					Resources: []fleet.BundleResource{
+						{
+							Name: "cm.yaml",
+							Content: `apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cm3
+data:
+  test: "value34"`, // same name, same kind, contents should not matter
+						},
+						{
+							Name:    "chart/values.yaml",
+							Content: "name: ignore-missing-resource",
+						},
+					},
+				},
+			}
+
+			listedBundles = []fleet.Bundle{*oldBundle}
+		})
+
+		It("detects the existing bundle and populates Overwrites on the new bundle", func() {
+			expectedOverwrites := []fleet.OverwrittenResource{
+				{
+					Kind: "ConfigMap",
+					Name: "cm3",
+				},
+			}
+
+			clientMock.EXPECT().Update(gomock.Any(), gomock.AssignableToTypeOf(&fleet.Bundle{}), gomock.Any()).DoAndReturn(
+				func(_ context.Context, b *fleet.Bundle, _ ...interface{}) error {
+					Expect(b).NotTo(BeNil())
+					Expect(b.Spec.Overwrites).To(Equal(expectedOverwrites))
+					return nil
+				},
+			)
+
+			err := fleetApplyOnline(clientMock, name, dirs, options)
+			Expect(err).NotTo(HaveOccurred())
+		})
 	})
 })
