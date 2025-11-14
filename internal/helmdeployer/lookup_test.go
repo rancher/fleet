@@ -82,6 +82,13 @@ func TestHasLookupFunction(t *testing.T) {
 			expectedResult: true,
 		},
 		{
+			name: "Template with lookup used in chained expression",
+			templates: []*chart.File{
+				{Name: "templates/chained.yaml", Data: []byte(`{{- range $index, $pod := (lookup "v1" "Pod" "kube-system" "").items }}- {{ $pod.metadata.name }}{{- end }}`)},
+			},
+			expectedResult: true,
+		},
+		{
 			name: "Template with invalid syntax (should be ignored)",
 			templates: []*chart.File{
 				{Name: "templates/invalid.yaml", Data: []byte(`{{ .Values.name }`)},

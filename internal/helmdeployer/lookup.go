@@ -1,6 +1,8 @@
 package helmdeployer
 
 import (
+	"reflect"
+	"strings"
 	"text/template"
 	"text/template/parse"
 
@@ -40,48 +42,117 @@ func hasLookupFunction(ch *chart.Chart) bool {
 
 // containsLookup recursively checks whether a parse.Node (and its children)
 // contains a call to the "lookup" function.
-func containsLookup(node parse.Node) bool {
-	if node == nil {
+func containsLookup(node parse.Node) bool { // nolint: gocyclo // recursive logic
+	if nodeIsNil(node) {
 		return false
 	}
 
-	switch n := node.(type) {
-	case *parse.ActionNode:
-		return containsLookup(n.Pipe)
-	case *parse.IfNode:
-		return containsLookup(n.Pipe) || containsLookup(n.List) || containsLookup(n.ElseList)
-	case *parse.ListNode:
-		for _, subNode := range n.Nodes {
-			if containsLookup(subNode) {
-				return true
-			}
-		}
-	case *parse.RangeNode:
-		return containsLookup(n.Pipe) || containsLookup(n.List) || containsLookup(n.ElseList)
-	case *parse.TemplateNode:
-		return containsLookup(n.Pipe)
-	case *parse.WithNode:
-		return containsLookup(n.Pipe) || containsLookup(n.List) || containsLookup(n.ElseList)
-	case *parse.PipeNode:
-		for _, cmd := range n.Cmds {
-			if containsLookup(cmd) {
-				return true
-			}
-		}
-	case *parse.CommandNode:
-		// The first argument of a command node is usually the function name.
-		if len(n.Args) > 0 {
-			if ident, ok := n.Args[0].(*parse.IdentifierNode); ok && ident.Ident == "lookup" {
-				return true
-			}
-		}
-		// Recurse into arguments to find nested lookups, e.g., {{ template "foo" (lookup ...) }}
-		for _, arg := range n.Args {
-			if containsLookup(arg) {
-				return true
-			}
-		}
+	// Quick textual pre-check. If the node's string representation does not
+	// contain the word "lookup", there's no need to traverse it deeply.
+	// This avoids unnecessary recursion for nodes that clearly don't reference
+	// the lookup function. If the textual representation contains
+	// "lookup", fall through to the detailed inspection below.
+	if !nodeExprContainsLookup(node) {
+		return false
 	}
 
+	switch node.Type() {
+	case parse.NodeAction:
+		if n, ok := node.(*parse.ActionNode); ok && n != nil {
+			return containsLookup(n.Pipe)
+		}
+		return false
+	case parse.NodeIf:
+		if n, ok := node.(*parse.IfNode); ok && n != nil {
+			// check if any of the sub-nodes contain lookup
+			return containsLookup(n.ElseList) || containsLookup(n.Pipe) || containsLookup(n.List)
+		}
+		return false
+	case parse.NodeList:
+		if n, ok := node.(*parse.ListNode); ok && n != nil {
+			for _, subNode := range n.Nodes {
+				if containsLookup(subNode) {
+					return true
+				}
+			}
+		}
+		return false
+	case parse.NodeRange:
+		if n, ok := node.(*parse.RangeNode); ok && n != nil {
+			// check if any of the sub-nodes contain lookup
+			return containsLookup(n.ElseList) || containsLookup(n.Pipe) || containsLookup(n.List)
+		}
+		return false
+	case parse.NodeTemplate:
+		if n, ok := node.(*parse.TemplateNode); ok && n != nil {
+			return containsLookup(n.Pipe)
+		}
+		return false
+	case parse.NodeWith:
+		if n, ok := node.(*parse.WithNode); ok && n != nil {
+			// check if any of the sub-nodes contain lookup
+			return containsLookup(n.Pipe) || containsLookup(n.List) || containsLookup(n.ElseList)
+		}
+		return false
+	case parse.NodePipe:
+		if n, ok := node.(*parse.PipeNode); ok && n != nil {
+			for _, cmd := range n.Cmds {
+				if containsLookup(cmd) {
+					return true
+				}
+			}
+		}
+		return false
+	case parse.NodeCommand:
+		if n, ok := node.(*parse.CommandNode); ok && n != nil {
+			for i, arg := range n.Args {
+				// The first argument of a command node is usually the function name.
+				if i == 0 {
+					ident, ok := arg.(*parse.IdentifierNode)
+					if ok && ident != nil && ident.Ident == "lookup" {
+						return true
+					}
+				}
+				// Recurse into arguments to find nested lookups, e.g., {{ template "foo" (lookup ...) }}
+				if containsLookup(arg) {
+					return true
+				}
+			}
+		}
+		return false
+	case parse.NodeChain:
+		if n, ok := node.(*parse.ChainNode); ok && n != nil {
+			// Covers cases like (lookup ...).items where the lookup is part of a chained expression.
+			if n.Node != nil {
+				return containsLookup(n.Node)
+			}
+		}
+		return false
+	default:
+		return false
+	}
+}
+
+// nodeExprContainsLookup returns true when the node has a textual
+// expression (via String()) and that textual representation contains the
+// substring "lookup". This is a cheap pre-check to avoid deep traversal for
+// nodes that don't reference the lookup function at all.
+func nodeExprContainsLookup(node parse.Node) bool {
+	if nodeIsNil(node) {
+		return false
+	}
+	s := node.String()
+
+	return strings.Contains(s, "lookup")
+}
+
+func nodeIsNil(node parse.Node) bool {
+	if node == nil {
+		return true
+	}
+	rv := reflect.ValueOf(node)
+	if rv.Kind() == reflect.Ptr && rv.IsNil() {
+		return true
+	}
 	return false
 }
