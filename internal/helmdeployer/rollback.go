@@ -15,8 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-// RemoveExternalChanges does a helm rollback to remove changes made outside of fleet.
-// It removes the helm history entry if the rollback fails.
+// RemoveExternalChanges removes changes made outside of fleet using Helm rollback.
 func (h *Helm) RemoveExternalChanges(ctx context.Context, bd *fleet.BundleDeployment) (string, error) {
 	log.FromContext(ctx).WithName("remove-external-changes").Info("Drift correction: rollback")
 
@@ -31,9 +30,16 @@ func (h *Helm) RemoveExternalChanges(ctx context.Context, bd *fleet.BundleDeploy
 	}
 
 	r := action.NewRollback(cfg)
-	// Set ServerSideApply to "auto" to use the same apply method as the original release
-	// If not set, defaults to empty string which causes validation error in Helm v4
-	r.ServerSideApply = "auto"
+	// When using ForceReplace, must disable ServerSideApply
+	// ForceReplace and ServerSideApply cannot be used together in Helm v4
+	// Set to "false" (not "auto" or empty string) to explicitly disable server-side apply
+	if bd.Spec.CorrectDrift.Force {
+		r.ServerSideApply = "false"
+		r.ForceReplace = true
+	} else {
+		// For non-force mode, use "auto" to preserve the apply method from the original release
+		r.ServerSideApply = "auto"
+	}
 	// WaitStrategy must be set in Helm v4 to avoid "unknown wait strategy" error
 	// HookOnlyStrategy is the default behavior (equivalent to not waiting)
 	r.WaitStrategy = kube.HookOnlyStrategy
@@ -42,7 +48,6 @@ func (h *Helm) RemoveExternalChanges(ctx context.Context, bd *fleet.BundleDeploy
 	if r.MaxHistory == 0 {
 		r.MaxHistory = MaxHelmHistory
 	}
-	// Force field removed in Helm v4
 	if err := r.Run(releaseName); err != nil {
 		if bd.Spec.CorrectDrift.KeepFailHistory {
 			return "", err

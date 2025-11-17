@@ -234,14 +234,19 @@ func (h *Helm) runUpgrade(ctx context.Context, cfg *action.Configuration, chart 
 // including timeout, wait strategies, and drift correction settings.
 func (h *Helm) configureUpgradeAction(u *action.Upgrade, namespace string, timeout time.Duration, options fleet.BundleDeploymentOptions, pr *postRender, dryRunCfg dryRunConfig) {
 	u.TakeOwnership = true
-	// Use "auto" for ServerSideApply to respect the previous release's apply method.
-	// This ensures consistency: if the initial install used client-side apply (due to TakeOwnership),
-	// subsequent upgrades including drift correction will also use client-side apply.
-	u.ServerSideApply = "auto"
 	u.EnableDNS = !options.Helm.DisableDNS
 	u.ForceReplace = options.Helm.Force
 	if options.CorrectDrift != nil {
 		u.ForceReplace = u.ForceReplace || options.CorrectDrift.Force
+	}
+	// When using ForceReplace, must disable ServerSideApply.
+	// ForceReplace and ServerSideApply cannot be used together in Helm v4.
+	// Set to "false" (not "auto") to explicitly disable server-side apply.
+	// Otherwise use "auto" to respect the previous release's apply method.
+	if u.ForceReplace {
+		u.ServerSideApply = "false"
+	} else {
+		u.ServerSideApply = "auto"
 	}
 	u.RollbackOnFailure = options.Helm.Atomic
 	u.MaxHistory = options.Helm.MaxHistory
