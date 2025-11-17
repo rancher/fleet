@@ -81,7 +81,10 @@ func New(agentNamespace, defaultNamespace, labelPrefix, labelSuffix string) *Hel
 	}
 }
 
-func (h *Helm) Init(ctx context.Context) error {
+func (h *Helm) Setup(ctx context.Context, client client.Client, getter genericclioptions.RESTClientGetter) error {
+	h.client = client
+	h.getter = getter
+
 	cfg, err := h.createCfg(ctx, "")
 	if err != nil {
 		return err
@@ -89,12 +92,6 @@ func (h *Helm) Init(ctx context.Context) error {
 	h.globalCfg = cfg
 
 	return nil
-}
-
-func (h *Helm) Setup(ctx context.Context, client client.Client, getter genericclioptions.RESTClientGetter) error {
-	h.client = client
-	h.getter = getter
-	return h.Init(ctx)
 }
 
 func (h *Helm) getOpts(bundleID string, options fleet.BundleDeploymentOptions) (time.Duration, string, string) {
