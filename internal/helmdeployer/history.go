@@ -9,6 +9,7 @@ import (
 	releasev1 "helm.sh/helm/v4/pkg/release/v1"
 	"helm.sh/helm/v4/pkg/storage/driver"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/klog/v2"
 
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/kv"
 
@@ -96,6 +97,8 @@ func (h *Helm) getRelease(releaseName, namespace string, version int) (*releasev
 	for _, releaser := range releasers {
 		release, err := releaserToV1Release(releaser)
 		if err != nil {
+			klog.V(1).InfoS("Skipping release entry with unsupported type during history lookup",
+				"error", err, "releaseName", releaseName, "namespace", namespace)
 			continue
 		}
 		if release.Name == releaseName && release.Version == version && release.Namespace == namespace {
