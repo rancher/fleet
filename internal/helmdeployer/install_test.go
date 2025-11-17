@@ -167,27 +167,72 @@ func TestForceMapsToForceReplace(t *testing.T) {
 
 func TestDryRunStrategyMapping(t *testing.T) {
 	a := assert.New(t)
-	h := &Helm{}
 
 	tests := []struct {
-		name     string
-		dryRun   bool
-		expected action.DryRunStrategy
+		name            string
+		template        bool
+		dryRun          bool
+		dryRunOption    string
+		expectedInstall action.DryRunStrategy
+		expectedUpgrade action.DryRunStrategy
+		description     string
 	}{
+		// Normal execution cases
 		{
-			name:     "dryRun false maps to DryRunNone",
-			dryRun:   false,
-			expected: action.DryRunNone,
+			name:            "no dry run and no template mode",
+			template:        false,
+			dryRun:          false,
+			dryRunOption:    "",
+			expectedInstall: action.DryRunNone,
+			expectedUpgrade: action.DryRunNone,
+			description:     "Normal execution without dry run",
 		},
 		{
-			name:     "dryRun true maps to DryRunClient",
-			dryRun:   true,
-			expected: action.DryRunClient,
+			name:            "client dry run without template mode",
+			template:        false,
+			dryRun:          true,
+			dryRunOption:    "",
+			expectedInstall: action.DryRunClient,
+			expectedUpgrade: action.DryRunClient,
+			description:     "Client-side dry run for validation",
+		},
+		{
+			name:            "server dry run without template mode",
+			template:        false,
+			dryRun:          true,
+			dryRunOption:    "server",
+			expectedInstall: action.DryRunServer,
+			expectedUpgrade: action.DryRunServer,
+			description:     "Server-side dry run to enable lookup functions",
+		},
+		// Template mode cases (always uses DryRunClient)
+		{
+			name:            "template mode without dry run",
+			template:        true,
+			dryRun:          false,
+			dryRunOption:    "",
+			expectedInstall: action.DryRunClient,
+			expectedUpgrade: action.DryRunClient,
+			description:     "Template mode always uses DryRunClient to prevent cluster interaction",
+		},
+		{
+			name:            "template mode overrides server dry run",
+			template:        true,
+			dryRun:          true,
+			dryRunOption:    "server",
+			expectedInstall: action.DryRunClient,
+			expectedUpgrade: action.DryRunClient,
+			description:     "Template mode takes precedence over server dry run configuration",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			h := &Helm{
+				template: tt.template,
+			}
+
+			// Test Install action
 			installAction := &action.Install{}
 			h.configureInstallAction(
 				installAction,
@@ -199,10 +244,16 @@ func TestDryRunStrategyMapping(t *testing.T) {
 					Helm: &fleet.HelmOptions{},
 				},
 				nil,
-				dryRunConfig{DryRun: tt.dryRun},
+				dryRunConfig{
+					DryRun:       tt.dryRun,
+					DryRunOption: tt.dryRunOption,
+				},
 			)
-			a.Equal(tt.expected, installAction.DryRunStrategy, "Install: DryRun should map to DryRunStrategy")
+			a.Equal(tt.expectedInstall, installAction.DryRunStrategy,
+				"Install: %s - expected DryRunStrategy=%v, got %v",
+				tt.description, tt.expectedInstall, installAction.DryRunStrategy)
 
+			// Test Upgrade action
 			upgradeAction := &action.Upgrade{}
 			h.configureUpgradeAction(
 				upgradeAction,
@@ -212,9 +263,14 @@ func TestDryRunStrategyMapping(t *testing.T) {
 					Helm: &fleet.HelmOptions{},
 				},
 				nil,
-				dryRunConfig{DryRun: tt.dryRun},
+				dryRunConfig{
+					DryRun:       tt.dryRun,
+					DryRunOption: tt.dryRunOption,
+				},
 			)
-			a.Equal(tt.expected, upgradeAction.DryRunStrategy, "Upgrade: DryRun should map to DryRunStrategy")
+			a.Equal(tt.expectedUpgrade, upgradeAction.DryRunStrategy,
+				"Upgrade: %s - expected DryRunStrategy=%v, got %v",
+				tt.description, tt.expectedUpgrade, upgradeAction.DryRunStrategy)
 		})
 	}
 }

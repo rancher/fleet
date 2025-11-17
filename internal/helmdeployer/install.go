@@ -179,10 +179,13 @@ func (h *Helm) configureInstallAction(u *action.Install, cfg *action.Configurati
 	u.CreateNamespace = true
 	u.Namespace = namespace
 	u.Timeout = timeout
-	// Configure dry-run strategy based on dryRunConfig.
+	// Configure dry-run strategy based on template mode and dryRunConfig.
+	// Template mode (h.template) requires DryRunClient to render without cluster interaction.
 	// If DryRunOption is "server", use DryRunServer to allow lookup functions to query the cluster.
 	// Otherwise, use DryRunClient for client-only dry run or DryRunNone for actual execution.
-	if dryRunCfg.DryRun {
+	if h.template {
+		u.DryRunStrategy = action.DryRunClient
+	} else if dryRunCfg.DryRun {
 		if dryRunCfg.DryRunOption == "server" {
 			u.DryRunStrategy = action.DryRunServer
 		} else {
@@ -247,10 +250,13 @@ func (h *Helm) configureUpgradeAction(u *action.Upgrade, namespace string, timeo
 	}
 	u.Namespace = namespace
 	u.Timeout = timeout
-	// Configure dry-run strategy based on dryRunConfig.
+	// Configure dry-run strategy based on template mode and dryRunConfig.
+	// Template mode (h.template) requires DryRunClient to render without cluster interaction.
 	// If DryRunOption is "server", use DryRunServer to allow lookup functions to query the cluster.
 	// Otherwise, use DryRunClient for client-only dry run or DryRunNone for actual execution.
-	if dryRunCfg.DryRun {
+	if h.template {
+		u.DryRunStrategy = action.DryRunClient
+	} else if dryRunCfg.DryRun {
 		if dryRunCfg.DryRunOption == "server" {
 			u.DryRunStrategy = action.DryRunServer
 		} else {
