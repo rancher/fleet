@@ -142,7 +142,18 @@ func (h *Helm) createPostRenderer(cfg *action.Configuration, bundleID string, ma
 
 // runInstall executes a Helm install operation with the provided configuration and values.
 // It creates an Install action, configures it, and runs the installation.
-func (h *Helm) runInstall(ctx context.Context, cfg *action.Configuration, chart *chartv2.Chart, values map[string]interface{}, releaseName, namespace string, timeout time.Duration, options fleet.BundleDeploymentOptions, pr *postRender, dryRunCfg dryRunConfig) (*releasev1.Release, error) {
+func (h *Helm) runInstall(
+	ctx context.Context,
+	cfg *action.Configuration,
+	chart *chartv2.Chart,
+	values map[string]interface{},
+	releaseName string,
+	namespace string,
+	timeout time.Duration,
+	options fleet.BundleDeploymentOptions,
+	pr *postRender,
+	dryRunCfg dryRunConfig,
+) (*releasev1.Release, error) {
 	logger := log.FromContext(ctx)
 	u := action.NewInstall(cfg)
 
@@ -215,7 +226,18 @@ func (h *Helm) configureInstallAction(u *action.Install, cfg *action.Configurati
 // runUpgrade executes a Helm upgrade operation with the provided configuration and values.
 // It creates an Upgrade action, configures it, and runs the upgrade with automatic rollback
 // retry logic if the upgrade is interrupted.
-func (h *Helm) runUpgrade(ctx context.Context, cfg *action.Configuration, chart *chartv2.Chart, values map[string]interface{}, releaseName, namespace string, timeout time.Duration, options fleet.BundleDeploymentOptions, pr *postRender, dryRunCfg dryRunConfig) (*releasev1.Release, error) {
+func (h *Helm) runUpgrade(
+	ctx context.Context,
+	cfg *action.Configuration,
+	chart *chartv2.Chart,
+	values map[string]interface{},
+	releaseName string,
+	namespace string,
+	timeout time.Duration,
+	options fleet.BundleDeploymentOptions,
+	pr *postRender,
+	dryRunCfg dryRunConfig,
+) (*releasev1.Release, error) {
 	logger := log.FromContext(ctx)
 	u := action.NewUpgrade(cfg)
 
