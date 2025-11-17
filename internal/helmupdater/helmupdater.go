@@ -60,7 +60,7 @@ func UpdateHelmDependencies(path string) error {
 				Getters:          getter.All(settings),
 				RepositoryConfig: settings.RegistryConfig,
 				RepositoryCache:  settings.RepositoryCache,
-				ContentCache:     settings.RepositoryCache, // Required in Helm v4
+				ContentCache:     settings.ContentCache,
 				Debug:            settings.Debug,
 				RegistryClient:   registryClient,
 			}
