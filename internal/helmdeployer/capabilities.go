@@ -50,8 +50,8 @@ func getCapabilities(ctx context.Context, c *action.Configuration) (*common.Capa
 	if err != nil {
 		if discovery.IsGroupDiscoveryFailedError(err) {
 			logger := log.FromContext(ctx).WithName("helm-capabilities")
-			logger.V(1).Info("WARNING: The Kubernetes server has an orphaned API service", "error", err.Error())
-			logger.V(1).Info("WARNING: To fix this, kubectl delete apiservice <service-name>")
+			logger.Error(err, "The Kubernetes server has an orphaned API service")
+			logger.Info("To fix this, run: kubectl delete apiservice <service-name>")
 		} else {
 			return nil, errors.New("could not get apiVersions from Kubernetes")
 		}
