@@ -105,7 +105,10 @@ func (h *Helm) install(ctx context.Context, bundleID string, manifest *manifest.
 		return nil, err
 	}
 
-	pr := h.createPostRenderer(cfg, bundleID, manifest, chart, options)
+	pr, err := h.createPostRenderer(cfg, bundleID, manifest, chart, options)
+	if err != nil {
+		return nil, err
+	}
 
 	if install {
 		return h.runInstall(ctx, cfg, chart, values, releaseName, defaultNamespace, timeout, options, pr, dryRunCfg)
@@ -116,7 +119,7 @@ func (h *Helm) install(ctx context.Context, bundleID string, manifest *manifest.
 
 // createPostRenderer creates a post-renderer for Helm charts that handles label/annotation
 // transformations and CRD deletion policies based on Fleet bundle deployment options.
-func (h *Helm) createPostRenderer(cfg *action.Configuration, bundleID string, manifest *manifest.Manifest, chart *chartv2.Chart, options fleet.BundleDeploymentOptions) *postRender {
+func (h *Helm) createPostRenderer(cfg *action.Configuration, bundleID string, manifest *manifest.Manifest, chart *chartv2.Chart, options fleet.BundleDeploymentOptions) (*postRender, error) {
 	pr := &postRender{
 		labelPrefix: h.labelPrefix,
 		labelSuffix: h.labelSuffix,
@@ -127,11 +130,14 @@ func (h *Helm) createPostRenderer(cfg *action.Configuration, bundleID string, ma
 	}
 
 	if !h.useGlobalCfg {
-		mapper, _ := cfg.RESTClientGetter.ToRESTMapper()
+		mapper, err := cfg.RESTClientGetter.ToRESTMapper()
+		if err != nil {
+			return nil, err
+		}
 		pr.mapper = mapper
 	}
 
-	return pr
+	return pr, nil
 }
 
 // runInstall executes a Helm install operation with the provided configuration and values.
