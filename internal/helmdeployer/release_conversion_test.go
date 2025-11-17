@@ -137,8 +137,7 @@ func TestReleaseListToV1List(t *testing.T) {
 			// Verify data preservation for non-nil releases
 			for i, r := range tt.input {
 				if r != nil {
-					switch rel := r.(type) {
-					case *releasev1.Release:
+					if rel, ok := r.(*releasev1.Release); ok {
 						assert.Equal(t, rel.Name, result[i].Name)
 						assert.Equal(t, rel.Version, result[i].Version)
 					}
