@@ -171,8 +171,24 @@ func (h *Helm) runInstall(
 	return assertRelease(rel)
 }
 
+// configureDryRunStrategy sets the DryRunStrategy based on template mode and dryRunConfig.
+// Template mode requires DryRunClient to render without cluster interaction.
+// If DryRunOption is "server", use DryRunServer to allow lookup functions to query the cluster.
+// Otherwise, use DryRunClient for client-only dry run or DryRunNone for actual execution.
+func (h *Helm) configureDryRunStrategy(dryRunCfg dryRunConfig) action.DryRunStrategy {
+	if h.template {
+		return action.DryRunClient
+	} else if dryRunCfg.DryRun {
+		if dryRunCfg.DryRunOption == "server" {
+			return action.DryRunServer
+		}
+		return action.DryRunClient
+	}
+	return action.DryRunNone
+}
+
 // configureInstallAction configures a Helm Install action with Fleet-specific options,
-// including timeout, wait strategies, and server-side apply settings.
+// including timeout, wait strategies, and dry-run configuration.
 func (h *Helm) configureInstallAction(u *action.Install, cfg *action.Configuration, releaseName, namespace string, timeout time.Duration, options fleet.BundleDeploymentOptions, pr *postRender, dryRunCfg dryRunConfig) {
 	if cfg.Capabilities != nil {
 		if cfg.Capabilities.KubeVersion.Version != "" {
@@ -196,21 +212,7 @@ func (h *Helm) configureInstallAction(u *action.Install, cfg *action.Configurati
 	u.CreateNamespace = true
 	u.Namespace = namespace
 	u.Timeout = timeout
-	// Configure dry-run strategy based on template mode and dryRunConfig.
-	// Template mode (h.template) requires DryRunClient to render without cluster interaction.
-	// If DryRunOption is "server", use DryRunServer to allow lookup functions to query the cluster.
-	// Otherwise, use DryRunClient for client-only dry run or DryRunNone for actual execution.
-	if h.template {
-		u.DryRunStrategy = action.DryRunClient
-	} else if dryRunCfg.DryRun {
-		if dryRunCfg.DryRunOption == "server" {
-			u.DryRunStrategy = action.DryRunServer
-		} else {
-			u.DryRunStrategy = action.DryRunClient
-		}
-	} else {
-		u.DryRunStrategy = action.DryRunNone
-	}
+	u.DryRunStrategy = h.configureDryRunStrategy(dryRunCfg)
 	u.SkipSchemaValidation = options.Helm.SkipSchemaValidation
 	u.PostRenderer = pr
 	u.WaitForJobs = options.Helm.WaitForJobs
@@ -283,21 +285,7 @@ func (h *Helm) configureUpgradeAction(u *action.Upgrade, namespace string, timeo
 	}
 	u.Namespace = namespace
 	u.Timeout = timeout
-	// Configure dry-run strategy based on template mode and dryRunConfig.
-	// Template mode (h.template) requires DryRunClient to render without cluster interaction.
-	// If DryRunOption is "server", use DryRunServer to allow lookup functions to query the cluster.
-	// Otherwise, use DryRunClient for client-only dry run or DryRunNone for actual execution.
-	if h.template {
-		u.DryRunStrategy = action.DryRunClient
-	} else if dryRunCfg.DryRun {
-		if dryRunCfg.DryRunOption == "server" {
-			u.DryRunStrategy = action.DryRunServer
-		} else {
-			u.DryRunStrategy = action.DryRunClient
-		}
-	} else {
-		u.DryRunStrategy = action.DryRunNone
-	}
+	u.DryRunStrategy = h.configureDryRunStrategy(dryRunCfg)
 	u.SkipSchemaValidation = options.Helm.SkipSchemaValidation
 	u.DisableOpenAPIValidation = h.template || dryRunCfg.DryRun
 	u.PostRenderer = pr
