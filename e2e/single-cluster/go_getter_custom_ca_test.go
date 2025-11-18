@@ -110,6 +110,34 @@ var _ = Describe("Testing go-getter CA bundles and insecureSkipVerify for clonin
 		Expect(err).ToNot(HaveOccurred())
 	}
 
+	type gitRepoOptions struct {
+		CABundle               string
+		InsecureSkipTLSVerify  bool
+		HelmSecretName         string
+		HelmSecretNameForPaths string
+	}
+
+	createGitRepo := func(options gitRepoOptions) {
+		GinkgoHelper()
+		values := gitRepoTestValues{
+			// Defaults
+			Name:            gitrepoName,
+			Repo:            gh.GetInClusterURL(host, HTTPSPort, "repo"),
+			Branch:          gh.Branch,
+			PollingInterval: "15s",           // default
+			TargetNamespace: targetNamespace, // to avoid conflicts with other tests
+			Path:            entrypoint,
+			// Customizations
+			CABundle:               options.CABundle,
+			InsecureSkipTLSVerify:  options.InsecureSkipTLSVerify,
+			HelmSecretName:         options.HelmSecretName,
+			HelmSecretNameForPaths: options.HelmSecretNameForPaths,
+		}
+
+		err := testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo.yaml"), values)
+		Expect(err).ToNot(HaveOccurred())
+	}
+
 	BeforeEach(func() {
 		k = env.Kubectl.Namespace(env.Namespace)
 	})
@@ -154,53 +182,20 @@ var _ = Describe("Testing go-getter CA bundles and insecureSkipVerify for clonin
 			// Create and apply GitRepo, don't configure CABundle, InsecureSkipTLSVerify,
 			// helmSecretName, or helmSecretNameForPath in GitRepo.spec which makes it fall back to
 			// Rancher certificates that work.
-			err := testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo.yaml"), gitRepoTestValues{
-				Name:            gitrepoName,
-				Repo:            gh.GetInClusterURL(host, HTTPSPort, "repo"),
-				Branch:          gh.Branch,
-				PollingInterval: "15s",           // default
-				TargetNamespace: targetNamespace, // to avoid conflicts with other tests
-				Path:            entrypoint,
-			})
-			Expect(err).ToNot(HaveOccurred())
-
+			createGitRepo(gitRepoOptions{})
 			Eventually(expectGitRepoToBeReady).Should(Succeed())
 		})
 
 		It("should succeed when using the correct CA bundle provided in GitRepo's CABundle field", func() {
 			encodedCert := mustReadFileAsBase64(getCertificateFilePath())
-
-			// Create and apply GitRepo
-			err := testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo.yaml"), gitRepoTestValues{
-				Name:            gitrepoName,
-				Repo:            gh.GetInClusterURL(host, HTTPSPort, "repo"),
-				Branch:          gh.Branch,
-				PollingInterval: "15s",           // default
-				TargetNamespace: targetNamespace, // to avoid conflicts with other tests
-				Path:            entrypoint,
-				CABundle:        encodedCert,
-			})
-			Expect(err).ToNot(HaveOccurred())
-
+			createGitRepo(gitRepoOptions{CABundle: encodedCert})
 			Eventually(expectGitRepoToBeReady).Should(Succeed())
 		})
 
 		It("should fail when using the incorrect CA bundle provided in GitRepo's CABundle field", func() {
 			// But it should fail in gitcloner already, not later in fleet apply.
 			encodedCert := base64.StdEncoding.EncodeToString([]byte("invalid-ca-bundle"))
-
-			// Create and apply GitRepo
-			err := testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo.yaml"), gitRepoTestValues{
-				Name:            gitrepoName,
-				Repo:            gh.GetInClusterURL(host, HTTPSPort, "repo"),
-				Branch:          gh.Branch,
-				PollingInterval: "15s",           // default
-				TargetNamespace: targetNamespace, // to avoid conflicts with other tests
-				Path:            entrypoint,
-				CABundle:        encodedCert,
-			})
-			Expect(err).ToNot(HaveOccurred())
-
+			createGitRepo(gitRepoOptions{CABundle: encodedCert})
 			Eventually(expectGitRepoToNotBeReady).Should(Succeed())
 			Consistently(expectGitRepoToNotBeReady).Should(Succeed())
 		})
@@ -213,18 +208,7 @@ var _ = Describe("Testing go-getter CA bundles and insecureSkipVerify for clonin
 			out, err := k.Create("secret", "generic", secretName, "--from-file=cacerts="+helmCrtFile, "-n", env.Namespace)
 			Expect(err).ToNot(HaveOccurred(), out)
 
-			// Create and apply GitRepo
-			err = testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo.yaml"), gitRepoTestValues{
-				Name:            gitrepoName,
-				Repo:            gh.GetInClusterURL(host, HTTPSPort, "repo"),
-				Branch:          gh.Branch,
-				PollingInterval: "15s",           // default
-				TargetNamespace: targetNamespace, // to avoid conflicts with other tests
-				Path:            entrypoint,
-				HelmSecretName:  secretName,
-			})
-			Expect(err).ToNot(HaveOccurred())
-
+			createGitRepo(gitRepoOptions{HelmSecretName: secretName})
 			Eventually(expectGitRepoToBeReady).Should(Succeed())
 		})
 
@@ -239,18 +223,7 @@ var _ = Describe("Testing go-getter CA bundles and insecureSkipVerify for clonin
 			out, err := k.Create("secret", "generic", secretName, "--from-file=cacerts="+invalidCACertsFile.Name(), "-n", env.Namespace)
 			Expect(err).ToNot(HaveOccurred(), out)
 
-			// Create and apply GitRepo
-			err = testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo.yaml"), gitRepoTestValues{
-				Name:            gitrepoName,
-				Repo:            gh.GetInClusterURL(host, HTTPSPort, "repo"),
-				Branch:          gh.Branch,
-				PollingInterval: "15s",           // default
-				TargetNamespace: targetNamespace, // to avoid conflicts with other tests
-				Path:            entrypoint,
-				HelmSecretName:  secretName,
-			})
-			Expect(err).ToNot(HaveOccurred())
-
+			createGitRepo(gitRepoOptions{HelmSecretName: secretName})
 			Eventually(expectGitRepoToNotBeReady).Should(Succeed())
 			Consistently(expectGitRepoToNotBeReady).Should(Succeed())
 		})
@@ -266,18 +239,7 @@ var _ = Describe("Testing go-getter CA bundles and insecureSkipVerify for clonin
 				},
 			)
 
-			// Create and apply GitRepo
-			err := testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo.yaml"), gitRepoTestValues{
-				Name:                   gitrepoName,
-				Repo:                   gh.GetInClusterURL(host, HTTPSPort, "repo"),
-				Branch:                 gh.Branch,
-				PollingInterval:        "15s",           // default
-				TargetNamespace:        targetNamespace, // to avoid conflicts with other tests
-				Path:                   entrypoint,
-				HelmSecretNameForPaths: secretName,
-			})
-			Expect(err).ToNot(HaveOccurred())
-
+			createGitRepo(gitRepoOptions{HelmSecretNameForPaths: secretName})
 			Eventually(expectGitRepoToBeReady).Should(Succeed())
 		})
 
@@ -292,18 +254,7 @@ var _ = Describe("Testing go-getter CA bundles and insecureSkipVerify for clonin
 				},
 			)
 
-			// Create and apply GitRepo
-			err := testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo.yaml"), gitRepoTestValues{
-				Name:                   gitrepoName,
-				Repo:                   gh.GetInClusterURL(host, HTTPSPort, "repo"),
-				Branch:                 gh.Branch,
-				PollingInterval:        "15s",           // default
-				TargetNamespace:        targetNamespace, // to avoid conflicts with other tests
-				Path:                   entrypoint,
-				HelmSecretNameForPaths: secretName,
-			})
-			Expect(err).ToNot(HaveOccurred())
-
+			createGitRepo(gitRepoOptions{HelmSecretNameForPaths: secretName})
 			Consistently(expectGitRepoToNotBeReady).Should(Succeed())
 		})
 
@@ -318,18 +269,7 @@ var _ = Describe("Testing go-getter CA bundles and insecureSkipVerify for clonin
 				},
 			)
 
-			// Create and apply GitRepo
-			err := testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo.yaml"), gitRepoTestValues{
-				Name:                   gitrepoName,
-				Repo:                   gh.GetInClusterURL(host, HTTPSPort, "repo"),
-				Branch:                 gh.Branch,
-				PollingInterval:        "15s",           // default
-				TargetNamespace:        targetNamespace, // to avoid conflicts with other tests
-				Path:                   entrypoint,
-				HelmSecretNameForPaths: secretName,
-			})
-			Expect(err).ToNot(HaveOccurred())
-
+			createGitRepo(gitRepoOptions{HelmSecretNameForPaths: secretName})
 			Eventually(expectGitRepoToBeReady).Should(Succeed())
 		})
 	})
@@ -338,20 +278,7 @@ var _ = Describe("Testing go-getter CA bundles and insecureSkipVerify for clonin
 		It("should succeed when using the incorrect CA bundle provided in GitRepo's CABundle field but setting InsecureSkipTLSVerify to true", func() {
 			// But it should fail in gitcloner already, not later in fleet apply.
 			encodedCert := base64.StdEncoding.EncodeToString([]byte("invalid-ca-bundle"))
-
-			// Create and apply GitRepo
-			err := testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo.yaml"), gitRepoTestValues{
-				Name:                  gitrepoName,
-				Repo:                  gh.GetInClusterURL(host, HTTPSPort, "repo"),
-				Branch:                gh.Branch,
-				PollingInterval:       "15s",           // default
-				TargetNamespace:       targetNamespace, // to avoid conflicts with other tests
-				Path:                  entrypoint,
-				CABundle:              encodedCert,
-				InsecureSkipTLSVerify: true,
-			})
-			Expect(err).ToNot(HaveOccurred())
-
+			createGitRepo(gitRepoOptions{CABundle: encodedCert, InsecureSkipTLSVerify: true})
 			Eventually(expectGitRepoToBeReady).Should(Succeed())
 		})
 
@@ -359,7 +286,6 @@ var _ = Describe("Testing go-getter CA bundles and insecureSkipVerify for clonin
 			invalidCertFile := createInvalidCACertFile()
 			defer os.Remove(invalidCertFile.Name())
 
-			// Create secret with CA bundle
 			secretName := testenv.RandomFilename("helm-ca-bundle", r)
 			out, err := k.Create("secret", "generic", secretName,
 				"--from-file=cacerts="+invalidCertFile.Name(),
@@ -367,18 +293,7 @@ var _ = Describe("Testing go-getter CA bundles and insecureSkipVerify for clonin
 				"-n", env.Namespace)
 			Expect(err).ToNot(HaveOccurred(), out)
 
-			err = testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo.yaml"), gitRepoTestValues{
-				Name:                  gitrepoName,
-				Repo:                  gh.GetInClusterURL(host, HTTPSPort, "repo"),
-				Branch:                gh.Branch,
-				PollingInterval:       "15s",           // default
-				TargetNamespace:       targetNamespace, // to avoid conflicts with other tests
-				Path:                  entrypoint,
-				InsecureSkipTLSVerify: false,
-				HelmSecretName:        secretName,
-			})
-			Expect(err).ToNot(HaveOccurred())
-
+			createGitRepo(gitRepoOptions{HelmSecretName: secretName})
 			Eventually(expectGitRepoToBeReady).Should(Succeed())
 		})
 
@@ -394,18 +309,7 @@ var _ = Describe("Testing go-getter CA bundles and insecureSkipVerify for clonin
 				},
 			)
 
-			err := testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo.yaml"), gitRepoTestValues{
-				Name:                   gitrepoName,
-				Repo:                   gh.GetInClusterURL(host, HTTPSPort, "repo"),
-				Branch:                 gh.Branch,
-				PollingInterval:        "15s",           // default
-				TargetNamespace:        targetNamespace, // to avoid conflicts with other tests
-				Path:                   entrypoint,
-				InsecureSkipTLSVerify:  false,
-				HelmSecretNameForPaths: secretName,
-			})
-			Expect(err).ToNot(HaveOccurred())
-
+			createGitRepo(gitRepoOptions{HelmSecretNameForPaths: secretName})
 			Eventually(expectGitRepoToBeReady).Should(Succeed())
 		})
 	})
