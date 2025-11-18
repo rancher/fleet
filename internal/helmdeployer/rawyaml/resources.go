@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"strings"
 
-	"helm.sh/helm/v3/pkg/chart"
+	chartv2 "helm.sh/helm/v4/pkg/chart/v2"
 
 	"github.com/rancher/wrangler/v3/pkg/yaml"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -15,7 +15,7 @@ const (
 	inChartPrefix = "raw-yaml/"
 )
 
-func ToObjects(c *chart.Chart) (result []runtime.Object, _ error) {
+func ToObjects(c *chartv2.Chart) (result []runtime.Object, _ error) {
 	for _, resource := range c.Files {
 		if !strings.HasPrefix(resource.Name, inChartPrefix) {
 			continue

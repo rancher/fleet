@@ -9,8 +9,8 @@ import (
 	"github.com/rancher/wrangler/v3/pkg/yaml"
 
 	"github.com/google/go-cmp/cmp"
-	"helm.sh/helm/v3/pkg/chart"
-	"helm.sh/helm/v3/pkg/kube"
+	chartv2 "helm.sh/helm/v4/pkg/chart/v2"
+	"helm.sh/helm/v4/pkg/kube"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -93,7 +93,7 @@ func TestPostRenderer_Run_DeleteCRDs(t *testing.T) {
 				manifest: &manifest.Manifest{
 					Resources: []v1alpha1.BundleResource{},
 				},
-				chart: &chart.Chart{},
+				chart: &chartv2.Chart{},
 				opts:  test.opts,
 			}
 			postRenderedManifests, err := pr.Run(renderedManifests)
@@ -140,7 +140,7 @@ func TestPostRenderer_Run_DeleteCRDs(t *testing.T) {
 			manifest: &manifest.Manifest{
 				Resources: []v1alpha1.BundleResource{},
 			},
-			chart: &chart.Chart{},
+			chart: &chartv2.Chart{},
 			opts: v1alpha1.BundleDeploymentOptions{
 				DeleteCRDResources: false,
 			},

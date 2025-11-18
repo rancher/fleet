@@ -13,7 +13,7 @@ import (
 
 	"github.com/Masterminds/semver/v3"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"helm.sh/helm/v3/pkg/repo"
+	repov1 "helm.sh/helm/v4/pkg/repo/v1"
 	"sigs.k8s.io/yaml"
 
 	"oras.land/oras-go/v2/registry"
@@ -135,7 +135,7 @@ func chartURL(location fleet.HelmOptions, auth Auth, isHelmOps bool) (string, er
 
 // getHelmChartVersion returns the ChartVersion struct with the information to the given location
 // using the given authentication configuration
-func getHelmChartVersion(location fleet.HelmOptions, auth Auth) (*repo.ChartVersion, error) {
+func getHelmChartVersion(location fleet.HelmOptions, auth Auth) (*repov1.ChartVersion, error) {
 	request, err := http.NewRequest("GET", location.Repo+"index.yaml", nil)
 	if err != nil {
 		return nil, err
@@ -162,7 +162,7 @@ func getHelmChartVersion(location fleet.HelmOptions, auth Auth) (*repo.ChartVers
 		return nil, fmt.Errorf("failed to read helm repo from %s, error code: %v", location.Repo+"index.yaml", resp.StatusCode)
 	}
 
-	repo := &repo.IndexFile{}
+	repo := &repov1.IndexFile{}
 	if err := yaml.Unmarshal(bytes, repo); err != nil {
 		return nil, err
 	}
