@@ -18,12 +18,13 @@ import (
 	"unicode/utf8"
 
 	"github.com/hashicorp/go-getter/v2"
-	"github.com/rancher/fleet/internal/content"
-	"github.com/rancher/fleet/internal/helmupdater"
-	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"helm.sh/helm/v4/pkg/downloader"
 	helmgetter "helm.sh/helm/v4/pkg/getter"
 	"helm.sh/helm/v4/pkg/registry"
+
+	"github.com/rancher/fleet/internal/content"
+	"github.com/rancher/fleet/internal/helmupdater"
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
 // ignoreTree represents a tree of ignored paths (read from .fleetignore files), each node being a directory.
@@ -252,6 +253,21 @@ func GetContent(ctx context.Context, base, source, version string, auth Auth, di
 		Dst:     temp,
 		Pwd:     base,
 		GetMode: getter.ModeDir,
+	}
+
+	if auth.CABundle != nil {
+		file, err := os.CreateTemp("", "cabundle-*")
+		if err != nil {
+			return nil, err
+		}
+		if _, err := file.Write(auth.CABundle); err != nil {
+			return nil, err
+		}
+		file.Close()
+		defer os.Remove(file.Name())
+
+		os.Setenv("GIT_SSL_CAINFO", file.Name())
+		defer os.Unsetenv("GIT_SSL_CAINFO")
 	}
 
 	if _, err := client.Get(ctx, req); err != nil {
