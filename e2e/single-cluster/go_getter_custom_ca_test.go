@@ -21,7 +21,7 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-var _ = Describe("Testing go-getter CA bundles", Label("infra-setup"), func() {
+var _ = Describe("Testing go-getter CA bundles and insecureSkipVerify for cloning git repositories", Label("infra-setup"), func() {
 	const (
 		sleeper    = "sleeper"
 		entrypoint = "entrypoint"
@@ -54,13 +54,35 @@ var _ = Describe("Testing go-getter CA bundles", Label("infra-setup"), func() {
 		return base64.StdEncoding.EncodeToString(data)
 	}
 
-	// getCertificateFilePath returns the path to the CA certificate file used to set up the local git
-	// server.
+	// getCertificateFilePath returns the path to the CA certificate file used to set up the local
+	// git server.
 	getCertificateFilePath := func() string {
 		GinkgoHelper()
 		certsDir := os.Getenv("CI_OCI_CERTS_DIR")
 		Expect(certsDir).ToNot(BeEmpty())
 		return path.Join(certsDir, "helm.crt")
+	}
+
+	createInvalidCACertFile := func() *os.File {
+		tmpFile, err := os.CreateTemp("", "invalid-ca-*.crt")
+		Expect(err).ToNot(HaveOccurred(), "failed to create temp file for invalid CA bundle")
+		_, err = tmpFile.Write([]byte("invalid-ca-bundle"))
+		Expect(err).ToNot(HaveOccurred(), "failed to write invalid CA bundle to temp file")
+		err = tmpFile.Close()
+		Expect(err).ToNot(HaveOccurred(), "failed to close temp file for invalid CA bundle")
+		return tmpFile
+	}
+
+	expectGitRepoToNotBeReady := func(g Gomega) {
+		out, err := k.Get("gitrepo", gitrepoName, `-o=jsonpath={.status.display.readyBundleDeployments}`)
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(out).To(ContainSubstring("0/0"))
+	}
+
+	expectGitRepoToBeReady := func(g Gomega) {
+		out, err := k.Get("gitrepo", gitrepoName, `-o=jsonpath={.status.display.readyBundleDeployments}`)
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(out).To(ContainSubstring("1/1"))
 	}
 
 	type Auth struct {
@@ -142,11 +164,7 @@ var _ = Describe("Testing go-getter CA bundles", Label("infra-setup"), func() {
 			})
 			Expect(err).ToNot(HaveOccurred())
 
-			Eventually(func(g Gomega) {
-				out, err := k.Get("gitrepo", gitrepoName, `-o=jsonpath={.status.display.readyBundleDeployments}`)
-				g.Expect(err).ToNot(HaveOccurred())
-				g.Expect(out).To(ContainSubstring("1/1"))
-			}).Should(Succeed())
+			Eventually(expectGitRepoToBeReady).Should(Succeed())
 		})
 
 		It("should succeed when using the correct CA bundle provided in GitRepo's CABundle field", func() {
@@ -164,11 +182,7 @@ var _ = Describe("Testing go-getter CA bundles", Label("infra-setup"), func() {
 			})
 			Expect(err).ToNot(HaveOccurred())
 
-			Eventually(func(g Gomega) {
-				out, err := k.Get("gitrepo", gitrepoName, `-o=jsonpath={.status.display.readyBundleDeployments}`)
-				g.Expect(err).ToNot(HaveOccurred())
-				g.Expect(out).To(ContainSubstring("1/1"))
-			}).Should(Succeed())
+			Eventually(expectGitRepoToBeReady).Should(Succeed())
 		})
 
 		It("should fail when using the incorrect CA bundle provided in GitRepo's CABundle field", func() {
@@ -187,11 +201,8 @@ var _ = Describe("Testing go-getter CA bundles", Label("infra-setup"), func() {
 			})
 			Expect(err).ToNot(HaveOccurred())
 
-			Eventually(func(g Gomega) {
-				out, err := k.Get("gitrepo", gitrepoName, `-o=jsonpath={.status.display.readyBundleDeployments}`)
-				g.Expect(err).ToNot(HaveOccurred())
-				g.Expect(out).To(ContainSubstring("0/0"))
-			}).Should(Succeed())
+			Eventually(expectGitRepoToNotBeReady).Should(Succeed())
+			Consistently(expectGitRepoToNotBeReady).Should(Succeed())
 		})
 
 		It("should succeed when using the correct CA bundle provided in helmSecretName", func() {
@@ -214,26 +225,18 @@ var _ = Describe("Testing go-getter CA bundles", Label("infra-setup"), func() {
 			})
 			Expect(err).ToNot(HaveOccurred())
 
-			Eventually(func(g Gomega) {
-				out, err := k.Get("gitrepo", gitrepoName, `-o=jsonpath={.status.display.readyBundleDeployments}`)
-				g.Expect(err).ToNot(HaveOccurred())
-				g.Expect(out).To(ContainSubstring("1/1"))
-			}).Should(Succeed())
+			Eventually(expectGitRepoToBeReady).Should(Succeed())
 		})
 
 		// That's the one that produces an error in the gitjob, but we provoked it by setting a
 		// certificate that it can't use. That's basically what the resulting error says.
 		It("should fail when using an incorrect CA bundle provided in helmSecretName", func() {
-			tmpFile, err := os.CreateTemp("", "invalid-ca-*.crt")
-			Expect(err).ToNot(HaveOccurred(), "failed to create temp file for invalid CA bundle")
-			_, err = tmpFile.Write([]byte("invalid-ca-bundle"))
-			Expect(err).ToNot(HaveOccurred(), "failed to write invalid CA bundle to temp file")
-			err = tmpFile.Close()
-			Expect(err).ToNot(HaveOccurred(), "failed to close temp file for invalid CA bundle")
+			invalidCACertsFile := createInvalidCACertFile()
+			defer os.Remove(invalidCACertsFile.Name())
 
 			// Create secret with CA bundle
 			secretName := testenv.RandomFilename("helm-ca-bundle", r)
-			out, err := k.Create("secret", "generic", secretName, "--from-file=cacerts="+tmpFile.Name(), "-n", env.Namespace)
+			out, err := k.Create("secret", "generic", secretName, "--from-file=cacerts="+invalidCACertsFile.Name(), "-n", env.Namespace)
 			Expect(err).ToNot(HaveOccurred(), out)
 
 			// Create and apply GitRepo
@@ -248,11 +251,8 @@ var _ = Describe("Testing go-getter CA bundles", Label("infra-setup"), func() {
 			})
 			Expect(err).ToNot(HaveOccurred())
 
-			Consistently(func(g Gomega) {
-				out, err := k.Get("gitrepo", gitrepoName, `-o=jsonpath={.status.display.readyBundleDeployments}`)
-				g.Expect(err).ToNot(HaveOccurred())
-				g.Expect(out).To(ContainSubstring("0/0"))
-			}).Should(Succeed())
+			Eventually(expectGitRepoToNotBeReady).Should(Succeed())
+			Consistently(expectGitRepoToNotBeReady).Should(Succeed())
 		})
 
 		It("should succeed when using the correct CA bundle provided in helmSecretNameForPath", func() {
@@ -278,11 +278,7 @@ var _ = Describe("Testing go-getter CA bundles", Label("infra-setup"), func() {
 			})
 			Expect(err).ToNot(HaveOccurred())
 
-			Eventually(func(g Gomega) {
-				out, err := k.Get("gitrepo", gitrepoName, `-o=jsonpath={.status.display.readyBundleDeployments}`)
-				g.Expect(err).ToNot(HaveOccurred())
-				g.Expect(out).To(ContainSubstring("1/1"))
-			}).Should(Succeed())
+			Eventually(expectGitRepoToBeReady).Should(Succeed())
 		})
 
 		It("should not succeed when using an incorrect CA bundle provided in helmSecretNameForPath", func() {
@@ -308,11 +304,7 @@ var _ = Describe("Testing go-getter CA bundles", Label("infra-setup"), func() {
 			})
 			Expect(err).ToNot(HaveOccurred())
 
-			Consistently(func(g Gomega) {
-				out, err := k.Get("gitrepo", gitrepoName, `-o=jsonpath={.status.display.readyBundleDeployments}`)
-				g.Expect(err).ToNot(HaveOccurred())
-				g.Expect(out).To(ContainSubstring("0/0"))
-			}).Should(Succeed())
+			Consistently(expectGitRepoToNotBeReady).Should(Succeed())
 		})
 
 		It("should succeed when using a correct CA bundle provided in helmSecretNameForPath", func() {
@@ -338,11 +330,83 @@ var _ = Describe("Testing go-getter CA bundles", Label("infra-setup"), func() {
 			})
 			Expect(err).ToNot(HaveOccurred())
 
-			Eventually(func(g Gomega) {
-				out, err := k.Get("gitrepo", gitrepoName, `-o=jsonpath={.status.display.readyBundleDeployments}`)
-				g.Expect(err).ToNot(HaveOccurred())
-				g.Expect(out).To(ContainSubstring("1/1"))
-			}).Should(Succeed())
+			Eventually(expectGitRepoToBeReady).Should(Succeed())
+		})
+	})
+
+	When("testing ignoring insecure certificates for cloning git repositories with HTTPS using go-getter (fleet.yaml)", func() {
+		It("should succeed when using the incorrect CA bundle provided in GitRepo's CABundle field but setting InsecureSkipTLSVerify to true", func() {
+			// But it should fail in gitcloner already, not later in fleet apply.
+			encodedCert := base64.StdEncoding.EncodeToString([]byte("invalid-ca-bundle"))
+
+			// Create and apply GitRepo
+			err := testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo.yaml"), gitRepoTestValues{
+				Name:                  gitrepoName,
+				Repo:                  gh.GetInClusterURL(host, HTTPSPort, "repo"),
+				Branch:                gh.Branch,
+				PollingInterval:       "15s",           // default
+				TargetNamespace:       targetNamespace, // to avoid conflicts with other tests
+				Path:                  entrypoint,
+				CABundle:              encodedCert,
+				InsecureSkipTLSVerify: true,
+			})
+			Expect(err).ToNot(HaveOccurred())
+
+			Eventually(expectGitRepoToBeReady).Should(Succeed())
+		})
+
+		It("should succeed when using the incorrect CA bundle provided in helmSecretName but setting InsecureSkipVerify to true", func() {
+			invalidCertFile := createInvalidCACertFile()
+			defer os.Remove(invalidCertFile.Name())
+
+			// Create secret with CA bundle
+			secretName := testenv.RandomFilename("helm-ca-bundle", r)
+			out, err := k.Create("secret", "generic", secretName,
+				"--from-file=cacerts="+invalidCertFile.Name(),
+				"--from-literal=insecureSkipVerify=true",
+				"-n", env.Namespace)
+			Expect(err).ToNot(HaveOccurred(), out)
+
+			err = testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo.yaml"), gitRepoTestValues{
+				Name:                  gitrepoName,
+				Repo:                  gh.GetInClusterURL(host, HTTPSPort, "repo"),
+				Branch:                gh.Branch,
+				PollingInterval:       "15s",           // default
+				TargetNamespace:       targetNamespace, // to avoid conflicts with other tests
+				Path:                  entrypoint,
+				InsecureSkipTLSVerify: false,
+				HelmSecretName:        secretName,
+			})
+			Expect(err).ToNot(HaveOccurred())
+
+			Eventually(expectGitRepoToBeReady).Should(Succeed())
+		})
+
+		It("should succeed when using the incorrect CA bundle provided in helmSecretNameForPath but setting InsecureSkipVerify to true", func() {
+			secretName := "helm-ca-bundle-by-path-" + gitrepoName
+			createHelmSecretForPaths(
+				secretName,
+				AuthConfigByPath{
+					entrypoint: {
+						CABundle:           "asdf", // invalid
+						InsecureSkipVerify: true,
+					},
+				},
+			)
+
+			err := testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo.yaml"), gitRepoTestValues{
+				Name:                   gitrepoName,
+				Repo:                   gh.GetInClusterURL(host, HTTPSPort, "repo"),
+				Branch:                 gh.Branch,
+				PollingInterval:        "15s",           // default
+				TargetNamespace:        targetNamespace, // to avoid conflicts with other tests
+				Path:                   entrypoint,
+				InsecureSkipTLSVerify:  false,
+				HelmSecretNameForPaths: secretName,
+			})
+			Expect(err).ToNot(HaveOccurred())
+
+			Eventually(expectGitRepoToBeReady).Should(Succeed())
 		})
 	})
 })

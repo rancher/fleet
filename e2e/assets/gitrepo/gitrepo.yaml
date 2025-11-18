@@ -24,3 +24,6 @@ spec:
   {{- if .HelmSecretNameForPaths }}
   helmSecretNameForPaths: {{.HelmSecretNameForPaths}}
   {{- end }}
+  {{- if .InsecureSkipTLSVerify }}
+  insecureSkipTLSVerify: {{.InsecureSkipTLSVerify}}
+  {{- end }}

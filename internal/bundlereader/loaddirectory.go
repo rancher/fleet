@@ -270,6 +270,11 @@ func GetContent(ctx context.Context, base, source, version string, auth Auth, di
 		defer os.Unsetenv("GIT_SSL_CAINFO")
 	}
 
+	if auth.InsecureSkipVerify {
+		os.Setenv("GIT_SSL_NO_VERIFY", "true")
+		defer os.Unsetenv("GIT_SSL_NO_VERIFY")
+	}
+
 	if _, err := client.Get(ctx, req); err != nil {
 		return nil, err
 	}
