@@ -190,7 +190,7 @@ func (g *Git) Create(repodir string, from string, subdir string) (*git.Repositor
 		return nil, err
 	}
 
-	err = copy.Copy(from, path.Join(repodir, subdir)) //nolint:gosec // test code should never receive user input
+	err = copy.Copy(from, path.Join(repodir, subdir))
 	if err != nil {
 		return nil, err
 	}

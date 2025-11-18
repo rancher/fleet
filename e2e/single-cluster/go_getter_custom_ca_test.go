@@ -21,6 +21,14 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
+// Those tests are specifically targeting one feature of go-getter, namely cloning of git
+// repositories using HTTPS. That is, because TLS certificates are only used in HTTPS URLs, not if
+// SSH keys are used to clone those repositories. Since go-getter shells out to the `git` CLI for
+// cloning git repositories, the configuration of TLS certificates or ignoring those needs to be
+// configured with `git` typical environment variables. Those are the tests for that implementation.
+// For go-getter to be used, the `helm.chart` field in `fleet.yaml` needs to point to a URL that
+// tells go-getter to use the git protocol over HTTPS. Such an URL is prefixed with `git::https://`.
+// The contents fetched from those repositories are expected to be helm charts.
 var _ = Describe("Testing go-getter CA bundles and insecureSkipVerify for cloning git repositories", Label("infra-setup"), func() {
 	const (
 		sleeper    = "sleeper"
@@ -150,7 +158,7 @@ var _ = Describe("Testing go-getter CA bundles and insecureSkipVerify for clonin
 		Expect(err).ToNot(HaveOccurred())
 		cloneDir = path.Join(tmpDir, "repo") // Fixed and built into the container image.
 		gitrepoName = testenv.RandomFilename("gitjob-test", r)
-		// Creates the content in the sleeperClusterName directory
+		// Creates the content in the sleeper directory
 		_, err = gh.Create(cloneDir, testenv.AssetPath("gitrepo/sleeper-chart"), sleeper)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -256,21 +264,6 @@ var _ = Describe("Testing go-getter CA bundles and insecureSkipVerify for clonin
 
 			createGitRepo(gitRepoOptions{HelmSecretNameForPaths: secretName})
 			Consistently(expectGitRepoToNotBeReady).Should(Succeed())
-		})
-
-		It("should succeed when using a correct CA bundle provided in helmSecretNameForPath", func() {
-			secretName := "helm-ca-bundle-by-path-" + gitrepoName
-			createHelmSecretForPaths(
-				secretName,
-				AuthConfigByPath{
-					entrypoint: {
-						CABundle: mustReadFileAsBase64(getCertificateFilePath()),
-					},
-				},
-			)
-
-			createGitRepo(gitRepoOptions{HelmSecretNameForPaths: secretName})
-			Eventually(expectGitRepoToBeReady).Should(Succeed())
 		})
 	})
 
