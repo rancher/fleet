@@ -488,7 +488,7 @@ func normalizeEndpoint(un *unstructured.Unstructured, o options) {
 	if gvk.Group != "" || gvk.Kind != "Endpoints" {
 		return
 	}
-	//nolint: staticcheck // Endpoints is deprecated but still supported; see fleet#3760.
+	//nolint:staticcheck // Endpoints is deprecated but still supported; see fleet#3760.
 	var ep corev1.Endpoints
 	err := runtime.DefaultUnstructuredConverter.FromUnstructured(un.Object, &ep)
 	if err != nil {
