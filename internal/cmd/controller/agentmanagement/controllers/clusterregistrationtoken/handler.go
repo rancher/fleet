@@ -69,7 +69,7 @@ func Register(ctx context.Context,
 
 func (h *handler) OnChange(token *fleet.ClusterRegistrationToken, status fleet.ClusterRegistrationTokenStatus) ([]runtime.Object, fleet.ClusterRegistrationTokenStatus, error) {
 	if gone, err := h.deleteExpired(token); err != nil || gone {
-		return nil, status, err
+		return nil, status, nil //nolint:nilerr // intentionally ignoring error to avoid retry loops on deletion failures
 	}
 
 	logrus.Debugf("Cluster registration token '%s/%s', creating import service account, roles and secret", token.Namespace, token.Name)
