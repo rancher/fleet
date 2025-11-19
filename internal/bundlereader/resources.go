@@ -212,6 +212,7 @@ func addRemoteCharts(directories []directory, base string, charts []*fleet.HelmO
 			if err != nil {
 				return nil, fmt.Errorf("failed to add auth to request for %s: %w", downloadChartError(*chart), err)
 			}
+			auth := auth // loop-scoped variable
 			if !shouldAddAuthToRequest {
 				auth = Auth{}
 			}
