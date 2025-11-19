@@ -16,7 +16,6 @@ import (
 	"time"
 
 	dockercontainer "github.com/docker/docker/api/types/container"
-	dockermount "github.com/docker/docker/api/types/mount"
 	gogit "github.com/go-git/go-git/v5"
 	gitconfig "github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing/object"
@@ -391,13 +390,10 @@ func createGogsContainer(ctx context.Context, tmpDir string) (testcontainers.Con
 			wait.ForListeningPort("22/tcp").WithStartupTimeout(startupTimeout),
 		),
 		HostConfigModifier: func(hostConfig *dockercontainer.HostConfig) {
-			hostConfig.Mounts = []dockermount.Mount{
-				{
-					Type:   dockermount.TypeBind,
-					Source: tmpDir,
-					Target: "/data",
-				},
-			}
+			// Use Binds instead of Mounts to support SELinux relabeling with :z flag
+			// The :z flag allows the bind mount to be shared between containers and
+			// automatically relabels the content for SELinux
+			hostConfig.Binds = []string{tmpDir + ":/data:z"}
 		},
 	}
 	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{

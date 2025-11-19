@@ -17,7 +17,6 @@ import (
 	"github.com/rancher/fleet/internal/cmd/cli/gitcloner"
 
 	dockercontainer "github.com/docker/docker/api/types/container"
-	dockermount "github.com/docker/docker/api/types/mount"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing/object"
@@ -78,6 +77,11 @@ var _ = Describe("Applying a git job gets content from git repo", Label("network
 		var err error
 		container, err = createGogsContainerWithHTTPS()
 		Expect(err).NotTo(HaveOccurred())
+		DeferCleanup(func() {
+			if container != nil {
+				_ = container.Terminate(context.Background())
+			}
+		})
 	})
 
 	When("Cloning an https repo", func() {
@@ -342,10 +346,6 @@ var _ = Describe("Applying a git job gets content from git repo", Label("network
 			})
 		})
 	})
-
-	AfterAll(func() {
-		Expect(container.Terminate(context.Background())).NotTo(HaveOccurred())
-	})
 })
 
 // createGogsContainerWithHTTPS creates a container that runs gogs. It creates a certificate for tls, and stores the ca bundle in gogsCABundle
@@ -360,14 +360,10 @@ func createGogsContainerWithHTTPS() (testcontainers.Container, error) {
 		ExposedPorts: []string{gogsHTTPSPort + "/tcp", gogsSSHPort + "/tcp"},
 		WaitingFor:   wait.ForListeningPort("22/tcp").WithStartupTimeout(timeout),
 		HostConfigModifier: func(hostConfig *dockercontainer.HostConfig) {
-			hostConfig.Mounts = []dockermount.Mount{
-				{
-					Type:   dockermount.TypeBind,
-					Source: tmpDir,
-					Target: "/data",
-				},
-			}
-
+			// Use Binds instead of Mounts to support SELinux relabeling with :z flag
+			// The :z flag allows the bind mount to be shared between containers and
+			// automatically relabels the content for SELinux
+			hostConfig.Binds = []string{tmpDir + ":/data:z"}
 		},
 	}
 	container, err := testcontainers.GenericContainer(context.Background(), testcontainers.GenericContainerRequest{
