@@ -31,7 +31,13 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	"github.com/rancher/fleet/integrationtests/utils"
 )
+
+func init() {
+	utils.DisableReaper()
+}
 
 /*
 These tests use gogs for testing integration with a git server. Gogs container is created with testcontainers,
