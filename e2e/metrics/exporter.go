@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -23,7 +24,12 @@ func NewExporterTest(url string) ExporterTest {
 // Get fetches the metrics from the Prometheus endpoint and returns them
 // as a map of metric families.
 func (et *ExporterTest) Get() (map[string]*dto.MetricFamily, error) {
-	resp, err := http.Get(et.url)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, et.url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
 	}

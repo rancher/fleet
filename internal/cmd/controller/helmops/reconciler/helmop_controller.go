@@ -530,7 +530,7 @@ func getChartVersion(ctx context.Context, c client.Client, helmop fleet.HelmOp) 
 	}
 	auth.InsecureSkipVerify = helmop.Spec.InsecureSkipTLSverify
 
-	version, err := bundlereader.ChartVersion(*helmop.Spec.Helm, auth)
+	version, err := bundlereader.ChartVersion(ctx, *helmop.Spec.Helm, auth)
 	if err != nil {
 		return "", fmt.Errorf("could not get a chart version: %w", err)
 	}

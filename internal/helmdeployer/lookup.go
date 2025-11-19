@@ -42,7 +42,7 @@ func hasLookupFunction(ch *chartv2.Chart) bool {
 
 // containsLookup recursively checks whether a parse.Node (and its children)
 // contains a call to the "lookup" function.
-func containsLookup(node parse.Node) bool { // nolint: gocyclo // recursive logic
+func containsLookup(node parse.Node) bool { //nolint:gocyclo // recursive logic
 	if nodeIsNil(node) {
 		return false
 	}

@@ -76,7 +76,7 @@ func TestSetEnv(t *testing.T) {
 			}
 
 			restore, err := setEnv(test.knownHostsPath)
-			if err != test.expectedErr {
+			if !errors.Is(err, test.expectedErr) {
 				t.Errorf("expected err %v, got %v", test.expectedErr, err)
 			}
 
@@ -199,7 +199,7 @@ func TestAddAuthToOpts(t *testing.T) {
 			if !cmp.Equal(opts, test.expectedOpts) {
 				t.Errorf("opts don't match: expected %v, got %v", test.expectedOpts, opts)
 			}
-			if err != test.expectedErr {
+			if !errors.Is(err, test.expectedErr) {
 				t.Errorf("errors don't match: expected %v, got %v", test.expectedErr, err)
 			}
 		})

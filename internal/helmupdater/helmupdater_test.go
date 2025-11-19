@@ -18,6 +18,7 @@ type fsNodeSimple struct {
 
 // createDirStruct generates and populates a directory structure which root is node, placing it at basePath.
 func createDirStruct(t *testing.T, basePath string, node fsNodeSimple) {
+	t.Helper()
 	path := filepath.Join(basePath, node.name)
 
 	if !node.isDir {

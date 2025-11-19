@@ -27,8 +27,6 @@ func UpdatePartitions(status *fleet.BundleStatus, allTargets []*Target) (err err
 	}
 
 	for _, partition := range partitions {
-		partition := partition // fix gosec warning regarding "Implicit memory aliasing in for loop"
-
 		for _, target := range partition.Targets {
 			// for a new bundledeployment, only stage the first maxNew (50) targets
 			if target.Deployment == nil && status.NewlyCreated < status.MaxNew {

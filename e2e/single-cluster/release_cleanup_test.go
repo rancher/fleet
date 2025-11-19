@@ -1,6 +1,7 @@
 package singlecluster_test
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"os/exec"
@@ -169,7 +170,7 @@ var _ = Describe("Monitoring Helm releases along bundle release name updates", O
 func checkRelease(namespace, releaseName string) {
 	var releases []string
 	Eventually(func(g Gomega) {
-		cmd := exec.Command("helm", "list", "-q", "-n", namespace)
+		cmd := exec.CommandContext(context.Background(), "helm", "list", "-q", "-n", namespace)
 		out, err := cmd.CombinedOutput()
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(string(out)).ToNot(BeEmpty())

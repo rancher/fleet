@@ -75,7 +75,7 @@ func isAllFilesInDirPattern(path string) bool {
 func (xt *ignoreTree) addNode(dir string) error {
 	toIgnore, err := readFleetIgnore(dir)
 	if err != nil {
-		return fmt.Errorf("read .fleetignore for %s: %v", dir, err)
+		return fmt.Errorf("read .fleetignore for %s: %w", dir, err)
 	}
 
 	if len(toIgnore) == 0 {
@@ -432,11 +432,11 @@ func newHttpGetter(auth Auth) *getter.HttpGetter {
 		transport.TLSClientConfig = &tls.Config{
 			RootCAs:            pool,
 			MinVersion:         tls.VersionTLS12,
-			InsecureSkipVerify: auth.InsecureSkipVerify, // nolint:gosec
+			InsecureSkipVerify: auth.InsecureSkipVerify, //nolint:gosec
 		}
 	} else if auth.InsecureSkipVerify {
 		transport.TLSClientConfig = &tls.Config{
-			InsecureSkipVerify: auth.InsecureSkipVerify, // nolint:gosec
+			InsecureSkipVerify: auth.InsecureSkipVerify, //nolint:gosec
 		}
 	}
 	httpGetter.Client.Transport = transport

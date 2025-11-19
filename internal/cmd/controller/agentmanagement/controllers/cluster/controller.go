@@ -80,6 +80,8 @@ func (h *handler) findClusters(namespaces corecontrollers.NamespaceCache) relate
 
 		ns, err := namespaces.Get(namespace)
 		if err != nil {
+			// Namespace not found (e.g., during deletion) - no clusters to enqueue
+			//nolint:nilerr // Intentionally ignore error to handle deletion race condition gracefully
 			return nil, nil
 		}
 

@@ -1,6 +1,7 @@
 package singlecluster_test
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -246,11 +247,11 @@ func setupRepo(k kubectl.Command, tmpdir, clonedir, repoDir string) (*git.Reposi
 func tagAndPushImage(baseImage, image, tag string) string {
 	imageTag := fmt.Sprintf("%s:%s", image, tag)
 	// tag the image and push it to ttl.sh
-	cmd := exec.Command("docker", "tag", baseImage, imageTag)
+	cmd := exec.CommandContext(context.Background(), "docker", "tag", baseImage, imageTag)
 	err := cmd.Run()
 	Expect(err).ToNot(HaveOccurred())
 	// push the image to ttl.sh
-	cmd = exec.Command("docker", "push", imageTag)
+	cmd = exec.CommandContext(context.Background(), "docker", "push", imageTag)
 	err = cmd.Run()
 	Expect(err).ToNot(HaveOccurred())
 	return imageTag
@@ -258,7 +259,7 @@ func tagAndPushImage(baseImage, image, tag string) string {
 
 func initRegistryWithImageAndTag(baseImage string, tag string) (string, string) {
 	Eventually(func() error {
-		cmd := exec.Command("docker", "pull", baseImage)
+		cmd := exec.CommandContext(context.Background(), "docker", "pull", baseImage)
 		err := cmd.Run()
 
 		return err

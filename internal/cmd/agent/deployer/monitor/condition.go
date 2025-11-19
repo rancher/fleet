@@ -1,6 +1,7 @@
 package monitor
 
 import (
+	"errors"
 	"reflect"
 	"time"
 
@@ -14,7 +15,7 @@ type Cond string
 var ErrSkip = controller.ErrIgnore
 
 func (c Cond) SetError(obj interface{}, reason string, err error) {
-	if err == nil || err == ErrSkip {
+	if err == nil || errors.Is(err, ErrSkip) {
 		c.True(obj)
 		c.Message(obj, "")
 		c.Reason(obj, reason)
@@ -143,7 +144,7 @@ func findCond(obj interface{}, val reflect.Value, name string) *reflect.Value {
 }
 
 func getValue(obj interface{}, name ...string) reflect.Value {
-	if obj == nil {
+	if obj == nil || len(name) == 0 {
 		return reflect.Value{}
 	}
 	v := reflect.ValueOf(obj)

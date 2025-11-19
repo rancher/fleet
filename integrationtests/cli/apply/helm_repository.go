@@ -72,7 +72,7 @@ type authHandler struct {
 func (h *authHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	user, pass, ok := r.BasicAuth()
 	if !ok || subtle.ConstantTimeCompare([]byte(strings.TrimSpace(user)), []byte(username)) != 1 || subtle.ConstantTimeCompare([]byte(strings.TrimSpace(pass)), []byte(password)) != 1 {
-		w.WriteHeader(401)
+		w.WriteHeader(http.StatusUnauthorized)
 		_, err := w.Write([]byte("Unauthorised."))
 		if err != nil {
 			return

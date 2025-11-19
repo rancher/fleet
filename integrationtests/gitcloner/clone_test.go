@@ -409,17 +409,19 @@ func createGogsContainerWithHTTPS() (testcontainers.Container, error) {
 	// because we need to create the certificates first.
 	Eventually(func() error {
 		c := gogs.NewClient(url, "")
-		//nolint:gosec // need insecure TLS option for testing
+
 		conf := &tls.Config{InsecureSkipVerify: true}
 
 		// only continue if it's a TLS connection
 		addr := strings.Replace(url, "https://", "", 1)
-		if _, err := tls.Dial("tcp", addr, conf); err != nil {
+		dialer := &tls.Dialer{Config: conf}
+		if _, err := dialer.DialContext(context.Background(), "tcp", addr); err != nil {
 			GinkgoWriter.Printf("error dialing: %v", err)
 			orgErr := err
 
 			// debug the connection
-			conn, err := tls.Dial("tcp", addr, nil)
+			dialer := &tls.Dialer{Config: nil}
+			conn, err := dialer.DialContext(context.Background(), "tcp", addr)
 			if err != nil {
 				GinkgoWriter.Printf("error dialing without tls: %v", err)
 				return orgErr

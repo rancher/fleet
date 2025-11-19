@@ -174,7 +174,7 @@ func CreateBundles(pctx context.Context, client client.Client, r record.EventRec
 
 						bundle, scans, err := bundleFromDir(ctx, repoName, path, opts)
 						if err != nil {
-							if err == ErrNoResources {
+							if errors.Is(err, ErrNoResources) {
 								logrus.Warnf("%s: %v", path, err)
 								return nil
 							}
@@ -273,7 +273,7 @@ func CreateBundlesDriven(pctx context.Context, client client.Client, r record.Ev
 
 				bundle, scans, err := bundleFromDir(ctx, repoName, baseDir, opts)
 				if err != nil {
-					if err == ErrNoResources {
+					if errors.Is(err, ErrNoResources) {
 						logrus.Warnf("%s: %v", baseDir, err)
 						return nil
 					}
@@ -944,7 +944,7 @@ func getKindNS(br fleet.BundleResource, bundleName string) (fleet.OverwrittenRes
 		if err != nil {
 			logrus.Debugf("could not uncompress contents of resource %s in bundle %s;"+
 				" skipping overlap detection for this resource", br.Name, bundleName)
-			return fleet.OverwrittenResource{}, nil
+			return fleet.OverwrittenResource{}, nil //nolint:nilerr // intentionally skipping this resource
 		}
 	} else {
 		// encoding should be empty

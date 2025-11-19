@@ -277,7 +277,7 @@ var _ = Describe("Single Cluster Deployments", func() {
 				Eventually(func(g Gomega) {
 					out, err := k.Get("gitrepo", "bundle-replace-test", "-o", `jsonpath={.status.conditions[?(@.type=="Ready")].status}`)
 					g.Expect(err).ToNot(HaveOccurred(), out)
-					g.Expect(string(out)).To(Equal("True"), out)
+					g.Expect(out).To(Equal("True"), out)
 				}).Should(Succeed())
 			})
 		})
@@ -308,7 +308,7 @@ var _ = Describe("Single Cluster Deployments", func() {
 				Eventually(func(g Gomega) {
 					out, err := k.Get("gitrepo", "bundle-replace-driven-test", "-o", `jsonpath={.status.conditions[?(@.type=="Ready")].status}`)
 					g.Expect(err).ToNot(HaveOccurred(), out)
-					g.Expect(string(out)).To(Equal("True"), out)
+					g.Expect(out).To(Equal("True"), out)
 				}).Should(Succeed())
 			})
 		})

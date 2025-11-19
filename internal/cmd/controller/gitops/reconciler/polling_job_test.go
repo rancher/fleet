@@ -57,6 +57,7 @@ func TestPollGitRepo(t *testing.T) {
 			},
 			expectedEvents: []string{"Normal GotNewCommit new-commit"},
 			validateGitRepo: func(t *testing.T, gr *v1alpha1.GitRepo) {
+				t.Helper()
 				if gr.Status.PollingCommit != "new-commit" {
 					t.Errorf("expected PollingCommit to be 'new-commit', got %s", gr.Status.PollingCommit)
 				}
@@ -86,6 +87,7 @@ func TestPollGitRepo(t *testing.T) {
 				c.EXPECT().Status().Return(sw)
 			},
 			validateGitRepo: func(t *testing.T, gr *v1alpha1.GitRepo) {
+				t.Helper()
 				if gr.Status.PollingCommit != "same-commit" {
 					t.Errorf("expected PollingCommit to be 'same-commit', got %s", gr.Status.PollingCommit)
 				}
@@ -113,6 +115,7 @@ func TestPollGitRepo(t *testing.T) {
 			expectedErr:    "git error",
 			expectedEvents: []string{"Warning FailedToCheckCommit git error"},
 			validateGitRepo: func(t *testing.T, gr *v1alpha1.GitRepo) {
+				t.Helper()
 				cond := findStatusCondition(gr.Status.Conditions, gitPollingCondition)
 				if cond == nil || cond.Status != "False" || cond.Message != "git error" {
 					t.Errorf("expected GitPolling condition to be False with message 'git error', got %+v", cond)

@@ -80,11 +80,7 @@ func (c *CollectorCollection) Collect(ctx context.Context, obj metav1.ObjectMeta
 	logger := log.FromContext(ctx).WithName("metrics")
 	defer func() {
 		if r := recover(); r != nil {
-			msg, ok := r.(string)
-			if !ok {
-				msg = "unexpected error"
-			}
-			logger.Error(errors.New("error collecting metrics"), msg, r)
+			logger.Error(errors.New("error collecting metrics"), "observed panic", "panic", r)
 		}
 	}()
 	c.Delete(obj.GetObjectMeta().GetName(), obj.GetObjectMeta().GetNamespace())

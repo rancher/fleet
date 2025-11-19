@@ -91,21 +91,21 @@ var _ = Describe("git's validate tests", func() {
 	It("Returns no error when commit is a valid sha1", func() {
 		commit := sha1.Sum([]byte(getRandomString(10)))
 		commitStr := hex.EncodeToString(commit[:])
-		err := validateCommit(string(commitStr))
+		err := validateCommit(commitStr)
 		Expect(err).ToNot(HaveOccurred())
 	})
 
 	It("Returns no error when commit is a valid sha256", func() {
 		commit := sha256.Sum256([]byte(getRandomString(10)))
 		commitStr := hex.EncodeToString(commit[:])
-		err := validateCommit(string(commitStr))
+		err := validateCommit(commitStr)
 		Expect(err).ToNot(HaveOccurred())
 	})
 
 	It("Returns error when commit is not a valid sha256 not sha1", func() {
 		commit := md5.Sum([]byte(getRandomString(10)))
 		commitStr := hex.EncodeToString(commit[:])
-		err := validateCommit(string(commitStr))
+		err := validateCommit(commitStr)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(Equal(fmt.Sprintf("invalid commit ID: %q", commitStr)))
 	})
@@ -119,7 +119,7 @@ var _ = Describe("git's validate tests", func() {
 
 	It("Returns no error when url is not longer than 4096 chars nor empty", func() {
 		url := getRandomString(10)
-		err := validateURL(string(url))
+		err := validateURL(url)
 		Expect(err).ToNot(HaveOccurred())
 	})
 

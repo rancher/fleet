@@ -957,6 +957,7 @@ func TestReconcile_AccessSecretsHandlingError(t *testing.T) {
 }
 
 func expectStatusPatch(t *testing.T, sClient *mocks.MockSubResourceWriter, errMsg string) {
+	t.Helper()
 	sClient.EXPECT().Patch(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Bundle{}), gomock.Any()).Do(
 		func(ctx context.Context, b *fleetv1.Bundle, p client.Patch, opts ...interface{}) {
 			cond, found := getBundleReadyCondition(b)
