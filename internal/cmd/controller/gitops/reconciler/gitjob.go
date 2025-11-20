@@ -152,7 +152,7 @@ func (r *GitJobReconciler) createCABundleSecret(ctx context.Context, gitrepo *v1
 			return err
 		}
 		if !strings.EqualFold(updatedSecret.Annotations["revision"], secret.Annotations["revision"]) {
-			return fmt.Errorf("revision did not match")
+			return fmt.Errorf("CA bundle secret %s/%s has not been synced in time before git job creation", gitrepo.Namespace, name)
 		}
 		return nil
 	})
