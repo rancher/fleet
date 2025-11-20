@@ -25,7 +25,7 @@ env:
   GOARCH: amd64
   CGO_ENABLED: 0
   SETUP_K3D_VERSION: "v5.8.3"
-  SETUP_K3S_VERSION: "v1.33.1-k3s1"
+  SETUP_K3S_VERSION: "v1.34.1-k3s1"
   # Defaults for both manual and scheduled runs
   BENCH_TIMEOUT: ${{ github.event.inputs.timeout || '2m' }}
   BENCH_NAMESPACE: ${{ github.event.inputs.namespace || 'fleet-local' }}
