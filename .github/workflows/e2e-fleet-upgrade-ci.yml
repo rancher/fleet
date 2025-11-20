@@ -19,7 +19,7 @@ jobs:
       matrix:
         k3s:
           - name: k3s-new
-            version: v1.33.1-k3s1
+            version: v1.34.1-k3s1
     name: fleet-upgrade-test-${{ matrix.k3s.name }}
 
     steps:
