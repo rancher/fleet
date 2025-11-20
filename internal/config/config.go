@@ -136,8 +136,9 @@ type AgentWorkers struct {
 }
 
 type Bootstrap struct {
-	Namespace      string `json:"namespace,omitempty"`
-	AgentNamespace string `json:"agentNamespace,omitempty"`
+	Namespace      string            `json:"namespace,omitempty"`
+	AgentNamespace string            `json:"agentNamespace,omitempty"`
+	ClusterLabels  map[string]string `json:"clusterLabels,omitempty"`
 	// Repo to add at install time that will deploy to the local cluster. This allows
 	// one to fully bootstrap fleet, its configuration and all its downstream clusters
 	// in one shot.
