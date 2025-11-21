@@ -1,8 +1,6 @@
-package singlecluster
+package singlecluster_test
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"math/rand"
 	"os"
@@ -113,18 +111,12 @@ var _ = Describe("Schedules", Label("infra-setup"), func() {
 		}).Should(BeTrue())
 
 		// Apply a GitRepo
-		err = testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo.yaml"), struct {
-			Name            string
-			Repo            string
-			Branch          string
-			PollingInterval string
-			TargetNamespace string
-		}{
-			gitrepoName,
-			inClusterRepoURL,
-			gh.Branch,
-			"15s",           // default
-			targetNamespace, // to avoid conflicts with other tests
+		err = testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo.yaml"), gitRepoTestValues{
+			Name:            gitrepoName,
+			Repo:            inClusterRepoURL,
+			Branch:          gh.Branch,
+			PollingInterval: "15s",           // default
+			TargetNamespace: targetNamespace, // to avoid conflicts with other tests
 		})
 		Expect(err).ToNot(HaveOccurred())
 
@@ -248,29 +240,6 @@ var _ = Describe("Schedules", Label("infra-setup"), func() {
 		}).Should(Succeed())
 	})
 })
-
-// replace replaces string s with r in the file located at path. That file must exist and be writable.
-func replace(path string, s string, r string) {
-	b, err := os.ReadFile(path)
-	Expect(err).ToNot(HaveOccurred())
-
-	b = bytes.ReplaceAll(b, []byte(s), []byte(r))
-
-	err = os.WriteFile(path, b, 0644)
-	Expect(err).ToNot(HaveOccurred())
-}
-
-// getGitRepoStatus retrieves the status of the gitrepo with the provided name.
-func getGitRepoStatus(g Gomega, k kubectl.Command, name string) fleet.GitRepoStatus {
-	gr, err := k.Get("gitrepo", name, "-o=json")
-
-	g.Expect(err).ToNot(HaveOccurred())
-
-	var gitrepo fleet.GitRepo
-	_ = json.Unmarshal([]byte(gr), &gitrepo)
-
-	return gitrepo.Status
-}
 
 func waitForBeginningOfNextMinute() {
 	for {
