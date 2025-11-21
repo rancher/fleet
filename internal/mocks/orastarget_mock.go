@@ -9,8 +9,8 @@ import (
 	io "io"
 	reflect "reflect"
 
-	gomock "go.uber.org/mock/gomock"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockTarget is a mock of Target interface.

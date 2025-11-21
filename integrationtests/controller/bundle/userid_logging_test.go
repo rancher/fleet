@@ -72,9 +72,7 @@ var _ = Describe("Bundle UserID logging", func() {
 			return bundle.Status.ObservedGeneration
 		}).Should(BeNumerically(">", 0))
 
-		Eventually(func() string {
-			return logsBuffer.String()
-		}).Should(ContainSubstring(bundle.Name))
+		Eventually(logsBuffer.String).Should(ContainSubstring(bundle.Name))
 	}
 
 	When("Bundle has user ID label", func() {

@@ -37,16 +37,17 @@ func PodDisruptionBudget(agentNamespace string, pdbs *fleet.PodDisruptionBudgetS
 		},
 	}
 
-	if pdbs.MaxUnavailable == "" && pdbs.MinAvailable == "" {
+	switch {
+	case pdbs.MaxUnavailable == "" && pdbs.MinAvailable == "":
 		logrus.Warnf("Neither MaxUnavailable nor MinAvailable is set, defaulting to 0 for MaxUnavailable")
 		pdbSpec.MaxUnavailable = &intstr.IntOrString{IntVal: 0}
-	} else if pdbs.MaxUnavailable != "" && (pdbs.MinAvailable == "" || pdbs.MinAvailable == "0") {
+	case pdbs.MaxUnavailable != "" && (pdbs.MinAvailable == "" || pdbs.MinAvailable == "0"):
 		mu := intstr.Parse(pdbs.MaxUnavailable)
 		pdbSpec.MaxUnavailable = &mu
-	} else if pdbs.MinAvailable != "" && (pdbs.MaxUnavailable == "" || pdbs.MaxUnavailable == "0") {
+	case pdbs.MinAvailable != "" && (pdbs.MaxUnavailable == "" || pdbs.MaxUnavailable == "0"):
 		ma := intstr.Parse(pdbs.MinAvailable)
 		pdbSpec.MinAvailable = &ma
-	} else if pdbs.MaxUnavailable != "" && pdbs.MinAvailable != "" {
+	case pdbs.MaxUnavailable != "" && pdbs.MinAvailable != "":
 		return &policyv1.PodDisruptionBudget{},
 			fmt.Errorf("both MaxUnavailable (%s) and MinAvailable (%s) are set, not creating PDB", pdbs.MaxUnavailable, pdbs.MinAvailable)
 	}

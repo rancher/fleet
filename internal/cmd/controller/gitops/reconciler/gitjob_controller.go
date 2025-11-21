@@ -289,10 +289,8 @@ func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger,
 			}
 			if err != nil {
 				r.Recorder.Event(gitrepo, fleetevent.Warning, "Failed", err.Error())
-			} else {
-				if oldCommit != gitrepo.Status.Commit {
-					r.Recorder.Event(gitrepo, fleetevent.Normal, "GotNewCommit", gitrepo.Status.Commit)
-				}
+			} else if oldCommit != gitrepo.Status.Commit {
+				r.Recorder.Event(gitrepo, fleetevent.Normal, "GotNewCommit", gitrepo.Status.Commit)
 			}
 		}
 
@@ -771,7 +769,7 @@ func filterFleetCLIJobOutput(output string) string {
 	lines := strings.Split(output, "\n")
 	s := ""
 	for _, l := range lines {
-		s = s + getFleetCLIErrorsFromLine(l)
+		s += getFleetCLIErrorsFromLine(l)
 	}
 
 	s = strings.Trim(s, "\n")
@@ -816,7 +814,7 @@ func getFleetCLIErrorsFromLine(l string) string {
 	}
 	// check if there's more to parse
 	if close+1 < len(l) {
-		s = s + getFleetCLIErrorsFromLine(l[close+1:])
+		s += getFleetCLIErrorsFromLine(l[close+1:])
 	}
 
 	return s

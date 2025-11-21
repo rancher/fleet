@@ -35,7 +35,7 @@ var _ = Describe("Fleet apply online", Label("online"), func() {
 	)
 
 	JustBeforeEach(func() {
-		//Setting up all the needed mocked interfaces for the test
+		// Setting up all the needed mocked interfaces for the test
 		ctrl = gomock.NewController(GinkgoT())
 		clientMock = mocks.NewMockK8sClient(ctrl)
 		clientMock.EXPECT().Get(
@@ -68,7 +68,7 @@ var _ = Describe("Fleet apply online", Label("online"), func() {
 		BeforeEach(func() {
 			name = "labels_update"
 			dirs = []string{cli.AssetsPath + "labels_update"}
-			//bundle in the cluster
+			// bundle in the cluster
 			oldBundle = &fleet.Bundle{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
@@ -129,7 +129,7 @@ data:
 		BeforeEach(func() {
 			name = "labels_update"
 			dirs = []string{cli.AssetsPath + "labels_update"}
-			//bundle in the cluster
+			// bundle in the cluster
 			oldBundle = &fleet.Bundle{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "foo",
@@ -160,7 +160,7 @@ data:
 			ts := metav1.NewTime(time.Now())
 			name = "labels_update"
 			dirs = []string{cli.AssetsPath + "labels_update"}
-			//bundle in the cluster
+			// bundle in the cluster
 			oldBundle = &fleet.Bundle{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace:         "foo",
@@ -224,7 +224,7 @@ data:
 		BeforeEach(func() {
 			name = "labels_update"
 			dirs = []string{cli.AssetsPath + "labels_update"}
-			//bundle in the cluster
+			// bundle in the cluster
 			oldBundle = &fleet.Bundle{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "foo",

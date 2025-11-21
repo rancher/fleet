@@ -110,9 +110,7 @@ func (xt *ignoreTree) findNode(path string, isDir bool, nodesRoute []*ignoreTree
 
 	for _, c := range xt.children {
 		if steps := c.findNode(path, isDir, nodesRoute); steps != nil {
-			crossed := append(nodesRoute, steps...)
-
-			return crossed
+			return append(nodesRoute, steps...)
 		}
 	}
 

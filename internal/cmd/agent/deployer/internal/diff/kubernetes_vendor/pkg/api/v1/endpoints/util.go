@@ -63,7 +63,7 @@ func hashObject(hasher hash.Hash, obj interface{}) []byte {
 	return hasher.Sum(nil)
 }
 
-//nolint:staticcheck // EndpointSubset is deprecated but still supported; see fleet#3760.
+//nolint:staticcheck,nolintlint // EndpointSubset is deprecated but still supported; see fleet#3760.
 type subsetsByHash []v1.EndpointSubset
 
 func (sl subsetsByHash) Len() int      { return len(sl) }

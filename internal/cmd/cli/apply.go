@@ -142,13 +142,14 @@ func (a *Apply) run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("adding auth to opts: %w", err)
 	}
 
-	if a.File == "-" {
+	switch {
+	case a.File == "-":
 		opts.BundleReader = os.Stdin
 		if len(args) != 1 {
 			return fmt.Errorf("the bundle name is required as the first argument")
 		}
 		name = args[0]
-	} else if a.File != "" {
+	case a.File != "":
 		f, err := os.Open(a.File)
 		if err != nil {
 			return err
@@ -159,9 +160,9 @@ func (a *Apply) run(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("the bundle name is required as the first argument")
 		}
 		name = args[0]
-	} else if len(args) < 1 {
+	case len(args) < 1:
 		return fmt.Errorf("at least one arguments is required BUNDLE_NAME")
-	} else {
+	default:
 		name = args[0]
 		args = args[1:]
 	}

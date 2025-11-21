@@ -364,13 +364,13 @@ func TestPerClusterStateTruncation(t *testing.T) {
 		size := 0
 		for _, r := range res {
 			for _, s := range r.PerClusterState.Ready {
-				size = size + len(s)
+				size += len(s)
 			}
 			for _, s := range r.PerClusterState.NotReady {
-				size = size + len(s)
+				size += len(s)
 			}
 			for _, s := range r.PerClusterState.Missing {
-				size = size + len(s)
+				size += len(s)
 			}
 		}
 		return size
@@ -383,7 +383,7 @@ func TestPerClusterStateTruncation(t *testing.T) {
 	for c := range maxCluster {
 		for b := range maxBundle {
 			items[n] = percluster(b, c)
-			n = n + 1
+			n++
 		}
 	}
 

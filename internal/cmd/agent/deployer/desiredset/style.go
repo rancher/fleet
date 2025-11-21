@@ -36,11 +36,12 @@ func getMergeStyle(gvk schema.GroupVersionKind) (types.PatchType, strategicpatch
 
 	versionedObject, err := scheme.Scheme.New(gvk)
 
-	if runtime.IsNotRegisteredError(err) || gvk.Kind == "CustomResourceDefinition" {
+	switch {
+	case runtime.IsNotRegisteredError(err) || gvk.Kind == "CustomResourceDefinition":
 		patchType = types.MergePatchType
-	} else if err != nil {
+	case err != nil:
 		return patchType, nil, err
-	} else {
+	default:
 		patchType = types.StrategicMergePatchType
 		lookupPatchMeta, err = strategicpatch.NewPatchMetaFromStruct(versionedObject)
 		if err != nil {

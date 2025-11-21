@@ -203,7 +203,7 @@ func assignSlices(app *cobra.Command, slices map[string]reflect.Value) error {
 			return err
 		}
 		if s != nil {
-			v.Set(reflect.ValueOf(s[:]))
+			v.Set(reflect.ValueOf(s))
 		}
 	}
 	return nil
@@ -217,7 +217,7 @@ func assignArrays(app *cobra.Command, arrays map[string]reflect.Value) error {
 			return err
 		}
 		if s != nil {
-			v.Set(reflect.ValueOf(s[:]))
+			v.Set(reflect.ValueOf(s))
 		}
 	}
 	return nil

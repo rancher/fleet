@@ -212,11 +212,13 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 		t.Run(name, func(t *testing.T) {
 			c := Cloner{}
 			err := c.CloneRepo(test.opts)
-			if err == nil && test.expectedErr != nil {
-				t.Fatalf("err expected to be [%v], got [%v]", test.expectedErr, err)
-			} else if test.expectedErr != nil && err == nil {
-				t.Fatalf("err expected to be [%v], got [%v]", test.expectedErr, err)
-			} else if test.expectedErr != nil && err != nil {
+			if test.expectedErr == nil && err != nil {
+				t.Fatalf("err unexpected: %v", err)
+			}
+			if test.expectedErr != nil {
+				if err == nil {
+					t.Fatalf("err expected to be [%v], got [%v]", test.expectedErr, err)
+				}
 				if !cmp.Equal(test.expectedErr.Error(), err.Error()) {
 					t.Fatalf("err expected to be [%s], got [%s]", test.expectedErr.Error(), err.Error())
 				}

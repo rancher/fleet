@@ -72,7 +72,7 @@ func ChartVersion(ctx context.Context, location fleet.HelmOptions, a Auth) (stri
 	}
 
 	if !strings.HasSuffix(location.Repo, "/") {
-		location.Repo = location.Repo + "/"
+		location.Repo += "/"
 	}
 
 	chart, err := getHelmChartVersion(ctx, location, a)
@@ -104,7 +104,7 @@ func chartURL(ctx context.Context, location fleet.HelmOptions, auth Auth, isHelm
 	}
 
 	if !strings.HasSuffix(location.Repo, "/") {
-		location.Repo = location.Repo + "/"
+		location.Repo += "/"
 	}
 
 	chart, err := getHelmChartVersion(ctx, location, auth)

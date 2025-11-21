@@ -195,11 +195,12 @@ func newTableZScore(rows map[string]Row) *table.Table {
 			r.AppendCell(table.C(fmt.Sprintf("%.02fs", row.StdDevDuration)))
 			r.AppendCell(table.C(fmt.Sprintf("%.02f", row.ZScore)))
 		}
-		if row.ZScore < 0 {
+		switch {
+		case row.ZScore < 0:
 			r.AppendCell(table.C("better"))
-		} else if row.ZScore > 0 {
+		case row.ZScore > 0:
 			r.AppendCell(table.C("worse"))
-		} else {
+		default:
 			r.AppendCell(table.C(""))
 		}
 

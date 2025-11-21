@@ -71,10 +71,8 @@ func IsResourcePresentInBundle(resourcePath string, resources []v1alpha1.BundleR
 			if resource.Content == resourceFileEncoded {
 				return true, nil
 			}
-		} else {
-			if strings.ReplaceAll(resource.Content, "\n", "") == strings.ReplaceAll(string(resourceFile), "\n", "") {
-				return true, nil
-			}
+		} else if strings.ReplaceAll(resource.Content, "\n", "") == strings.ReplaceAll(string(resourceFile), "\n", "") {
+			return true, nil
 		}
 	}
 

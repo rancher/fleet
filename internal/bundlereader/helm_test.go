@@ -85,7 +85,7 @@ func checksumPrefix(helm *fleet.HelmOptions) string {
 	if helm == nil {
 		return "none"
 	}
-	return fmt.Sprintf(".chart/%x", sha256.Sum256([]byte(helm.Chart + ":" + helm.Repo + ":" + helm.Version)[:]))
+	return fmt.Sprintf(".chart/%x", sha256.Sum256([]byte(helm.Chart+":"+helm.Repo+":"+helm.Version)))
 }
 
 func createChartDir(dir string) error {

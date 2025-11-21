@@ -206,19 +206,20 @@ func getSecretFromMockK8sClient(
 	secretType string,
 	wantNotFound bool,
 	wantErrorMessage string) {
-	if wantErrorMessage != "" {
+	switch {
+	case wantErrorMessage != "":
 		mockClient.EXPECT().Get(gomock.Any(), ns, gomock.Any()).DoAndReturn(
 			func(_ context.Context, _ types.NamespacedName, secret *corev1.Secret, _ ...interface{}) error {
 				return errors.New(wantErrorMessage)
 			},
 		)
-	} else if wantNotFound {
+	case wantNotFound:
 		mockClient.EXPECT().Get(gomock.Any(), ns, gomock.Any()).DoAndReturn(
 			func(_ context.Context, _ types.NamespacedName, secret *corev1.Secret, _ ...interface{}) error {
 				return apierrors.NewNotFound(schema.GroupResource{}, "TEST ERROR")
 			},
 		)
-	} else if ns.Name == "" {
+	case ns.Name == "":
 		// verify that when the name is not set it uses the default secret name.
 		mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
 			func(_ context.Context, key types.NamespacedName, secret *corev1.Secret, _ ...interface{}) error {
@@ -228,7 +229,7 @@ func getSecretFromMockK8sClient(
 				return nil
 			},
 		)
-	} else if ns.Name != "" {
+	default:
 		mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
 			func(_ context.Context, key types.NamespacedName, secret *corev1.Secret, _ ...interface{}) error {
 				Expect(ns.Name).To(Equal(key.Name))

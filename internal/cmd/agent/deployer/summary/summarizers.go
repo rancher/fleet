@@ -406,13 +406,14 @@ func checkActive(obj data.Object, _ []Condition, summary fleetv1.Summary) fleetv
 
 func checkPhase(obj data.Object, _ []Condition, summary fleetv1.Summary) fleetv1.Summary {
 	phase := obj.String("status", "phase")
-	if phase == "Succeeded" {
+	switch {
+	case phase == "Succeeded":
 		summary.State = "succeeded"
 		summary.Transitioning = false
-	} else if phase == "Bound" {
+	case phase == "Bound":
 		summary.State = "bound"
 		summary.Transitioning = false
-	} else if phase != "" && summary.State == "" {
+	case phase != "" && summary.State == "":
 		summary.State = phase
 	}
 	return summary

@@ -88,12 +88,12 @@ func calculate(sample *parser.Sample, dsPop Dataset, scores scoresByXP) {
 			}
 
 			if _, ok := sample.Experiments[experiment]; !ok {
-				//fmt.Printf("missing experiment %s\n", name)
+				// fmt.Printf("missing experiment %s\n", name)
 				continue
 			}
 
 			if _, ok := sample.Experiments[experiment].Measurements[measurement]; !ok {
-				//fmt.Printf("missing measurement %s for experiments %s\n", measurement, name)
+				// fmt.Printf("missing measurement %s for experiments %s\n", measurement, name)
 				continue
 			}
 
@@ -104,7 +104,7 @@ func calculate(sample *parser.Sample, dsPop Dataset, scores scoresByXP) {
 			// calculate zscore
 			m := sample.Experiments[experiment].Measurements[measurement]
 			zscore := stat.StdScore(m.Value, mean, stddev)
-			//fmt.Printf("zscore %s - %s %v %v %v\n", experiment, measurement, m, mean, zscore)
+			// fmt.Printf("zscore %s - %s %v %v %v\n", experiment, measurement, m, mean, zscore)
 
 			// store in dsPop
 			sg.Mean = mean
@@ -125,7 +125,7 @@ func calculate(sample *parser.Sample, dsPop Dataset, scores scoresByXP) {
 		avg := stat.Mean(xp.ZScores, xp.Weights)
 		xp.MeanZScore = avg
 		scores[name] = xp
-		//fmt.Printf("%s %v %v %v\n", name, avg, xp.ZScores, xp.Weights)
+		// fmt.Printf("%s %v %v %v\n", name, avg, xp.ZScores, xp.Weights)
 	}
 
 }

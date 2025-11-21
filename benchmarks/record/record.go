@@ -172,11 +172,12 @@ func Nodes(ctx context.Context, experiment *gm.Experiment) {
 		for _, image := range node.Status.Images {
 			name := ""
 			// in k3d, the first image name contains the hash, not the tag
-			if len(image.Names) == 0 {
+			switch {
+			case len(image.Names) == 0:
 				continue
-			} else if len(image.Names) > 1 {
+			case len(image.Names) > 1:
 				name = image.Names[1]
-			} else {
+			default:
 				name = image.Names[0]
 			}
 			images[name] = struct{}{}

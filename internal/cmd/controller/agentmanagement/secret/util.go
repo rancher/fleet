@@ -62,7 +62,7 @@ func createServiceAccountTokenSecret(sa *corev1.ServiceAccount, secretsControlle
 			return nil, fmt.Errorf("error getting secret: %w", err)
 		}
 	}
-	//Kubernetes auto populates the secret token after it is created, for which we should wait
+	// Kubernetes auto populates the secret token after it is created, for which we should wait
 	logrus.Infof("Waiting for service account token key to be populated for secret %s/%s", secret.Namespace, secret.Name)
 	if _, ok := secret.Data[corev1.ServiceAccountTokenKey]; !ok {
 		for {

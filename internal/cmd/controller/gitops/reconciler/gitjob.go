@@ -514,11 +514,12 @@ func (r *GitJobReconciler) newGitCloner(
 	}
 
 	branch, rev := obj.Spec.Branch, obj.Spec.Revision
-	if branch != "" {
+	switch {
+	case branch != "":
 		args = append(args, "--branch", branch)
-	} else if rev != "" {
+	case rev != "":
 		args = append(args, "--revision", rev)
-	} else {
+	default:
 		args = append(args, "--branch", "master")
 	}
 
@@ -641,7 +642,7 @@ func readIntEnvVar(logger logr.Logger, getter func() (int, error), envVarName st
 func argsAndEnvs(
 	gitrepo *v1alpha1.GitRepo,
 	logger logr.Logger,
-	CACertsPathOverride string,
+	caCertsPathOverride string,
 	knownHosts KnownHostsGetter,
 	drivenScanSeparator string,
 	helmInsecureSkipTLS bool,
@@ -731,7 +732,7 @@ func argsAndEnvs(
 			"/etc/fleet/helm/ssh-privatekey",
 		}
 
-		if CACertsPathOverride == "" {
+		if caCertsPathOverride == "" {
 			helmArgs = append(helmArgs,
 				"--cacerts-file",
 				"/etc/fleet/helm/cacerts",
@@ -759,10 +760,10 @@ func argsAndEnvs(
 			})
 	}
 
-	if CACertsPathOverride != "" {
+	if caCertsPathOverride != "" {
 		helmArgs := []string{
 			"--cacerts-file",
-			CACertsPathOverride,
+			caCertsPathOverride,
 		}
 		if gitrepo.Spec.HelmRepoURLRegex != "" {
 			helmArgs = append(helmArgs, "--helm-repo-url-regex", gitrepo.Spec.HelmRepoURLRegex)
