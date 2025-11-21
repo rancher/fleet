@@ -283,7 +283,7 @@ func TestReconcile_Validate(t *testing.T) {
 							Namespace: c.helmop.Namespace,
 						}
 						bundle.Spec.HelmOpOptions = &fleet.BundleHelmOptions{
-							SecretName: "foo", //prevent collision errors; the value does not matter.
+							SecretName: "foo", // prevent collision errors; the value does not matter.
 						}
 
 						return nil
@@ -1219,7 +1219,7 @@ func TestReconcile_ManagePollingJobs(t *testing.T) {
 			client.EXPECT().Get(gomock.Any(), namespacedName, matchesBundle(c.helmOp.Name, c.helmOp.Namespace), gomock.Any()).DoAndReturn(
 				func(ctx context.Context, req types.NamespacedName, b *fleet.Bundle, opts ...interface{}) error {
 					b.Spec.HelmOpOptions = &fleet.BundleHelmOptions{
-						SecretName: "foo", //prevent collision errors; the value does not matter.
+						SecretName: "foo", // prevent collision errors; the value does not matter.
 					}
 					return nil
 				}).AnyTimes()
@@ -1227,7 +1227,7 @@ func TestReconcile_ManagePollingJobs(t *testing.T) {
 			client.EXPECT().Get(gomock.Any(), namespacedName, &fleet.Bundle{}, gomock.Any()).DoAndReturn(
 				func(ctx context.Context, req types.NamespacedName, b *fleet.Bundle, opts ...interface{}) error {
 					b.Spec.HelmOpOptions = &fleet.BundleHelmOptions{
-						SecretName: "foo", //prevent collision errors; the value does not matter.
+						SecretName: "foo", // prevent collision errors; the value does not matter.
 					}
 					return nil
 				}).AnyTimes()

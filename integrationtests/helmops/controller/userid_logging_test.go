@@ -60,9 +60,7 @@ var _ = Describe("HelmOp UserID logging", func() {
 		})
 
 		It("includes userID in log output", func() {
-			Eventually(func() string {
-				return logsBuffer.String()
-			}, timeout).Should(Or(
+			Eventually(logsBuffer.String, timeout).Should(Or(
 				ContainSubstring(`"userID":"`+userID+`"`),
 				ContainSubstring(`"userID": "`+userID+`"`),
 			))
@@ -79,9 +77,7 @@ var _ = Describe("HelmOp UserID logging", func() {
 		})
 
 		It("does not include userID in log output", func() {
-			Eventually(func() string {
-				return logsBuffer.String()
-			}, timeout).Should(ContainSubstring(helmop.Name))
+			Eventually(logsBuffer.String, timeout).Should(ContainSubstring(helmop.Name))
 
 			logs := logsBuffer.String()
 			helmopLogs := utils.ExtractResourceLogs(logs, helmop.Name)

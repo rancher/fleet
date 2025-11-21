@@ -557,7 +557,8 @@ func validate(h fleet.HelmOp) error {
 		return fmt.Errorf("helm options invalid: %s", msg)
 	}
 
-	if strings.HasSuffix(strings.ToLower(h.Spec.Helm.Chart), ".tgz") {
+	switch {
+	case strings.HasSuffix(strings.ToLower(h.Spec.Helm.Chart), ".tgz"):
 		if len(h.Spec.Helm.Repo) > 0 {
 			return fail("tarball chart with a non-empty repo field")
 		}
@@ -565,11 +566,11 @@ func validate(h fleet.HelmOp) error {
 		if len(h.Spec.Helm.Version) > 0 {
 			return fail("tarball chart with a non-empty version field")
 		}
-	} else if strings.HasPrefix(strings.ToLower(h.Spec.Helm.Repo), "oci://") {
+	case strings.HasPrefix(strings.ToLower(h.Spec.Helm.Repo), "oci://"):
 		if len(h.Spec.Helm.Chart) > 0 {
 			return fail("OCI repository with a non-empty chart field")
 		}
-	} else { // Expecting full reference: chart + repo + optional version
+	default: // Expecting full reference: chart + repo + optional version
 		if len(h.Spec.Helm.Chart) == 0 {
 			return fail("non-OCI repository with an empty chart field")
 		}

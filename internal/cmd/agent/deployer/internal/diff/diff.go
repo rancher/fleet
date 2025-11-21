@@ -76,36 +76,35 @@ func Diff(config, live *unstructured.Unstructured, opts ...Option) (*DiffResult,
 	orig, err := GetLastAppliedConfigAnnotation(live)
 	if err != nil {
 		o.log.V(1).Info(fmt.Sprintf("Failed to get last applied configuration: %v", err))
-	} else {
-		if orig != nil && config != nil {
-			Normalize(orig, opts...)
-			dr, err := ThreeWayDiff(orig, config, live)
-			if err == nil {
-				return dr, nil
-			}
-			o.log.V(1).Info(fmt.Sprintf("three-way diff calculation failed: %v. Falling back to two-way diff", err))
+	} else if orig != nil && config != nil {
+		Normalize(orig, opts...)
+		dr, err := ThreeWayDiff(orig, config, live)
+		if err == nil {
+			return dr, nil
 		}
+		o.log.V(1).Info(fmt.Sprintf("three-way diff calculation failed: %v. Falling back to two-way diff", err))
 	}
 	return TwoWayDiff(config, live)
 }
 
 // TwoWayDiff performs a three-way diff and uses specified config as a recently applied config
 func TwoWayDiff(config, live *unstructured.Unstructured) (*DiffResult, error) {
-	if live != nil && config != nil {
+	switch {
+	case live != nil && config != nil:
 		return ThreeWayDiff(config, config.DeepCopy(), live)
-	} else if live != nil {
+	case live != nil:
 		liveData, err := json.Marshal(live)
 		if err != nil {
 			return nil, err
 		}
 		return &DiffResult{Modified: false, NormalizedLive: liveData, PredictedLive: []byte("null")}, nil
-	} else if config != nil {
+	case config != nil:
 		predictedLiveData, err := json.Marshal(config.Object)
 		if err != nil {
 			return nil, err
 		}
 		return &DiffResult{Modified: true, NormalizedLive: []byte("null"), PredictedLive: predictedLiveData}, nil
-	} else {
+	default:
 		return nil, errors.New("both live and config are null objects")
 	}
 }
@@ -417,11 +416,12 @@ func Normalize(un *unstructured.Unstructured, opts ...Option) {
 	unstructured.RemoveNestedField(un.Object, "metadata", "creationTimestamp")
 
 	gvk := un.GroupVersionKind()
-	if gvk.Group == "" && gvk.Kind == "Secret" {
+	switch {
+	case gvk.Group == "" && gvk.Kind == "Secret":
 		NormalizeSecret(un, opts...)
-	} else if gvk.Group == "rbac.authorization.k8s.io" && (gvk.Kind == "ClusterRole" || gvk.Kind == "Role") {
+	case gvk.Group == "rbac.authorization.k8s.io" && (gvk.Kind == "ClusterRole" || gvk.Kind == "Role"):
 		normalizeRole(un, o)
-	} else if gvk.Group == "" && gvk.Kind == "Endpoints" {
+	case gvk.Group == "" && gvk.Kind == "Endpoints":
 		normalizeEndpoint(un, o)
 	}
 
@@ -629,7 +629,7 @@ func HideSecretData(target *unstructured.Unstructured, live *unstructured.Unstru
 			replacement, ok := valToReplacement[val]
 			if !ok {
 				replacement = nextReplacement
-				nextReplacement = nextReplacement + "++++"
+				nextReplacement += "++++"
 				valToReplacement[val] = replacement
 			}
 			data[k] = replacement
