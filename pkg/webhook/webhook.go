@@ -251,8 +251,9 @@ func getErrorCodeFromErr(err error) int {
 		errors.Is(err, gitlab.ErrInvalidHTTPMethod),
 		errors.Is(err, bitbucket.ErrInvalidHTTPMethod),
 		errors.Is(err, bitbucketserver.ErrInvalidHTTPMethod),
-		errors.Is(err, azuredevops.ErrInvalidHTTPMethod):
-
+		errors.Is(err, azuredevops.ErrInvalidHTTPMethod),
+		errors.Is(err, gerrit.ErrInvalidHTTPMethod):
+		
 		return http.StatusMethodNotAllowed
 	}
 	return http.StatusInternalServerError
