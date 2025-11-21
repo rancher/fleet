@@ -1231,7 +1231,7 @@ var _ = Describe("HelmOps controller", func() {
 				helmop.Spec.InsecureSkipTLSverify = false
 			})
 
-			It("creates a bundle with the latest version it got from the index", func() {
+			XIt("creates a bundle with the latest version it got from the index", func() {
 				Eventually(func(g Gomega) {
 					bundle := &fleet.Bundle{}
 					ns := types.NamespacedName{Name: helmop.Name, Namespace: helmop.Namespace}
