@@ -2,8 +2,10 @@ package apply
 
 import (
 	"context"
+	"os"
 	"testing"
 
+	"github.com/rancher/fleet/integrationtests/utils"
 	"github.com/rancher/fleet/internal/cmd/cli/apply"
 	"github.com/rancher/fleet/internal/mocks"
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -18,6 +20,27 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
+
+// originalStdout/Stderr store the original os.Stdout/Stderr for restoration after tests
+var (
+	originalStdout *os.File
+	originalStderr *os.File
+)
+
+func init() {
+	utils.SuppressLogs()
+	// Suppress Helm SDK direct output (e.g., "Getting updates for unmanaged Helm repositories...")
+	// This captures stdout/stderr to discard unless VERBOSE=1 is set
+	if utils.ShouldSuppressLogs() {
+		originalStdout = os.Stdout
+		originalStderr = os.Stderr
+		nullFile, err := os.Open(os.DevNull)
+		if err == nil {
+			os.Stdout = nullFile
+			os.Stderr = nullFile
+		}
+	}
+}
 
 var (
 	buf    *gbytes.Buffer
@@ -34,6 +57,16 @@ var _ = BeforeSuite(func() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(v1alpha1.AddToScheme(scheme))
 	Expect(schemes.Register(v1alpha1.AddToScheme)).NotTo(HaveOccurred())
+})
+
+var _ = AfterSuite(func() {
+	// Restore stdout/stderr for proper test output formatting
+	if originalStdout != nil {
+		os.Stdout = originalStdout
+	}
+	if originalStderr != nil {
+		os.Stderr = originalStderr
+	}
 })
 
 // simulates fleet cli execution

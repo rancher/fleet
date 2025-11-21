@@ -53,6 +53,8 @@ var _ = BeforeSuite(func() {
 	ctx, cancel = context.WithCancel(context.TODO())
 	testEnv = utils.NewEnvTest("../../..")
 
+	utils.SuppressLogs()
+
 	GinkgoWriter.TeeTo(&logsBuffer)
 	ctrl.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 

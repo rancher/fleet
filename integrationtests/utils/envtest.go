@@ -1,6 +1,8 @@
 package utils
 
 import (
+	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"time"
@@ -8,6 +10,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
+	"github.com/sirupsen/logrus"
 
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
@@ -17,7 +20,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
-	"sigs.k8s.io/controller-runtime/pkg/log"
+	ctrlog "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 )
@@ -32,11 +35,31 @@ func init() {
 	gomega.SetDefaultEventuallyPollingInterval(PollingInterval)
 }
 
+// ShouldSuppressLogs checks if logs should be suppressed based on the VERBOSE environment variable.
+// Returns true when VERBOSE is not set (suppress logs), false when VERBOSE=1 (show all logs).
+func ShouldSuppressLogs() bool {
+	return os.Getenv("VERBOSE") == ""
+}
+
+// SuppressLogs suppresses log output during integration tests unless VERBOSE=1 is set.
+// This filters expected test warnings and informational messages to keep test output clean.
+// To see all logs during debugging, run tests with: VERBOSE=1 go test ...
+//
+// This suppresses:
+// - Go standard library logger (log package) - used by Helm SDK for warnings
+// - Logrus logger - used by Fleet components for info/debug messages
+func SuppressLogs() {
+	if ShouldSuppressLogs() {
+		log.SetOutput(io.Discard)
+		logrus.SetOutput(io.Discard)
+	}
+}
+
 // NewEnvTest returns a new envtest with the Fleet CRDs loaded.
 // Run ginkgo with the -v flag to see the logs in real time.
 func NewEnvTest(root string) *envtest.Environment {
 	if os.Getenv("CI_SILENCE_CTRL") != "" {
-		ctrl.SetLogger(logr.New(log.NullLogSink{}))
+		ctrl.SetLogger(logr.New(ctrlog.NullLogSink{}))
 	} else {
 		ctrl.SetLogger(zap.New(zap.WriteTo(ginkgo.GinkgoWriter), zap.UseDevMode(true)))
 	}

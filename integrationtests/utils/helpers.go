@@ -2,6 +2,7 @@ package utils
 
 import (
 	"context"
+	"os"
 	"strings"
 
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -76,4 +77,14 @@ func ExtractResourceLogs(allLogs, resourceName string) string {
 		}
 	}
 	return strings.Join(resourceLogs, "\n")
+}
+
+// DisableReaper disables the testcontainers reaper (Ryuk) to avoid issues
+// with Docker container state in local development environments.
+// The reaper is mainly useful in CI but often causes race conditions locally.
+// This should be called in init() functions of test packages that use testcontainers.
+func DisableReaper() {
+	if os.Getenv("TESTCONTAINERS_RYUK_DISABLED") == "" {
+		os.Setenv("TESTCONTAINERS_RYUK_DISABLED", "true")
+	}
 }

@@ -36,7 +36,7 @@ func (j JSONPatchNormalizer) Normalize(un *unstructured.Unstructured) error {
 	gvk := un.GroupVersionKind()
 	metaObj, err := meta.Accessor(un)
 	if err != nil {
-		logrus.Errorf("Failed to normalize obj with json patch, error: %v", err)
+		logrus.Debugf("Failed to normalize obj with json patch, error: %v", err)
 		return nil
 	}
 	key := objectset.ObjectKey{
@@ -51,12 +51,12 @@ func (j JSONPatchNormalizer) Normalize(un *unstructured.Unstructured) error {
 
 	jsondata, err := un.MarshalJSON()
 	if err != nil {
-		logrus.Errorf("Failed to normalize obj with json patch, error: %v", err)
+		logrus.Debugf("Failed to normalize obj with json patch, error: %v", err)
 		return nil
 	}
 	patched := applyPatches(jsondata, j.patch[gvk][key])
 	if err := un.UnmarshalJSON(patched); err != nil {
-		logrus.Errorf("Failed to normalize obj with json patch, error: %v", err)
+		logrus.Debugf("Failed to normalize obj with json patch, error: %v", err)
 		return nil
 	}
 	return nil
@@ -81,12 +81,12 @@ func applyPatches(jsondata []byte, patches []JSONPatch) []byte {
 	for _, patch := range patches {
 		p, err := jsonpatch.DecodePatch(patch)
 		if err != nil {
-			logrus.Errorf("Failed to normalize obj with json patch, error: %v", err)
+			logrus.Debugf("Failed to normalize obj with json patch, error: %v", err)
 			return nil
 		}
 		jsondata, err = p.Apply(jsondata)
 		if err != nil {
-			logrus.Errorf("Failed to normalize obj with json patch, error: %v", err)
+			logrus.Debugf("Failed to normalize obj with json patch, error: %v", err)
 			return nil
 		}
 	}

@@ -102,6 +102,13 @@ var _ = Describe("Fleet apply helm release with HTTP OCI registry", Ordered, fun
 		container, err = startDockerRegistry(context.Background())
 		Expect(err).ToNot(HaveOccurred())
 
+		// Use DeferCleanup to ensure container is terminated even if BeforeAll fails
+		DeferCleanup(func() {
+			if container != nil {
+				Expect(container.Terminate(context.Background())).NotTo(HaveOccurred())
+			}
+		})
+
 		host, err = container.Host(context.Background())
 		Expect(err).ToNot(HaveOccurred())
 
@@ -110,11 +117,11 @@ var _ = Describe("Fleet apply helm release with HTTP OCI registry", Ordered, fun
 
 		cmd := exec.Command("helm", "package", cli.AssetsPath+"config-chart/")
 		out, err := cmd.CombinedOutput()
-		Expect(err).ToNot(HaveOccurred(), out)
+		Expect(err).ToNot(HaveOccurred(), string(out))
 
-		cmd = exec.Command("helm", "push", "config-chart-0.1.0.tgz", fmt.Sprintf("oci://%s:%d", host, port.Int()))
+		cmd = exec.Command("helm", "push", "config-chart-0.1.0.tgz", fmt.Sprintf("oci://%s:%d", host, port.Int()), "--plain-http")
 		out, err = cmd.CombinedOutput()
-		Expect(err).ToNot(HaveOccurred(), out)
+		Expect(err).ToNot(HaveOccurred(), string(out))
 
 		err = createGitRepoDataForTest(tmpDir, host, port.Port(), "config-chart")
 		Expect(err).ToNot(HaveOccurred())
@@ -140,10 +147,6 @@ var _ = Describe("Fleet apply helm release with HTTP OCI registry", Ordered, fun
 	It("works fine when calling fleet apply passing helm-basic-http=true", func() {
 		err := fleetApply("helm", []string{relTmpDir}, apply.Options{Auth: bundlereader.Auth{BasicHTTP: true}})
 		Expect(err).ToNot(HaveOccurred())
-	})
-
-	AfterAll(func() {
-		Expect(container.Terminate(context.Background())).NotTo(HaveOccurred())
 	})
 })
 

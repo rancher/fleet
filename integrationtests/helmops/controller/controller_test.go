@@ -5,6 +5,8 @@ import (
 	"crypto/subtle"
 	"crypto/tls"
 	"fmt"
+	"io"
+	"log"
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
@@ -21,6 +23,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	"github.com/rancher/fleet/e2e/testenv"
+	"github.com/rancher/fleet/integrationtests/utils"
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/wrangler/v3/pkg/genericcondition"
@@ -274,7 +277,7 @@ func checkConditionIs(g Gomega, fllethelm *fleet.HelmOp, condType string, status
 }
 
 func newTLSServerWithAuth() *httptest.Server {
-	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		username, password, ok := r.BasicAuth()
 		if ok {
 			usernameHash := sha256.Sum256([]byte(username))
@@ -288,12 +291,19 @@ func newTLSServerWithAuth() *httptest.Server {
 			if usernameMatch && passwordMatch {
 				w.WriteHeader(http.StatusOK)
 				fmt.Fprint(w, helmRepoIndex)
+				return
 			}
 		}
 
 		w.Header().Set("WWW-Authenticate", `Basic realm="restricted", charset="UTF-8"`)
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 	}))
+	// Suppress TLS handshake error logs during auth failure testing (unless VERBOSE=1 for debugging)
+	// These errors are expected when testing bad credentials
+	if utils.ShouldSuppressLogs() {
+		srv.Config.ErrorLog = log.New(io.Discard, "", 0)
+	}
+	srv.StartTLS()
 	return srv
 }
 
@@ -312,6 +322,10 @@ func getNewCustomTLSServer(handler http.Handler) (*httptest.Server, error) {
 		return nil, err
 	}
 	ts.TLS = &tls.Config{Certificates: []tls.Certificate{cert}}
+	// Suppress TLS handshake error logs (unless VERBOSE=1 for debugging)
+	if utils.ShouldSuppressLogs() {
+		ts.Config.ErrorLog = log.New(io.Discard, "", 0)
+	}
 	ts.StartTLS()
 	return ts, nil
 }
