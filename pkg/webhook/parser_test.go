@@ -2,6 +2,7 @@ package webhook
 
 import (
 	"bytes"
+	"context"
 	"net/http"
 	"testing"
 
@@ -141,7 +142,7 @@ func TestParseGogs(t *testing.T) {
 				}
 			}
 
-			req, err := http.NewRequest(http.MethodPost, "/", bytes.NewReader(tt.body))
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "/", bytes.NewReader(tt.body))
 			if err != nil {
 				t.Fatalf("Failed to create HTTP request: %v", err)
 			}
@@ -292,7 +293,7 @@ func TestParseGithub(t *testing.T) {
 				}
 			}
 
-			req, err := http.NewRequest(http.MethodPost, "/", bytes.NewReader(tt.body))
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "/", bytes.NewReader(tt.body))
 			if err != nil {
 				t.Fatalf("Failed to create HTTP request: %v", err)
 			}
@@ -507,7 +508,7 @@ func TestParseGitlab(t *testing.T) {
 				}
 			}
 
-			req, err := http.NewRequest(http.MethodPost, "/", bytes.NewReader(tt.body))
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "/", bytes.NewReader(tt.body))
 			if err != nil {
 				t.Fatalf("Failed to create HTTP request: %v", err)
 			}
@@ -737,7 +738,7 @@ func TestParseBitbucket(t *testing.T) {
 				}
 			}
 
-			req, err := http.NewRequest(http.MethodPost, "/", bytes.NewReader(tt.body))
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "/", bytes.NewReader(tt.body))
 			if err != nil {
 				t.Fatalf("Failed to create HTTP request: %v", err)
 			}
@@ -1005,7 +1006,7 @@ func TestParseBitbucketServer(t *testing.T) {
 				}
 			}
 
-			req, err := http.NewRequest(http.MethodPost, "/", bytes.NewReader(tt.body))
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "/", bytes.NewReader(tt.body))
 			if err != nil {
 				t.Fatalf("Failed to create HTTP request: %v", err)
 			}
@@ -1226,7 +1227,7 @@ func TestParseAzureDevops(t *testing.T) {
 				}
 			}
 
-			req, err := http.NewRequest(http.MethodPost, "/", bytes.NewReader(tt.body))
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "/", bytes.NewReader(tt.body))
 			if err != nil {
 				t.Fatalf("Failed to create HTTP request: %v", err)
 			}

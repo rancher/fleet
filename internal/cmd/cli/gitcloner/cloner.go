@@ -157,8 +157,7 @@ func createAuthFromOpts(opts *GitCloner) (transport.AuthMethod, error) {
 
 			auth.HostKeyCallback = knownHostsCallBack
 		} else {
-			//nolint G106: Use of ssh InsecureIgnoreHostKey should be audited
-			//this will run in an init-container, so there is no persistence
+			//nolint:gosec // G106: Use of ssh InsecureIgnoreHostKey should be audited - this will run in an init-container, so there is no persistence
 			auth.HostKeyCallback = ssh.InsecureIgnoreHostKey()
 		}
 		return auth, nil
@@ -174,7 +173,7 @@ func createAuthFromOpts(opts *GitCloner) (transport.AuthMethod, error) {
 			return nil, fmt.Errorf("failed to read GitHub app private key from file: %w", err)
 		}
 
-		auth, err := appAuthGetter.Get(int64(opts.GitHubAppID), int64(opts.GitHubAppInstallation), key)
+		auth, err := appAuthGetter.Get(opts.GitHubAppID, opts.GitHubAppInstallation, key)
 		if err != nil {
 			return nil, err
 		}

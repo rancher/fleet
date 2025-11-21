@@ -59,5 +59,5 @@ var _ = AfterSuite(func() {
 		"-p",
 		fmt.Sprintf(`{"data":{"config":"%s"}}`, config),
 	)
-	Expect(err).ToNot(HaveOccurred(), string(out))
+	Expect(err).ToNot(HaveOccurred(), out)
 })

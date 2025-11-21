@@ -1,6 +1,7 @@
 package testenv
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"path"
@@ -23,7 +24,7 @@ func FailAndGather(message string, callerSkip ...int) {
 	path := path.Join(pwd, ginkgo.CurrentSpecReport().FullText())
 
 	ginkgo.GinkgoWriter.Printf("💬 Gathering cluster info for '%s' to '%s'...\n", ginkgo.CurrentSpecReport().FullText(), pwd)
-	cmd := exec.Command("crust-gather", "collect",
+	cmd := exec.CommandContext(context.Background(), "crust-gather", "collect",
 		"--exclude-namespace=kube-system", "--exclude-kind=Lease", "--duration=10s",
 		"-verror", "-f", path)
 	cmd.Stdout = ginkgo.GinkgoWriter

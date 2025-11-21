@@ -50,7 +50,7 @@ func readResources(ctx context.Context, spec *fleet.BundleSpec, compress bool, b
 		}
 	}
 
-	directories, err = addRemoteCharts(directories, base, chartDirs, auth, helmRepoURLRegex)
+	directories, err = addRemoteCharts(ctx, directories, base, chartDirs, auth, helmRepoURLRegex)
 	if err != nil {
 		return nil, fmt.Errorf("failed to add directory for chart: %w", err)
 	}
@@ -205,18 +205,19 @@ func mergeGenericMap(first, second *fleet.GenericMap) *fleet.GenericMap {
 // addRemoteCharts gets the chart url from a helm repo server and returns a `directory` struct.
 // For every chart that is not on disk, create a directory struct that contains the charts URL as path.
 // This adds one directory per HelmOption.
-func addRemoteCharts(directories []directory, base string, charts []*fleet.HelmOptions, auth Auth, helmRepoURLRegex string) ([]directory, error) {
+func addRemoteCharts(ctx context.Context, directories []directory, base string, charts []*fleet.HelmOptions, auth Auth, helmRepoURLRegex string) ([]directory, error) {
 	for _, chart := range charts {
 		if _, err := os.Stat(filepath.Join(base, chart.Chart)); os.IsNotExist(err) || chart.Repo != "" {
 			shouldAddAuthToRequest, err := shouldAddAuthToRequest(helmRepoURLRegex, chart.Repo, chart.Chart)
 			if err != nil {
 				return nil, fmt.Errorf("failed to add auth to request for %s: %w", downloadChartError(*chart), err)
 			}
+			auth := auth // loop-scoped variable
 			if !shouldAddAuthToRequest {
 				auth = Auth{}
 			}
 
-			chartURL, err := chartURL(*chart, auth, false)
+			chartURL, err := chartURL(ctx, *chart, auth, false)
 			if err != nil {
 				return nil, fmt.Errorf("failed to resolve URL of %s: %w", downloadChartError(*chart), err)
 			}
@@ -281,7 +282,6 @@ func loadDirectories(ctx context.Context, opts loadOpts, directories ...director
 			continue
 		}
 		alreadyLoaded[dirId] = struct{}{}
-		dir := dir
 		eg.Go(func() error {
 			if err := sem.Acquire(ctx, 1); err != nil {
 				return fmt.Errorf("waiting to load directory %s, %s: %w", dir.prefix, dir.base, err)

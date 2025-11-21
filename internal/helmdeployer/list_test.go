@@ -6,25 +6,26 @@ import (
 	"github.com/rancher/fleet/internal/helmdeployer"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
-	"helm.sh/helm/v3/pkg/chart"
-	"helm.sh/helm/v3/pkg/release"
+	chartv2 "helm.sh/helm/v4/pkg/chart/v2"
+	releasev1 "helm.sh/helm/v4/pkg/release/v1"
 )
 
 type fakeList struct {
-	releases []*release.Release
+	releases []*releasev1.Release
 }
 
-func (f fakeList) Run() ([]*release.Release, error) {
+func (f fakeList) Run() ([]*releasev1.Release, error) {
 	return f.releases, nil
 }
 
-func newRelease(name string, namespace string, annotations map[string]string) *release.Release {
-	return &release.Release{
+func newRelease(name string, namespace string, annotations map[string]string) *releasev1.Release {
+	return &releasev1.Release{
 		Name:      name,
 		Namespace: namespace,
-		Chart: &chart.Chart{
-			Metadata: &chart.Metadata{
+		Chart: &chartv2.Chart{
+			Metadata: &chartv2.Metadata{
 				Annotations: annotations,
 			},
 		},
@@ -42,12 +43,12 @@ func TestListDeployments(t *testing.T) {
 	h := helmdeployer.New("cattle-fleet-test", "", "", "")
 
 	tests := map[string]struct {
-		releases             []*release.Release
+		releases             []*releasev1.Release
 		expectedBundleIDs    []string
 		expectedReleaseNames []string
 	}{
 		"no chart has fleet annotations": {
-			releases: []*release.Release{
+			releases: []*releasev1.Release{
 				newRelease("test0", "any", map[string]string{}),
 				newRelease("test1", "any", map[string]string{
 					bundleIDAnnotation: "any",
@@ -58,7 +59,7 @@ func TestListDeployments(t *testing.T) {
 			expectedReleaseNames: []string{},
 		},
 		"finds charts with fleet annotations": {
-			releases: []*release.Release{
+			releases: []*releasev1.Release{
 				newRelease("test1", "any", nil),
 				newRelease("test2", "namespace", map[string]string{
 					bundleIDAnnotation: "testID",
@@ -73,7 +74,7 @@ func TestListDeployments(t *testing.T) {
 			expectedReleaseNames: []string{"namespace/test2", "cattle-fleet-namespace/test3"},
 		},
 		"only finds own charts": {
-			releases: []*release.Release{
+			releases: []*releasev1.Release{
 				newRelease("test2", "cattle-fleet-test", map[string]string{
 					bundleIDAnnotation: "any",
 					agentNSAnnotation:  "cattle-fleet-SYSTEM",
@@ -88,7 +89,7 @@ func TestListDeployments(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			listAction := &fakeList{releases: test.releases}
 			result, err := h.ListDeployments(listAction)
-			r.NoError(err)
+			require.NoError(t, err)
 
 			r.Len(result, len(test.expectedBundleIDs))
 			for _, deployedBundle := range result {

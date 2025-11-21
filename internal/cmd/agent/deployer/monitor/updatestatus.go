@@ -100,7 +100,7 @@ func (m *Monitor) UpdateStatus(ctx context.Context, bd *fleet.BundleDeployment, 
 		// When there is no resourceID the error should be on the status. Without
 		// the ID we do not have the information to lookup the resources to
 		// compute the plan and discover the state of resources.
-		if err == helmdeployer.ErrNoResourceID {
+		if errors.Is(err, helmdeployer.ErrNoResourceID) {
 			return origStatus, nil
 		}
 

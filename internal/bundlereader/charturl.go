@@ -13,7 +13,7 @@ import (
 
 	"github.com/Masterminds/semver/v3"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"helm.sh/helm/v3/pkg/repo"
+	repov1 "helm.sh/helm/v4/pkg/repo/v1"
 	"sigs.k8s.io/yaml"
 
 	"oras.land/oras-go/v2/registry"
@@ -24,7 +24,7 @@ import (
 
 // ChartVersion returns the version of the helm chart from a helm repo server, by
 // inspecting the repo's index.yaml
-func ChartVersion(location fleet.HelmOptions, a Auth) (string, error) {
+func ChartVersion(ctx context.Context, location fleet.HelmOptions, a Auth) (string, error) {
 	if hasOCIURL.MatchString(location.Repo) {
 		repo := strings.TrimPrefix(location.Repo, "oci://")
 
@@ -53,11 +53,11 @@ func ChartVersion(location fleet.HelmOptions, a Auth) (string, error) {
 			r.PlainHTTP = true
 		}
 
-		tag, err := GetOCITag(r, location.Version)
+		tag, err := GetOCITag(ctx, r, location.Version)
 
 		if len(tag) == 0 || err != nil {
 			return "", fmt.Errorf(
-				"could not find tag matching constraint %q in registry %s: %v",
+				"could not find tag matching constraint %q in registry %s: %w",
 				location.Version,
 				location.Repo,
 				err,
@@ -75,7 +75,7 @@ func ChartVersion(location fleet.HelmOptions, a Auth) (string, error) {
 		location.Repo = location.Repo + "/"
 	}
 
-	chart, err := getHelmChartVersion(location, a)
+	chart, err := getHelmChartVersion(ctx, location, a)
 	if err != nil {
 		return "", err
 	}
@@ -89,7 +89,7 @@ func ChartVersion(location fleet.HelmOptions, a Auth) (string, error) {
 
 // chartURL returns the URL to the helm chart from a helm repo server, by
 // inspecting the repo's index.yaml
-func chartURL(location fleet.HelmOptions, auth Auth, isHelmOps bool) (string, error) {
+func chartURL(ctx context.Context, location fleet.HelmOptions, auth Auth, isHelmOps bool) (string, error) {
 	OCIField := location.Chart
 	if isHelmOps {
 		OCIField = location.Repo
@@ -107,7 +107,7 @@ func chartURL(location fleet.HelmOptions, auth Auth, isHelmOps bool) (string, er
 		location.Repo = location.Repo + "/"
 	}
 
-	chart, err := getHelmChartVersion(location, auth)
+	chart, err := getHelmChartVersion(ctx, location, auth)
 	if err != nil {
 		return "", err
 	}
@@ -135,8 +135,8 @@ func chartURL(location fleet.HelmOptions, auth Auth, isHelmOps bool) (string, er
 
 // getHelmChartVersion returns the ChartVersion struct with the information to the given location
 // using the given authentication configuration
-func getHelmChartVersion(location fleet.HelmOptions, auth Auth) (*repo.ChartVersion, error) {
-	request, err := http.NewRequest("GET", location.Repo+"index.yaml", nil)
+func getHelmChartVersion(ctx context.Context, location fleet.HelmOptions, auth Auth) (*repov1.ChartVersion, error) {
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, location.Repo+"index.yaml", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -158,11 +158,11 @@ func getHelmChartVersion(location fleet.HelmOptions, auth Auth) (*repo.ChartVers
 		return nil, err
 	}
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("failed to read helm repo from %s, error code: %v", location.Repo+"index.yaml", resp.StatusCode)
 	}
 
-	repo := &repo.IndexFile{}
+	repo := &repov1.IndexFile{}
 	if err := yaml.Unmarshal(bytes, repo); err != nil {
 		return nil, err
 	}
@@ -180,13 +180,13 @@ func getHelmChartVersion(location fleet.HelmOptions, auth Auth) (*repo.ChartVers
 // GetOCITag fetches the highest available tag matching version v in repository r.
 // Returns an error if the remote repository itself returns an error, for instance if the OCI repository is not found.
 // If no error is returned, it is the caller's responsibility to check that the returned tag is non-empty.
-func GetOCITag(r *remote.Repository, v string) (string, error) {
+func GetOCITag(ctx context.Context, r *remote.Repository, v string) (string, error) {
 	constraint, err := semver.NewConstraint(v)
 	if err != nil {
 		return "", fmt.Errorf("failed to compute version constraint from version %q: %w", v, err)
 	}
 
-	availableTags, err := registry.Tags(context.TODO(), r)
+	availableTags, err := registry.Tags(ctx, r)
 	if err != nil {
 		var regErr errcode.Error
 		if errors.As(err, &regErr) {
@@ -238,7 +238,7 @@ func getHTTPClient(auth Auth) *http.Client {
 
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.TLSClientConfig = &tls.Config{
-		InsecureSkipVerify: auth.InsecureSkipVerify, // nolint:gosec
+		InsecureSkipVerify: auth.InsecureSkipVerify, //nolint:gosec
 	}
 
 	if auth.CABundle != nil {

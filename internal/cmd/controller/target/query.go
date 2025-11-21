@@ -54,7 +54,6 @@ func (m *Manager) getBundlesInScopeForCluster(ctx context.Context, cluster *flee
 		return nil, err
 	}
 	for _, b := range bundles.Items {
-		b := b
 		if b.Annotations["objectset.rio.cattle.io/id"] == "fleet-manage-agent" {
 			if b.Name == "fleet-agent-"+cluster.Name {
 				bundleSet.insertSingle(&b)
@@ -71,7 +70,6 @@ func (m *Manager) getBundlesInScopeForCluster(ctx context.Context, cluster *flee
 
 	logger := log.FromContext(ctx).WithName("target")
 	for _, mapping := range mappings.Items {
-		mapping := mapping
 		matcher, err := newBundleMapping(&mapping)
 		if err != nil {
 			logger.Error(err, "invalid BundleNamespaceMapping, skipping", "namespace", mapping.Namespace, "name", mapping.Name)
@@ -102,7 +100,6 @@ func ClusterGroupsForCluster(ctx context.Context, c client.Client, cluster *flee
 
 	logger := log.FromContext(ctx).WithName("target")
 	for _, cg := range cgs.Items {
-		cg := cg
 		if cg.Spec.Selector == nil {
 			continue
 		}

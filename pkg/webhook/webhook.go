@@ -3,6 +3,7 @@ package webhook
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -25,7 +26,7 @@ import (
 	gerrit "github.com/rancher/fleet/pkg/webhook/gerrit"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
@@ -219,7 +220,7 @@ func (w *Webhook) getSecret(ctx context.Context, gitrepo fleet.GitRepo) (*corev1
 	var secret corev1.Secret
 	err := w.client.Get(ctx, types.NamespacedName{Name: secretName, Namespace: ns}, &secret)
 	if err != nil {
-		if !errors.IsNotFound(err) {
+		if !apierrors.IsNotFound(err) {
 			return nil, err
 		}
 		if !mustExist {
@@ -234,24 +235,23 @@ func getErrorCodeFromErr(err error) int {
 	// check if the error is a verification of identity error
 	// secret check, or basic credentials or token verification
 	// depending on the provider
-	switch err {
+	switch {
 	case
-		gogs.ErrHMACVerificationFailed,
-		github.ErrHMACVerificationFailed,
-		gitlab.ErrGitLabTokenVerificationFailed,
-		bitbucket.ErrUUIDVerificationFailed,
-		bitbucketserver.ErrHMACVerificationFailed,
-		azuredevops.ErrBasicAuthVerificationFailed:
+		errors.Is(err, gogs.ErrHMACVerificationFailed),
+		errors.Is(err, github.ErrHMACVerificationFailed),
+		errors.Is(err, gitlab.ErrGitLabTokenVerificationFailed),
+		errors.Is(err, bitbucket.ErrUUIDVerificationFailed),
+		errors.Is(err, bitbucketserver.ErrHMACVerificationFailed),
+		errors.Is(err, azuredevops.ErrBasicAuthVerificationFailed):
 
 		return http.StatusUnauthorized
 	case
-		gogs.ErrInvalidHTTPMethod,
-		github.ErrInvalidHTTPMethod,
-		gitlab.ErrInvalidHTTPMethod,
-		bitbucket.ErrInvalidHTTPMethod,
-		bitbucketserver.ErrInvalidHTTPMethod,
-		gerrit.ErrInvalidHTTPMethod,
-		azuredevops.ErrInvalidHTTPMethod:
+		errors.Is(err, gogs.ErrInvalidHTTPMethod),
+		errors.Is(err, github.ErrInvalidHTTPMethod),
+		errors.Is(err, gitlab.ErrInvalidHTTPMethod),
+		errors.Is(err, bitbucket.ErrInvalidHTTPMethod),
+		errors.Is(err, bitbucketserver.ErrInvalidHTTPMethod),
+		errors.Is(err, azuredevops.ErrInvalidHTTPMethod):
 
 		return http.StatusMethodNotAllowed
 	}

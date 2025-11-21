@@ -2,12 +2,15 @@ package helmdeployer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/go-logr/logr"
-	"helm.sh/helm/v3/pkg/action"
-	"helm.sh/helm/v3/pkg/release"
+	"helm.sh/helm/v4/pkg/action"
+	"helm.sh/helm/v4/pkg/kube"
+	releasev1 "helm.sh/helm/v4/pkg/release/v1"
+	"helm.sh/helm/v4/pkg/storage/driver"
 
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/kv"
 	"github.com/rancher/fleet/internal/experimental"
@@ -50,14 +53,14 @@ func (h *Helm) Delete(ctx context.Context, bundleID string) error {
 func (h *Helm) deleteByRelease(ctx context.Context, bundleID, releaseName string, keepResources bool) error {
 	logger := log.FromContext(ctx).WithName("delete-by-release").WithValues("releaseName", releaseName, "keepResources", keepResources)
 	releaseNamespace, releaseName := kv.Split(releaseName, "/")
-	rels, err := h.globalCfg.Releases.List(func(r *release.Release) bool {
+	rels, err := listReleases(h.globalCfg.Releases, func(r *releasev1.Release) bool {
 		return r.Namespace == releaseNamespace &&
 			r.Name == releaseName &&
 			r.Chart.Metadata.Annotations[BundleIDAnnotation] == bundleID &&
 			r.Chart.Metadata.Annotations[AgentNamespaceAnnotation] == h.agentNamespace
 	})
 	if err != nil {
-		return nil
+		return err
 	}
 	if len(rels) == 0 {
 		return nil
@@ -88,9 +91,12 @@ func (h *Helm) deleteByRelease(ctx context.Context, bundleID, releaseName string
 		return deleteHistory(cfg, logger, bundleID)
 	}
 
-	u := action.NewUninstall(&cfg)
+	u := action.NewUninstall(cfg)
+	// WaitStrategy must be set in Helm v4 to avoid "unknown wait strategy" error
+	// HookOnlyStrategy is the default behavior (equivalent to not waiting)
+	u.WaitStrategy = kube.HookOnlyStrategy
 	if _, err := u.Run(releaseName); err != nil {
-		return fmt.Errorf("failed to delete release %s: %v", releaseName, err)
+		return fmt.Errorf("failed to delete release %s: %w", releaseName, err)
 	}
 
 	return deleteResourcesCopiedFromUpstream(ctx, h.client, bundleID)
@@ -100,15 +106,23 @@ func (h *Helm) delete(ctx context.Context, bundleID string, options fleet.Bundle
 	logger := log.FromContext(ctx).WithName("helm-deployer").WithName("delete").WithValues("dryRun", dryRun)
 	timeout, _, releaseName := h.getOpts(bundleID, options)
 
-	r, err := h.globalCfg.Releases.Last(releaseName)
+	r, err := getLastRelease(h.globalCfg.Releases, releaseName)
 	if err != nil {
-		return nil
+		// If the release doesn't exist, there's nothing to delete
+		if errors.Is(err, driver.ErrReleaseNotFound) || errors.Is(err, driver.ErrNoDeployedReleases) {
+			return nil
+		}
+		return err
 	}
 
 	if r.Chart.Metadata.Annotations[BundleIDAnnotation] != bundleID {
-		rels, err := h.globalCfg.Releases.History(releaseName)
+		rels, err := getReleaseHistory(h.globalCfg.Releases, releaseName)
 		if err != nil {
-			return nil
+			// If we can't get the history, treat it as not found
+			if errors.Is(err, driver.ErrReleaseNotFound) || errors.Is(err, driver.ErrNoDeployedReleases) {
+				return nil
+			}
+			return err
 		}
 		r = nil
 		for _, rel := range rels {
@@ -133,7 +147,10 @@ func (h *Helm) delete(ctx context.Context, bundleID string, options fleet.Bundle
 		return deleteHistory(cfg, logger, bundleID)
 	}
 
-	u := action.NewUninstall(&cfg)
+	u := action.NewUninstall(cfg)
+	// WaitStrategy must be set in Helm v4 to avoid "unknown wait strategy" error
+	// HookOnlyStrategy is the default behavior (equivalent to not waiting)
+	u.WaitStrategy = kube.HookOnlyStrategy
 	u.DryRun = dryRun
 	u.Timeout = timeout
 
@@ -144,8 +161,8 @@ func (h *Helm) delete(ctx context.Context, bundleID string, options fleet.Bundle
 	return err
 }
 
-func deleteHistory(cfg action.Configuration, logger logr.Logger, bundleID string) error {
-	releases, err := cfg.Releases.List(func(r *release.Release) bool {
+func deleteHistory(cfg *action.Configuration, logger logr.Logger, bundleID string) error {
+	releases, err := listReleases(cfg.Releases, func(r *releasev1.Release) bool {
 		return r.Name == bundleID && r.Chart.Metadata.Annotations[BundleIDAnnotation] == bundleID
 	})
 	if err != nil {

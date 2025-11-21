@@ -171,7 +171,7 @@ func (a *Apply) run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("setting git SSH command env var for known hosts: %w", err)
 	}
 
-	defer restoreEnv() // nolint: errcheck // best-effort
+	defer restoreEnv() //nolint: errcheck // best-effort
 
 	ctx := cmd.Context()
 	cfg := ctrl.GetConfigOrDie()
@@ -241,7 +241,7 @@ func (a *Apply) addAuthToOpts(opts *apply.Options, readFile readFile, helmBasicH
 }
 
 func currentCommit() string {
-	cmd := exec.Command("git", "rev-parse", "HEAD")
+	cmd := exec.Command("git", "rev-parse", "HEAD") //nolint:noctx // TODO: refactor to use go-git's ResolveRevision
 	buf := &bytes.Buffer{}
 	cmd.Stdout = buf
 	err := cmd.Run()

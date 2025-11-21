@@ -2,6 +2,7 @@ package githelper
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -184,7 +185,7 @@ func (g *Git) Create(repodir string, from string, subdir string) (*git.Repositor
 		return nil, err
 	}
 
-	cmd := exec.Command("cp", "-a", from, path.Join(repodir, subdir)) //nolint:gosec // test code should never receive user input
+	cmd := exec.CommandContext(context.Background(), "cp", "-a", from, path.Join(repodir, subdir))
 	err = cmd.Run()
 	if err != nil {
 		return nil, err
@@ -288,7 +289,7 @@ func author() *object.Signature {
 
 // CreateKnownHosts works around https://github.com/go-git/go-git/issues/411
 func CreateKnownHosts(path string, host string) (string, error) {
-	cmd := exec.Command("/bin/sh", "-c", "ssh-keyscan "+host+" >> "+path) //nolint:gosec // test code should never receive user input
+	cmd := exec.CommandContext(context.Background(), "/bin/sh", "-c", "ssh-keyscan "+host+" >> "+path)
 
 	var b bytes.Buffer
 	cmd.Stdout = &b

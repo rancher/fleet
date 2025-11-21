@@ -2,15 +2,16 @@ package helmdeployer
 
 import (
 	"context"
-	"fmt"
+	"log/slog"
 	"time"
 
+	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	"github.com/rancher/fleet/internal/helmdeployer/helmcache"
-	"helm.sh/helm/v3/pkg/action"
-	"helm.sh/helm/v3/pkg/kube"
-	"helm.sh/helm/v3/pkg/storage"
-	"helm.sh/helm/v3/pkg/storage/driver"
+	"helm.sh/helm/v4/pkg/action"
+	"helm.sh/helm/v4/pkg/kube"
+	"helm.sh/helm/v4/pkg/storage"
+	"helm.sh/helm/v4/pkg/storage/driver"
 
 	"github.com/rancher/fleet/internal/names"
 	"github.com/rancher/fleet/internal/namespaces"
@@ -43,7 +44,7 @@ type Helm struct {
 	client         client.Client
 	agentNamespace string
 	getter         genericclioptions.RESTClientGetter
-	globalCfg      action.Configuration
+	globalCfg      *action.Configuration
 	// useGlobalCfg is only used by Template
 	useGlobalCfg     bool
 	template         bool
@@ -116,11 +117,8 @@ func (h *Helm) getOpts(bundleID string, options fleet.BundleDeploymentOptions) (
 	return timeout, ns, names.HelmReleaseName(bundleID)
 }
 
-func (h *Helm) getCfg(ctx context.Context, namespace, serviceAccountName string) (action.Configuration, error) {
-	var (
-		cfg    action.Configuration
-		getter = h.getter
-	)
+func (h *Helm) getCfg(ctx context.Context, namespace, serviceAccountName string) (*action.Configuration, error) {
+	var getter = h.getter
 
 	if h.useGlobalCfg {
 		return h.globalCfg, nil
@@ -128,48 +126,69 @@ func (h *Helm) getCfg(ctx context.Context, namespace, serviceAccountName string)
 
 	serviceAccountNamespace, serviceAccountName, err := h.getServiceAccount(ctx, serviceAccountName)
 	if err != nil {
-		return cfg, err
+		return nil, err
 	}
 
 	if serviceAccountName != "" {
 		getter, err = newImpersonatingGetter(serviceAccountNamespace, serviceAccountName, h.getter)
 		if err != nil {
-			return cfg, err
+			return nil, err
 		}
 	}
 
 	kClient := kube.New(getter)
 	kClient.Namespace = namespace
 
-	cfg, err = h.createCfg(ctx, namespace)
+	cfg, err := h.createCfg(ctx, namespace)
+	if err != nil {
+		return nil, err
+	}
 	cfg.Releases.MaxHistory = MaxHelmHistory
 	cfg.KubeClient = kClient
 
-	cfg.Capabilities, _ = getCapabilities(cfg)
+	cfg.Capabilities, _ = getCapabilities(ctx, cfg)
 
-	return cfg, err
+	return cfg, nil
 }
 
-func (h *Helm) createCfg(ctx context.Context, namespace string) (action.Configuration, error) {
+func (h *Helm) createCfg(ctx context.Context, namespace string) (*action.Configuration, error) {
+	// Create a logger handler for Helm SDK components.
+	// This uses Fleet's controller-runtime logger (which uses logr/zapr) and adapts it to slog.
+	// The logger level is set to V(1) to match the verbosity level used in Helm v3.
 	logger := log.FromContext(ctx).WithName("helmSDK")
-	info := func(format string, v ...interface{}) {
-		logger.V(1).Info(fmt.Sprintf(format, v...))
-	}
+	handler := slog.NewTextHandler(&logrWriter{logger: logger}, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	})
+
 	kc := kube.New(h.getter)
-	kc.Log = info
+	kc.SetLogger(handler)
 	clientSet, err := kc.Factory.KubernetesClientSet()
 	if err != nil {
-		return action.Configuration{}, err
+		return nil, err
 	}
-	driver := driver.NewSecrets(helmcache.NewSecretClient(h.client, clientSet, namespace))
-	driver.Log = info
-	store := storage.Init(driver)
+	d := driver.NewSecrets(helmcache.NewSecretClient(h.client, clientSet, namespace))
+	d.SetLogger(handler)
+	store := storage.Init(d)
 	store.MaxHistory = MaxHelmHistory
 
-	return action.Configuration{
+	cfg := &action.Configuration{
 		RESTClientGetter: h.getter,
 		Releases:         store,
 		KubeClient:       kc,
-		Log:              info,
-	}, nil
+	}
+	cfg.SetLogger(handler)
+
+	return cfg, nil
+}
+
+// logrWriter adapts a logr.Logger to io.Writer interface for slog.TextHandler.
+// This allows Helm v4's slog-based logging to write through Fleet's controller-runtime logger.
+type logrWriter struct {
+	logger logr.Logger
+}
+
+func (w *logrWriter) Write(p []byte) (n int, err error) {
+	// Log at V(1) level to match the verbosity used in the original Helm v3 integration
+	w.logger.V(1).Info(string(p))
+	return len(p), nil
 }

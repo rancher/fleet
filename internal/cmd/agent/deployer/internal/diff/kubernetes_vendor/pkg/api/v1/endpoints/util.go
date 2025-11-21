@@ -18,7 +18,7 @@ package endpoints
 
 import (
 	"bytes"
-	"crypto/md5" // nolint:gosec // Non-crypto use
+	"crypto/md5" //nolint:gosec // Non-crypto use
 	"hash"
 	"sort"
 
@@ -45,7 +45,8 @@ func LessEndpointAddress(a, b *v1.EndpointAddress) bool {
 // use it returns the input slice.
 // Note: EndpointSubset is part of the deprecated Endpoints API (core/v1).
 // The successor is EndpointSlice (discovery.k8s.io/v1).
-// nolint: staticcheck // EndpointSubset is deprecated but still supported; see fleet#3760.
+//
+//nolint:staticcheck // EndpointSubset is deprecated but still supported; see fleet#3760.
 func SortSubsets(subsets []v1.EndpointSubset) []v1.EndpointSubset {
 	for i := range subsets {
 		ss := &subsets[i]
@@ -62,13 +63,13 @@ func hashObject(hasher hash.Hash, obj interface{}) []byte {
 	return hasher.Sum(nil)
 }
 
-// nolint: staticcheck // EndpointSubset is deprecated but still supported; see fleet#3760.
+//nolint:staticcheck // EndpointSubset is deprecated but still supported; see fleet#3760.
 type subsetsByHash []v1.EndpointSubset
 
 func (sl subsetsByHash) Len() int      { return len(sl) }
 func (sl subsetsByHash) Swap(i, j int) { sl[i], sl[j] = sl[j], sl[i] }
 func (sl subsetsByHash) Less(i, j int) bool {
-	hasher := md5.New() // nolint:gosec // Non-crypto use
+	hasher := md5.New() //nolint:gosec // Non-crypto use
 	h1 := hashObject(hasher, sl[i])
 	h2 := hashObject(hasher, sl[j])
 	return bytes.Compare(h1, h2) < 0
@@ -87,7 +88,7 @@ type portsByHash []v1.EndpointPort
 func (sl portsByHash) Len() int      { return len(sl) }
 func (sl portsByHash) Swap(i, j int) { sl[i], sl[j] = sl[j], sl[i] }
 func (sl portsByHash) Less(i, j int) bool {
-	hasher := md5.New() // nolint:gosec // Non-crypto use
+	hasher := md5.New() //nolint:gosec // Non-crypto use
 	h1 := hashObject(hasher, sl[i])
 	h2 := hashObject(hasher, sl[j])
 	return bytes.Compare(h1, h2) < 0

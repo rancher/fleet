@@ -55,6 +55,7 @@ eventually helm upgrade --install fleet-crd charts/fleet-crd \
 eventually helm upgrade --install fleet charts/fleet \
   --atomic \
   -n cattle-fleet-system \
+  --timeout=10m \
   --create-namespace \
   --set image.repository="$fleetRepo" \
   --set image.tag="$fleetTag" \

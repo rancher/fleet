@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"helm.sh/helm/v3/pkg/kube"
+	"helm.sh/helm/v4/pkg/kube"
 
-	"helm.sh/helm/v3/pkg/chart"
+	chartv2 "helm.sh/helm/v4/pkg/chart/v2"
 
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/desiredset"
 	"github.com/rancher/fleet/internal/helmdeployer/kustomize"
@@ -27,7 +27,7 @@ type postRender struct {
 	labelSuffix string
 	bundleID    string
 	manifest    *manifest.Manifest
-	chart       *chart.Chart
+	chart       *chartv2.Chart
 	mapper      meta.RESTMapper
 	opts        fleet.BundleDeploymentOptions
 }

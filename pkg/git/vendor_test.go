@@ -1,6 +1,7 @@
 package git
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -60,7 +61,7 @@ var _ = Describe("git's vendor specific functions tests", func() {
 				w.WriteHeader(http.StatusOK)
 				fmt.Fprint(w, latest)
 			}))
-			commit, err := latestCommitFromCommitsURL(svr.URL, &options{})
+			commit, err := latestCommitFromCommitsURL(context.Background(), svr.URL, &options{})
 			Expect(err).ToNot(HaveOccurred())
 			Expect(commit).To(Equal(latest))
 		})
@@ -73,7 +74,7 @@ var _ = Describe("git's vendor specific functions tests", func() {
 				Expect(accept[0]).To(Equal("application/vnd.github.v3.sha"))
 				w.WriteHeader(http.StatusNotModified)
 			}))
-			_, _ = latestCommitFromCommitsURL(svr.URL, &options{})
+			_, _ = latestCommitFromCommitsURL(context.Background(), svr.URL, &options{})
 		})
 
 		It("returns an error when the server timeouts", func() {
@@ -82,7 +83,7 @@ var _ = Describe("git's vendor specific functions tests", func() {
 				time.Sleep(clientTimeout + 1)
 				w.WriteHeader(http.StatusGatewayTimeout)
 			}))
-			commit, err := latestCommitFromCommitsURL(svr.URL, &options{Timeout: clientTimeout})
+			commit, err := latestCommitFromCommitsURL(context.Background(), svr.URL, &options{Timeout: clientTimeout})
 			Expect(err).To(HaveOccurred())
 			Expect(commit).To(BeEmpty())
 		})
@@ -95,7 +96,7 @@ var _ = Describe("git's vendor specific functions tests", func() {
 			caBundle := []byte(`-----BEGIN CERTIFICATE-----
 SUPER FAKE CERT
 -----END CERTIFICATE-----`)
-			commit, err := latestCommitFromCommitsURL(svr.URL, &options{CABundle: caBundle, Timeout: clientTimeout})
+			commit, err := latestCommitFromCommitsURL(context.Background(), svr.URL, &options{CABundle: caBundle, Timeout: clientTimeout})
 			// no error and returns true, so the client is forced to run the List to get results
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(Equal("x509: malformed certificate"))
@@ -105,7 +106,7 @@ SUPER FAKE CERT
 
 	When("requesting if lastSha has changed with a non valid URL", func() {
 		It("returns true and no error when the url is not parseable", func() {
-			commit, err := latestCommitFromCommitsURL("httpssss://blahblah   blaisnotanurl\n", &options{})
+			commit, err := latestCommitFromCommitsURL(context.Background(), "httpssss://blahblah   blaisnotanurl\n", &options{})
 			// Returns no error and changed = true so the user is forced to run the List to get results
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(Equal("parse \"httpssss://blahblah   blaisnotanurl\\n\": net/url: invalid control character in URL"))

@@ -136,7 +136,8 @@ func (r *BundleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=bundles/finalizers,verbs=update
 
 // Reconcile creates bundle deployments for a bundle
-// nolint:gocyclo
+//
+//nolint:gocyclo
 func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx).WithName("bundle")
 	ctx = log.IntoContext(ctx, logger)

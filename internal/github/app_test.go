@@ -47,7 +47,7 @@ func (f *fakeRT) RoundTrip(_ *http.Request) (*http.Response, error) {
 
 	body := `{"token":"abc123","expires_at":"2100-01-01T00:00:00Z"}`
 	return &http.Response{
-		StatusCode: 201,
+		StatusCode: http.StatusCreated,
 		Body:       io.NopCloser(strings.NewReader(body)),
 		Header:     make(http.Header),
 	}, nil

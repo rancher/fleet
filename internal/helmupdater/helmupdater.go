@@ -4,12 +4,13 @@ import (
 	"os"
 	"path/filepath"
 
-	"helm.sh/helm/v3/pkg/action"
-	"helm.sh/helm/v3/pkg/chart/loader"
-	"helm.sh/helm/v3/pkg/cli"
-	"helm.sh/helm/v3/pkg/downloader"
-	"helm.sh/helm/v3/pkg/getter"
-	"helm.sh/helm/v3/pkg/registry"
+	"helm.sh/helm/v4/pkg/action"
+	"helm.sh/helm/v4/pkg/chart"
+	"helm.sh/helm/v4/pkg/chart/v2/loader"
+	"helm.sh/helm/v4/pkg/cli"
+	"helm.sh/helm/v4/pkg/downloader"
+	"helm.sh/helm/v4/pkg/getter"
+	"helm.sh/helm/v4/pkg/registry"
 )
 
 const (
@@ -35,7 +36,12 @@ func UpdateHelmDependencies(path string) error {
 	}
 
 	if req := chartRequested.Metadata.Dependencies; req != nil {
-		if err := action.CheckDependencies(chartRequested, req); err != nil {
+		// Convert []*v2.Dependency to []chart.Dependency
+		deps := make([]chart.Dependency, len(req))
+		for i, d := range req {
+			deps[i] = d
+		}
+		if err := action.CheckDependencies(chartRequested, deps); err != nil {
 			settings := cli.New()
 			registryClient, err := registry.NewClient(
 				registry.ClientOptDebug(settings.Debug),
@@ -54,6 +60,7 @@ func UpdateHelmDependencies(path string) error {
 				Getters:          getter.All(settings),
 				RepositoryConfig: settings.RegistryConfig,
 				RepositoryCache:  settings.RepositoryCache,
+				ContentCache:     settings.ContentCache,
 				Debug:            settings.Debug,
 				RegistryClient:   registryClient,
 			}

@@ -6,13 +6,13 @@ import (
 	"text/template"
 	"text/template/parse"
 
-	"helm.sh/helm/v3/pkg/chart"
+	chartv2 "helm.sh/helm/v4/pkg/chart/v2"
 )
 
 // hasLookupFunction checks if any template in the given Helm chart
 // calls the "lookup" function. It parses the templates to ensure it's a function
 // call and not just the word "lookup" in text or comments.
-func hasLookupFunction(ch *chart.Chart) bool {
+func hasLookupFunction(ch *chartv2.Chart) bool {
 	for _, tpl := range ch.Templates {
 		// Parse the template into an AST.
 		t, err := template.New(
@@ -42,7 +42,7 @@ func hasLookupFunction(ch *chart.Chart) bool {
 
 // containsLookup recursively checks whether a parse.Node (and its children)
 // contains a call to the "lookup" function.
-func containsLookup(node parse.Node) bool { // nolint: gocyclo // recursive logic
+func containsLookup(node parse.Node) bool { //nolint:gocyclo // recursive logic
 	if nodeIsNil(node) {
 		return false
 	}
