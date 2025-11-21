@@ -6,6 +6,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"maps"
@@ -177,7 +178,7 @@ var _ = Describe("Fleet doctor report", func() {
 			foundObjs := []runtime.Object{}
 			for {
 				header, err := tr.Next()
-				if err == io.EOF {
+				if errors.Is(err, io.EOF) {
 					break
 				}
 
@@ -327,7 +328,7 @@ var _ = Describe("Fleet doctor report", func() {
 			foundEventsByNS := map[string][][]byte{}
 			for {
 				header, err := tr.Next()
-				if err == io.EOF {
+				if errors.Is(err, io.EOF) {
 					break
 				}
 

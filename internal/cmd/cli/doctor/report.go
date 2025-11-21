@@ -4,7 +4,6 @@ import (
 	"archive/tar"
 	"compress/gzip"
 	"context"
-	_ "embed"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -306,7 +305,12 @@ func addMetricsToArchive(ctx context.Context, c client.Client, logger logr.Logge
 			return fmt.Errorf("failed to forward ports for fetching metrics: %w", err)
 		}
 
-		resp, err := http.Get(fmt.Sprintf("http://localhost:%d/metrics", extPort+idx))
+		resp, err := http.NewRequestWithContext(
+			ctx,
+			http.MethodGet,
+			fmt.Sprintf("http://localhost:%d/metrics", extPort+idx),
+			nil,
+		)
 		if err != nil {
 			return fmt.Errorf("failed to get response from metrics service: %w", err)
 		}
