@@ -16,6 +16,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/kubectl/pkg/scheme"
+
+	gerrit "github.com/rancher/fleet/pkg/webhook/gerrit"
 )
 
 func TestParseGogs(t *testing.T) {
@@ -1267,6 +1269,207 @@ func TestParseAzureDevops(t *testing.T) {
 					if gotAzure.Resource.RefUpdates[0].NewObjectID != tt.wantRevision {
 						t.Fatalf("parseAzureDevops() got revision %s, want %s", gotAzure.Resource.RefUpdates[0].NewObjectID, tt.wantRevision)
 					}
+				}
+			}
+		})
+	}
+}
+
+func TestParseGerrit(t *testing.T) {
+	utilruntime.Must(corev1.AddToScheme(scheme.Scheme))
+
+	tests := map[string]struct {
+		secretData   map[string][]byte
+		body         []byte
+		headers      map[string]string
+		wantErr      bool
+		wantErrMsg   string
+		wantNilEvent bool
+		wantNewRev   string
+		wantRefName  string
+		wantType     string
+	}{
+		"valid-gerrit-change-merged-event": {
+			secretData: nil,
+			body: []byte(`{
+				"submitter": {
+					"name": "Administrator",
+					"email": "admin@example.com",
+					"username": "admin"
+				},
+				"newRev": "7681a9621922861f727d31fed11baa7dcbc18f89",
+				"patchSet": {
+					"number": 1,
+					"revision": "7681a9621922861f727d31fed11baa7dcbc18f89",
+					"parents": ["1a37d8b3045cdf9e45d5cb79849823609e27d6d0"],
+					"ref": "refs/changes/03/3/1",
+					"uploader": {
+						"name": "Administrator",
+						"email": "admin@example.com",
+						"username": "admin"
+					},
+					"createdOn": 1763201771,
+					"author": {
+						"name": "Administrator",
+						"email": "admin@example.com",
+						"username": "admin"
+					},
+					"kind": "REWORK",
+					"sizeInsertions": 10,
+					"sizeDeletions": 1
+				},
+				"change": {
+					"project": "test-repo",
+					"branch": "main",
+					"id": "I0bdc56353d26d6c113e3f57bd251af398580c698",
+					"number": 3,
+					"subject": "2nd commit",
+					"owner": {
+						"name": "Administrator",
+						"email": "admin@example.com",
+						"username": "admin"
+					},
+					"url": "http://gerrit.example.com/c/test-repo/+/3",
+					"commitMessage": "2nd commit\n\nChange-Id: I0bdc56353d26d6c113e3f57bd251af398580c698\n",
+					"createdOn": 1763201771,
+					"status": "MERGED"
+				},
+				"project": {
+					"name": "test-repo"
+				},
+				"refName": "refs/heads/main",
+				"changeKey": {
+					"key": "I0bdc56353d26d6c113e3f57bd251af398580c698"
+				},
+				"type": "change-merged",
+				"eventCreatedOn": 1763201787
+			}`),
+			headers: map[string]string{
+				"x-origin-url": "http://gerrit.example.com/",
+			},
+			wantErr:      false,
+			wantNilEvent: false,
+			wantNewRev:   "7681a9621922861f727d31fed11baa7dcbc18f89",
+			wantRefName:  "refs/heads/main",
+			wantType:     "change-merged",
+		},
+		"invalid-gerrit-event-type": {
+			secretData: nil,
+			body: []byte(`{
+				"type": "unsupported-event"
+			}`),
+			headers: map[string]string{
+				"x-origin-url": "http://gerrit.example.com/",
+			},
+			wantErr:      true,
+			wantErrMsg:   "event not defined to be parsed",
+			wantNilEvent: true,
+		},
+		"missing-gerrit-event-type": {
+			secretData: nil,
+			body: []byte(`{
+				"newRev": "7681a9621922861f727d31fed11baa7dcbc18f89"
+			}`),
+			headers: map[string]string{
+				"x-origin-url": "http://gerrit.example.com/",
+			},
+			wantErr:      true,
+			wantErrMsg:   "missing type field",
+			wantNilEvent: true,
+		},
+		"invalid-http-method": {
+			secretData: nil,
+			body: []byte(`{
+				"type": "change-merged"
+			}`),
+			headers: map[string]string{
+				"x-origin-url": "http://gerrit.example.com/",
+			},
+			wantErr:      true,
+			wantErrMsg:   "invalid HTTP Method",
+			wantNilEvent: true,
+		},
+		"empty-payload": {
+			secretData: nil,
+			body:       []byte(``),
+			headers: map[string]string{
+				"x-origin-url": "http://gerrit.example.com/",
+			},
+			wantErr:      true,
+			wantErrMsg:   "error parsing payload",
+			wantNilEvent: true,
+		},
+		"malformed-json": {
+			secretData: nil,
+			body:       []byte(`{"invalid json`),
+			headers: map[string]string{
+				"x-origin-url": "http://gerrit.example.com/",
+			},
+			wantErr:      true,
+			wantErrMsg:   "error parsing payload",
+			wantNilEvent: true,
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			var secret *corev1.Secret
+			if tt.secretData != nil {
+				secret = &corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-secret",
+						Namespace: "test-ns",
+					},
+					Data: tt.secretData,
+				}
+			}
+
+			httpMethod := http.MethodPost
+			if tt.wantErrMsg == "invalid HTTP Method" {
+				httpMethod = http.MethodGet
+			}
+
+			req, err := http.NewRequest(httpMethod, "/", bytes.NewReader(tt.body))
+			if err != nil {
+				t.Fatalf("Failed to create HTTP request: %v", err)
+			}
+
+			for k, v := range tt.headers {
+				req.Header.Set(k, v)
+			}
+
+			got, err := parseGerrit(req, secret)
+
+			if tt.wantErr {
+				assert.Error(t, err, tt.wantErrMsg)
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("parseGerrit() error = %v, wantErr %v", err, tt.wantErr)
+			}
+
+			if tt.wantNilEvent {
+				if got != nil {
+					t.Fatalf("parseGerrit() got %v, want nil", got)
+				}
+			} else {
+				if got == nil {
+					t.Fatalf("parseGerrit() got nil, want not nil")
+				}
+				gotGerrit, ok := got.(gerrit.ChangeMergedPayload)
+				if !ok {
+					t.Fatalf("parseGerrit() got %T, want gerrit.ChangeMergedPayload", got)
+				}
+
+				if gotGerrit.NewRev != tt.wantNewRev {
+					t.Fatalf("parseGerrit() got newRev %s, want %s", gotGerrit.NewRev, tt.wantNewRev)
+				}
+				if gotGerrit.RefName != tt.wantRefName {
+					t.Fatalf("parseGerrit() got refName %s, want %s", gotGerrit.RefName, tt.wantRefName)
+				}
+				if gotGerrit.Type != tt.wantType {
+					t.Fatalf("parseGerrit() got type %s, want %s", gotGerrit.Type, tt.wantType)
 				}
 			}
 		})
