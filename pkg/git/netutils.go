@@ -85,7 +85,7 @@ func GetAuthFromSecret(url string, creds *corev1.Secret, knownHosts string) (tra
 
 // GetHTTPClientFromSecret returns a HTTP client filled from the information in the given secret
 // and optional CABundle and insecureTLSVerify
-func GetHTTPClientFromSecret(creds *corev1.Secret, caBundle []byte, insecureTLSVerify bool, timeout time.Duration) (*http.Client, error) {
+func GetHTTPClientFromSecret(creds *corev1.Secret, bundleCA []byte, insecureTLSVerify bool, timeout time.Duration) (*http.Client, error) {
 	var (
 		username  string
 		password  string
@@ -106,8 +106,8 @@ func GetHTTPClientFromSecret(creds *corev1.Secret, caBundle []byte, insecureTLSV
 		}
 	}
 
-	if len(caBundle) > 0 {
-		cert, err := x509.ParseCertificate(caBundle)
+	if len(bundleCA) > 0 {
+		cert, err := x509.ParseCertificate(bundleCA)
 		if err != nil {
 			return nil, err
 		}

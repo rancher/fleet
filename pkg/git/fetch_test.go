@@ -42,7 +42,7 @@ func newTestClient(objs ...client.Object) client.Client {
 		Build()
 }
 
-func newTestGithubServer(refs []string, tlsCfg *tls.Config) *httptest.Server {
+func newTestGithubServer(refs []string, cfgTLS *tls.Config) *httptest.Server {
 	// fake response from github with capabilities
 	header := "001e# service=git-upload-pack\n01552ada7cca738877df8459b3a34839a15e5683edaa HEAD\x00"
 	header += "multi_ack thin-pack side-band side-band-64k ofs-delta shallow deepen-since deepen-not deepen-relative no-progress include-tag multi_ack_detailed allow-tip-sha1-in-want allow-reachable-sha1-in-want no-done symref=HEAD:refs/heads/master filter object-format=sha1 agent=git/github-f133c3a1d7e6\n"
@@ -61,8 +61,8 @@ func newTestGithubServer(refs []string, tlsCfg *tls.Config) *httptest.Server {
 	})
 
 	ts := httptest.NewUnstartedServer(mux)
-	if tlsCfg != nil {
-		ts.TLS = tlsCfg
+	if cfgTLS != nil {
+		ts.TLS = cfgTLS
 		ts.StartTLS()
 	} else {
 		ts.Start()
