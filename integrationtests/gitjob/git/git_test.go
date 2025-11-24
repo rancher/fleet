@@ -98,7 +98,7 @@ var _ = Describe("Git Fetch", func() {
 			ctlr.Finish()
 		})
 
-		It("public repo", func() {
+		It("fetches the latest commit from a public repo", func() {
 			gitrepo := &v1alpha1.GitRepo{
 				Spec: v1alpha1.GitRepoSpec{
 					Repo:   url + "/test/public-repo",
@@ -151,10 +151,10 @@ var _ = Describe("Git Fetch", func() {
 				},
 				Data: map[string][]byte{v1.BasicAuthUsernameKey: []byte(gogsUser), v1.BasicAuthPasswordKey: []byte(gogsPass)},
 				Type: v1.SecretTypeBasicAuth,
-			}
 		}
+	}
 
-		It("public repo", func() {
+		It("fetches the latest commit from a public repo with basic auth", func() {
 			gitrepo := &v1alpha1.GitRepo{
 				Spec: v1alpha1.GitRepoSpec{
 					Repo:   url + "/test/public-repo",
@@ -170,7 +170,7 @@ var _ = Describe("Git Fetch", func() {
 			Expect(latestCommit).To(Equal(latestCommitPublicRepo))
 		})
 
-		It("private repo", func() {
+		It("fetches the latest commit from a private repo with basic auth", func() {
 			gitrepo := &v1alpha1.GitRepo{
 				Spec: v1alpha1.GitRepoSpec{
 					Repo:   url + "/test/private-repo",
@@ -208,7 +208,7 @@ var _ = Describe("Git Fetch", func() {
 			}
 		})
 
-		It("public repo", func() {
+		It("fetches the latest commit from a public repo with SSH", func() {
 			ctx := context.Background()
 			gitrepo := &v1alpha1.GitRepo{
 				Spec: v1alpha1.GitRepoSpec{
@@ -241,7 +241,7 @@ var _ = Describe("Git Fetch", func() {
 			Expect(latestCommit).To(Equal(latestCommitPublicRepo))
 		})
 
-		It("private repo with known hosts", func() {
+		It("fetches the latest commit from a private repo with SSH and known hosts", func() {
 			ctx := context.Background()
 			gitrepo := &v1alpha1.GitRepo{
 				Spec: v1alpha1.GitRepoSpec{
@@ -274,7 +274,7 @@ var _ = Describe("Git Fetch", func() {
 			Expect(latestCommit).To(Equal(latestCommitPrivateRepo))
 		})
 
-		It("private repo without known hosts", func() {
+		It("fails to fetch from a private repo with SSH without known hosts", func() {
 			ctx := context.Background()
 			gitrepo := &v1alpha1.GitRepo{
 				Spec: v1alpha1.GitRepoSpec{
@@ -305,7 +305,7 @@ var _ = Describe("Git Fetch", func() {
 			Expect(latestCommit).To(Equal(latestCommitPrivateRepo))
 		})
 
-		It("private repo with known host with a wrong host url", func() {
+		It("fails to fetch from a private repo with SSH when known host URL is wrong", func() {
 			ctx := context.Background()
 			gitrepo := &v1alpha1.GitRepo{
 				Spec: v1alpha1.GitRepoSpec{
