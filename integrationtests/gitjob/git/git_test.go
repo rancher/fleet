@@ -6,6 +6,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -147,7 +148,7 @@ var _ = Describe("Git Fetch", func() {
 
 				if tc.expectError {
 					Expect(err).To(HaveOccurred())
-					Expect(err).To(MatchError(ContainSubstring(transport.ErrAuthenticationRequired.Error())))
+					Expect(err).To(MatchError(transport.ErrAuthenticationRequired))
 					Expect(latestCommit).To(BeEmpty())
 				} else {
 					Expect(err).NotTo(HaveOccurred())
@@ -300,13 +301,13 @@ var _ = Describe("Git Fetch", func() {
 					},
 					getExpectedCommit: func() string { return latestCommitPrivateRepo },
 				}),
-			Entry("fails to fetch from a private repo with SSH without known hosts",
+			Entry("fetches the latest commit from a private repo with SSH without known hosts",
 				testCase{
 					repoPath:          "/test/private-repo",
 					knownHostsData:    func() []byte { return []byte("") },
 					getExpectedCommit: func() string { return latestCommitPrivateRepo },
 				}),
-			Entry("fails to fetch from a private repo with SSH when known host URL is wrong",
+			Entry("fetches the latest commit from a private repo with SSH when known host URL is wrong",
 				testCase{
 					repoPath: "/test/private-repo",
 					knownHostsData: func() []byte {
@@ -337,7 +338,7 @@ var _ = Describe("Git Fetch", func() {
 			ctlr.Finish()
 		})
 
-		It("revision not found", func() {
+		It("fails to fetch the latest commit for a nonexistent revision", func() {
 			gitrepo := &v1alpha1.GitRepo{
 				Spec: v1alpha1.GitRepoSpec{
 					Repo:     url + "/test/public-repo",
@@ -347,11 +348,11 @@ var _ = Describe("Git Fetch", func() {
 
 			latestCommit, err := f.LatestCommit(ctx, gitrepo, client)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("commit not found for revision: v10.0.0"))
+			Expect(err).To(MatchError(errors.New("commit not found for revision: v10.0.0")))
 			Expect(latestCommit).To(BeEmpty())
 		})
 
-		It("revision is a commit", func() {
+		It("succeeds when the revision is a commit", func() {
 			gitrepo := &v1alpha1.GitRepo{
 				Spec: v1alpha1.GitRepoSpec{
 					Repo:     url + "/test/public-repo",
@@ -364,7 +365,7 @@ var _ = Describe("Git Fetch", func() {
 			Expect(latestCommit).To(Equal("319e76a30f012a760aa7f35d125a4eca8a2c8ba2"))
 		})
 
-		It("revision is a lightweight tag", func() {
+		It("succeeds when the revision is a lightweight tag", func() {
 			tagCommit0, err := addRepoCommitAndTag(url+"/test/public-repo", "public-repo", "v0.0.0", "")
 			Expect(err).NotTo(HaveOccurred())
 
@@ -380,7 +381,7 @@ var _ = Describe("Git Fetch", func() {
 			Expect(latestCommit).To(Equal(tagCommit0))
 		})
 
-		It("revision is an annotated tag", func() {
+		It("succeeds when the revision is an annotated tag", func() {
 			tagCommit1, err := addRepoCommitAndTag(url+"/test/public-repo", "public-repo", "v0.0.1", "Annotated tag v0.0.1")
 			Expect(err).NotTo(HaveOccurred())
 
