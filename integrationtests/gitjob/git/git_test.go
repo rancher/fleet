@@ -77,16 +77,8 @@ var _ = BeforeSuite(func() {
 	container, url, err = createGogsContainer(ctx, tmpDir)
 	Expect(err).NotTo(HaveOccurred())
 
-	// Register cleanup handlers in reverse order (tmpDir last)
-	DeferCleanup(func() {
-		if tmpDir != "" {
-			// Container may create files with different permissions (e.g., Gogs as non-root user).
-			// We attempt cleanup but don't fail the test if we can't delete due to permission issues.
-			// The test container framework will eventually clean up the temp directory.
-			_ = os.RemoveAll(tmpDir)
-		}
-	})
-
+	// Register cleanup handlers that the container terminates first
+	// This ensures the container terminates and releases the bind mount before we try to remove tmpDir
 	DeferCleanup(func() {
 		if container != nil {
 			cleanCtx := context.Background()
@@ -104,6 +96,13 @@ var _ = BeforeSuite(func() {
 			}
 
 			err := container.Terminate(cleanCtx)
+			Expect(err).NotTo(HaveOccurred())
+		}
+	})
+
+	DeferCleanup(func() {
+		if tmpDir != "" {
+			err := os.RemoveAll(tmpDir)
 			Expect(err).NotTo(HaveOccurred())
 		}
 	})
