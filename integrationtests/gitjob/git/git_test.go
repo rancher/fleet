@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -74,18 +75,35 @@ var _ = BeforeSuite(func() {
 
 	container, url, err = createGogsContainer(ctx, tmpDir)
 	Expect(err).NotTo(HaveOccurred())
-})
 
-var _ = AfterSuite(func() {
-	if container != nil {
-		ctx := context.Background()
-		err := container.Terminate(ctx)
-		Expect(err).NotTo(HaveOccurred())
-	}
-	if tmpDir != "" {
-		err := os.RemoveAll(tmpDir)
-		Expect(err).NotTo(HaveOccurred())
-	}
+	// Register cleanup handlers in reverse order (tmpDir last)
+	DeferCleanup(func() {
+		if tmpDir != "" {
+			err := os.RemoveAll(tmpDir)
+			Expect(err).NotTo(HaveOccurred())
+		}
+	})
+
+	DeferCleanup(func() {
+		if container != nil {
+			cleanCtx := context.Background()
+
+			// Gather logs for troubleshooting if test failed
+			if CurrentSpecReport().Failed() {
+				logs, err := container.Logs(cleanCtx)
+				if err == nil {
+					logContent, err := io.ReadAll(logs)
+					if err == nil {
+						GinkgoWriter.Printf("\n=== Container logs for Gogs ===\n%s\n", string(logContent))
+					}
+					_ = logs.Close()
+				}
+			}
+
+			err := container.Terminate(cleanCtx)
+			Expect(err).NotTo(HaveOccurred())
+		}
+	})
 })
 
 var _ = Describe("Git Fetch", func() {
