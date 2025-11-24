@@ -794,8 +794,6 @@ func TestReconcile_DownstreamObjectsHandlingError(t *testing.T) {
 			mockClient := mocks.NewMockK8sClient(mockCtrl)
 			expectGetWithFinalizer(mockClient, bundle)
 
-			expectContentCreationAndUpdate(mockClient)
-
 			// Options secret: deletion attempt in case it exists, as the bundle deployment's values hash is empty
 			mockClient.EXPECT().Delete(gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{}), gomock.Any()).
 				Return(nil)
@@ -1113,12 +1111,4 @@ func expectGetWithFinalizer(mockCli *mocks.MockK8sClient, bundle fleetv1.Bundle)
 			return nil
 		},
 	)
-}
-
-func expectContentCreationAndUpdate(mockCli *mocks.MockK8sClient) {
-	// Get content and update it, adding a finalizer, from createBundleDeployment
-	mockCli.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Content{}), gomock.Any()).
-		Return(nil)
-
-	mockCli.EXPECT().Update(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Content{}), gomock.Any()).Return(nil)
 }

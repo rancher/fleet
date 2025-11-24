@@ -6388,6 +6388,14 @@ spec:
             sha256sum:
               description: SHA256Sum of the Content field
               type: string
+            status:
+              description: ContentStatus defines the observed state of Content
+              properties:
+                referenceCount:
+                  description: ReferenceCount is the number of BundleDeployments that
+                    currently reference this Content resource.
+                  type: integer
+              type: object
           type: object
       served: true
       storage: true

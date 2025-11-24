@@ -27,10 +27,18 @@ type Content struct {
 	// The bundle resources are copied into the bundledeployment's content
 	// resource, so the downstream agent can deploy them.
 	// +nullable
-	Content []byte `json:"content,omitempty"`
+	Content []byte `json:"content,omitempty"` // Content is a byte array, which contains the manifests of a bundle. The bundle resources are copied into the bundledeployment's content resource, so the downstream agent can deploy them.
 
 	// SHA256Sum of the Content field
-	SHA256Sum string `json:"sha256sum,omitempty"`
+	SHA256Sum string        `json:"sha256sum,omitempty"` // SHA256Sum of the Content field
+	Status    ContentStatus `json:"status,omitempty"`    // +optional
+}
+
+// ContentStatus defines the observed state of Content
+type ContentStatus struct {
+	// ReferenceCount is the number of BundleDeployments that currently reference this Content resource.
+	// +optional
+	ReferenceCount int `json:"referenceCount,omitempty"`
 }
 
 // +kubebuilder:object:root=true

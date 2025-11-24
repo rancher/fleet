@@ -8,15 +8,13 @@ func init() {
 	InternalSchemeBuilder.Register(&GitRepo{}, &GitRepoList{})
 }
 
-var (
+const (
 	CommitLabel          = "fleet.cattle.io/commit"
 	RepoLabel            = "fleet.cattle.io/repo-name"
 	BundleLabel          = "fleet.cattle.io/bundle-name"
 	BundleNamespaceLabel = "fleet.cattle.io/bundle-namespace"
 	CreatedByUserIDLabel = "fleet.cattle.io/created-by-user-id"
-)
 
-const (
 	GitRepoAcceptedCondition = "Accepted"
 )
 
