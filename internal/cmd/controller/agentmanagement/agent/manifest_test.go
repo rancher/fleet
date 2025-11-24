@@ -112,6 +112,7 @@ func TestManifestAgentTolerations(t *testing.T) {
 				t.Fatal("there were no deployments returned from the manifests")
 			}
 
+			//nolint:SA5011 // agent is checked for nil above; t.Fatal prevents execution if nil
 			if !cmp.Equal(agent.Spec.Template.Spec.Tolerations, testCase.expectedTolerations, cmpOpt) {
 				t.Fatalf("tolerations were not as expected: %v", agent.Spec.Template.Spec.Tolerations)
 			}
@@ -160,6 +161,7 @@ func TestManifestAgentHostNetwork(t *testing.T) {
 				t.Fatal("there were no deployments returned from the manifests")
 			}
 
+			//nolint:SA5011 // agent is checked for nil above; t.Fatal prevents execution if nil
 			if !cmp.Equal(agent.Spec.Template.Spec.HostNetwork, testCase.expectedNetwork) {
 				t.Fatalf("hostNetwork is not as expected: %v", agent.Spec.Template.Spec.HostNetwork)
 			}
@@ -232,6 +234,7 @@ func TestManifestAgentAffinity(t *testing.T) {
 				t.Fatal("there were no deployments returned from the manifests")
 			}
 
+			//nolint:SA5011 // agent is checked for nil above; t.Fatal prevents execution if nil
 			if !cmp.Equal(agent.Spec.Template.Spec.Affinity, testCase.expectedAffinity) {
 				t.Fatalf("affinity was not as expected: %v %v", testCase.expectedAffinity, agent.Spec.Template.Spec.Affinity)
 			}

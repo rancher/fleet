@@ -205,11 +205,12 @@ func TestGetRancherCABundle(t *testing.T) {
 			tc.secretGets(mockClient)
 
 			bundle, err := cert.GetRancherCABundle(context.Background(), mockClient)
-			if tc.expectedErr == nil && err != nil {
+			switch {
+			case tc.expectedErr == nil && err != nil:
 				t.Errorf("expected nil error, got %q", err.Error())
-			} else if tc.expectedErr != nil && err == nil {
+			case tc.expectedErr != nil && err == nil:
 				t.Errorf("expected error %q, got nil", tc.expectedErr.Error())
-			} else if err != nil && tc.expectedErr != nil && err.Error() != tc.expectedErr.Error() {
+			case err != nil && tc.expectedErr != nil && err.Error() != tc.expectedErr.Error():
 				t.Errorf("expected %q, got %q", tc.expectedErr.Error(), err.Error())
 			}
 

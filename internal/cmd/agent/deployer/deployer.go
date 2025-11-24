@@ -121,7 +121,8 @@ func (d *Deployer) helmdeploy(ctx context.Context, logger logr.Logger, bd *fleet
 		m   *manifest.Manifest
 		err error
 	)
-	if bd.Spec.OCIContents {
+	switch {
+	case bd.Spec.OCIContents:
 		oci := ocistorage.NewOCIWrapper()
 		secretID := client.ObjectKey{Name: manifestID, Namespace: bd.Namespace}
 		opts, err := ocistorage.ReadOptsFromSecret(ctx, d.upstreamClient, secretID)
@@ -142,12 +143,12 @@ func (d *Deployer) helmdeploy(ctx context.Context, logger logr.Logger, bd *fleet
 		if actualID != manifestID {
 			return "", fmt.Errorf("invalid or corrupt manifest. Expecting id: %q, got %q", manifestID, actualID)
 		}
-	} else if bd.Spec.HelmChartOptions != nil {
+	case bd.Spec.HelmChartOptions != nil:
 		m, err = bundlereader.GetManifestFromHelmChart(ctx, d.upstreamClient, bd)
 		if err != nil {
 			return "", err
 		}
-	} else {
+	default:
 		m, err = d.lookup.Get(ctx, d.upstreamClient, manifestID)
 		if err != nil {
 			return "", err

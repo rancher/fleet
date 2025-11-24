@@ -584,10 +584,8 @@ func TestGetContent(t *testing.T) {
 			files, err := bundlereader.GetContent(context.Background(), root, c.source, "", c.auth, false, ignoreApplyConfigs)
 			if c.expectedErr == nil {
 				require.NoError(t, err)
-			} else {
-				if !c.expectedErr.Match([]byte(err.Error())) {
-					assert.Failf(t, "expected error to match", "expected: %s, got: %s", c.expectedErr.String(), err.Error())
-				}
+			} else if !c.expectedErr.Match([]byte(err.Error())) {
+				assert.Failf(t, "expected error to match", "expected: %s, got: %s", c.expectedErr.String(), err.Error())
 			}
 
 			assert.Len(t, files, len(c.expectedFiles))

@@ -63,9 +63,7 @@ var _ = Describe("UserID logging", func() {
 		})
 
 		It("logs userID in reconciliation", func() {
-			Eventually(func() string {
-				return logsBuffer.String()
-			}).Should(ContainSubstring(bd.Name))
+			Eventually(logsBuffer.String).Should(ContainSubstring(bd.Name))
 
 			logs := logsBuffer.String()
 			bdLogs := utils.ExtractResourceLogs(logs, bd.Name)
@@ -117,9 +115,7 @@ var _ = Describe("UserID logging", func() {
 		})
 
 		It("does not log userID in reconciliation", func() {
-			Eventually(func() string {
-				return logsBuffer.String()
-			}).Should(ContainSubstring(bd.Name))
+			Eventually(logsBuffer.String).Should(ContainSubstring(bd.Name))
 
 			logs := logsBuffer.String()
 			bdLogs := utils.ExtractResourceLogs(logs, bd.Name)
