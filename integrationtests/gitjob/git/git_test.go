@@ -455,9 +455,15 @@ func createGogsContainer(ctx context.Context, tmpDir string) (testcontainers.Con
 	if err != nil {
 		return nil, "", err
 	}
+	if latestCommitPublicRepo == "" {
+		return nil, "", fmt.Errorf("latestCommitPublicRepo is empty after initRepo")
+	}
 	latestCommitPrivateRepo, err = initRepo(url, "private-repo", true)
 	if err != nil {
 		return nil, "", err
+	}
+	if latestCommitPrivateRepo == "" {
+		return nil, "", fmt.Errorf("latestCommitPrivateRepo is empty after initRepo")
 	}
 
 	return container, url, nil
