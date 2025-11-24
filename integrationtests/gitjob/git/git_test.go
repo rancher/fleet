@@ -63,12 +63,13 @@ var (
 	latestCommitPrivateRepo string
 	url                     string
 	container               testcontainers.Container
+	tmpDir                  string
 )
 
 var _ = BeforeSuite(func() {
 	ctx := context.Background()
 	var err error
-	tmpDir, err := os.MkdirTemp("", "gogs")
+	tmpDir, err = os.MkdirTemp("", "gogs")
 	Expect(err).NotTo(HaveOccurred())
 
 	container, url, err = createGogsContainer(ctx, tmpDir)
@@ -79,6 +80,10 @@ var _ = AfterSuite(func() {
 	if container != nil {
 		ctx := context.Background()
 		err := container.Terminate(ctx)
+		Expect(err).NotTo(HaveOccurred())
+	}
+	if tmpDir != "" {
+		err := os.RemoveAll(tmpDir)
 		Expect(err).NotTo(HaveOccurred())
 	}
 })
