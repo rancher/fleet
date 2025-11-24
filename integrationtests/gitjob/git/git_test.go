@@ -198,7 +198,7 @@ var _ = Describe("Git Fetch", func() {
 			sshPort = port.Port()
 		})
 
-		// Set up SSH key once per describe block
+		// Set up SSH key once by checking if it's already initialized
 		BeforeEach(func() {
 			// Only create and add keys once
 			if privateKey == "" {
