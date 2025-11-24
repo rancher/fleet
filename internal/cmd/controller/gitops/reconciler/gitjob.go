@@ -642,7 +642,7 @@ func readIntEnvVar(logger logr.Logger, getter func() (int, error), envVarName st
 func argsAndEnvs(
 	gitrepo *v1alpha1.GitRepo,
 	logger logr.Logger,
-	caCertsPathOverride string,
+	pathOverrideCACerts string,
 	knownHosts KnownHostsGetter,
 	drivenScanSeparator string,
 	helmInsecureSkipTLS bool,
@@ -732,7 +732,7 @@ func argsAndEnvs(
 			"/etc/fleet/helm/ssh-privatekey",
 		}
 
-		if caCertsPathOverride == "" {
+		if pathOverrideCACerts == "" {
 			helmArgs = append(helmArgs,
 				"--cacerts-file",
 				"/etc/fleet/helm/cacerts",
@@ -760,10 +760,10 @@ func argsAndEnvs(
 			})
 	}
 
-	if caCertsPathOverride != "" {
+	if pathOverrideCACerts != "" {
 		helmArgs := []string{
 			"--cacerts-file",
-			caCertsPathOverride,
+			pathOverrideCACerts,
 		}
 		if gitrepo.Spec.HelmRepoURLRegex != "" {
 			helmArgs = append(helmArgs, "--helm-repo-url-regex", gitrepo.Spec.HelmRepoURLRegex)
