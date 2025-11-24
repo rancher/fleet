@@ -131,7 +131,7 @@ var _ = Describe("Git Fetch", func() {
 				Return(apierrors.NewNotFound(schema.GroupResource{}, "notfound")).AnyTimes()
 			latestCommit, err := f.LatestCommit(ctx, gitrepo, client)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring(transport.ErrAuthenticationRequired.Error()))
+			Expect(err).To(MatchError(ContainSubstring(transport.ErrAuthenticationRequired.Error())))
 			Expect(latestCommit).To(BeEmpty())
 		})
 	})
