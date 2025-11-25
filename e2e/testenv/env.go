@@ -17,6 +17,19 @@ const (
 	Timeout       = 5 * time.Minute
 	ShortTimeout  = "5s"
 	MediumTimeout = "120s"
+
+	// LongTimeout is an extended timeout for slower CI environments
+	LongTimeout = 10 * time.Minute
+	// VeryLongTimeout is a very long timeout for slower CI environments
+	VeryLongTimeout = 15 * time.Minute
+
+	// PollingInterval is the polling interval for Eventually assertions
+	PollingInterval = 2 * time.Second
+	// LongPollingInterval is a longer polling interval for Eventually assertions
+	LongPollingInterval = 5 * time.Second
+
+	// PodReadyTimeout is the timeout for waiting for pods to become ready in infrastructure setup
+	PodReadyTimeout = "120s"
 )
 
 type Env struct {

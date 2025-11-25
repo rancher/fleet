@@ -349,7 +349,7 @@ func waitForPodReady(k kubectl.Command, appName string) {
 			"wait",
 			"--for=condition=Ready",
 			"pod",
-			"--timeout=30s",
+			fmt.Sprintf("--timeout=%s", testenv.PodReadyTimeout),
 			"-l",
 			fmt.Sprintf("app=%s", appName),
 		)
