@@ -29,6 +29,25 @@ func parseTerminatedState(jsonOutput string) (*containerLastTerminatedState, err
 	return &state, nil
 }
 
+// waitForPodReadyAndKill waits for a pod matching the given label selector to be ready,
+// then sends SIGTERM to it.
+func waitForPodReadyAndKill(k kubectl.Command, labels string) {
+	// Wait for pod to exist and be ready before sending SIGTERM
+	Eventually(func(g Gomega) {
+		pods, err := k.Get("pod", "-l", labels, "-o", "jsonpath={.items[*].status.phase}")
+		g.Expect(err).ToNot(HaveOccurred(), "pods should exist")
+		g.Expect(pods).To(ContainSubstring("Running"), "at least one pod should be running")
+	}).Should(Succeed())
+
+	Eventually(func(g Gomega) {
+		pod, err := k.Get("pod", "-l", labels, "-o", "jsonpath={.items[0].metadata.name}")
+		g.Expect(err).ToNot(HaveOccurred(), pod)
+
+		out, err := k.Run("exec", pod, "--", "kill", "1")
+		g.Expect(err).ToNot(HaveOccurred(), out)
+	}).Should(Succeed())
+}
+
 var _ = Describe("Shuts down gracefully", func() {
 	var (
 		k      kubectl.Command
@@ -83,20 +102,7 @@ var _ = Describe("Shuts down gracefully", func() {
 		})
 
 		JustBeforeEach(func() {
-			// Wait for pod to exist and be ready before sending SIGTERM
-			Eventually(func(g Gomega) {
-				pods, err := k.Get("pod", "-l", labels, "-o", "jsonpath={.items[*].status.phase}")
-				g.Expect(err).ToNot(HaveOccurred(), "pods should exist")
-				g.Expect(pods).To(ContainSubstring("Running"), "at least one pod should be running")
-			}).Should(Succeed())
-
-			Eventually(func(g Gomega) {
-				pod, err := k.Get("pod", "-l", labels, "-o", "jsonpath={.items[0].metadata.name}")
-				g.Expect(err).ToNot(HaveOccurred(), pod)
-
-				out, err := k.Run("exec", pod, "--", "kill", "1")
-				g.Expect(err).ToNot(HaveOccurred(), out)
-			}).Should(Succeed())
+			waitForPodReadyAndKill(k, labels)
 		})
 
 		It("exits gracefully", func() {
@@ -126,20 +132,7 @@ var _ = Describe("Shuts down gracefully", func() {
 		})
 
 		JustBeforeEach(func() {
-			// Wait for pod to exist and be ready before sending SIGTERM
-			Eventually(func(g Gomega) {
-				pods, err := k.Get("pod", "-l", labels, "-o", "jsonpath={.items[*].status.phase}")
-				g.Expect(err).ToNot(HaveOccurred(), "pods should exist")
-				g.Expect(pods).To(ContainSubstring("Running"), "at least one pod should be running")
-			}).Should(Succeed())
-
-			Eventually(func(g Gomega) {
-				pod, err := k.Get("pod", "-l", labels, "-o", "jsonpath={.items[0].metadata.name}")
-				g.Expect(err).ToNot(HaveOccurred(), pod)
-
-				out, err := k.Run("exec", pod, "--", "kill", "1")
-				g.Expect(err).ToNot(HaveOccurred(), out)
-			}).Should(Succeed())
+			waitForPodReadyAndKill(k, labels)
 		})
 
 		It("exits gracefully", func() {
@@ -169,20 +162,7 @@ var _ = Describe("Shuts down gracefully", func() {
 		})
 
 		JustBeforeEach(func() {
-			// Wait for pod to exist and be ready before sending SIGTERM
-			Eventually(func(g Gomega) {
-				pods, err := k.Get("pod", "-l", labels, "-o", "jsonpath={.items[*].status.phase}")
-				g.Expect(err).ToNot(HaveOccurred(), "pods should exist")
-				g.Expect(pods).To(ContainSubstring("Running"), "at least one pod should be running")
-			}).Should(Succeed())
-
-			Eventually(func(g Gomega) {
-				pod, err := k.Get("pod", "-l", labels, "-o", "jsonpath={.items[0].metadata.name}")
-				g.Expect(err).ToNot(HaveOccurred(), pod)
-
-				out, err := k.Run("exec", pod, "--", "kill", "1")
-				g.Expect(err).ToNot(HaveOccurred(), out)
-			}).Should(Succeed())
+			waitForPodReadyAndKill(k, labels)
 		})
 
 		It("exits gracefully", func() {
