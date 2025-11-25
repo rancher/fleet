@@ -1,15 +1,28 @@
 package manageagent
 
 import (
+	"encoding/json"
+	"os"
+	"strings"
 	"testing"
 
+	"reflect"
+
 	"github.com/rancher/wrangler/v3/pkg/generic/fake"
+	"github.com/rancher/wrangler/v3/pkg/schemes"
 	"go.uber.org/mock/gomock"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/ptr"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	appsv1 "k8s.io/api/apps/v1"
+	networkv1 "k8s.io/api/networking/v1"
+	"sigs.k8s.io/yaml"
+
+	"github.com/rancher/fleet/internal/config"
 )
 
 func TestOnClusterChangeAffinity(t *testing.T) {
@@ -104,6 +117,94 @@ func TestOnClusterChangeAffinity(t *testing.T) {
 				t.Fatalf("agent affinity hash is not equal: %v vs %v", status.AgentAffinityHash, tt.expectedStatus.AgentAffinityHash)
 			}
 		})
+	}
+}
+
+func TestNewAgentBundle_SortsAgentTolerations(t *testing.T) {
+	// make sure config is set for newAgentBundle
+	config.Set(config.DefaultConfig())
+
+	checkRegisterAddToScheme(t, appsv1.AddToScheme)
+	checkRegisterAddToScheme(t, networkv1.AddToScheme)
+
+	h := &handler{systemNamespace: "fleet-system"}
+
+	unsorted := []corev1.Toleration{
+		{Key: "b", Value: "2", Operator: corev1.TolerationOpExists, Effect: corev1.TaintEffectNoExecute},
+		{Key: "a", Value: "1", Operator: corev1.TolerationOpEqual, Effect: corev1.TaintEffectNoSchedule},
+		{Key: "a", Value: "1", Operator: corev1.TolerationOpExists, Effect: corev1.TaintEffectNoSchedule},
+		{Key: "a", Value: "0", Operator: corev1.TolerationOpEqual, Effect: corev1.TaintEffectNoExecute},
+	}
+
+	cluster := &fleet.Cluster{ObjectMeta: metav1.ObjectMeta{Name: "c1"}, Spec: fleet.ClusterSpec{AgentTolerations: unsorted}}
+
+	wantUser := []corev1.Toleration{
+		{Key: "a", Value: "0", Operator: corev1.TolerationOpEqual, Effect: corev1.TaintEffectNoExecute},
+		{Key: "a", Value: "1", Operator: corev1.TolerationOpEqual, Effect: corev1.TaintEffectNoSchedule},
+		{Key: "a", Value: "1", Operator: corev1.TolerationOpExists, Effect: corev1.TaintEffectNoSchedule},
+		{Key: "b", Value: "2", Operator: corev1.TolerationOpExists, Effect: corev1.TaintEffectNoExecute},
+	}
+
+	// ensure leader election env is set so NewLeaderElectionOptionsWithPrefix doesn't error
+	os.Setenv("FLEET_AGENT_ELECTION_LEASE_DURATION", "15s")
+	os.Setenv("FLEET_AGENT_ELECTION_RENEW_DEADLINE", "10s")
+	os.Setenv("FLEET_AGENT_ELECTION_RETRY_PERIOD", "2s")
+	defer func() {
+		os.Unsetenv("FLEET_AGENT_ELECTION_LEASE_DURATION")
+		os.Unsetenv("FLEET_AGENT_ELECTION_RENEW_DEADLINE")
+		os.Unsetenv("FLEET_AGENT_ELECTION_RETRY_PERIOD")
+	}()
+
+	obj, err := h.newAgentBundle("ns", cluster)
+	if err != nil {
+		t.Fatalf("unexpected error from newAgentBundle: %v", err)
+	}
+
+	b, ok := obj.(*fleet.Bundle)
+	if !ok {
+		t.Fatalf("expected bundle object, got %#v", obj)
+	}
+
+	if len(b.Spec.Resources) == 0 {
+		t.Fatalf("bundle resources empty")
+	}
+
+	content := b.Spec.Resources[0].Content
+	docs := strings.Split(content, "\n---\n")
+
+	var found bool
+	for _, d := range docs {
+		var m map[string]interface{}
+		if err := yaml.Unmarshal([]byte(d), &m); err != nil {
+			continue
+		}
+		if kind, _ := m["kind"].(string); kind == "Deployment" {
+			js, err := yaml.YAMLToJSON([]byte(d))
+			if err != nil {
+				t.Fatalf("failed to convert YAML to JSON: %v", err)
+			}
+			var dep appsv1.Deployment
+			if err := json.Unmarshal(js, &dep); err != nil {
+				t.Fatalf("failed to unmarshal deployment json: %v", err)
+			}
+
+			wantFinal := []corev1.Toleration{
+				{Key: "node.cloudprovider.kubernetes.io/uninitialized", Operator: corev1.TolerationOpEqual, Value: "true", Effect: corev1.TaintEffectNoSchedule},
+				{Key: "cattle.io/os", Operator: corev1.TolerationOpEqual, Value: "linux", Effect: corev1.TaintEffectNoSchedule},
+			}
+			wantFinal = append(wantFinal, wantUser...)
+
+			if !reflect.DeepEqual(dep.Spec.Template.Spec.Tolerations, wantFinal) {
+				t.Fatalf("deployment tolerations mismatch:\n got: %#v\n want: %#v", dep.Spec.Template.Spec.Tolerations, wantFinal)
+			}
+
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		t.Fatalf("no Deployment found in bundle yaml")
 	}
 }
 
@@ -326,5 +427,113 @@ func TestOnClusterChangeHostNetwork(t *testing.T) {
 				t.Fatalf("agent hostStatus is not equal: %v vs %v", status.AgentHostNetwork, tt.expectedStatus.AgentHostNetwork)
 			}
 		})
+	}
+}
+
+// Table-driven tests covering all comparator fields used by sortTolerations
+func TestSortTolerations(t *testing.T) {
+	five := int64(5)
+	ten := int64(10)
+
+	tests := []struct {
+		name string
+		in   []corev1.Toleration
+		want []corev1.Toleration
+	}{
+		{
+			name: "basic ordering",
+			in: []corev1.Toleration{
+				{Key: "b", Value: "2", Operator: corev1.TolerationOpExists, Effect: corev1.TaintEffectNoExecute},
+				{Key: "a", Value: "1", Operator: corev1.TolerationOpEqual, Effect: corev1.TaintEffectNoSchedule},
+				{Key: "a", Value: "1", Operator: corev1.TolerationOpExists, Effect: corev1.TaintEffectNoSchedule},
+				{Key: "a", Value: "0", Operator: corev1.TolerationOpEqual, Effect: corev1.TaintEffectNoExecute},
+			},
+			want: []corev1.Toleration{
+				{Key: "a", Value: "0", Operator: corev1.TolerationOpEqual, Effect: corev1.TaintEffectNoExecute},
+				{Key: "a", Value: "1", Operator: corev1.TolerationOpEqual, Effect: corev1.TaintEffectNoSchedule},
+				{Key: "a", Value: "1", Operator: corev1.TolerationOpExists, Effect: corev1.TaintEffectNoSchedule},
+				{Key: "b", Value: "2", Operator: corev1.TolerationOpExists, Effect: corev1.TaintEffectNoExecute},
+			},
+		},
+		{
+			name: "toleration seconds nil first",
+			in: []corev1.Toleration{
+				{Key: "k", Value: "v", Operator: corev1.TolerationOpEqual, Effect: corev1.TaintEffectNoSchedule, TolerationSeconds: &ten},
+				{Key: "k", Value: "v", Operator: corev1.TolerationOpEqual, Effect: corev1.TaintEffectNoSchedule}, // nil
+				{Key: "k", Value: "v", Operator: corev1.TolerationOpEqual, Effect: corev1.TaintEffectNoSchedule, TolerationSeconds: &five},
+			},
+			want: []corev1.Toleration{
+				{Key: "k", Value: "v", Operator: corev1.TolerationOpEqual, Effect: corev1.TaintEffectNoSchedule},
+				{Key: "k", Value: "v", Operator: corev1.TolerationOpEqual, Effect: corev1.TaintEffectNoSchedule, TolerationSeconds: &five},
+				{Key: "k", Value: "v", Operator: corev1.TolerationOpEqual, Effect: corev1.TaintEffectNoSchedule, TolerationSeconds: &ten},
+			},
+		},
+		{
+			name: "key ordering",
+			in: []corev1.Toleration{
+				{Key: "z", Value: "x", Operator: corev1.TolerationOpEqual, Effect: corev1.TaintEffectNoSchedule},
+				{Key: "a", Value: "x", Operator: corev1.TolerationOpEqual, Effect: corev1.TaintEffectNoSchedule},
+			},
+			want: []corev1.Toleration{
+				{Key: "a", Value: "x", Operator: corev1.TolerationOpEqual, Effect: corev1.TaintEffectNoSchedule},
+				{Key: "z", Value: "x", Operator: corev1.TolerationOpEqual, Effect: corev1.TaintEffectNoSchedule},
+			},
+		},
+		{
+			name: "value ordering",
+			in: []corev1.Toleration{
+				{Key: "k", Value: "z", Operator: corev1.TolerationOpEqual, Effect: corev1.TaintEffectNoSchedule},
+				{Key: "k", Value: "a", Operator: corev1.TolerationOpEqual, Effect: corev1.TaintEffectNoSchedule},
+			},
+			want: []corev1.Toleration{
+				{Key: "k", Value: "a", Operator: corev1.TolerationOpEqual, Effect: corev1.TaintEffectNoSchedule},
+				{Key: "k", Value: "z", Operator: corev1.TolerationOpEqual, Effect: corev1.TaintEffectNoSchedule},
+			},
+		},
+		{
+			name: "operator ordering",
+			in: []corev1.Toleration{
+				{Key: "k", Value: "v", Operator: "", Effect: corev1.TaintEffectNoSchedule},
+				{Key: "k", Value: "v", Operator: corev1.TolerationOpExists, Effect: corev1.TaintEffectNoSchedule},
+				{Key: "k", Value: "v", Operator: corev1.TolerationOpEqual, Effect: corev1.TaintEffectNoSchedule},
+			},
+			want: []corev1.Toleration{
+				{Key: "k", Value: "v", Operator: "", Effect: corev1.TaintEffectNoSchedule},
+				{Key: "k", Value: "v", Operator: corev1.TolerationOpEqual, Effect: corev1.TaintEffectNoSchedule},
+				{Key: "k", Value: "v", Operator: corev1.TolerationOpExists, Effect: corev1.TaintEffectNoSchedule},
+			},
+		},
+		{
+			name: "effect ordering",
+			in: []corev1.Toleration{
+				{Key: "k", Value: "v", Operator: corev1.TolerationOpEqual, Effect: corev1.TaintEffectNoSchedule},
+				{Key: "k", Value: "v", Operator: corev1.TolerationOpEqual, Effect: corev1.TaintEffectNoExecute},
+				{Key: "k", Value: "v", Operator: corev1.TolerationOpEqual, Effect: corev1.TaintEffectPreferNoSchedule},
+			},
+			want: []corev1.Toleration{
+				{Key: "k", Value: "v", Operator: corev1.TolerationOpEqual, Effect: corev1.TaintEffectNoExecute},
+				{Key: "k", Value: "v", Operator: corev1.TolerationOpEqual, Effect: corev1.TaintEffectNoSchedule},
+				{Key: "k", Value: "v", Operator: corev1.TolerationOpEqual, Effect: corev1.TaintEffectPreferNoSchedule},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			inCopy := make([]corev1.Toleration, len(tt.in))
+			copy(inCopy, tt.in)
+			sortTolerations(inCopy)
+			if !reflect.DeepEqual(inCopy, tt.want) {
+				t.Fatalf("%s: got:\n%#v\nwant:\n%#v", tt.name, inCopy, tt.want)
+			}
+		})
+	}
+}
+
+func checkRegisterAddToScheme(t *testing.T, f func(*runtime.Scheme) error) {
+	t.Helper()
+	err := schemes.Register(f)
+	if err != nil {
+		t.Fatalf("failed to add to scheme: %v", err)
 	}
 }
