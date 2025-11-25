@@ -48,7 +48,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go v0.38.0
 	go.uber.org/mock v0.6.0
-	go.uber.org/zap v1.27.0
+	go.uber.org/zap v1.27.1
 	golang.org/x/crypto v0.43.0
 	golang.org/x/sync v0.18.0
 	gonum.org/v1/gonum v0.16.0
