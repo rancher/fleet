@@ -5,6 +5,21 @@ on:
   schedule:
     # Run everyday day at 7:00 AM
     - cron: '0 7 * * *'
+  workflow_dispatch:
+    inputs:
+      k3s_version:
+        description: 'K3s version to test (e.g., v1.34.1-k3s1)'
+        required: false
+        default: 'v1.34.1-k3s1'
+      test_type:
+        description: 'Test type to run'
+        required: false
+        default: 'e2e-nosecrets'
+        type: choice
+        options:
+          - acceptance
+          - e2e-secrets
+          - e2e-nosecrets
 
 env:
   GOARCH: amd64
@@ -20,12 +35,15 @@ jobs:
         k3s_version:
           # k3d version list k3s | sed 's/+/-/' | sort -h
           # https://hub.docker.com/r/rancher/k3s/tags
-          - v1.34.1-k3s1
-          - v1.33.5-k3s1
+          - ${{ github.event.inputs.k3s_version || 'v1.34.1-k3s1' }}
+          - ${{ github.event_name == 'schedule' && 'v1.33.5-k3s1' || '' }}
         test_type:
-          - acceptance
-          - e2e-secrets
-          - e2e-nosecrets
+          - ${{ github.event.inputs.test_type || 'acceptance' }}
+          - ${{ github.event_name == 'schedule' && 'e2e-secrets' || '' }}
+          - ${{ github.event_name == 'schedule' && 'e2e-nosecrets' || '' }}
+        exclude:
+          - k3s_version: ''
+          - test_type: ''
     steps:
       -
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
