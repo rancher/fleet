@@ -102,8 +102,21 @@ var _ = BeforeSuite(func() {
 
 	DeferCleanup(func() {
 		if tmpDir != "" {
-			err := os.RemoveAll(tmpDir)
-			Expect(err).NotTo(HaveOccurred())
+			// Attempt to fix permissions recursively. In some CI environments with
+			// user namespace remapping, files created by the container may be owned
+			// by a different UID, but we can still chmod them if we have access.
+			_ = filepath.WalkDir(tmpDir, func(path string, d os.DirEntry, err error) error {
+				if err != nil {
+					return nil // Skip paths we can't access
+				}
+				_ = os.Chmod(path, 0700)
+				return nil
+			})
+
+			// Attempt cleanup - may still fail in some CI environments
+			if err := os.RemoveAll(tmpDir); err != nil {
+				GinkgoWriter.Printf("Warning: failed to remove tmpDir %s: %v\n", tmpDir, err)
+			}
 		}
 	})
 })
