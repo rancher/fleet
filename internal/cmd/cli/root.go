@@ -30,7 +30,7 @@ func App() *cobra.Command {
 		NewDeploy(),
 		gitcloner.NewCmd(gitcloner.New()),
 
-		NewDoctor(),
+		NewDump(),
 	)
 
 	return root

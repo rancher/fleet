@@ -10,12 +10,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	command "github.com/rancher/fleet/internal/cmd"
-	"github.com/rancher/fleet/internal/cmd/cli/doctor"
+	"github.com/rancher/fleet/internal/cmd/cli/dump"
 )
 
 /*
 Highest priority:
-fleet doctor report
+fleet dump report
 	* dump GitRepos, HelmOps, bundles, bundle deployments (option to include secrets?)
 	* content resources
 	* clusters and cluster groups
@@ -24,7 +24,7 @@ fleet doctor report
 	* metrics
 
 Then:
-fleet doctor check
+fleet dump check
 	* errors in statuses
 	* missing secrets (helm, git, options, OCI access)
 	* controller logs
@@ -32,20 +32,20 @@ fleet doctor check
 	* bundles not targeting any cluster
 */
 
-// NewDoctor returns a subcommand to troubleshoot Fleet's state
-func NewDoctor() *cobra.Command {
-	return command.Command(&Doctor{}, cobra.Command{
-		Use:   "doctor [flags]",
-		Short: "Dump state of Fleet-managed resources into an archive",
+// NewDump returns a subcommand to dump Fleet's state
+func NewDump() *cobra.Command {
+	return command.Command(&Dump{}, cobra.Command{
+		Use:   "dump [flags]",
+		Short: "Dump state of upstream Fleet-managed resources into an archive",
 	})
 }
 
-type Doctor struct {
+type Dump struct {
 	FleetClient
 	DumpPath string `usage:"Destination path for the dump" short:"p"`
 }
 
-func (d *Doctor) PersistentPre(_ *cobra.Command, _ []string) error {
+func (d *Dump) PersistentPre(_ *cobra.Command, _ []string) error {
 	if err := d.SetupDebug(); err != nil {
 		return fmt.Errorf("failed to set up debug logging: %w", err)
 	}
@@ -53,7 +53,7 @@ func (d *Doctor) PersistentPre(_ *cobra.Command, _ []string) error {
 	return nil
 }
 
-func (d *Doctor) Run(cmd *cobra.Command, args []string) error {
+func (d *Dump) Run(cmd *cobra.Command, args []string) error {
 	cfg, err := ctrl.GetConfig()
 	if err != nil {
 		return fmt.Errorf("failed to get k8s config: %w", err)
@@ -69,5 +69,5 @@ func (d *Doctor) Run(cmd *cobra.Command, args []string) error {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zopts)))
 	ctx := log.IntoContext(cmd.Context(), ctrl.Log)
 
-	return doctor.CreateReport(ctx, cfg, d.DumpPath)
+	return dump.Create(ctx, cfg, d.DumpPath)
 }

@@ -1,4 +1,4 @@
-package doctor
+package dump
 
 import (
 	"archive/tar"
@@ -27,7 +27,7 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
-var _ = Describe("Fleet doctor report", func() {
+var _ = Describe("Fleet dump", func() {
 	var (
 		objs       []client.Object
 		namespaces []string
@@ -131,7 +131,7 @@ var _ = Describe("Fleet doctor report", func() {
 		It("returns an archive containing all of these resources", func() {
 			tgzPath := "test.tgz"
 
-			err := fleetDoctor(tgzPath)
+			err := fleetDump(tgzPath)
 			Expect(err).ToNot(HaveOccurred())
 
 			defer func() {
@@ -282,7 +282,7 @@ var _ = Describe("Fleet doctor report", func() {
 				}
 			}
 
-			err := fleetDoctor(tgzPath)
+			err := fleetDump(tgzPath)
 			Expect(err).ToNot(HaveOccurred())
 
 			defer func() {

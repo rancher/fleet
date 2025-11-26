@@ -1,4 +1,4 @@
-package doctor
+package dump
 
 import (
 	"context"
@@ -48,7 +48,7 @@ func Test_getNamespaces(t *testing.T) {
 
 	fakeDynClient := fake.NewSimpleDynamicClient(scheme, objs...)
 	ctx := context.Background()
-	logger := log.FromContext(ctx).WithName("test-fleet-doctor-report")
+	logger := log.FromContext(ctx).WithName("test-fleet-dump")
 
 	namespaces, err := getNamespaces(ctx, fakeDynClient, logger)
 
@@ -253,7 +253,7 @@ func Test_addMetrics(t *testing.T) {
 				).
 				AnyTimes()
 
-			logger := log.FromContext(ctx).WithName("test-fleet-doctor-report")
+			logger := log.FromContext(ctx).WithName("test-fleet-dump")
 
 			err := addMetricsToArchive(ctx, mockClient, logger, nil, nil) // cfg and tar writer not needed for basic failure cases
 

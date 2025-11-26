@@ -12,18 +12,18 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/rancher/fleet/internal/cmd/cli/doctor"
+	"github.com/rancher/fleet/internal/cmd/cli/dump"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-var _ = Describe("Fleet doctor report", Label("sharding"), func() {
+var _ = Describe("Fleet dump", Label("sharding"), func() {
 	When("the cluster has Fleet installed with metrics enabled", func() {
 		It("includes metrics into the archive", func() {
 			tgzPath := "test.tgz"
 
-			err := doctor.CreateReport(context.Background(), restConfig, tgzPath)
+			err := dump.Create(context.Background(), restConfig, tgzPath)
 			Expect(err).ToNot(HaveOccurred())
 
 			defer func() {

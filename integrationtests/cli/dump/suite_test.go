@@ -1,11 +1,11 @@
-package doctor
+package dump
 
 import (
 	"context"
 	"testing"
 
 	"github.com/rancher/fleet/integrationtests/utils"
-	"github.com/rancher/fleet/internal/cmd/cli/doctor"
+	"github.com/rancher/fleet/internal/cmd/cli/dump"
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -27,9 +27,9 @@ var (
 	testEnv   *envtest.Environment
 )
 
-func TestFleetDoctor(t *testing.T) {
+func TestFleetDump(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Fleet CLI Doctor Suite")
+	RunSpecs(t, "Fleet CLI Dump Suite")
 }
 
 var _ = BeforeSuite(func() {
@@ -55,7 +55,7 @@ var _ = AfterSuite(func() {
 	Expect(testEnv.Stop()).ToNot(HaveOccurred())
 })
 
-// fleetDoctor simulates fleet cli online execution
-func fleetDoctor(path string) error {
-	return doctor.CreateReport(context.Background(), cfg, path)
+// fleetDump simulates fleet dump CLI online execution
+func fleetDump(path string) error {
+	return dump.Create(context.Background(), cfg, path)
 }

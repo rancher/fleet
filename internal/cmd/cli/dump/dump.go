@@ -1,4 +1,4 @@
-package doctor
+package dump
 
 import (
 	"archive/tar"
@@ -37,7 +37,7 @@ import (
 	"github.com/rancher/fleet/pkg/sharding"
 )
 
-func CreateReport(ctx context.Context, cfg *rest.Config, path string) error {
+func Create(ctx context.Context, cfg *rest.Config, path string) error {
 	c, err := createClient(cfg)
 	if err != nil {
 		return fmt.Errorf("failed to create Kubernetes client: %w", err)
@@ -48,11 +48,11 @@ func CreateReport(ctx context.Context, cfg *rest.Config, path string) error {
 		return fmt.Errorf("failed to create dynamic Kubernetes client: %w", err)
 	}
 
-	return CreateReportWithClients(ctx, cfg, d, c, path)
+	return CreateWithClients(ctx, cfg, d, c, path)
 }
 
-func CreateReportWithClients(ctx context.Context, cfg *rest.Config, d dynamic.Interface, c client.Client, path string) error {
-	logger := log.FromContext(ctx).WithName("fleet-doctor-report")
+func CreateWithClients(ctx context.Context, cfg *rest.Config, d dynamic.Interface, c client.Client, path string) error {
+	logger := log.FromContext(ctx).WithName("fleet-dump")
 	// XXX: be smart about memory management, progressively write data to disk instead of keeping everything in memory?
 
 	tgz, err := os.Create(path)
