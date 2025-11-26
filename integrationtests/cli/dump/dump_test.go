@@ -168,61 +168,45 @@ var _ = Describe("Fleet dump", func() {
 
 				switch kindLow {
 				case "bundles":
-					var b struct {
-						Object fleet.Bundle `json:"object"`
-					}
+					var b fleet.Bundle
 					err = yaml.Unmarshal(content, &b)
 					Expect(err).ToNot(HaveOccurred())
-					foundObjs = append(foundObjs, &b.Object)
+					foundObjs = append(foundObjs, &b)
 				case "bundledeployments":
-					var b struct {
-						Object fleet.BundleDeployment `json:"object"`
-					}
+					var b fleet.BundleDeployment
 					err = yaml.Unmarshal(content, &b)
 					Expect(err).ToNot(HaveOccurred())
-					foundObjs = append(foundObjs, &b.Object)
+					foundObjs = append(foundObjs, &b)
 				case "gitrepos":
-					var b struct {
-						Object fleet.GitRepo `json:"object"`
-					}
+					var b fleet.GitRepo
 					err = yaml.Unmarshal(content, &b)
 					Expect(err).ToNot(HaveOccurred())
-					foundObjs = append(foundObjs, &b.Object)
+					foundObjs = append(foundObjs, &b)
 				case "helmops":
-					var b struct {
-						Object fleet.HelmOp `json:"object"`
-					}
+					var b fleet.HelmOp
 					err = yaml.Unmarshal(content, &b)
 					Expect(err).ToNot(HaveOccurred())
-					foundObjs = append(foundObjs, &b.Object)
+					foundObjs = append(foundObjs, &b)
 				case "bundlenamespacemappings":
-					var b struct {
-						Object fleet.BundleNamespaceMapping `json:"object"`
-					}
+					var b fleet.BundleNamespaceMapping
 					err = yaml.Unmarshal(content, &b)
 					Expect(err).ToNot(HaveOccurred())
-					foundObjs = append(foundObjs, &b.Object)
+					foundObjs = append(foundObjs, &b)
 				case "gitreporestrictions":
-					var b struct {
-						Object fleet.GitRepoRestriction `json:"object"`
-					}
+					var b fleet.GitRepoRestriction
 					err = yaml.Unmarshal(content, &b)
 					Expect(err).ToNot(HaveOccurred())
-					foundObjs = append(foundObjs, &b.Object)
+					foundObjs = append(foundObjs, &b)
 				case "clusters":
-					var b struct {
-						Object fleet.Cluster `json:"object"`
-					}
+					var b fleet.Cluster
 					err = yaml.Unmarshal(content, &b)
 					Expect(err).ToNot(HaveOccurred())
-					foundObjs = append(foundObjs, &b.Object)
+					foundObjs = append(foundObjs, &b)
 				case "clustergroups":
-					var b struct {
-						Object fleet.ClusterGroup `json:"object"`
-					}
+					var b fleet.ClusterGroup
 					err = yaml.Unmarshal(content, &b)
 					Expect(err).ToNot(HaveOccurred())
-					foundObjs = append(foundObjs, &b.Object)
+					foundObjs = append(foundObjs, &b)
 				}
 			}
 
@@ -234,7 +218,7 @@ var _ = Describe("Fleet dump", func() {
 						found = true
 					}
 				}
-				Expect(found).To(BeTrue(), fmt.Sprintf("object %s not found", eo))
+				Expect(found).To(BeTrue(), fmt.Sprintf("object %v not found", eo))
 			}
 		})
 	})

@@ -17,10 +17,10 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/rancher/fleet/internal/config"
-	"gopkg.in/yaml.v2"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/yaml"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
