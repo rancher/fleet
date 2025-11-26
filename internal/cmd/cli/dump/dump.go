@@ -72,7 +72,7 @@ func CreateWithClients(ctx context.Context, cfg *rest.Config, d dynamic.Interfac
 		"gitrepos",
 		"gitreporestrictions",
 		"helmops",
-		//"contents",
+		// "contents",
 	}
 
 	for _, t := range types {
@@ -437,8 +437,10 @@ func forwardPorts(
 	for i < maxAttempts {
 		prefix := fmt.Sprintf("attempt %d: ", i+1)
 
-		r := rand.New(rand.NewSource(time.Now().UnixNano()))
-		port = basePort + r.Intn(57535) // Highest possible port: 65534
+		// Note on the `nolint: gosec` comment below: We are looking for an available port number; this can afford to be
+		// fairly predictable.
+		r := rand.New(rand.NewSource(time.Now().UnixNano())) //nolint: gosec
+		port = basePort + r.Intn(57535)                      // Highest possible port: 65534
 
 		ports := []string{fmt.Sprintf("%d:%d", port, svcPort)}
 		stopChan := make(chan struct{})

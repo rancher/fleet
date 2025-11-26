@@ -13,9 +13,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/rancher/fleet/internal/cmd/cli/dump"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var _ = Describe("Fleet dump", Label("sharding"), func() {
@@ -96,12 +93,3 @@ var _ = Describe("Fleet dump", Label("sharding"), func() {
 		})
 	})
 })
-
-func mustCreateNS(ns string) {
-	toCreate := corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: ns,
-		},
-	}
-	Expect(client.IgnoreAlreadyExists(clientUpstream.Create(context.Background(), &toCreate))).NotTo(HaveOccurred())
-}
