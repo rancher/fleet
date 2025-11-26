@@ -14,16 +14,7 @@ import (
 )
 
 /*
-Highest priority:
-fleet dump report
-	* dump GitRepos, HelmOps, bundles, bundle deployments (option to include secrets?)
-	* content resources
-	* clusters and cluster groups
-	* gitreporestrictions and bundlenamespacemappings
-	* k8s events
-	* metrics
-
-Then:
+Later:
 fleet dump check
 	* errors in statuses
 	* missing secrets (helm, git, options, OCI access)
