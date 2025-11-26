@@ -81,6 +81,8 @@ func Test_addMetrics(t *testing.T) {
 		name       string
 		svcs       []corev1.Service
 		svcListErr error
+		pods       []corev1.Pod
+		podListErr error
 		expErrStr  string
 	}{
 		{
@@ -101,7 +103,119 @@ func Test_addMetrics(t *testing.T) {
 					},
 				},
 			},
-			expErrStr: "nil",
+			expErrStr: "",
+		},
+		{
+			name: "monitoring service without exposed ports",
+			svcs: []corev1.Service{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "monitoring-prefixed",
+						Namespace: "cattle-fleet-system",
+					},
+				},
+			},
+			expErrStr: "service cattle-fleet-system/monitoring-prefixed does not have any exposed ports",
+		},
+		{
+			name: "monitoring service with exposed ports but no labels",
+			svcs: []corev1.Service{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "monitoring-prefixed",
+						Namespace: "cattle-fleet-system",
+					},
+					Spec: corev1.ServiceSpec{
+						Ports: []corev1.ServicePort{
+							{
+								Port: 42,
+							},
+						},
+					},
+				},
+			},
+			expErrStr: "no app label found on service cattle-fleet-system/monitoring-prefixed",
+		},
+		{
+			name: "monitoring service with exposed ports and label, but no pod",
+			svcs: []corev1.Service{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "monitoring-prefixed",
+						Namespace: "cattle-fleet-system",
+					},
+					Spec: corev1.ServiceSpec{
+						Ports: []corev1.ServicePort{
+							{
+								Port: 42,
+							},
+						},
+						Selector: map[string]string{
+							"app": "foo",
+						},
+					},
+				},
+			},
+			expErrStr: "no pod found behind service cattle-fleet-system/monitoring-prefixed",
+		},
+		{
+			name: "monitoring service with exposed ports and label, failure to get pod",
+			svcs: []corev1.Service{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "monitoring-prefixed",
+						Namespace: "cattle-fleet-system",
+					},
+					Spec: corev1.ServiceSpec{
+						Ports: []corev1.ServicePort{
+							{
+								Port: 42,
+							},
+						},
+						Selector: map[string]string{
+							"app": "foo",
+						},
+					},
+				},
+			},
+			podListErr: errors.New("something went wrong"),
+			expErrStr:  "failed to get pod behind service cattle-fleet-system/monitoring-prefixed: something went wrong",
+		},
+		{
+			name: "monitoring service with exposed ports and label, more than one pod behind it",
+			svcs: []corev1.Service{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "monitoring-prefixed",
+						Namespace: "cattle-fleet-system",
+					},
+					Spec: corev1.ServiceSpec{
+						Ports: []corev1.ServicePort{
+							{
+								Port: 42,
+							},
+						},
+						Selector: map[string]string{
+							"app": "foo",
+						},
+					},
+				},
+			},
+			pods: []corev1.Pod{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "pod1",
+						Namespace: "cattle-fleet-system",
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "pod2",
+						Namespace: "cattle-fleet-system",
+					},
+				},
+			},
+			expErrStr: "found more than one pod behind service cattle-fleet-system/monitoring-prefixed",
 		},
 	}
 
@@ -124,6 +238,20 @@ func Test_addMetrics(t *testing.T) {
 						return c.svcListErr
 					},
 				)
+
+				// Possible call to get pods from the service if it is properly formed (port + label selector)
+			mockClient.EXPECT().List(
+				ctx,
+				gomock.AssignableToTypeOf(&corev1.PodList{}),
+				client.InNamespace("cattle-fleet-system")).
+				DoAndReturn(
+					func(_ context.Context, pl *corev1.PodList, _ ...client.ListOption) error {
+						pl.Items = c.pods
+
+						return c.podListErr
+					},
+				).
+				AnyTimes()
 
 			logger := log.FromContext(ctx).WithName("test-fleet-doctor-report")
 

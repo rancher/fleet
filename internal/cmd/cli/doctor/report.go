@@ -7,9 +7,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"strings"
 	"time"
 
@@ -267,56 +269,39 @@ func addMetricsToArchive(ctx context.Context, c client.Client, logger logr.Logge
 		return nil
 	}
 
-	extPort := 8888
-
 	// XXX: how about HelmOps? report missing svc?
-	for idx, svc := range monitoringSvcs {
-		svcPort := svc.Spec.Ports[0].Port
-
-		dl, err := createDialer(ctx, cfg, c, &svc)
+	for _, svc := range monitoringSvcs {
+		closeFn, port, httpCli, err := forwardPorts(ctx, cfg, logger, c, &svc)
 		if err != nil {
-			return fmt.Errorf("failed to create dialer for port forwarding for service %s/%s: %w", svc.Namespace, svc.Name, err)
+			return fmt.Errorf("failed to forward ports: %w", err)
 		}
 
-		ports := []string{fmt.Sprintf("%d:%d", extPort+idx, svcPort)} // XXX: randomise host port, or retry if collision?
-		stopChan := make(chan struct{})
-		readyChan := make(chan struct{})
-		fwder, err := portforward.New(dl, ports, stopChan, readyChan, os.Stdout, os.Stderr) // XXX use other dests for out and err?
-		if err != nil {
-			return fmt.Errorf("failed to create ports forwarder for fetching metrics: %w", err)
-		}
+		defer closeFn()
 
-		errChan := make(chan error)
-
-		go func() {
-			if err := fwder.ForwardPorts(); err != nil {
-				errChan <- err
-			}
-		}()
-
-		defer func() {
-			fwder.Close()
-		}()
-
-		select {
-		case <-readyChan:
-			logger.Info("Port forwarding ready")
-		case err = <-errChan:
-			return fmt.Errorf("failed to forward ports for fetching metrics: %w", err)
-		}
-
-		resp, err := http.NewRequestWithContext(
+		req, err := http.NewRequestWithContext(
 			ctx,
 			http.MethodGet,
-			fmt.Sprintf("http://localhost:%d/metrics", extPort+idx),
+			fmt.Sprintf("http://localhost:%d/metrics", port),
 			nil,
 		)
+		if err != nil {
+			return fmt.Errorf("failed to create request to metrics service: %w", err)
+		}
+
+		resp, err := httpCli.Do(req)
 		if err != nil {
 			return fmt.Errorf("failed to get response from metrics service: %w", err)
 		}
 
-		defer resp.Body.Close()
+		defer func() {
+			if resp.Body != nil {
+				resp.Body.Close()
+			}
+		}()
 
+		if resp.Body == nil {
+			return fmt.Errorf("received empty response body from service %s/%s", svc.Namespace, svc.Name)
+		}
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return fmt.Errorf("failed to read response body from metrics service: %w", err)
@@ -353,7 +338,7 @@ func createDynamicClient(cfg *rest.Config) (dynamic.Interface, error) {
 // createDialer creates a dialer needed to build a port forwarder from the service svc.
 // It involves identifying the pod exposed by svc, since building a port forwarder using the service's K8s API URL
 // directly does not work.
-func createDialer(ctx context.Context, cfg *rest.Config, c client.Client, svc *corev1.Service) (httpstream.Dialer, error) {
+func createDialer(ctx context.Context, cfg *rest.Config, c client.Client, svc *corev1.Service) (httpstream.Dialer, *http.Client, error) {
 	var (
 		appLabel   string
 		shardKey   string
@@ -372,7 +357,7 @@ func createDialer(ctx context.Context, cfg *rest.Config, c client.Client, svc *c
 	}
 
 	if appLabel == "" {
-		return nil, fmt.Errorf("no app label found on service %s/%s", svc.Namespace, svc.Name)
+		return nil, nil, fmt.Errorf("no app label found on service %s/%s", svc.Namespace, svc.Name)
 	}
 
 	var pods corev1.PodList
@@ -383,29 +368,122 @@ func createDialer(ctx context.Context, cfg *rest.Config, c client.Client, svc *c
 	}
 
 	if err := c.List(ctx, &pods, client.InNamespace(svc.Namespace), matchingLabels); err != nil {
-		return nil, fmt.Errorf("failed to get pod behind service %s/%s: %w", svc.Namespace, svc.Name, err)
+		return nil, nil, fmt.Errorf("failed to get pod behind service %s/%s: %w", svc.Namespace, svc.Name, err)
 	}
 
 	if len(pods.Items) == 0 {
-		return nil, fmt.Errorf("no pod found behind service %s/%s", svc.Namespace, svc.Name)
+		return nil, nil, fmt.Errorf("no pod found behind service %s/%s", svc.Namespace, svc.Name)
 	}
 
 	if len(pods.Items) > 1 {
-		return nil, fmt.Errorf("found more than one pod behind service %s/%s", svc.Namespace, svc.Name)
+		return nil, nil, fmt.Errorf("found more than one pod behind service %s/%s", svc.Namespace, svc.Name)
 	}
 
 	pod := pods.Items[0]
 
 	rt, up, err := spdy.RoundTripperFor(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create upgrader for fetching metrics: %w", err)
+		return nil, nil, fmt.Errorf("failed to create upgrader for fetching metrics: %w", err)
 	}
 
-	u := url.URL{
-		Scheme: "https",
-		Path:   fmt.Sprintf("/api/v1/namespaces/%s/pods/%s/portforward", pod.Namespace, pod.Name),
-		Host:   strings.TrimLeft(cfg.Host, "htps:/"),
+	u, err := url.Parse(cfg.Host)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create dialer for fetching metrics because the API server URL could not be parsed: %w", err)
 	}
 
-	return spdy.NewDialer(up, &http.Client{Transport: rt}, http.MethodPost, &u), nil
+	u.Path = path.Join(u.Path, fmt.Sprintf("/api/v1/namespaces/%s/pods/%s/portforward", pod.Namespace, pod.Name))
+
+	u.Host = strings.TrimRight(u.Host, "/")
+
+	httpCli := http.Client{Transport: rt}
+
+	return spdy.NewDialer(up, &httpCli, http.MethodPost, u), &httpCli, nil
+}
+
+// forwardPorts creates a port forwarder for svc.
+// In case of success, it returns a non-zero port number on which the service is available, an HTTP client which can
+// later be used to query the service on the forwarded port, and a closing function.
+// It is the caller's responsibility to call that closing function to close the port forwarder once it is no longer
+// needed.
+func forwardPorts(
+	ctx context.Context,
+	cfg *rest.Config,
+	logger logr.Logger,
+	c client.Client,
+	svc *corev1.Service,
+) (func(), int, *http.Client, error) {
+	fail := func(fmtStr string, args ...any) (func(), int, *http.Client, error) {
+		return func() {}, 0, nil, fmt.Errorf(fmtStr, args...)
+	}
+
+	if len(svc.Spec.Ports) == 0 {
+		return fail("service %s/%s does not have any exposed ports", svc.Namespace, svc.Name)
+	}
+
+	svcPort := svc.Spec.Ports[0].Port
+
+	dl, httpCli, err := createDialer(ctx, cfg, c, svc)
+	if err != nil {
+		return fail("failed to create dialer for port forwarding for service %s/%s: %w", svc.Namespace, svc.Name, err)
+	}
+
+	basePort := 8000
+	var closeFn func()
+	var port int
+
+	// Keep trying to set up a port forwarder if failures happen, for instance because the chosen port is already in use
+	maxAttempts := 5
+	i := 0
+	for i < maxAttempts {
+		prefix := fmt.Sprintf("attempt %d: ", i+1)
+
+		r := rand.New(rand.NewSource(time.Now().UnixNano()))
+		port = basePort + r.Intn(57535) // Highest possible port: 65534
+
+		ports := []string{fmt.Sprintf("%d:%d", port, svcPort)}
+		stopChan := make(chan struct{})
+		readyChan := make(chan struct{})
+		fwder, err := portforward.New(dl, ports, stopChan, readyChan, os.Stdout, os.Stderr)
+		if err != nil {
+			msg := "failed to create ports forwarder for fetching metrics"
+			logger.Error(err, "%s%s", prefix, msg)
+
+			if i < maxAttempts-1 {
+				continue
+			}
+
+			return fail("%s%s: %w", prefix, msg, err)
+		}
+
+		errChan := make(chan error)
+
+		go func() {
+			if err := fwder.ForwardPorts(); err != nil {
+				errChan <- err
+			}
+		}()
+
+		closeFn = func() {
+			fwder.Close()
+			logger.Info("Closed port forwarding on port %d.", port)
+		}
+
+		select {
+		case <-readyChan:
+			logger.Info("Port forwarding ready")
+			i = maxAttempts // No need to keep trying
+		case err = <-errChan:
+			msg := "failed to forward ports for fetching metrics"
+			logger.Error(err, "%s%s", prefix, msg)
+
+			if i < maxAttempts-1 {
+				i++
+				continue
+			}
+
+			return fail("%s%s : %w", prefix, msg, err)
+		}
+	}
+
+	return closeFn, port, httpCli, nil
 }
