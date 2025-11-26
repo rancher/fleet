@@ -1,4 +1,5 @@
 helm:
   chart: config-chart
+  version: '0.1.0'
   valuesFiles:
     - config-chart/values.yaml

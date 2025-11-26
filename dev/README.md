@@ -48,6 +48,20 @@ source dev/setup-multi-cluster
 ginkgo e2e/multi-cluster
 ```
 
+### Controlling test output verbosity
+
+Integration tests suppress verbose output by default to keep test results clean and readable. This includes:
+- Helm dependency update messages
+- Log output from test servers and containers
+- Debug information from test components
+
+To enable verbose output for debugging purposes, set the `VERBOSE` environment variable:
+
+```bash
+# Run with verbose output enabled
+VERBOSE=1 ./dev/run-integration-tests.sh
+```
+
 ### Testing changes incrementally
 
 To test changes incrementally, rebuild just one binary, update the image in k3d

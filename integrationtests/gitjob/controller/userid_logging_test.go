@@ -55,9 +55,7 @@ var _ = Describe("GitRepo UserID logging", func() {
 		})
 
 		It("includes userID in log output", func() {
-			Eventually(func() string {
-				return logsBuffer.String()
-			}, timeout).Should(Or(
+			Eventually(logsBuffer.String, timeout).Should(Or(
 				ContainSubstring(`"userID":"`+userID+`"`),
 				ContainSubstring(`"userID": "`+userID+`"`),
 			))
@@ -74,9 +72,7 @@ var _ = Describe("GitRepo UserID logging", func() {
 		})
 
 		It("does not include userID in log output", func() {
-			Eventually(func() string {
-				return logsBuffer.String()
-			}, timeout).Should(ContainSubstring(gitrepo.Name))
+			Eventually(logsBuffer.String, timeout).Should(ContainSubstring(gitrepo.Name))
 
 			logs := logsBuffer.String()
 			gitrepoLogs := utils.ExtractResourceLogs(logs, gitrepo.Name)

@@ -55,17 +55,18 @@ func GetAuthFromSecret(url string, creds *corev1.Secret, knownHosts string) (tra
 		if err != nil {
 			return nil, err
 		}
-		if creds.Data["known_hosts"] != nil {
+		switch {
+		case creds.Data["known_hosts"] != nil:
 			auth.HostKeyCallback, err = fleetssh.CreateKnownHostsCallBack(creds.Data["known_hosts"])
 			if err != nil {
 				return nil, err
 			}
-		} else if len(knownHosts) > 0 {
+		case len(knownHosts) > 0:
 			auth.HostKeyCallback, err = fleetssh.CreateKnownHostsCallBack([]byte(knownHosts))
 			if err != nil {
 				return nil, err
 			}
-		} else {
+		default:
 			//nolint:gosec // G106: Use of ssh InsecureIgnoreHostKey should be audited
 			auth.HostKeyCallback = ssh.InsecureIgnoreHostKey()
 		}
@@ -84,7 +85,7 @@ func GetAuthFromSecret(url string, creds *corev1.Secret, knownHosts string) (tra
 
 // GetHTTPClientFromSecret returns a HTTP client filled from the information in the given secret
 // and optional CABundle and insecureTLSVerify
-func GetHTTPClientFromSecret(creds *corev1.Secret, CABundle []byte, insecureTLSVerify bool, timeout time.Duration) (*http.Client, error) {
+func GetHTTPClientFromSecret(creds *corev1.Secret, bundleCA []byte, insecureTLSVerify bool, timeout time.Duration) (*http.Client, error) {
 	var (
 		username  string
 		password  string
@@ -105,8 +106,8 @@ func GetHTTPClientFromSecret(creds *corev1.Secret, CABundle []byte, insecureTLSV
 		}
 	}
 
-	if len(CABundle) > 0 {
-		cert, err := x509.ParseCertificate(CABundle)
+	if len(bundleCA) > 0 {
+		cert, err := x509.ParseCertificate(bundleCA)
 		if err != nil {
 			return nil, err
 		}

@@ -45,6 +45,10 @@ import (
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
+func init() {
+	utils.SuppressLogs()
+}
+
 var (
 	cfg       *rest.Config
 	testEnv   *envtest.Environment

@@ -16,15 +16,15 @@ import (
 	"time"
 
 	dockercontainer "github.com/docker/docker/api/types/container"
-	dockermount "github.com/docker/docker/api/types/mount"
 	gogit "github.com/go-git/go-git/v5"
 	gitconfig "github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	httpgit "github.com/go-git/go-git/v5/plumbing/transport/http"
 	"github.com/gogits/go-gogs-client"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 	cp "github.com/otiai10/copy"
-	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 	"go.uber.org/mock/gomock"
@@ -37,11 +37,16 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
+	"github.com/rancher/fleet/integrationtests/utils"
 	"github.com/rancher/fleet/internal/config"
 	"github.com/rancher/fleet/internal/mocks"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"github.com/rancher/fleet/pkg/git"
+	fleetgit "github.com/rancher/fleet/pkg/git"
 )
+
+func init() {
+	utils.DisableReaper()
+}
 
 /*
 These tests use gogs for testing integration with a git server. Gogs container uses data from assets/gitserver, which
@@ -60,311 +65,355 @@ var (
 	latestCommitPrivateRepo string
 	url                     string
 	container               testcontainers.Container
+	tmpDir                  string
 )
 
-func TestMain(m *testing.M) {
-	teardown := setupSuite()
-	code := m.Run()
-	teardown(code)
-	os.Exit(code)
-}
-
-func setupSuite() func(code int) {
+var _ = BeforeSuite(func() {
 	ctx := context.Background()
 	var err error
-	t := &testing.T{}
-	container, url, err = createGogsContainer(ctx, createTempFolder(t))
-	require.NoError(t, err, "creating gogs container failed")
+	tmpDir, err = os.MkdirTemp("", "gogs")
+	Expect(err).NotTo(HaveOccurred())
 
-	return func(code int) {
-		terminateContainer(ctx, t, container, code)
-	}
-}
+	container, url, err = createGogsContainer(ctx, tmpDir)
+	Expect(err).NotTo(HaveOccurred())
 
-func TestLatestCommit_NoAuth(t *testing.T) {
-	ctlr := gomock.NewController(t)
-	defer ctlr.Finish()
-	ctx := context.Background()
+	// Register cleanup handlers that the container terminates first
+	// This ensures the container terminates and releases the bind mount before we try to remove tmpDir
+	DeferCleanup(func() {
+		if container != nil {
+			cleanCtx := context.Background()
 
-	tests := map[string]struct {
-		gitrepo        *v1alpha1.GitRepo
-		expectedCommit string
-		expectedErr    error
-	}{
-		"public repo": {
-			gitrepo: &v1alpha1.GitRepo{
-				Spec: v1alpha1.GitRepoSpec{
-					Repo:   url + "/test/public-repo",
-					Branch: "master",
-				},
-			},
-			expectedCommit: latestCommitPublicRepo,
-			expectedErr:    nil,
-		},
-		"private repo": {
-			gitrepo: &v1alpha1.GitRepo{
-				Spec: v1alpha1.GitRepoSpec{
-					Repo:   url + "/test/private-repo",
-					Branch: "master",
-				},
-			},
-			expectedCommit: "",
-			expectedErr:    transport.ErrAuthenticationRequired,
-		},
-	}
-
-	config.Set(&config.Config{})
-	for name, test := range tests {
-		t.Run(name, func(t *testing.T) {
-			f := git.Fetch{}
-			client := mocks.NewMockK8sClient(ctlr)
-			// May be called multiple times, including calls to get Rancher CA bundle secrets
-			client.EXPECT().Get(ctx, gomock.Any(), gomock.Any()).
-				Return(apierrors.NewNotFound(schema.GroupResource{}, "notfound")).AnyTimes()
-			latestCommit, err := f.LatestCommit(ctx, test.gitrepo, client)
-			if test.expectedErr == nil {
-				require.NoError(t, err)
-			} else {
-				require.Contains(t, err.Error(), test.expectedErr.Error())
+			// Gather logs for troubleshooting if test failed
+			if CurrentSpecReport().Failed() {
+				logs, err := container.Logs(cleanCtx)
+				if err == nil {
+					logContent, err := io.ReadAll(logs)
+					if err == nil {
+						GinkgoWriter.Printf("\n=== Container logs for Gogs ===\n%s\n", string(logContent))
+					}
+					_ = logs.Close()
+				}
 			}
-			if latestCommit != test.expectedCommit {
-				t.Errorf("latestCommit doesn't match. got %s, expected %s", latestCommit, test.expectedCommit)
+
+			err := container.Terminate(cleanCtx)
+			Expect(err).NotTo(HaveOccurred())
+		}
+	})
+
+	DeferCleanup(func() {
+		if tmpDir != "" {
+			// Attempt to fix permissions recursively. In some CI environments with
+			// user namespace remapping, files created by the container may be owned
+			// by a different UID, but we can still chmod them if we have access.
+			_ = filepath.WalkDir(tmpDir, func(path string, d os.DirEntry, err error) error {
+				if err != nil {
+					return nil // Skip paths we can't access
+				}
+				_ = os.Chmod(path, 0700)
+				return nil
+			})
+
+			// Attempt cleanup - may still fail in some CI environments
+			if err := os.RemoveAll(tmpDir); err != nil {
+				GinkgoWriter.Printf("Warning: failed to remove tmpDir %s: %v\n", tmpDir, err)
 			}
+		}
+	})
+})
+
+var _ = Describe("Git Fetch", func() {
+	Describe("LatestCommit NoAuth", func() {
+		var ctx context.Context
+		var ctlr *gomock.Controller
+
+		BeforeEach(func() {
+			ctx = context.Background()
+			ctlr = gomock.NewController(GinkgoT())
+			config.Set(&config.Config{})
 		})
-	}
 
-}
+		AfterEach(func() {
+			ctlr.Finish()
+		})
 
-func TestLatestCommit_BasicAuth(t *testing.T) {
-	ctlr := gomock.NewController(t)
-	defer ctlr.Finish()
-	ctx := context.Background()
+		type testCase struct {
+			repoPath          string
+			expectError       bool
+			getExpectedCommit func() string
+		}
 
-	tests := map[string]struct {
-		gitrepo        *v1alpha1.GitRepo
-		expectedCommit string
-		expectedErr    error
-	}{
-		"public repo": {
-			gitrepo: &v1alpha1.GitRepo{
-				Spec: v1alpha1.GitRepoSpec{
-					Repo:   url + "/test/public-repo",
-					Branch: "master",
-				},
+		DescribeTable("repository access",
+			func(tc testCase) {
+				gitrepo := &v1alpha1.GitRepo{
+					Spec: v1alpha1.GitRepoSpec{
+						Repo:   url + tc.repoPath,
+						Branch: "master",
+					},
+				}
+
+				f := fleetgit.Fetch{}
+				client := mocks.NewMockK8sClient(ctlr)
+				// May be called multiple times, including calls to get Rancher CA bundle secrets
+				client.EXPECT().Get(ctx, gomock.Any(), gomock.Any()).
+					Return(apierrors.NewNotFound(schema.GroupResource{}, "notfound")).AnyTimes()
+				latestCommit, err := f.LatestCommit(ctx, gitrepo, client)
+
+				if tc.expectError {
+					Expect(err).To(HaveOccurred())
+					Expect(err).To(MatchError(transport.ErrAuthenticationRequired))
+					Expect(latestCommit).To(BeEmpty())
+				} else {
+					Expect(err).NotTo(HaveOccurred())
+					Expect(latestCommit).To(Equal(tc.getExpectedCommit()))
+				}
 			},
-			expectedCommit: latestCommitPublicRepo,
-			expectedErr:    nil,
-		},
-		"private repo": {
-			gitrepo: &v1alpha1.GitRepo{
-				Spec: v1alpha1.GitRepoSpec{
-					Repo:   url + "/test/private-repo",
-					Branch: "master",
-				},
-			},
-			expectedCommit: latestCommitPrivateRepo,
-			expectedErr:    nil,
-		},
-	}
+			Entry("fetches the latest commit from a public repo",
+				testCase{
+					repoPath:          "/test/public-repo",
+					expectError:       false,
+					getExpectedCommit: func() string { return latestCommitPublicRepo },
+				}),
+			Entry("fails to fetch from a private repo without credentials",
+				testCase{
+					repoPath:    "/test/private-repo",
+					expectError: true,
+				}),
+		)
+	})
 
-	for name, test := range tests {
-		t.Run(name, func(t *testing.T) {
-			secret := &v1.Secret{
+	Describe("LatestCommit BasicAuth", func() {
+		var ctx context.Context
+
+		BeforeEach(func() {
+			ctx = context.Background()
+		})
+
+		createBasicAuthSecret := func() *v1.Secret {
+			return &v1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      config.DefaultGitCredentialsSecretName,
-					Namespace: test.gitrepo.Namespace,
+					Namespace: "",
 				},
 				Data: map[string][]byte{v1.BasicAuthUsernameKey: []byte(gogsUser), v1.BasicAuthPasswordKey: []byte(gogsPass)},
 				Type: v1.SecretTypeBasicAuth,
 			}
-			f := git.Fetch{}
-			client := fake.NewClientBuilder().WithRuntimeObjects(secret).Build()
-			latestCommit, err := f.LatestCommit(ctx, test.gitrepo, client)
-			if !errors.Is(err, test.expectedErr) {
-				t.Errorf("expecter error is: %v, but got %v", test.expectedErr, err)
-			}
-			if latestCommit != test.expectedCommit {
-				t.Errorf("latestCommit doesn't match. got %s, expected %s", latestCommit, test.expectedCommit)
+		}
+
+		type testCase struct {
+			repoPath          string
+			getExpectedCommit func() string
+		}
+
+		DescribeTable("repository access with basic auth",
+			func(tc testCase) {
+				gitrepo := &v1alpha1.GitRepo{
+					Spec: v1alpha1.GitRepoSpec{
+						Repo:   url + tc.repoPath,
+						Branch: "master",
+					},
+				}
+
+				secret := createBasicAuthSecret()
+				f := fleetgit.Fetch{}
+				client := fake.NewClientBuilder().WithRuntimeObjects(secret).Build()
+				latestCommit, err := f.LatestCommit(ctx, gitrepo, client)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(latestCommit).To(Equal(tc.getExpectedCommit()))
+			},
+			Entry("fetches the latest commit from a public repo with basic auth",
+				testCase{
+					repoPath:          "/test/public-repo",
+					getExpectedCommit: func() string { return latestCommitPublicRepo },
+				}),
+			Entry("fetches the latest commit from a private repo with basic auth",
+				testCase{
+					repoPath:          "/test/private-repo",
+					getExpectedCommit: func() string { return latestCommitPrivateRepo },
+				}),
+		)
+	})
+
+	Describe("LatestCommit SSH", func() {
+		var privateKey string
+		var sshPort string
+
+		BeforeEach(func() {
+			ctx := context.Background()
+			port, err := container.MappedPort(ctx, "22")
+			Expect(err).NotTo(HaveOccurred())
+			sshPort = port.Port()
+		})
+
+		// Set up SSH key once by checking if it's already initialized
+		BeforeEach(func() {
+			// Only create and add keys once
+			if privateKey == "" {
+				var err error
+				privateKey, err = createAndAddKeys()
+				Expect(err).NotTo(HaveOccurred())
 			}
 		})
-	}
-}
 
-func TestLatestCommitSSH(t *testing.T) {
-	require := require.New(t)
-	ctlr := gomock.NewController(t)
-	defer ctlr.Finish()
-	ctx := context.Background()
-	privateKey, err := createAndAddKeys()
-	require.NoError(err)
-	sshPort, err := container.MappedPort(ctx, "22")
-	require.NoError(err)
-	gogsKnownHosts := []byte("[localhost]:" + sshPort.Port() + " " + gogsFingerPrint)
+		type testCase struct {
+			repoPath          string
+			knownHostsData    func() []byte
+			getExpectedCommit func() string
+		}
 
-	tests := map[string]struct {
-		gitrepo                    *v1alpha1.GitRepo
-		strictHostKeyChecksEnabled bool
-		knownHosts                 []byte
-		expectedCommit             string
-		expectedErr                error
-	}{
-		"public repo": {
-			gitrepo: &v1alpha1.GitRepo{
-				Spec: v1alpha1.GitRepoSpec{
-					Repo:   "ssh://git@localhost:" + sshPort.Port() + "/test/" + "public-repo",
-					Branch: "master",
-				},
-			},
-			knownHosts:     gogsKnownHosts,
-			expectedCommit: latestCommitPublicRepo,
-			expectedErr:    nil,
-		},
-		"private repo with known hosts": {
-			gitrepo: &v1alpha1.GitRepo{
-				Spec: v1alpha1.GitRepoSpec{
-					Repo:   "ssh://git@localhost:" + sshPort.Port() + "/test/" + "private-repo",
-					Branch: "master",
-				},
-			},
-			knownHosts:     gogsKnownHosts,
-			expectedCommit: latestCommitPrivateRepo,
-			expectedErr:    nil,
-		},
-		"private repo without known hosts": {
-			gitrepo: &v1alpha1.GitRepo{
-				Spec: v1alpha1.GitRepoSpec{
-					Repo:   "ssh://git@localhost:" + sshPort.Port() + "/test/" + "private-repo",
-					Branch: "master",
-				},
-			},
-			knownHosts:     nil,
-			expectedCommit: latestCommitPrivateRepo,
-			expectedErr:    nil,
-		},
-		"private repo with known host with a wrong host url": {
-			gitrepo: &v1alpha1.GitRepo{
-				Spec: v1alpha1.GitRepoSpec{
-					Repo:   "ssh://git@localhost:" + sshPort.Port() + "/test/" + "private-repo",
-					Branch: "master",
-				},
-			},
-			knownHosts:     []byte("doesntexist " + gogsFingerPrint),
-			expectedCommit: latestCommitPrivateRepo,
-			expectedErr:    nil,
-		},
-	}
+		DescribeTable("repository access with SSH",
+			func(tc testCase) {
+				ctx := context.Background()
+				gitrepo := &v1alpha1.GitRepo{
+					Spec: v1alpha1.GitRepoSpec{
+						Repo:   "ssh://git@localhost:" + sshPort + tc.repoPath,
+						Branch: "master",
+					},
+				}
 
-	for name, test := range tests {
-		t.Run(name, func(t *testing.T) {
-			secret := &v1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      config.DefaultGitCredentialsSecretName,
-					Namespace: test.gitrepo.Namespace,
-				},
-				Data: map[string][]byte{
+				knownHosts := tc.knownHostsData()
+				secretData := map[string][]byte{
 					v1.SSHAuthPrivateKey: []byte(privateKey),
-					"known_hosts":        test.knownHosts,
-				},
-				Type: v1.SecretTypeSSHAuth,
-			}
-			client := fake.NewClientBuilder().WithRuntimeObjects(secret).Build()
-			f := git.Fetch{
-				KnownHosts: mockKnownHostsGetter{
-					isStrict:   test.strictHostKeyChecksEnabled,
-					knownHosts: string(test.knownHosts),
-				},
-			}
-			latestCommit, err := f.LatestCommit(ctx, test.gitrepo, client)
+				}
+				if len(knownHosts) > 0 {
+					secretData["known_hosts"] = knownHosts
+				}
 
-			// works with nil and wrapped errors
-			if test.expectedErr == nil {
-				require.NoError(err)
-			} else {
-				require.Contains(test.expectedErr.Error(), err.Error())
-			}
+				secret := &v1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      config.DefaultGitCredentialsSecretName,
+						Namespace: gitrepo.Namespace,
+					},
+					Data: secretData,
+					Type: v1.SecretTypeSSHAuth,
+				}
+				client := fake.NewClientBuilder().WithRuntimeObjects(secret).Build()
+				f := fleetgit.Fetch{
+					KnownHosts: mockKnownHostsGetter{
+						isStrict:   false,
+						knownHosts: string(knownHosts),
+					},
+				}
+				latestCommit, err := f.LatestCommit(ctx, gitrepo, client)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(latestCommit).To(Equal(tc.getExpectedCommit()))
+			},
+			Entry("fetches the latest commit from a public repo with SSH",
+				testCase{
+					repoPath: "/test/public-repo",
+					knownHostsData: func() []byte {
+						return []byte("[localhost]:" + sshPort + " " + gogsFingerPrint)
+					},
+					getExpectedCommit: func() string { return latestCommitPublicRepo },
+				}),
+			Entry("fetches the latest commit from a private repo with SSH and known hosts",
+				testCase{
+					repoPath: "/test/private-repo",
+					knownHostsData: func() []byte {
+						return []byte("[localhost]:" + sshPort + " " + gogsFingerPrint)
+					},
+					getExpectedCommit: func() string { return latestCommitPrivateRepo },
+				}),
+			Entry("fetches the latest commit from a private repo with SSH without known hosts",
+				testCase{
+					repoPath:          "/test/private-repo",
+					knownHostsData:    func() []byte { return []byte("") },
+					getExpectedCommit: func() string { return latestCommitPrivateRepo },
+				}),
+			Entry("fetches the latest commit from a private repo with SSH when known host URL is wrong",
+				testCase{
+					repoPath: "/test/private-repo",
+					knownHostsData: func() []byte {
+						return []byte("doesntexist " + gogsFingerPrint)
+					},
+					getExpectedCommit: func() string { return latestCommitPrivateRepo },
+				}),
+		)
+	})
 
-			if latestCommit != test.expectedCommit {
-				t.Errorf("latestCommit doesn't match. got %s, expected %s", latestCommit, test.expectedCommit)
-			}
+	Describe("LatestCommit Revision", func() {
+		var ctx context.Context
+		var ctlr *gomock.Controller
+		var f fleetgit.Fetch
+		var client client.Client
+
+		BeforeEach(func() {
+			ctx = context.Background()
+			ctlr = gomock.NewController(GinkgoT())
+			f = fleetgit.Fetch{}
+			mockClient := mocks.NewMockK8sClient(ctlr)
+			mockClient.EXPECT().Get(ctx, gomock.Any(), gomock.Any()).
+				Return(apierrors.NewNotFound(schema.GroupResource{}, "notfound")).AnyTimes()
+			client = mockClient
 		})
-	}
-}
 
-func TestLatestCommit_Revision(t *testing.T) {
-	ctlr := gomock.NewController(t)
-	defer ctlr.Finish()
-	ctx := context.Background()
+		AfterEach(func() {
+			ctlr.Finish()
+		})
 
-	// add 3 commits and one tag per commit
-	tagCommit0, err := addRepoCommitAndTag(url+"/test/public-repo", "public-repo", "v0.0.0", "")
-	require.NoError(t, err, "creating commit and tag failed")
-
-	tagCommit1, err := addRepoCommitAndTag(url+"/test/public-repo", "public-repo", "v0.0.1", "Annotated tag v0.0.1")
-	require.NoError(t, err, "creating commit and tag failed")
-
-	_, err = addRepoCommitAndTag(url+"/test/public-repo", "public-repo", "v0.0.2", "")
-	require.NoError(t, err, "creating commit and tag failed")
-
-	tests := map[string]struct {
-		gitrepo        *v1alpha1.GitRepo
-		expectedCommit string
-		expectedError  error
-	}{
-		"RevisionNotFound": {
-			gitrepo: &v1alpha1.GitRepo{
+		It("fails to fetch the latest commit for a nonexistent revision", func() {
+			gitrepo := &v1alpha1.GitRepo{
 				Spec: v1alpha1.GitRepoSpec{
 					Repo:     url + "/test/public-repo",
 					Revision: "v10.0.0",
 				},
-			},
-			expectedCommit: "",
-			expectedError:  errors.New("commit not found for revision: v10.0.0"),
-		},
-		"RevisionIsACommit": {
-			gitrepo: &v1alpha1.GitRepo{
+			}
+
+			latestCommit, err := f.LatestCommit(ctx, gitrepo, client)
+			Expect(err).To(HaveOccurred())
+			Expect(err).To(MatchError(errors.New("commit not found for revision: v10.0.0")))
+			Expect(latestCommit).To(BeEmpty())
+		})
+
+		It("succeeds when the revision is a commit", func() {
+			gitrepo := &v1alpha1.GitRepo{
 				Spec: v1alpha1.GitRepoSpec{
 					Repo:     url + "/test/public-repo",
 					Revision: "319e76a30f012a760aa7f35d125a4eca8a2c8ba2",
 				},
-			},
-			expectedCommit: "319e76a30f012a760aa7f35d125a4eca8a2c8ba2",
-		},
-		"RevisionIsALightweightTag": {
-			gitrepo: &v1alpha1.GitRepo{
+			}
+
+			latestCommit, err := f.LatestCommit(ctx, gitrepo, client)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(latestCommit).To(Equal("319e76a30f012a760aa7f35d125a4eca8a2c8ba2"))
+		})
+
+		It("succeeds when the revision is a lightweight tag", func() {
+			tagCommit0, err := addRepoCommitAndTag(url+"/test/public-repo", "public-repo", "v0.0.0", "")
+			Expect(err).NotTo(HaveOccurred())
+
+			gitrepo := &v1alpha1.GitRepo{
 				Spec: v1alpha1.GitRepoSpec{
 					Repo:     url + "/test/public-repo",
 					Revision: "v0.0.0",
 				},
-			},
-			expectedCommit: tagCommit0,
-		},
-		"RevisionIsAnAnnotatedTag": {
-			gitrepo: &v1alpha1.GitRepo{
+			}
+
+			latestCommit, err := f.LatestCommit(ctx, gitrepo, client)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(latestCommit).To(Equal(tagCommit0))
+		})
+
+		It("succeeds when the revision is an annotated tag", func() {
+			tagCommit1, err := addRepoCommitAndTag(url+"/test/public-repo", "public-repo", "v0.0.1", "Annotated tag v0.0.1")
+			Expect(err).NotTo(HaveOccurred())
+
+			gitrepo := &v1alpha1.GitRepo{
 				Spec: v1alpha1.GitRepoSpec{
 					Repo:     url + "/test/public-repo",
 					Revision: "v0.0.1",
 				},
-			},
-			expectedCommit: tagCommit1,
-		},
-	}
-	for name, test := range tests {
-		t.Run(name, func(t *testing.T) {
-			f := git.Fetch{}
-			client := mocks.NewMockK8sClient(ctlr)
-			// May be called multiple times, including calls to get Rancher CA bundle secrets
-			client.EXPECT().Get(ctx, gomock.Any(), gomock.Any()).
-				Return(apierrors.NewNotFound(schema.GroupResource{}, "notfound")).AnyTimes()
-			latestCommit, err := f.LatestCommit(ctx, test.gitrepo, client)
-			if test.expectedCommit != latestCommit {
-				t.Errorf("latestCommit doesn't match. got %s, expected %s", latestCommit, test.expectedCommit)
 			}
 
-			if !errors.Is(err, test.expectedError) && err.Error() != test.expectedError.Error() {
-				t.Errorf("expecting error: [%v], but got: [%v]", test.expectedError, err)
-			}
+			latestCommit, err := f.LatestCommit(ctx, gitrepo, client)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(latestCommit).To(Equal(tagCommit1))
 		})
-	}
+	})
+})
+
+func TestGitFetch(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "Git Fetch Suite")
 }
 
 func createGogsContainer(ctx context.Context, tmpDir string) (testcontainers.Container, string, error) {
@@ -386,13 +435,10 @@ func createGogsContainer(ctx context.Context, tmpDir string) (testcontainers.Con
 			wait.ForListeningPort("22/tcp").WithStartupTimeout(startupTimeout),
 		),
 		HostConfigModifier: func(hostConfig *dockercontainer.HostConfig) {
-			hostConfig.Mounts = []dockermount.Mount{
-				{
-					Type:   dockermount.TypeBind,
-					Source: tmpDir,
-					Target: "/data",
-				},
-			}
+			// Use Binds instead of Mounts to support SELinux relabeling with :z flag
+			// The :z flag allows the bind mount to be shared between containers and
+			// automatically relabels the content for SELinux
+			hostConfig.Binds = []string{tmpDir + ":/data:z"}
 		},
 	}
 	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
@@ -422,9 +468,15 @@ func createGogsContainer(ctx context.Context, tmpDir string) (testcontainers.Con
 	if err != nil {
 		return nil, "", err
 	}
+	if latestCommitPublicRepo == "" {
+		return nil, "", fmt.Errorf("latestCommitPublicRepo is empty after initRepo")
+	}
 	latestCommitPrivateRepo, err = initRepo(url, "private-repo", true)
 	if err != nil {
 		return nil, "", err
+	}
+	if latestCommitPrivateRepo == "" {
+		return nil, "", fmt.Errorf("latestCommitPrivateRepo is empty after initRepo")
 	}
 
 	return container, url, nil
@@ -615,20 +667,6 @@ func getURL(ctx context.Context, container testcontainers.Container) (string, er
 	return url, nil
 }
 
-// createTempFolder uses testing tempDir if running in local, which will cleanup the files at the end of the tests.
-// cleanup fails in github actions, that's why we use os.MkdirTemp instead. Container will be removed at the end in
-// github actions, so no resources are left orphaned.
-func createTempFolder(t *testing.T) string {
-	t.Helper()
-	if os.Getenv("GITHUB_ACTIONS") == "true" {
-		tmp, err := os.MkdirTemp("", "gogs")
-		require.NoError(t, err)
-		return tmp
-	}
-
-	return t.TempDir()
-}
-
 // createAndAddKeys creates a public private key pair. It adds the public key to gogs, and returns the private key.
 func createAndAddKeys() (string, error) {
 	publicKey, privateKey, err := makeSSHKeyPair()
@@ -666,26 +704,6 @@ func makeSSHKeyPair() (string, string, error) {
 	pubKeyBuf.Write(ssh.MarshalAuthorizedKey(pub))
 
 	return pubKeyBuf.String(), privKeyBuf.String(), nil
-}
-
-func terminateContainer(ctx context.Context, t *testing.T, container testcontainers.Container, code int) {
-	t.Helper()
-	if code != 0 {
-		rc, err := container.Logs(ctx)
-		if err != nil {
-			t.Fatalf("failed to get logs: %s", err.Error())
-		}
-		defer rc.Close()
-		b, err := io.ReadAll(rc)
-		if err != nil {
-			t.Fatalf("failed to read logs: %s", err.Error())
-		}
-		fmt.Printf("Container logs:\n%s\n", string(b))
-	}
-
-	if err := container.Terminate(ctx); err != nil {
-		t.Fatalf("failed to terminate container: %s", err.Error())
-	}
 }
 
 type mockKnownHostsGetter struct {

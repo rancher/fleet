@@ -110,9 +110,7 @@ func (xt *ignoreTree) findNode(path string, isDir bool, nodesRoute []*ignoreTree
 
 	for _, c := range xt.children {
 		if steps := c.findNode(path, isDir, nodesRoute); steps != nil {
-			crossed := append(nodesRoute, steps...)
-
-			return crossed
+			return append(nodesRoute, steps...)
 		}
 	}
 
@@ -208,7 +206,7 @@ func GetContent(ctx context.Context, base, source, version string, auth Auth, di
 	// go-getter does not support downloading OCI registry based files yet
 	// until this is implemented we use Helm to download charts from OCI based registries
 	// and provide the downloaded file to go-getter locally
-	if hasOCIURL.MatchString(source) {
+	if strings.HasPrefix(source, ociURLPrefix) {
 		source, err = downloadOCIChart(source, version, temp, auth)
 		if err != nil {
 			return nil, err

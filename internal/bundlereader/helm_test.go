@@ -85,7 +85,7 @@ func checksumPrefix(helm *fleet.HelmOptions) string {
 	if helm == nil {
 		return "none"
 	}
-	return fmt.Sprintf(".chart/%x", sha256.Sum256([]byte(helm.Chart + ":" + helm.Repo + ":" + helm.Version)[:]))
+	return fmt.Sprintf(".chart/%x", sha256.Sum256([]byte(helm.Chart+":"+helm.Repo+":"+helm.Version)))
 }
 
 func createChartDir(dir string) error {
@@ -411,7 +411,7 @@ func TestGetManifestFromHelmChart(t *testing.T) {
 		assert.Equal(c.expectedNilManifest, manifest == nil)
 		assert.Equal(c.expectedErrNotNil, err != nil)
 		if err != nil && c.expectedErrNotNil {
-			assert.Equal(c.expectedError, err.Error())
+			assert.Contains(err.Error(), c.expectedError)
 		}
 		if manifest != nil {
 			// check that all expected resources are found

@@ -2,6 +2,9 @@ package bundlereader
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"strconv"
 
@@ -17,6 +20,40 @@ type Auth struct {
 	SSHPrivateKey      []byte `json:"sshPrivateKey,omitempty"`
 	InsecureSkipVerify bool   `json:"insecureSkipVerify,omitempty"`
 	BasicHTTP          bool   `json:"basicHTTP,omitempty"`
+	// remember to update Hash() when adding/modifying fields
+}
+
+func toByte(v bool) byte {
+	if v {
+		return byte(1)
+	}
+	return byte(0)
+}
+
+func (a Auth) Hash() string {
+	hash := sha256.New()
+
+	// Use data length as delimiter to avoid possible collisions
+	lenBuf := make([]byte, 8)
+	writeField := func(data []byte) {
+		binary.LittleEndian.PutUint64(lenBuf, uint64(len(data)))
+		hash.Write(lenBuf)
+		hash.Write(data)
+	}
+
+	for _, v := range [][]byte{
+		[]byte(a.Username),
+		[]byte(a.Password),
+		a.CABundle,
+		a.SSHPrivateKey,
+		{toByte(a.InsecureSkipVerify)},
+		{toByte(a.BasicHTTP)},
+	} {
+		writeField(v)
+	}
+
+	return hex.EncodeToString(hash.Sum(nil))
+
 }
 
 func ReadHelmAuthFromSecret(ctx context.Context, c client.Reader, req types.NamespacedName) (Auth, error) {

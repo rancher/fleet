@@ -19,7 +19,7 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-var hasOCIURL = regexp.MustCompile(`^oci:\/\/`)
+const ociURLPrefix = "oci://"
 
 // readResources reads and downloads all resources from the bundle. Resources
 // can be downloaded and are spread across multiple directories.
@@ -258,7 +258,7 @@ func checksum(helm *fleet.HelmOptions) string {
 	if helm == nil {
 		return "none"
 	}
-	return fmt.Sprintf(".chart/%x", sha256.Sum256([]byte(helm.Chart + ":" + helm.Repo + ":" + helm.Version)[:]))
+	return fmt.Sprintf(".chart/%x", sha256.Sum256([]byte(helm.Chart+":"+helm.Repo+":"+helm.Version)))
 }
 
 // loadDirectories loads all resources from a bundle's directories

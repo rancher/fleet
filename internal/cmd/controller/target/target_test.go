@@ -468,12 +468,12 @@ func TestDisablePreProcessFlagEnabled(t *testing.T) {
 			ExpectedValue: "${ non_existent_function }",
 		},
 	} {
-		if field, ok := valuesObj[testCase.Key]; !ok {
+		field, ok := valuesObj[testCase.Key]
+		if !ok {
 			t.Fatalf("key %s not found", testCase.Key)
-		} else {
-			if field != testCase.ExpectedValue {
-				t.Fatalf("key %s was not the expected value. Expected: '%s' Actual: '%s'", testCase.Key, testCase.ExpectedValue, field)
-			}
+		}
+		if field != testCase.ExpectedValue {
+			t.Fatalf("key %s was not the expected value. Expected: '%s' Actual: '%s'", testCase.Key, testCase.ExpectedValue, field)
 		}
 
 	}
@@ -507,23 +507,23 @@ func TestDisablePreProcessFlagDisabled(t *testing.T) {
 	key := "clusterName"
 	expectedValue := "test-cluster"
 
-	if field, ok := valuesObj[key]; !ok {
+	field, ok := valuesObj[key]
+	if !ok {
 		t.Fatalf("key %s not found", key)
-	} else {
-		if field != expectedValue {
-			t.Fatalf("key %s was not the expected value. Expected: '%s' Actual: '%s'", key, field, expectedValue)
-		}
+	}
+	if field != expectedValue {
+		t.Fatalf("key %s was not the expected value. Expected: '%s' Actual: '%s'", key, field, expectedValue)
 	}
 
 	key = "overridden"
 	expectedValue = "something_templated"
 
-	if field, ok := valuesObj[key]; !ok {
+	field, ok = valuesObj[key]
+	if !ok {
 		t.Fatalf("key %s not found", key)
-	} else {
-		if field != expectedValue {
-			t.Fatalf("key %s was not the expected value. Expected: '%s' Actual: '%s'", key, field, expectedValue)
-		}
+	}
+	if field != expectedValue {
+		t.Fatalf("key %s was not the expected value. Expected: '%s' Actual: '%s'", key, field, expectedValue)
 	}
 
 }
@@ -551,12 +551,12 @@ func TestDisablePreProcessFlagMissing(t *testing.T) {
 	key := "clusterName"
 	expectedValue := "test-cluster"
 
-	if field, ok := valuesObj[key]; !ok {
+	field, ok := valuesObj[key]
+	if !ok {
 		t.Fatalf("key %s not found", key)
-	} else {
-		if field != expectedValue {
-			t.Fatalf("key %s was not the expected value. Expected: '%s' Actual: '%s'", key, field, expectedValue)
-		}
+	}
+	if field != expectedValue {
+		t.Fatalf("key %s was not the expected value. Expected: '%s' Actual: '%s'", key, field, expectedValue)
 	}
 
 }
