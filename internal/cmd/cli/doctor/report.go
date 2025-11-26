@@ -307,7 +307,7 @@ func addMetricsToArchive(ctx context.Context, c client.Client, logger logr.Logge
 			return fmt.Errorf("failed to read response body from metrics service: %w", err)
 		}
 
-		logger.Info("Extracted metrics", "service", svc.Name, "metrics", string(body))
+		logger.Info("Extracted metrics", "service", svc.Name)
 
 		if err := addFileToArchive(body, fmt.Sprintf("metrics_%s", svc.Name), w); err != nil {
 			return fmt.Errorf("failed to write metrics to archive from service %s: %w", svc.Name, err)
@@ -465,7 +465,7 @@ func forwardPorts(
 
 		closeFn = func() {
 			fwder.Close()
-			logger.Info("Closed port forwarding on port %d.", port)
+			logger.Info("Closed port forwarding", "service", svc.Name, "port", port)
 		}
 
 		select {
