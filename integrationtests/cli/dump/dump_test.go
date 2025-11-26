@@ -74,10 +74,17 @@ var _ = Describe("Fleet dump", func() {
 				},
 			}
 
-			testBundleDeployment := fleet.BundleDeployment{
+			testBundleDeployment1 := fleet.BundleDeployment{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "my-bundledeployment",
-					Namespace: "baz",
+					Namespace: "ns1",
+				},
+			}
+
+			testBundleDeployment2 := fleet.BundleDeployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "my-bundledeployment",
+					Namespace: "ns2",
 				},
 			}
 
@@ -119,7 +126,8 @@ var _ = Describe("Fleet dump", func() {
 			objs = []client.Object{
 				&testGitRepo,
 				&testBundle,
-				&testBundleDeployment,
+				&testBundleDeployment1,
+				&testBundleDeployment2,
 				&testHelmOp,
 				&testbnm,
 				&testgrr,
@@ -162,7 +170,7 @@ var _ = Describe("Fleet dump", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				fileName := strings.Split(header.Name, "_")
-				Expect(fileName).To(HaveLen(2))
+				Expect(fileName).To(HaveLen(3)) // kind, ns, name
 
 				kindLow := fileName[0]
 

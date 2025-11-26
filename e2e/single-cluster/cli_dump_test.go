@@ -51,13 +51,13 @@ var _ = Describe("Fleet dump", Label("sharding"), func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				fileName := strings.Split(header.Name, "_")
-				Expect(fileName).To(HaveLen(2))
 
 				kindLow := fileName[0]
 				if kindLow != "metrics" {
 					continue
 				}
 
+				Expect(fileName).To(HaveLen(2))
 				Expect(content).ToNot(BeEmpty())
 
 				// Run a few basic checks on expected strings, checking full contents would be cumbersome

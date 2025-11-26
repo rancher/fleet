@@ -126,7 +126,7 @@ func addObjectsToArchive(
 			return fmt.Errorf("failed to marshal %s: %w", r, err)
 		}
 
-		fileName := fmt.Sprintf("%s_%s", r, i.GetName())
+		fileName := fmt.Sprintf("%s_%s_%s", r, i.GetNamespace(), i.GetName())
 		if err := addFileToArchive(g, fileName, w); err != nil {
 			return err
 		}
