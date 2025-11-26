@@ -2,47 +2,60 @@ package doctor
 
 import (
 	"context"
-	"os"
 	"testing"
 
+	"github.com/rancher/fleet/integrationtests/utils"
 	"github.com/rancher/fleet/internal/cmd/cli/doctor"
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"github.com/rancher/wrangler/v3/pkg/schemes"
-	"k8s.io/apimachinery/pkg/runtime"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/client-go/dynamic"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
 
 var (
-	scheme = runtime.NewScheme()
+	cfg       *rest.Config
+	ctx       context.Context
+	cancel    context.CancelFunc
+	k8sClient client.Client
+	testEnv   *envtest.Environment
 )
 
 func TestFleetDoctor(t *testing.T) {
-	os.Setenv("KUBEBUILDER_ASSETS", "/home/tan/.local/share/kubebuilder-envtest/k8s/1.32.0-linux-amd64")
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Fleet CLI Doctor Suite")
 }
 
 var _ = BeforeSuite(func() {
 	ctrl.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
+	ctx, cancel = context.WithCancel(context.TODO())
 
-	// scheme for k8sClient
-	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-	utilruntime.Must(v1alpha1.AddToScheme(scheme))
-	Expect(schemes.Register(v1alpha1.AddToScheme)).NotTo(HaveOccurred())
+	testEnv = utils.NewEnvTest("../../..")
+	var err error
+	cfg, err = utils.StartTestEnv(testEnv)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(cfg).NotTo(BeNil())
+
+	Expect(corev1.AddToScheme(scheme.Scheme)).ToNot(HaveOccurred())
+	Expect(v1alpha1.AddToScheme(scheme.Scheme)).NotTo(HaveOccurred())
+
+	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
+	Expect(err).NotTo(HaveOccurred())
+	Expect(k8sClient).NotTo(BeNil())
 })
 
-// simulates fleet cli online execution, with mocked client
-func fleetDoctor(d dynamic.Interface, c client.Client, path string) error {
-	var cfg *rest.Config
+var _ = AfterSuite(func() {
+	cancel()
+	Expect(testEnv.Stop()).ToNot(HaveOccurred())
+})
 
-	return doctor.CreateReportWithClients(context.Background(), cfg, d, c, path)
+// fleetDoctor simulates fleet cli online execution
+func fleetDoctor(path string) error {
+	return doctor.CreateReport(context.Background(), cfg, path)
 }

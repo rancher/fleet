@@ -4,7 +4,6 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,58 +11,63 @@ import (
 	"maps"
 	"os"
 	"reflect"
+	"slices"
 	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"go.uber.org/mock/gomock"
-	"gopkg.in/yaml.v2"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/dynamic/fake"
 
-	"github.com/rancher/fleet/internal/mocks"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
 var _ = Describe("Fleet doctor report", func() {
 	var (
-		ctrl          *gomock.Controller
-		fakeClient    *mocks.MockK8sClient
-		fakeDynClient *fake.FakeDynamicClient
-		objs          []runtime.Object
+		objs       []client.Object
+		namespaces []string
 	)
 
 	JustBeforeEach(func() {
-		fakeDynClient = fake.NewSimpleDynamicClient(scheme, objs...)
+		namespaces = []string{}
+		for _, o := range objs {
+			ns := o.GetNamespace()
+			if !slices.Contains(namespaces, ns) {
+				mustCreateNS(ns)
+				namespaces = append(namespaces, ns)
+			}
 
-		ctrl = gomock.NewController(GinkgoT())
-		fakeClient = mocks.NewMockK8sClient(ctrl)
+			err := k8sClient.Create(ctx, o)
+			Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("failed to create %s/%s: %v", o.GetNamespace(), o.GetName(), err))
+		}
+
+		DeferCleanup(func() {
+			for _, o := range objs {
+				Expect(k8sClient.Delete(ctx, o)).NotTo(HaveOccurred())
+			}
+
+			objs = nil
+		})
 	})
 
 	When("the cluster contains items of each supported resource type", func() {
 		BeforeEach(func() {
-			// Comparisons will fail if TypeMeta is not explicitly populated
 			testGitRepo := fleet.GitRepo{
-				TypeMeta: metav1.TypeMeta{
-					Kind:       "GitRepo",
-					APIVersion: "fleet.cattle.io/v1alpha1",
-				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "my-gitrepo",
 					Namespace: "foo",
 				},
+				Spec: fleet.GitRepoSpec{
+					Repo: "http://example.com/myrepo", // not evaluated, but must be non-empty
+				},
 			}
 
 			testBundle := fleet.Bundle{
-				TypeMeta: metav1.TypeMeta{
-					Kind:       "Bundle",
-					APIVersion: "fleet.cattle.io/v1alpha1",
-				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "my-bundle",
 					Namespace: "bar",
@@ -71,10 +75,6 @@ var _ = Describe("Fleet doctor report", func() {
 			}
 
 			testBundleDeployment := fleet.BundleDeployment{
-				TypeMeta: metav1.TypeMeta{
-					Kind:       "Bundledeployment",
-					APIVersion: "fleet.cattle.io/v1alpha1",
-				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "my-bundledeployment",
 					Namespace: "baz",
@@ -82,10 +82,6 @@ var _ = Describe("Fleet doctor report", func() {
 			}
 
 			testHelmOp := fleet.HelmOp{
-				TypeMeta: metav1.TypeMeta{
-					Kind:       "HelmOp",
-					APIVersion: "fleet.cattle.io/v1alpha1",
-				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "my-helmop",
 					Namespace: "hey",
@@ -93,10 +89,6 @@ var _ = Describe("Fleet doctor report", func() {
 			}
 
 			testbnm := fleet.BundleNamespaceMapping{
-				TypeMeta: metav1.TypeMeta{
-					Kind:       "BundleNamespaceMapping",
-					APIVersion: "fleet.cattle.io/v1alpha1",
-				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "my-bnm",
 					Namespace: "test-bnm",
@@ -104,10 +96,6 @@ var _ = Describe("Fleet doctor report", func() {
 			}
 
 			testgrr := fleet.GitRepoRestriction{
-				TypeMeta: metav1.TypeMeta{
-					Kind:       "GitRepoRestriction",
-					APIVersion: "fleet.cattle.io/v1alpha1",
-				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "my-grr",
 					Namespace: "test-grr",
@@ -115,10 +103,6 @@ var _ = Describe("Fleet doctor report", func() {
 			}
 
 			testCluster := fleet.Cluster{
-				TypeMeta: metav1.TypeMeta{
-					Kind:       "Cluster",
-					APIVersion: "fleet.cattle.io/v1alpha1",
-				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "my-cluster",
 					Namespace: "fleet-local",
@@ -126,17 +110,13 @@ var _ = Describe("Fleet doctor report", func() {
 			}
 
 			testClusterGroup := fleet.ClusterGroup{
-				TypeMeta: metav1.TypeMeta{
-					Kind:       "ClusterGroup",
-					APIVersion: "fleet.cattle.io/v1alpha1",
-				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "my-cg",
 					Namespace: "test-cg",
 				},
 			}
 
-			objs = []runtime.Object{
+			objs = []client.Object{
 				&testGitRepo,
 				&testBundle,
 				&testBundleDeployment,
@@ -146,19 +126,12 @@ var _ = Describe("Fleet doctor report", func() {
 				&testCluster,
 				&testClusterGroup,
 			}
-
-			DeferCleanup(func() {
-				objs = nil // prevent conflicts with other test cases
-			})
 		})
 
 		It("returns an archive containing all of these resources", func() {
 			tgzPath := "test.tgz"
 
-			// Listing events (covered in another test case)
-			fakeClient.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-
-			err := fleetDoctor(fakeDynClient, fakeClient, tgzPath)
+			err := fleetDoctor(tgzPath)
 			Expect(err).ToNot(HaveOccurred())
 
 			defer func() {
@@ -175,7 +148,7 @@ var _ = Describe("Fleet doctor report", func() {
 
 			tr := tar.NewReader(gzr)
 
-			foundObjs := []runtime.Object{}
+			foundObjs := []client.Object{}
 			for {
 				header, err := tr.Next()
 				if errors.Is(err, io.EOF) {
@@ -193,65 +166,61 @@ var _ = Describe("Fleet doctor report", func() {
 
 				kindLow := fileName[0]
 
-				var tmp map[string]any
-				err = yaml.Unmarshal(content, &tmp)
-				Expect(err).ToNot(HaveOccurred())
-
 				switch kindLow {
 				case "bundles":
 					var b struct {
 						Object fleet.Bundle `json:"object"`
 					}
-					err = runtime.DefaultUnstructuredConverter.FromUnstructured(tmp, &b)
+					err = yaml.Unmarshal(content, &b)
 					Expect(err).ToNot(HaveOccurred())
 					foundObjs = append(foundObjs, &b.Object)
 				case "bundledeployments":
 					var b struct {
 						Object fleet.BundleDeployment `json:"object"`
 					}
-					err = runtime.DefaultUnstructuredConverter.FromUnstructured(tmp, &b)
+					err = yaml.Unmarshal(content, &b)
 					Expect(err).ToNot(HaveOccurred())
 					foundObjs = append(foundObjs, &b.Object)
 				case "gitrepos":
 					var b struct {
 						Object fleet.GitRepo `json:"object"`
 					}
-					err = runtime.DefaultUnstructuredConverter.FromUnstructured(tmp, &b)
+					err = yaml.Unmarshal(content, &b)
 					Expect(err).ToNot(HaveOccurred())
 					foundObjs = append(foundObjs, &b.Object)
 				case "helmops":
 					var b struct {
 						Object fleet.HelmOp `json:"object"`
 					}
-					err = runtime.DefaultUnstructuredConverter.FromUnstructured(tmp, &b)
+					err = yaml.Unmarshal(content, &b)
 					Expect(err).ToNot(HaveOccurred())
 					foundObjs = append(foundObjs, &b.Object)
 				case "bundlenamespacemappings":
 					var b struct {
 						Object fleet.BundleNamespaceMapping `json:"object"`
 					}
-					err = runtime.DefaultUnstructuredConverter.FromUnstructured(tmp, &b)
+					err = yaml.Unmarshal(content, &b)
 					Expect(err).ToNot(HaveOccurred())
 					foundObjs = append(foundObjs, &b.Object)
 				case "gitreporestrictions":
 					var b struct {
 						Object fleet.GitRepoRestriction `json:"object"`
 					}
-					err = runtime.DefaultUnstructuredConverter.FromUnstructured(tmp, &b)
+					err = yaml.Unmarshal(content, &b)
 					Expect(err).ToNot(HaveOccurred())
 					foundObjs = append(foundObjs, &b.Object)
 				case "clusters":
 					var b struct {
 						Object fleet.Cluster `json:"object"`
 					}
-					err = runtime.DefaultUnstructuredConverter.FromUnstructured(tmp, &b)
+					err = yaml.Unmarshal(content, &b)
 					Expect(err).ToNot(HaveOccurred())
 					foundObjs = append(foundObjs, &b.Object)
 				case "clustergroups":
 					var b struct {
 						Object fleet.ClusterGroup `json:"object"`
 					}
-					err = runtime.DefaultUnstructuredConverter.FromUnstructured(tmp, &b)
+					err = yaml.Unmarshal(content, &b)
 					Expect(err).ToNot(HaveOccurred())
 					foundObjs = append(foundObjs, &b.Object)
 				}
@@ -261,7 +230,7 @@ var _ = Describe("Fleet doctor report", func() {
 			for _, eo := range objs {
 				found := false
 				for _, ao := range foundObjs {
-					if reflect.DeepEqual(ao, eo) {
+					if areEqual(ao, eo) {
 						found = true
 					}
 				}
@@ -277,38 +246,43 @@ var _ = Describe("Fleet doctor report", func() {
 			nss := []string{"cattle-fleet-system", "default", "cattle-fleet-local-system", "kube-system"}
 			nsWithNoEvents := "cattle-fleet-local-system"
 			for _, ns := range nss {
-				fakeClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&corev1.EventList{}), client.InNamespace(ns)).
-					DoAndReturn(
-						func(_ context.Context, evts *corev1.EventList, _ ...client.ListOption) error {
-							if ns == nsWithNoEvents {
-								return nil // Test absence of file if no events exist.
-							}
+				if ns == nsWithNoEvents {
+					continue // Test absence of file if no events exist.
+				}
 
-							evts.Items = []corev1.Event{
-								{
-									ObjectMeta: metav1.ObjectMeta{
-										Namespace: ns,
-									},
-									Reason:         "reason-1",
-									FirstTimestamp: metav1.Time{Time: time.Now()},
-								},
-								{
-									ObjectMeta: metav1.ObjectMeta{
-										Namespace: ns,
-									},
-									Reason:         "reason-2",
-									FirstTimestamp: metav1.Time{Time: time.Now()},
-								},
-							}
+				mustCreateNS(ns)
 
-							return nil
-						})
+				evts := []corev1.Event{
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Namespace: ns,
+							Name:      "event1",
+						},
+						InvolvedObject: corev1.ObjectReference{
+							Namespace: ns,
+						},
+						Reason:         "reason-1",
+						FirstTimestamp: metav1.Time{Time: time.Now()},
+					},
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Namespace: ns,
+							Name:      "event2",
+						},
+						InvolvedObject: corev1.ObjectReference{
+							Namespace: ns,
+						},
+						Reason:         "reason-2",
+						FirstTimestamp: metav1.Time{Time: time.Now()},
+					},
+				}
+
+				for _, e := range evts {
+					Expect(k8sClient.Create(ctx, &e)).NotTo(HaveOccurred())
+				}
 			}
 
-			fakeClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&corev1.ServiceList{}), gomock.Any()).
-				Return(nil)
-
-			err := fleetDoctor(fakeDynClient, fakeClient, tgzPath)
+			err := fleetDoctor(tgzPath)
 			Expect(err).ToNot(HaveOccurred())
 
 			defer func() {
@@ -343,16 +317,12 @@ var _ = Describe("Fleet doctor report", func() {
 
 				kindLow := fileName[0]
 
-				if kindLow == "events" {
-					ns := fileName[1]
-					foundEventsByNS[ns] = [][]byte{}
+				Expect(kindLow).To(Equal("events"))
+				ns := fileName[1]
+				foundEventsByNS[ns] = [][]byte{}
 
-					for e := range bytes.SplitSeq(content, []byte("\n")) {
-						foundEventsByNS[ns] = append(foundEventsByNS[ns], e)
-					}
-
-					// DEBUG
-					GinkgoWriter.Printf("[%s] Found events: %q\n", ns, content)
+				for e := range bytes.SplitSeq(content, []byte("\n")) {
+					foundEventsByNS[ns] = append(foundEventsByNS[ns], e)
 				}
 			}
 
@@ -373,10 +343,65 @@ var _ = Describe("Fleet doctor report", func() {
 			}
 		})
 	})
-
-	When("the cluster has Fleet installed with metrics enabled", func() {
-		It("includes metrics into the archive", func() {
-			// TODO
-		})
-	})
+	// Metrics are covered in end-to-end tests, as port forwarding is easier to set up in an actual cluster.
 })
+
+// areEqual checks if objects a and e are equal, by namespace, name, metadata (labels and annotations) and Spec or
+// equivalent fields.
+// Notably, status fields and any auto-computed fields, such as managed fields, UID, etc are not compared.
+func areEqual(a, e client.Object) bool {
+	if a.GetName() != e.GetName() {
+		return false
+	}
+
+	if a.GetNamespace() != e.GetNamespace() {
+		return false
+	}
+
+	if !maps.Equal(a.GetLabels(), e.GetLabels()) ||
+		!maps.Equal(a.GetAnnotations(), e.GetAnnotations()) {
+		return false
+	}
+
+	// GVK is not populated on the expected object
+	switch a.GetObjectKind().GroupVersionKind().Kind {
+	case "Bundle":
+		return reflect.DeepEqual(a.(*fleet.Bundle).Spec, e.(*fleet.Bundle).Spec)
+	case "BundleDeployment":
+		return reflect.DeepEqual(a.(*fleet.BundleDeployment).Spec, e.(*fleet.BundleDeployment).Spec)
+	case "BundleNamespaceMapping":
+		aMapping := a.(*fleet.BundleNamespaceMapping)
+		eMapping := e.(*fleet.BundleNamespaceMapping)
+		return reflect.DeepEqual(aMapping.BundleSelector, eMapping.BundleSelector) &&
+			reflect.DeepEqual(aMapping.NamespaceSelector, eMapping.NamespaceSelector)
+	case "Cluster":
+		return reflect.DeepEqual(a.(*fleet.Cluster).Spec, e.(*fleet.Cluster).Spec)
+	case "ClusterGroup":
+		return reflect.DeepEqual(a.(*fleet.ClusterGroup).Spec, e.(*fleet.ClusterGroup).Spec)
+	case "GitRepo":
+		return reflect.DeepEqual(a.(*fleet.GitRepo).Spec, e.(*fleet.GitRepo).Spec)
+	case "GitRepoRestriction":
+		aGR := a.(*fleet.GitRepoRestriction)
+		eGR := e.(*fleet.GitRepoRestriction)
+		return aGR.DefaultServiceAccount == eGR.DefaultServiceAccount &&
+			slices.Equal(aGR.AllowedServiceAccounts, eGR.AllowedServiceAccounts) &&
+			slices.Equal(aGR.AllowedRepoPatterns, eGR.AllowedRepoPatterns) &&
+			aGR.DefaultClientSecretName == eGR.DefaultClientSecretName &&
+			slices.Equal(aGR.AllowedClientSecretNames, eGR.AllowedClientSecretNames) &&
+			slices.Equal(aGR.AllowedTargetNamespaces, eGR.AllowedTargetNamespaces)
+
+	case "HelmOp":
+		return reflect.DeepEqual(a.(*fleet.HelmOp).Spec, e.(*fleet.HelmOp).Spec)
+	}
+
+	return false
+}
+
+func mustCreateNS(ns string) {
+	toCreate := corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: ns,
+		},
+	}
+	Expect(client.IgnoreAlreadyExists(k8sClient.Create(ctx, &toCreate))).NotTo(HaveOccurred())
+}
