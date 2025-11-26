@@ -29,7 +29,8 @@ const (
 	LongPollingInterval = 5 * time.Second
 
 	// PodReadyTimeout is the timeout for waiting for pods to become ready in infrastructure setup
-	PodReadyTimeout = "120s"
+	// Set to 180s to accommodate startup probe (160s max: 30 failures × 5s period + 10s initial delay)
+	PodReadyTimeout = "180s"
 )
 
 type Env struct {
