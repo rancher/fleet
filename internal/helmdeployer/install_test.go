@@ -571,6 +571,10 @@ func TestValuesFromUsesProvidedNamespaceWhenNotCopiedDownstream(t *testing.T) {
 		DownstreamResources: []fleet.DownstreamResource{{Kind: "ConfigMap", Name: "some-other"}},
 	}
 
+	// enable experimental copy behavior for this test
+	os.Setenv(experimental.CopyResourcesDownstreamFlag, "true")
+	defer os.Unsetenv(experimental.CopyResourcesDownstreamFlag)
+
 	vals, err := h.getValues(context.TODO(), opts, defaultNS)
 	r.NoError(err)
 	a.Equal("cmProvided", vals["cmVal"])

@@ -520,20 +520,17 @@ func getDryRunConfig(chart *chartv2.Chart, dryRun bool) dryRunConfig {
 	return cfg
 }
 
-// isInDownstreamResources returns true and the matching DownstreamResource
-// when a resource with the provided name exists in the provided
-// BundleDeploymentOptions.DownstreamResources slice. If not found, returns
-// false and the zero value for fleet.DownstreamResource.
+// isInDownstreamResources returns true when a resource with the
+// provided name exists in the provided BundleDeploymentOptions.DownstreamResources slice.
+// If not found, returns false.
 func isInDownstreamResources(resourceName, kind string, options fleet.BundleDeploymentOptions) bool {
 	if !experimental.CopyResourcesDownstreamEnabled() {
 		return false
 	}
 
 	for _, dr := range options.DownstreamResources {
-		if dr.Name == resourceName {
-			if dr.Kind == kind {
-				return true
-			}
+		if dr.Name == resourceName && dr.Kind == kind {
+			return true
 		}
 	}
 	return false
