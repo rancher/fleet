@@ -270,10 +270,8 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 				return err
 			}).ShouldNot(HaveOccurred(), out)
 
-			// Clone previously created repo
-			clone, err = gh.Create(clonedir, testenv.AssetPath("gitrepo/sleeper-chart"), "examples")
-			Expect(err).ToNot(HaveOccurred())
-
+			// Create the GitRepo resource first, before pushing content
+			// This ensures the webhook will find the GitRepo when the push triggers it
 			err = testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo.yaml"), gitRepoTestValues{
 				Name:            gitrepoName,
 				Repo:            inClusterRepoURL,
@@ -281,6 +279,10 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 				PollingInterval: "24h",           // prevent polling
 				TargetNamespace: targetNamespace, // to avoid conflicts with other tests
 			})
+			Expect(err).ToNot(HaveOccurred())
+
+			// Now push content, which will trigger the webhook
+			clone, err = gh.Create(clonedir, testenv.AssetPath("gitrepo/sleeper-chart"), "examples")
 			Expect(err).ToNot(HaveOccurred())
 		})
 
