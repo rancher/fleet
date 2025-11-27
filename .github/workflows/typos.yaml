@@ -11,5 +11,5 @@ jobs:
       uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
     - name: Check spelling of file.txt
-      uses: crate-ci/typos@07d900b8fa1097806b8adb6391b0d3e0ac2fdea7 # v1.39.0
+      uses: crate-ci/typos@1af53e3774f068183ffd0c7193eb061a2b65a531 # v1.39.1
 
