@@ -152,7 +152,7 @@ func Template(output string, tmplPath string, data any) error {
 	return nil
 }
 
-// RandomName returns a slightly random name, so temporary assets don't conflict
+// RandomFilename returns a slightly random name, so temporary assets don't conflict
 func RandomFilename(filename string, r *rand.Rand) string {
 	ext := path.Ext(filename)
 	filename = path.Base(filename)

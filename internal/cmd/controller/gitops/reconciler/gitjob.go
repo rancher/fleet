@@ -28,6 +28,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -121,20 +122,44 @@ func (r *GitJobReconciler) createCABundleSecret(ctx context.Context, gitrepo *v1
 			Namespace: gitrepo.Namespace,
 			Name:      name,
 		},
-		Data: map[string][]byte{
-			fieldName: caBundle,
-		},
 	}
-	if err := controllerutil.SetControllerReference(gitrepo, secret, r.Scheme); err != nil {
-		return false, err
-	}
-	data := secret.StringData
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, secret, func() error {
-		secret.StringData = data // Supports update case, if the secret already exists.
+		if secret.Annotations == nil {
+			secret.Annotations = map[string]string{}
+		}
+		secret.Annotations["revision"] = strconv.FormatInt(time.Now().Unix(), 10)
+		secret.Data = map[string][]byte{
+			fieldName: caBundle,
+		}
+		if err := controllerutil.SetControllerReference(gitrepo, secret, r.Scheme); err != nil {
+			return err
+		}
 		return nil
 	})
+	if err != nil {
+		return false, err
+	}
 
-	return true, err
+	updatedSecret := &corev1.Secret{}
+	err = retry.OnError(retry.DefaultRetry, func(_ error) bool {
+		return true
+	}, func() error {
+		if err := r.Get(ctx, types.NamespacedName{
+			Namespace: gitrepo.Namespace,
+			Name:      name,
+		}, updatedSecret); err != nil {
+			return err
+		}
+		if !strings.EqualFold(updatedSecret.Annotations["revision"], secret.Annotations["revision"]) {
+			return fmt.Errorf("CA bundle secret %s/%s has not been synced in time before git job creation", gitrepo.Namespace, name)
+		}
+		return nil
+	})
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
 }
 
 func (r *GitJobReconciler) createJob(ctx context.Context, gitRepo *v1alpha1.GitRepo) error {
