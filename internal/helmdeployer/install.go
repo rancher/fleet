@@ -16,6 +16,7 @@ import (
 	releasev1 "helm.sh/helm/v4/pkg/release/v1"
 	"helm.sh/helm/v4/pkg/storage/driver"
 
+	"github.com/rancher/fleet/internal/experimental"
 	"github.com/rancher/fleet/internal/helmdeployer/render"
 	"github.com/rancher/fleet/internal/manifest"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -375,7 +376,9 @@ func (h *Helm) getValues(ctx context.Context, options fleet.BundleDeploymentOpti
 			if valuesFrom.ConfigMapKeyRef != nil {
 				name := valuesFrom.ConfigMapKeyRef.Name
 				namespace := valuesFrom.ConfigMapKeyRef.Namespace
-				if namespace == "" {
+				if namespace == "" || isInDownstreamResources(name, "ConfigMap", options) {
+					// If the namespace is not set, or if the ConfigMap is part of the copied resources,
+					// we assume it is in the default namespace of the Helm release.
 					namespace = defaultNamespace
 				}
 				key := valuesFrom.ConfigMapKeyRef.Key
@@ -401,7 +404,9 @@ func (h *Helm) getValues(ctx context.Context, options fleet.BundleDeploymentOpti
 			if valuesFrom.SecretKeyRef != nil {
 				name := valuesFrom.SecretKeyRef.Name
 				namespace := valuesFrom.SecretKeyRef.Namespace
-				if namespace == "" {
+				if namespace == "" || isInDownstreamResources(name, "Secret", options) {
+					// If the namespace is not set, or if the Secret is part of the copied resources,
+					// we assume it is in the default namespace of the Helm release.
 					namespace = defaultNamespace
 				}
 				key := valuesFrom.SecretKeyRef.Key
@@ -513,4 +518,20 @@ func getDryRunConfig(chart *chartv2.Chart, dryRun bool) dryRunConfig {
 	}
 
 	return cfg
+}
+
+// isInDownstreamResources returns true when a resource with the
+// provided name exists in the provided BundleDeploymentOptions.DownstreamResources slice.
+// If not found, returns false.
+func isInDownstreamResources(resourceName, kind string, options fleet.BundleDeploymentOptions) bool {
+	if !experimental.CopyResourcesDownstreamEnabled() {
+		return false
+	}
+
+	for _, dr := range options.DownstreamResources {
+		if dr.Name == resourceName && dr.Kind == kind {
+			return true
+		}
+	}
+	return false
 }
