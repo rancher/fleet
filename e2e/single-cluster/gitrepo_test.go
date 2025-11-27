@@ -282,6 +282,12 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 		})
 
 		It("updates the deployment", func() {
+			By("waiting for the gitrepo to be ready")
+			Eventually(func(g Gomega) {
+				status := getGitRepoStatus(g, k, gitrepoName)
+				g.Expect(status.Commit).ToNot(BeEmpty(), "GitRepo should have synced initially")
+			}, testenv.MediumTimeout, testenv.ShortTimeout).Should(Succeed())
+
 			By("checking the pod exists")
 			Eventually(func() string {
 				out, _ := k.Namespace(targetNamespace).Get("pods")
