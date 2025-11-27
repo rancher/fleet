@@ -209,6 +209,9 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 		BeforeEach(func() {
 			localRepoName = "webhook-test"
 			targetNamespace = testenv.NewNamespaceName("target", r)
+
+			gitServerPort = port
+			gitProtocol = "http"
 		})
 
 		JustBeforeEach(func() {
