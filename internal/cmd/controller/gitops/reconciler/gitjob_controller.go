@@ -631,14 +631,6 @@ func (r *GitJobReconciler) managePollingJob(logger logr.Logger, gitrepo v1alpha1
 
 func (r *GitJobReconciler) listBundlesForGitrepo(ctx context.Context, gitrepo *v1alpha1.GitRepo) (*v1alpha1.BundleList, error) {
 	list := &v1alpha1.BundleList{}
-	// if err := r.List(ctx, list,
-	// 	client.MatchingFields{
-	// 		"metadata.labels.gitrepo-name+namespace": GetNamespaceAndNameID(gitrepo.Namespace, gitrepo.Name),
-	// 	},
-	// ); err != nil {
-	// 	return nil, err
-	// }
-
 	err := r.List(ctx, list, client.MatchingLabels{v1alpha1.RepoLabel: gitrepo.Name}, client.InNamespace(gitrepo.Namespace))
 	if err != nil {
 		return nil, err
@@ -658,10 +650,6 @@ func (r *GitJobReconciler) listImageScansForGitrepo(ctx context.Context, gitrepo
 		return nil, err
 	}
 	return list, nil
-}
-
-func GetNamespaceAndNameID(namespace, name string) string {
-	return fmt.Sprintf("%s/%s", namespace, name)
 }
 
 func generationChanged(r *v1alpha1.GitRepo) bool {

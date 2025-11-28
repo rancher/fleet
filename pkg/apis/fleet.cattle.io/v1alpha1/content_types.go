@@ -27,7 +27,7 @@ type Content struct {
 	// The bundle resources are copied into the bundledeployment's content
 	// resource, so the downstream agent can deploy them.
 	// +nullable
-	Content []byte `json:"content,omitempty"` // Content is a byte array, which contains the manifests of a bundle. The bundle resources are copied into the bundledeployment's content resource, so the downstream agent can deploy them.
+	Content []byte `json:"content,omitempty"`
 
 	// SHA256Sum of the Content field
 	SHA256Sum string        `json:"sha256sum,omitempty"` // SHA256Sum of the Content field

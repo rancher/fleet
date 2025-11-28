@@ -449,8 +449,6 @@ func TestReconcile_OptionsSecretCreateUpdateError(t *testing.T) {
 			mockClient := mocks.NewMockK8sClient(mockCtrl)
 			expectGetWithFinalizer(mockClient, bundle)
 
-			// No content creation/update expected, as options secret management happens before creating the BD
-
 			c.secretCalls(mockClient)
 
 			// No expected status update (retryable error)
@@ -531,8 +529,6 @@ func TestReconcile_OptionsSecretDeletionError(t *testing.T) {
 
 	mockClient := mocks.NewMockK8sClient(mockCtrl)
 	expectGetWithFinalizer(mockClient, bundle)
-
-	// No content creation/update expected, as options secret management happens before creating the BD
 
 	mockClient.EXPECT().Delete(gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{}), gomock.Any()).
 		Return(errors.New("something went wrong"))

@@ -35,7 +35,7 @@ type ContentReconciler struct {
 // SetupWithManager sets up the controller with the Manager.
 func (r *ContentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		Named("content-controller").
+		Named("content"). // naming because this controller does not use For()
 		Watches(
 			&fleet.BundleDeployment{},
 			handler.EnqueueRequestsFromMapFunc(r.mapBundleDeploymentToContent),

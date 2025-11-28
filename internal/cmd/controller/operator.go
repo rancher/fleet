@@ -199,7 +199,7 @@ func start(
 		ShardID: shardID,
 		Workers: workersOpts.Content,
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to content controller", "controller", "Content")
+		setupLog.Error(err, "unable to create controller", "controller", "Content")
 		return err
 	}
 

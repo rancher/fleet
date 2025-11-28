@@ -336,7 +336,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		bd.Spec.ValuesHash = valuesHash
 
 		// When content resources are stored in etcd, we need to keep track of the content resource so they
-		// are properly gargabe collected by the content controller.
+		// are properly gargabe-collected by the content controller.
 		if !contentsInOCI && !contentsInHelmChart {
 			if bd.Labels == nil {
 				bd.Labels = make(map[string]string)
