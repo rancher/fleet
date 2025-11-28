@@ -27,6 +27,7 @@ const (
 	SecretTypeBundleDeploymentOptions = "fleet.cattle.io/bundle-deployment/v1alpha1"
 
 	BundleDeploymentOwnershipLabel = "fleet.cattle.io/bundledeployment"
+	ContentNameLabel               = "fleet.cattle.io/content-name"
 )
 
 const IgnoreOp = "ignore"

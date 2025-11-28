@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	corev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -48,6 +49,15 @@ const (
 	// Default secret name for oci storage,
 	// used as a fallback if no secret is specified by the user in the GitRepo.
 	DefaultOCIStorageSecretName = "ocistorage"
+
+	// ContentNameIndex is the name of the index for the content name label in bundle deployments
+	ContentNameIndex = "metadata.labels." + fleet.ContentNameLabel
+
+	// RepoNameIndex is the name of the index for the gitrepo name in bundles
+	RepoNameIndex = "metadata.labels." + fleet.RepoLabel
+
+	// ImageScanGitRepoIndex is the name of the index for the gitrepo name in imagescans
+	ImageScanGitRepoIndex = "spec.gitrepoName"
 )
 
 var (

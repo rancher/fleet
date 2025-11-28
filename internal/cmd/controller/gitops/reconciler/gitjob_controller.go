@@ -16,6 +16,7 @@ import (
 	"github.com/rancher/fleet/internal/cmd/controller/imagescan"
 	ctrlquartz "github.com/rancher/fleet/internal/cmd/controller/quartz"
 	"github.com/rancher/fleet/internal/cmd/controller/reconciler"
+	"github.com/rancher/fleet/internal/config"
 	"github.com/rancher/fleet/internal/metrics"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/durations"
@@ -29,6 +30,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
@@ -56,6 +58,10 @@ const (
 	// make sure Prometheus scrapes them.
 	ShortLivedMetricsTTL       = 120 * time.Second
 	gitJobPollingJitterPercent = 10
+
+	// period after which the GitRepo reconciler is re-scheduled,
+	// in order to wait for the dependent resources cleanup to finish
+	requeueAfterResourceCleanup = 2 * time.Second
 )
 
 var (
@@ -179,9 +185,7 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	if !gitrepo.DeletionTimestamp.IsZero() {
 		if controllerutil.ContainsFinalizer(gitrepo, finalize.GitRepoFinalizer) {
-			if err := r.cleanupGitRepo(ctx, logger, gitrepo); err != nil {
-				return ctrl.Result{}, err
-			}
+			return r.handleDelete(ctx, logger, gitrepo)
 		}
 
 		return ctrl.Result{}, nil
@@ -355,25 +359,50 @@ func (r *GitJobReconciler) deletePreviousJob(ctx context.Context, logger logr.Lo
 	return r.Delete(ctx, &job)
 }
 
-func (r *GitJobReconciler) cleanupGitRepo(ctx context.Context, logger logr.Logger, gitrepo *v1alpha1.GitRepo) error {
+func (r *GitJobReconciler) handleDelete(ctx context.Context, logger logr.Logger, gitrepo *v1alpha1.GitRepo) (ctrl.Result, error) {
 	logger.Info("Gitrepo deleted, deleting bundle, image scans")
 
-	metrics.GitRepoCollector.Delete(gitrepo.Name, gitrepo.Namespace)
 	_ = r.deletePollingJob(*gitrepo)
 
-	nsName := types.NamespacedName{Name: gitrepo.Name, Namespace: gitrepo.Namespace}
-	if err := finalize.PurgeBundles(ctx, r.Client, nsName, v1alpha1.RepoLabel); err != nil {
-		return err
+	if !controllerutil.ContainsFinalizer(gitrepo, finalize.GitRepoFinalizer) {
+		return ctrl.Result{}, nil
+	}
+
+	bundles, err := r.listBundlesForGitrepo(ctx, gitrepo)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	// Bundle deletion happens asynchronously: mark them for deletion and requeue
+	// This ensures the Gitrepo is kept around until all its Bundles are completely deleted.
+	if len(bundles.Items) > 0 {
+		logger.V(1).Info("GitRepo deleted, purging bundles")
+		return ctrl.Result{RequeueAfter: requeueAfterResourceCleanup}, batchDeleteDependentResources(ctx, r.Client, bundles)
 	}
 
 	// remove the job scheduled by imagescan, if any
 	_ = r.Scheduler.DeleteJob(imagescan.GitCommitKey(gitrepo.Namespace, gitrepo.Name))
 
-	if err := finalize.PurgeImageScans(ctx, r.Client, nsName); err != nil {
-		return err
+	images, err := r.listImageScansForGitrepo(ctx, gitrepo)
+	if err != nil {
+		return ctrl.Result{}, err
 	}
 
-	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+	if len(images.Items) > 0 {
+		logger.V(1).Info("GitRepo deleted, purging imagescans")
+		return ctrl.Result{RequeueAfter: requeueAfterResourceCleanup}, batchDeleteDependentResources(ctx, r.Client, images)
+	}
+
+	// Delete the target namespace if DeleteNamespace is true
+	if err := finalize.PurgeTargetNamespaceIfNeeded(ctx, r.Client, gitrepo); err != nil {
+		return ctrl.Result{}, err
+	}
+
+	metrics.GitRepoCollector.Delete(gitrepo.Name, gitrepo.Namespace)
+
+	// we don't have pending Bundles nor ImageScans, we can remove the finalizer
+	nsName := types.NamespacedName{Name: gitrepo.Name, Namespace: gitrepo.Namespace}
+	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		if err := r.Get(ctx, nsName, gitrepo); err != nil {
 			return err
 		}
@@ -384,10 +413,10 @@ func (r *GitJobReconciler) cleanupGitRepo(ctx context.Context, logger logr.Logge
 	})
 
 	if client.IgnoreNotFound(err) != nil {
-		return err
+		return ctrl.Result{}, err
 	}
 
-	return nil
+	return ctrl.Result{}, nil
 }
 
 // shouldCreateJob checks if the conditions to create a new job are met.
@@ -596,6 +625,29 @@ func (r *GitJobReconciler) managePollingJob(logger logr.Logger, gitrepo v1alpha1
 	}
 
 	return jobUpdatedOrCreated, nil
+}
+
+func (r *GitJobReconciler) listBundlesForGitrepo(ctx context.Context, gitrepo *v1alpha1.GitRepo) (*v1alpha1.BundleList, error) {
+	list := &v1alpha1.BundleList{}
+	err := r.List(ctx, list, client.MatchingLabels{v1alpha1.RepoLabel: gitrepo.Name}, client.InNamespace(gitrepo.Namespace))
+	if err != nil {
+		return nil, err
+	}
+	return list, nil
+}
+
+func (r *GitJobReconciler) listImageScansForGitrepo(ctx context.Context, gitrepo *v1alpha1.GitRepo) (*v1alpha1.ImageScanList, error) {
+	list := &v1alpha1.ImageScanList{}
+
+	if err := r.List(ctx, list,
+		client.InNamespace(gitrepo.Namespace),
+		client.MatchingFields{
+			config.ImageScanGitRepoIndex: gitrepo.Name,
+		},
+	); err != nil {
+		return nil, err
+	}
+	return list, nil
 }
 
 func generationChanged(r *v1alpha1.GitRepo) bool {
@@ -834,4 +886,28 @@ func getNextCommit(status v1alpha1.GitRepoStatus) string {
 	}
 
 	return commit
+}
+
+func batchDeleteDependentResources(ctx context.Context, c client.Client, list client.ObjectList) error {
+	var errs []error
+
+	_ = meta.EachListItem(list, func(obj runtime.Object) error {
+		o, ok := obj.(client.Object)
+		if !ok {
+			errs = append(errs, fmt.Errorf("item does not implement client.Object: %T", obj))
+			return nil // continue iterating
+		}
+		if o.GetDeletionTimestamp() != nil {
+			// already being deleted
+			return nil
+		}
+
+		if err := c.Delete(ctx, o); err != nil {
+			errs = append(errs, err)
+		}
+
+		return nil // continue iterating no matter what
+	})
+
+	return errors.Join(errs...)
 }

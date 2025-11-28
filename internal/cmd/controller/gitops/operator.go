@@ -20,11 +20,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	clog "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	command "github.com/rancher/fleet/internal/cmd"
 	"github.com/rancher/fleet/internal/cmd/controller/gitops/reconciler"
 	fcreconciler "github.com/rancher/fleet/internal/cmd/controller/reconciler"
+	"github.com/rancher/fleet/internal/config"
 	"github.com/rancher/fleet/internal/metrics"
 	"github.com/rancher/fleet/internal/ssh"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -140,6 +142,18 @@ func (g *GitOperator) Run(cmd *cobra.Command, args []string) error {
 
 	kh := ssh.KnownHosts{EnforceHostKeyChecks: !g.SkipHostKeyChecks}
 
+	// Add an indexer for the Gitrepo name label as that will make accesses in the cache
+	// faster
+	if err := AddRepoNameLabelIndexer(ctx, mgr); err != nil {
+		return err
+	}
+
+	// Add an indexer for the GitRepo name field in ImageScans as that will make accesses in the cache
+	// faster
+	if err := AddImageScanGitRepoIndexer(ctx, mgr); err != nil {
+		return err
+	}
+
 	gitJobReconciler := &reconciler.GitJobReconciler{
 		Client:          mgr.GetClient(),
 		Scheme:          mgr.GetScheme(),
@@ -244,4 +258,41 @@ func startWebhook(ctx context.Context, namespace string, addr string, client cli
 	}
 
 	return nil
+}
+
+func AddRepoNameLabelIndexer(ctx context.Context, mgr manager.Manager) error {
+	return mgr.GetFieldIndexer().IndexField(
+		ctx,
+		&fleet.Bundle{},
+		config.RepoNameIndex,
+		func(obj client.Object) []string {
+			content, ok := obj.(*fleet.Bundle)
+			if !ok {
+				return nil
+			}
+			if name, exists := content.Labels[fleet.RepoLabel]; exists {
+				return []string{name}
+			}
+
+			return nil
+		},
+	)
+}
+
+func AddImageScanGitRepoIndexer(ctx context.Context, mgr manager.Manager) error {
+	return mgr.GetFieldIndexer().IndexField(
+		ctx,
+		&fleet.ImageScan{},
+		config.ImageScanGitRepoIndex,
+		func(obj client.Object) []string {
+			content, ok := obj.(*fleet.ImageScan)
+			if !ok {
+				return nil
+			}
+			if content.Spec.GitRepoName == "" {
+				return nil
+			}
+			return []string{content.Spec.GitRepoName}
+		},
+	)
 }
