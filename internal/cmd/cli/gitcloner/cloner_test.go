@@ -107,6 +107,7 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 				SingleBranch:      true,
 				ReferenceName:     "master",
 				RecurseSubmodules: git.DefaultSubmoduleRecursionDepth,
+				Depth:             1,
 			},
 		},
 		"branch basic auth": {
@@ -126,6 +127,7 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 					Password: passwordFileContent,
 				},
 				RecurseSubmodules: git.DefaultSubmoduleRecursionDepth,
+				Depth:             1,
 			},
 		},
 		"branch ssh auth": {
@@ -141,6 +143,7 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 				ReferenceName:     "master",
 				Auth:              sshAuth,
 				RecurseSubmodules: git.DefaultSubmoduleRecursionDepth,
+				Depth:             1,
 			},
 		},
 		"branch github app auth": {
