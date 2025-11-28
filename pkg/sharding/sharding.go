@@ -16,6 +16,31 @@ const (
 	ShardingDefaultLabel string = "fleet.cattle.io/shard-default"
 )
 
+// ShouldProcess returns true if the given object should be processed by the shard
+// identified by shardID.
+//
+// Behavior:
+//   - If shardID == "", the shard is "unassigned" and should only handle objects
+//     *without* a shard label.
+//   - Otherwise, only objects with ShardingRefLabel == shardID are processed.
+func ShouldProcess(obj client.Object, shardID string) bool {
+	labels := obj.GetLabels()
+	if labels == nil {
+		// No labels at all
+		return shardID == ""
+	}
+
+	label, hasLabel := labels[ShardingRefLabel]
+
+	if shardID == "" {
+		// The "default" (unsharded) controller handles only unlabeled objects
+		return !hasLabel
+	}
+
+	// Otherwise, process only if the shard matches exactly
+	return hasLabel && label == shardID
+}
+
 // TypedFilterByShardID returns a predicate function that filters objects by the shard ID they reference
 func TypedFilterByShardID[T client.Object](shardID string) predicate.TypedFuncs[T] {
 	matchesLabel := func(o metav1.Object) bool {

@@ -138,17 +138,16 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 // status has changed, or the bundledeployment was created
 func bundleDeploymentStatusChangedPredicate() predicate.Funcs {
 	return predicate.Funcs{
-		CreateFunc: func(e event.CreateEvent) bool {
-			return true
-		},
+		CreateFunc: func(e event.CreateEvent) bool { return true },
 		UpdateFunc: func(e event.UpdateEvent) bool {
-			n := e.ObjectNew.(*fleet.BundleDeployment)
-			o := e.ObjectOld.(*fleet.BundleDeployment)
-			if n == nil || o == nil {
+			n, nOK := e.ObjectNew.(*fleet.BundleDeployment)
+			o, oOK := e.ObjectOld.(*fleet.BundleDeployment)
+			if !nOK || !oOK {
 				return false
 			}
 			return !n.DeletionTimestamp.IsZero() || !reflect.DeepEqual(n.Status, o.Status)
 		},
+		GenericFunc: func(e event.GenericEvent) bool { return false },
 	}
 }
 
