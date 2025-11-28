@@ -1920,6 +1920,10 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 					Value: "1",
 				},
 				{
+					Name:  "FLEET_BUNDLE_CREATION_MAX_CONCURRENCY",
+					Value: "4",
+				},
+				{
 					Name:  "GIT_SSH_COMMAND",
 					Value: "ssh -o stricthostkeychecking=no",
 				},
@@ -1989,6 +1993,10 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 					Value: "1",
 				},
 				{
+					Name:  "FLEET_BUNDLE_CREATION_MAX_CONCURRENCY",
+					Value: "4",
+				},
+				{
 					Name:  "GIT_SSH_COMMAND",
 					Value: "ssh -o stricthostkeychecking=yes",
 				},
@@ -2040,6 +2048,10 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 				{
 					Name:  "FLEET_APPLY_CONFLICT_RETRIES",
 					Value: "1",
+				},
+				{
+					Name:  "FLEET_BUNDLE_CREATION_MAX_CONCURRENCY",
+					Value: "4",
 				},
 				{
 					Name:  "GIT_SSH_COMMAND",
@@ -2099,6 +2111,10 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 					Value: "1",
 				},
 				{
+					Name:  "FLEET_BUNDLE_CREATION_MAX_CONCURRENCY",
+					Value: "4",
+				},
+				{
 					Name:  "GIT_SSH_COMMAND",
 					Value: "ssh -o stricthostkeychecking=yes",
 				},
@@ -2137,6 +2153,10 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 				{
 					Name:  "FLEET_APPLY_CONFLICT_RETRIES",
 					Value: "1",
+				},
+				{
+					Name:  "FLEET_BUNDLE_CREATION_MAX_CONCURRENCY",
+					Value: "4",
 				},
 				{
 					Name:  "COMMIT",
@@ -2198,6 +2218,10 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 					Value: "3",
 				},
 				{
+					Name:  "FLEET_BUNDLE_CREATION_MAX_CONCURRENCY",
+					Value: "4",
+				},
+				{
 					Name:  "COMMIT",
 					Value: "commit",
 				},
@@ -2241,6 +2265,10 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 					Value: "1",
 				},
 				{
+					Name:  "FLEET_BUNDLE_CREATION_MAX_CONCURRENCY",
+					Value: "4",
+				},
+				{
 					Name:  "COMMIT",
 					Value: "commit",
 				},
@@ -2253,10 +2281,111 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 				},
 			},
 		},
+		"bundle_creation_max_concurrency_valid": {
+			gitrepo: &fleetv1.GitRepo{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "gitrepo",
+					Namespace: "default",
+				},
+				Spec: fleetv1.GitRepoSpec{
+					Repo: "https://github.com/rancher/fleet-examples",
+				},
+				Status: fleetv1.GitRepoStatus{
+					Commit: "commit",
+				},
+			},
+			expectedContainerEnvVars: []corev1.EnvVar{
+				{
+					Name:  "HOME",
+					Value: "/fleet-home",
+				},
+				{
+					Name:  fleetapply.JSONOutputEnvVar,
+					Value: "true",
+				},
+				{
+					Name:  fleetapply.JobNameEnvVar,
+					Value: "gitrepo-b7eaf",
+				},
+				{
+					Name:  "FLEET_APPLY_CONFLICT_RETRIES",
+					Value: "1",
+				},
+				{
+					Name:  "FLEET_BUNDLE_CREATION_MAX_CONCURRENCY",
+					Value: "8",
+				},
+				{
+					Name:  "COMMIT",
+					Value: "commit",
+				},
+			},
+			osEnv: map[string]string{"FLEET_BUNDLE_CREATION_MAX_CONCURRENCY": "8"},
+			expectedInitContainerEnvVars: []corev1.EnvVar{
+				{
+					Name:  fleetapply.JSONOutputEnvVar,
+					Value: "true",
+				},
+			},
+		},
+		"bundle_creation_max_concurrency_invalid": {
+			gitrepo: &fleetv1.GitRepo{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "gitrepo",
+					Namespace: "default",
+				},
+				Spec: fleetv1.GitRepoSpec{
+					Repo: "https://github.com/rancher/fleet-examples",
+				},
+				Status: fleetv1.GitRepoStatus{
+					Commit: "commit",
+				},
+			},
+			expectedContainerEnvVars: []corev1.EnvVar{
+				{
+					Name:  "HOME",
+					Value: "/fleet-home",
+				},
+				{
+					Name:  fleetapply.JSONOutputEnvVar,
+					Value: "true",
+				},
+				{
+					Name:  fleetapply.JobNameEnvVar,
+					Value: "gitrepo-b7eaf",
+				},
+				{
+					Name:  "FLEET_APPLY_CONFLICT_RETRIES",
+					Value: "1",
+				},
+				{
+					Name:  "FLEET_BUNDLE_CREATION_MAX_CONCURRENCY",
+					Value: "4",
+				},
+				{
+					Name:  "COMMIT",
+					Value: "commit",
+				},
+			},
+			osEnv: map[string]string{"FLEET_BUNDLE_CREATION_MAX_CONCURRENCY": "this_is_not_an_int"},
+			expectedInitContainerEnvVars: []corev1.EnvVar{
+				{
+					Name:  fleetapply.JSONOutputEnvVar,
+					Value: "true",
+				},
+			},
+		},
 	}
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
+			for k, v := range test.osEnv {
+				err := os.Setenv(k, v)
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+				}
+			}
+
 			r := GitJobReconciler{
 				Client:          getFakeClient([]corev1.Toleration{}),
 				Image:           "test",
@@ -2265,12 +2394,6 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 				KnownHosts: mockKnownHostsGetter{
 					strict: test.strictSSHHostKeyChecks,
 				},
-			}
-			for k, v := range test.osEnv {
-				err := os.Setenv(k, v)
-				if err != nil {
-					t.Errorf("unexpected error: %v", err)
-				}
 			}
 			job, err := r.newGitJob(ctx, test.gitrepo)
 			if err != nil {
