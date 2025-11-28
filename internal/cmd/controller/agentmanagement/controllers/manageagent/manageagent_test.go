@@ -1,7 +1,6 @@
 package manageagent
 
 import (
-	"encoding/json"
 	"reflect"
 	"strings"
 	"testing"
@@ -172,13 +171,9 @@ func TestNewAgentBundle_SortsAgentTolerations(t *testing.T) {
 			continue
 		}
 		if kind, _ := m["kind"].(string); kind == "Deployment" {
-			js, err := yaml.YAMLToJSON([]byte(d))
-			if err != nil {
-				t.Fatalf("failed to convert YAML to JSON: %v", err)
-			}
-			var dep appsv1.Deployment
-			if err := json.Unmarshal(js, &dep); err != nil {
-				t.Fatalf("failed to unmarshal deployment json: %v", err)
+			dep := &appsv1.Deployment{}
+			if err := yaml.Unmarshal([]byte(d), dep); err != nil {
+				t.Fatalf("failed to unmarshal deployment: %v", err)
 			}
 
 			wantFinal := []corev1.Toleration{
