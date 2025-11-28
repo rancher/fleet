@@ -46,6 +46,13 @@ var _ = Describe("ContentReconciler", func() {
 			Expect(reconciler.mapBundleDeploymentToContent(ctx, bd)).To(BeNil())
 		})
 
+		It("returns nil for BundleDeployment with a label using an empty name", func() {
+			reconciler := &ContentReconciler{}
+			bd := &fleet.BundleDeployment{}
+			bd.Labels = map[string]string{fleet.ContentNameLabel: ""}
+			Expect(reconciler.mapBundleDeploymentToContent(ctx, bd)).To(BeNil())
+		})
+
 		It("maps BundleDeployment with label to a single content request", func() {
 			reconciler := &ContentReconciler{}
 			bd := &fleet.BundleDeployment{}
