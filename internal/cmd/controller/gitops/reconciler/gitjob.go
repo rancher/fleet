@@ -588,6 +588,16 @@ func (r *GitJobReconciler) newGitCloner(
 	}, nil
 }
 
+// readIntEnvVar reads an integer from an environment variable using the provided getter function.
+// If an error occurs, it logs the error and returns the default value.
+func readIntEnvVar(logger logr.Logger, getter func() (int, error), envVarName string) int {
+	val, err := getter()
+	if err != nil {
+		logger.Error(err, "failed parsing env variable, using defaults", "env_var_name", envVarName)
+	}
+	return val
+}
+
 func argsAndEnvs(
 	gitrepo *v1alpha1.GitRepo,
 	logger logr.Logger,
@@ -638,10 +648,9 @@ func argsAndEnvs(
 		}
 	}
 
-	fleetApplyRetries, err := fleetapply.GetOnConflictRetries()
-	if err != nil {
-		logger.Error(err, "failed parsing env variable, using defaults", "env_var_name", fleetapply.FleetApplyConflictRetriesEnv)
-	}
+	fleetApplyRetries := readIntEnvVar(logger, fleetapply.GetOnConflictRetries, fleetapply.FleetApplyConflictRetriesEnv)
+	bundleCreationMaxConcurrency := readIntEnvVar(logger, fleetapply.GetBundleCreationMaxConcurrency, fleetapply.BundleCreationMaxConcurrencyEnv)
+
 	env := []corev1.EnvVar{
 		{
 			Name:  "HOME",
@@ -658,6 +667,10 @@ func argsAndEnvs(
 		{
 			Name:  fleetapply.FleetApplyConflictRetriesEnv,
 			Value: strconv.Itoa(fleetApplyRetries),
+		},
+		{
+			Name:  fleetapply.BundleCreationMaxConcurrencyEnv,
+			Value: strconv.Itoa(bundleCreationMaxConcurrency),
 		},
 	}
 
