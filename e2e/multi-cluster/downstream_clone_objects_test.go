@@ -118,7 +118,7 @@ var _ = Describe("Downstream objects cloning", Ordered, func() {
 				cms, err := kd.Get("configmaps")
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(cms).To(ContainSubstring("config-values"))
-			}).Should(Succeed())
+			}).WithTimeout(testenv.LongTimeout).WithPolling(testenv.LongPollingInterval).Should(Succeed())
 
 			By("deploying resources with templated values taken from cloned resources")
 			Eventually(func(g Gomega) {
@@ -129,7 +129,7 @@ var _ = Describe("Downstream objects cloning", Ordered, func() {
 				name, err := kd.Get("configmaps", cmName, "-o", "jsonpath={.data.name}")
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(name).To(Equal("name-from-downstream-cluster-secret"))
-			}).Should(Succeed())
+			}).WithTimeout(testenv.LongTimeout).WithPolling(testenv.LongPollingInterval).Should(Succeed())
 
 			By("deleting cloned resources when the bundle deployment is deleted")
 			out, err := k.Namespace(env.ClusterRegistrationNamespace).Delete("helmop", name)
@@ -143,7 +143,7 @@ var _ = Describe("Downstream objects cloning", Ordered, func() {
 				cms, err := kd.Get("configmaps")
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(cms).NotTo(ContainSubstring("config-values"))
-			}).Should(Succeed())
+			}).WithTimeout(testenv.LongTimeout).WithPolling(testenv.LongPollingInterval).Should(Succeed())
 		})
 	})
 

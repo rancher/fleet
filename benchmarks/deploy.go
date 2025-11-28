@@ -55,7 +55,7 @@ var _ = Context("Benchmarks Deploy", func() {
 				})
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(list.Items).To(HaveLen(n))
-			}).Should(Succeed())
+			}).WithTimeout(ShortTimeout).WithPolling(PollingInterval).Should(Succeed())
 
 			experiment.MeasureDuration("TotalDuration", func() {
 				record.MemoryUsage(experiment, "MemDuring")
@@ -77,7 +77,7 @@ var _ = Context("Benchmarks Deploy", func() {
 					g.Expect(err).ToNot(HaveOccurred())
 					g.Expect(bundle.Status.Summary.DesiredReady).To(Equal(n))
 					g.Expect(bundle.Status.Summary.Ready).To(Equal(n))
-				}).Should(Succeed())
+				}).WithTimeout(MediumTimeout).WithPolling(PollingInterval).Should(Succeed())
 			}, gm.Style("{{bold}}"))
 		})
 	})
@@ -108,7 +108,7 @@ var _ = Context("Benchmarks Deploy", func() {
 				})
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(list.Items).To(HaveLen(n * 50))
-			}).Should(Succeed())
+			}).WithTimeout(MediumTimeout).WithPolling(PollingInterval).Should(Succeed())
 
 			experiment.MeasureDuration("TotalDuration", func() {
 				record.MemoryUsage(experiment, "MemDuring")
@@ -135,7 +135,7 @@ var _ = Context("Benchmarks Deploy", func() {
 						g.Expect(cluster.Status.Summary.DesiredReady).To(Equal(50 + 1))
 						g.Expect(cluster.Status.Summary.Ready).To(Equal(50 + 1))
 					}
-				}).Should(Succeed())
+				}).WithTimeout(LongTimeout).WithPolling(LongPollingInterval).Should(Succeed())
 			}, gm.Style("{{bold}}"))
 		})
 	})
