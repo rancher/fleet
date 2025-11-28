@@ -129,6 +129,7 @@ controller:
       clustergroup: "50"
       imagescan: "50"
       schedule: "50"
+      content: "50"
 
 gitjob:
   replicas: 1
