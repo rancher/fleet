@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"os"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -249,18 +248,8 @@ func TestCommand_EmbeddedStruct(t *testing.T) {
 }
 
 func TestCommand_EnvironmentVariable(t *testing.T) {
-	// Clean up environment after test
-	originalValue := os.Getenv("TEST_ENV_VAR")
-	defer func() {
-		if originalValue == "" {
-			os.Unsetenv("TEST_ENV_VAR")
-		} else {
-			os.Setenv("TEST_ENV_VAR", originalValue)
-		}
-	}()
-
-	// Set environment variable
-	os.Setenv("TEST_ENV_VAR", "env-value")
+	// Set environment variable using t.Setenv which automatically handles cleanup
+	t.Setenv("TEST_ENV_VAR", "env-value")
 
 	obj := &fullRunnable{}
 	cmd := Command(obj, cobra.Command{})
@@ -283,18 +272,8 @@ func TestCommand_EnvironmentVariable(t *testing.T) {
 }
 
 func TestCommand_EnvironmentVariableNotOverrideUserValue(t *testing.T) {
-	// Clean up environment after test
-	originalValue := os.Getenv("TEST_ENV_VAR")
-	defer func() {
-		if originalValue == "" {
-			os.Unsetenv("TEST_ENV_VAR")
-		} else {
-			os.Setenv("TEST_ENV_VAR", originalValue)
-		}
-	}()
-
-	// Set environment variable
-	os.Setenv("TEST_ENV_VAR", "env-value")
+	// Set environment variable using t.Setenv which automatically handles cleanup
+	t.Setenv("TEST_ENV_VAR", "env-value")
 
 	obj := &fullRunnable{}
 	cmd := Command(obj, cobra.Command{})
