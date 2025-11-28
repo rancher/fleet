@@ -137,11 +137,22 @@ func Command(obj Runnable, cmd cobra.Command) *cobra.Command {
 		for _, env := range env {
 			envs = append(envs, func() {
 				v := os.Getenv(env)
-				if v != "" {
+				if v == "" {
+					return
+				}
+				switch fieldType.Type.Kind() {
+				case reflect.String:
 					fv, err := flags.GetString(name)
 					if err == nil && (fv == "" || fv == defValue) {
 						_ = flags.Set(name, v)
 					}
+				case reflect.Int:
+					fv, err := flags.GetInt(name)
+					if err == nil && fv == defInt {
+						_ = flags.Set(name, v)
+					}
+				default:
+					// unsupported
 				}
 			})
 		}

@@ -43,10 +43,12 @@ var (
 )
 
 const (
-	JSONOutputEnvVar             = "FLEET_JSON_OUTPUT"
-	JobNameEnvVar                = "JOB_NAME"
-	FleetApplyConflictRetriesEnv = "FLEET_APPLY_CONFLICT_RETRIES"
-	defaultApplyConflictRetries  = 1
+	JSONOutputEnvVar                    = "FLEET_JSON_OUTPUT"
+	JobNameEnvVar                       = "JOB_NAME"
+	FleetApplyConflictRetriesEnv        = "FLEET_APPLY_CONFLICT_RETRIES"
+	BundleCreationMaxConcurrencyEnv     = "FLEET_BUNDLE_CREATION_MAX_CONCURRENCY"
+	defaultApplyConflictRetries         = 1
+	defaultBundleCreationMaxConcurrency = 4
 )
 
 type Getter interface {
@@ -63,30 +65,31 @@ type OCIRegistrySpec struct {
 }
 
 type Options struct {
-	Namespace                   string
-	BundleFile                  string
-	TargetsFile                 string
-	Compress                    bool
-	BundleReader                io.Reader
-	Output                      io.Writer
-	ServiceAccount              string
-	TargetNamespace             string
-	Paused                      bool
-	Labels                      map[string]string
-	SyncGeneration              int64
-	Auth                        bundlereader.Auth
-	HelmRepoURLRegex            string
-	KeepResources               bool
-	DeleteNamespace             bool
-	AuthByPath                  map[string]bundlereader.Auth
-	CorrectDrift                bool
-	CorrectDriftForce           bool
-	CorrectDriftKeepFailHistory bool
-	OCIRegistry                 OCIRegistrySpec
-	OCIRegistrySecret           string
-	DrivenScan                  bool
-	DrivenScanSeparator         string
-	JobNameEnvVar               string
+	Namespace                    string
+	BundleFile                   string
+	TargetsFile                  string
+	Compress                     bool
+	BundleReader                 io.Reader
+	Output                       io.Writer
+	ServiceAccount               string
+	TargetNamespace              string
+	Paused                       bool
+	Labels                       map[string]string
+	SyncGeneration               int64
+	Auth                         bundlereader.Auth
+	HelmRepoURLRegex             string
+	KeepResources                bool
+	DeleteNamespace              bool
+	AuthByPath                   map[string]bundlereader.Auth
+	CorrectDrift                 bool
+	CorrectDriftForce            bool
+	CorrectDriftKeepFailHistory  bool
+	OCIRegistry                  OCIRegistrySpec
+	OCIRegistrySecret            string
+	DrivenScan                   bool
+	DrivenScanSeparator          string
+	JobNameEnvVar                string
+	BundleCreationMaxConcurrency int
 }
 
 func globDirs(baseDir string) (result []string, err error) {
@@ -105,7 +108,12 @@ func globDirs(baseDir string) (result []string, err error) {
 	return
 }
 
-const bundleCreationMaxConcurrency = 4
+func getEffectiveMaxConcurrency(configured int) int {
+	if configured <= 0 {
+		return defaultBundleCreationMaxConcurrency
+	}
+	return configured
+}
 
 // CreateBundles creates bundles from the baseDirs, their names are prefixed with
 // repoName. Depending on opts.Output the bundles are created in the cluster or
@@ -115,13 +123,15 @@ func CreateBundles(pctx context.Context, client client.Client, r record.EventRec
 		baseDirs = []string{"."}
 	}
 
+	maxConcurrency := getEffectiveMaxConcurrency(opts.BundleCreationMaxConcurrency)
+
 	// Using an errgroup to manage concurrency
 	// 1. Goroutines will be launched, honouring the concurrency limit, and eventually block trying to write to `bundlesChan`.
 	// 2. The main function will read from `bundlesChan`, hence unblocking the goroutines. This will continue to read from `bundlesChan` until it is closed.
 	// 3. We use another goroutine to wait for all goroutines to finish, then close `bundlesChan`, finally unblocking the main function.
 	bundlesChan := make(chan *fleet.Bundle)
 	eg, ctx := errgroup.WithContext(pctx)
-	eg.SetLimit(bundleCreationMaxConcurrency + 1) // extra goroutine for WalkDir loop
+	eg.SetLimit(maxConcurrency + 1) // extra goroutine for WalkDir loop
 	eg.Go(func() error {
 		for _, baseDir := range baseDirs {
 			matches, err := globDirs(baseDir)
@@ -217,18 +227,19 @@ func CreateBundlesDriven(pctx context.Context, client client.Client, r record.Ev
 		baseDirs = []string{"."}
 	}
 
+	maxConcurrency := getEffectiveMaxConcurrency(opts.BundleCreationMaxConcurrency)
+
 	// Using an errgroup to manage concurrency
 	// 1. Goroutines will be launched, honouring the concurrency limit, and eventually block trying to write to `bundlesChan`.
 	// 2. The main function will read from `bundlesChan`, hence unblocking the goroutines. This will continue to read from `bundlesChan` until it is closed.
 	// 3. We use another goroutine to wait for all goroutines to finish, then close `bundlesChan`, finally unblocking the main function.
 	bundlesChan := make(chan *fleet.Bundle)
 	eg, ctx := errgroup.WithContext(pctx)
-	eg.SetLimit(bundleCreationMaxConcurrency + 1) // extra goroutine for WalkDir loop
+	eg.SetLimit(maxConcurrency + 1) // extra goroutine for WalkDir loop
 	eg.Go(func() error {
 		for _, baseDir := range baseDirs {
 			opts := opts
 			eg.Go(func() error {
-				// verify if it also defines a fleetFile
 				var err error
 				baseDir, opts.BundleFile, err = getPathAndFleetYaml(baseDir, opts.DrivenScanSeparator)
 				if err != nil {
@@ -783,18 +794,24 @@ func sendWarningEvent(r record.EventRecorder, namespace, artifactID string, erro
 	r.Event(job, fleetevent.Warning, "FailedToDeleteOCIArtifact", fmt.Sprintf("deleting OCI artifact %q: %v", artifactID, errorToLog.Error()))
 }
 
-func GetOnConflictRetries() (int, error) {
-	s := os.Getenv(FleetApplyConflictRetriesEnv)
-	if s != "" {
-		// check if we have a valid value
-		// it must be an integer
-		r, err := strconv.Atoi(s)
-		if err != nil {
-			return defaultApplyConflictRetries, err
-		} else {
-			return r, nil
-		}
+// getIntEnvVar reads an integer from an environment variable, returning the default if unset or invalid.
+func getIntEnvVar(envVarName string, defaultValue int) (int, error) {
+	s := os.Getenv(envVarName)
+	if s == "" {
+		return defaultValue, nil
 	}
 
-	return defaultApplyConflictRetries, nil
+	val, err := strconv.Atoi(s)
+	if err != nil {
+		return defaultValue, err
+	}
+	return val, nil
+}
+
+func GetOnConflictRetries() (int, error) {
+	return getIntEnvVar(FleetApplyConflictRetriesEnv, defaultApplyConflictRetries)
+}
+
+func GetBundleCreationMaxConcurrency() (int, error) {
+	return getIntEnvVar(BundleCreationMaxConcurrencyEnv, defaultBundleCreationMaxConcurrency)
 }

@@ -42,30 +42,31 @@ type Apply struct {
 	FleetClient
 	BundleInputArgs
 	OutputArgsNoDefault
-	Label                       map[string]string `usage:"Labels to apply to created bundles" short:"l"`
-	TargetsFile                 string            `usage:"Addition source of targets and restrictions to be append"`
-	Compress                    bool              `usage:"Force all resources to be compress" short:"c"`
-	ServiceAccount              string            `usage:"Service account to assign to bundle created" short:"a"`
-	SyncGeneration              int               `usage:"Generation number used to force sync the deployment"`
-	TargetNamespace             string            `usage:"Ensure this bundle goes to this target namespace"`
-	Paused                      bool              `usage:"Create bundles in a paused state"`
-	Commit                      string            `usage:"Commit to assign to the bundle" env:"COMMIT"`
-	Username                    string            `usage:"Basic auth username for helm repo" env:"HELM_USERNAME"`
-	PasswordFile                string            `usage:"Path of file containing basic auth password for helm repo"`
-	CACertsFile                 string            `usage:"Path of custom cacerts for helm repo" name:"cacerts-file"`
-	SSHPrivateKeyFile           string            `usage:"Path of ssh-private-key for helm repo" name:"ssh-privatekey-file"`
-	HelmRepoURLRegex            string            `usage:"Helm credentials will be used if the helm repo matches this regex. Credentials will always be used if this is empty or not provided" name:"helm-repo-url-regex"`
-	KeepResources               bool              `usage:"Keep resources created after the GitRepo or Bundle is deleted" name:"keep-resources"`
-	DeleteNamespace             bool              `usage:"Delete GitRepo target namespace after the GitRepo or Bundle is deleted" name:"delete-namespace"`
-	HelmCredentialsByPathFile   string            `usage:"Path of file containing helm credentials for paths" name:"helm-credentials-by-path-file"`
-	HelmBasicHTTP               bool              `usage:"Uses plain HTTP connections when downloading from helm repositories" name:"helm-basic-http"`
-	HelmInsecureSkipTLS         bool              `usage:"Skip TLS verification when downloading from helm repositories" name:"helm-insecure-skip-tls"`
-	CorrectDrift                bool              `usage:"Rollback any change made from outside of Fleet" name:"correct-drift"`
-	CorrectDriftForce           bool              `usage:"Use --force when correcting drift. Resources can be deleted and recreated" name:"correct-drift-force"`
-	CorrectDriftKeepFailHistory bool              `usage:"Keep helm history for failed rollbacks" name:"correct-drift-keep-fail-history"`
-	OCIRegistrySecret           string            `usage:"OCI storage registry secret name" name:"oci-registry-secret"`
-	DrivenScan                  bool              `usage:"Use driven scan. Bundles are defined by the user" name:"driven-scan"`
-	DrivenScanSeparator         string            `usage:"Separator to use for bundle folder and options file" name:"driven-scan-sep" default:":"`
+	Label                        map[string]string `usage:"Labels to apply to created bundles" short:"l"`
+	TargetsFile                  string            `usage:"Addition source of targets and restrictions to be append"`
+	Compress                     bool              `usage:"Force all resources to be compress" short:"c"`
+	ServiceAccount               string            `usage:"Service account to assign to bundle created" short:"a"`
+	SyncGeneration               int               `usage:"Generation number used to force sync the deployment"`
+	TargetNamespace              string            `usage:"Ensure this bundle goes to this target namespace"`
+	Paused                       bool              `usage:"Create bundles in a paused state"`
+	Commit                       string            `usage:"Commit to assign to the bundle" env:"COMMIT"`
+	Username                     string            `usage:"Basic auth username for helm repo" env:"HELM_USERNAME"`
+	PasswordFile                 string            `usage:"Path of file containing basic auth password for helm repo"`
+	CACertsFile                  string            `usage:"Path of custom cacerts for helm repo" name:"cacerts-file"`
+	SSHPrivateKeyFile            string            `usage:"Path of ssh-private-key for helm repo" name:"ssh-privatekey-file"`
+	HelmRepoURLRegex             string            `usage:"Helm credentials will be used if the helm repo matches this regex. Credentials will always be used if this is empty or not provided" name:"helm-repo-url-regex"`
+	KeepResources                bool              `usage:"Keep resources created after the GitRepo or Bundle is deleted" name:"keep-resources"`
+	DeleteNamespace              bool              `usage:"Delete GitRepo target namespace after the GitRepo or Bundle is deleted" name:"delete-namespace"`
+	HelmCredentialsByPathFile    string            `usage:"Path of file containing helm credentials for paths" name:"helm-credentials-by-path-file"`
+	HelmBasicHTTP                bool              `usage:"Uses plain HTTP connections when downloading from helm repositories" name:"helm-basic-http"`
+	HelmInsecureSkipTLS          bool              `usage:"Skip TLS verification when downloading from helm repositories" name:"helm-insecure-skip-tls"`
+	CorrectDrift                 bool              `usage:"Rollback any change made from outside of Fleet" name:"correct-drift"`
+	CorrectDriftForce            bool              `usage:"Use --force when correcting drift. Resources can be deleted and recreated" name:"correct-drift-force"`
+	CorrectDriftKeepFailHistory  bool              `usage:"Keep helm history for failed rollbacks" name:"correct-drift-keep-fail-history"`
+	OCIRegistrySecret            string            `usage:"OCI storage registry secret name" name:"oci-registry-secret"`
+	DrivenScan                   bool              `usage:"Use driven scan. Bundles are defined by the user" name:"driven-scan"`
+	DrivenScanSeparator          string            `usage:"Separator to use for bundle folder and options file" name:"driven-scan-sep" default:":"`
+	BundleCreationMaxConcurrency int               `usage:"Maximum number of concurrent bundle creation routines" name:"bundle-creation-max-concurrency" default:"4" env:"FLEET_BUNDLE_CREATION_MAX_CONCURRENCY"`
 }
 
 func (r *Apply) PersistentPre(_ *cobra.Command, _ []string) error {
@@ -108,25 +109,26 @@ func (a *Apply) run(cmd *cobra.Command, args []string) error {
 
 	name := ""
 	opts := apply.Options{
-		Namespace:                   a.Namespace,
-		BundleFile:                  a.BundleFile,
-		Output:                      writer.NewDefaultNone(a.Output),
-		Compress:                    a.Compress,
-		ServiceAccount:              a.ServiceAccount,
-		Labels:                      a.Label,
-		TargetsFile:                 a.TargetsFile,
-		TargetNamespace:             a.TargetNamespace,
-		Paused:                      a.Paused,
-		SyncGeneration:              int64(a.SyncGeneration),
-		HelmRepoURLRegex:            a.HelmRepoURLRegex,
-		KeepResources:               a.KeepResources,
-		DeleteNamespace:             a.DeleteNamespace,
-		CorrectDrift:                a.CorrectDrift,
-		CorrectDriftForce:           a.CorrectDriftForce,
-		CorrectDriftKeepFailHistory: a.CorrectDriftKeepFailHistory,
-		DrivenScan:                  a.DrivenScan,
-		DrivenScanSeparator:         a.DrivenScanSeparator,
-		OCIRegistrySecret:           a.OCIRegistrySecret,
+		Namespace:                    a.Namespace,
+		BundleFile:                   a.BundleFile,
+		Output:                       writer.NewDefaultNone(a.Output),
+		Compress:                     a.Compress,
+		ServiceAccount:               a.ServiceAccount,
+		Labels:                       a.Label,
+		TargetsFile:                  a.TargetsFile,
+		TargetNamespace:              a.TargetNamespace,
+		Paused:                       a.Paused,
+		SyncGeneration:               int64(a.SyncGeneration),
+		HelmRepoURLRegex:             a.HelmRepoURLRegex,
+		KeepResources:                a.KeepResources,
+		DeleteNamespace:              a.DeleteNamespace,
+		CorrectDrift:                 a.CorrectDrift,
+		CorrectDriftForce:            a.CorrectDriftForce,
+		CorrectDriftKeepFailHistory:  a.CorrectDriftKeepFailHistory,
+		DrivenScan:                   a.DrivenScan,
+		DrivenScanSeparator:          a.DrivenScanSeparator,
+		OCIRegistrySecret:            a.OCIRegistrySecret,
+		BundleCreationMaxConcurrency: a.BundleCreationMaxConcurrency,
 	}
 
 	knownHostsPath, err := writeTmpKnownHosts()
