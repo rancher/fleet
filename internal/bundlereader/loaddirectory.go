@@ -254,6 +254,26 @@ func GetContent(ctx context.Context, base, source, version string, auth Auth, di
 		GetMode: getter.ModeDir,
 	}
 
+	if auth.CABundle != nil {
+		file, err := os.CreateTemp("", "cabundle-*")
+		if err != nil {
+			return nil, err
+		}
+		if _, err := file.Write(auth.CABundle); err != nil {
+			return nil, err
+		}
+		file.Close()
+		defer os.Remove(file.Name())
+
+		os.Setenv("GIT_SSL_CAINFO", file.Name())
+		defer os.Unsetenv("GIT_SSL_CAINFO")
+	}
+
+	if auth.InsecureSkipVerify {
+		os.Setenv("GIT_SSL_NO_VERIFY", "true")
+		defer os.Unsetenv("GIT_SSL_NO_VERIFY")
+	}
+
 	if _, err := client.Get(ctx, req); err != nil {
 		return nil, err
 	}
