@@ -376,6 +376,8 @@ func isInDownstreamResources(resourceName, kind string, options fleet.BundleDepl
 		}
 	}
 	return false
+}
+
 // getDryRunConfig determines the dry-run configuration based on whether the chart
 // uses the Helm "lookup" function.
 // If the chart contains the "lookup" function, DryRunOption is set to "server"
