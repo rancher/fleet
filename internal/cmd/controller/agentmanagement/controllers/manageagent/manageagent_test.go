@@ -2,11 +2,9 @@ package manageagent
 
 import (
 	"encoding/json"
-	"os"
+	"reflect"
 	"strings"
 	"testing"
-
-	"reflect"
 
 	"github.com/rancher/wrangler/v3/pkg/generic/fake"
 	"github.com/rancher/wrangler/v3/pkg/schemes"
@@ -146,14 +144,9 @@ func TestNewAgentBundle_SortsAgentTolerations(t *testing.T) {
 	}
 
 	// ensure leader election env is set so NewLeaderElectionOptionsWithPrefix doesn't error
-	os.Setenv("FLEET_AGENT_ELECTION_LEASE_DURATION", "15s")
-	os.Setenv("FLEET_AGENT_ELECTION_RENEW_DEADLINE", "10s")
-	os.Setenv("FLEET_AGENT_ELECTION_RETRY_PERIOD", "2s")
-	defer func() {
-		os.Unsetenv("FLEET_AGENT_ELECTION_LEASE_DURATION")
-		os.Unsetenv("FLEET_AGENT_ELECTION_RENEW_DEADLINE")
-		os.Unsetenv("FLEET_AGENT_ELECTION_RETRY_PERIOD")
-	}()
+	t.Setenv("FLEET_AGENT_ELECTION_LEASE_DURATION", "15s")
+	t.Setenv("FLEET_AGENT_ELECTION_RENEW_DEADLINE", "10s")
+	t.Setenv("FLEET_AGENT_ELECTION_RETRY_PERIOD", "2s")
 
 	obj, err := h.newAgentBundle("ns", cluster)
 	if err != nil {

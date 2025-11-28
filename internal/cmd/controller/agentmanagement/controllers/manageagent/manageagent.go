@@ -16,7 +16,6 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/rancher/fleet/internal/cmd"
-
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/agent"
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/scheduling"
 	"github.com/rancher/fleet/internal/config"
@@ -299,7 +298,6 @@ func (h *handler) OnNamespace(key string, namespace *corev1.Namespace) (*corev1.
 			continue
 		}
 		logrus.Infof("Update agent bundle for cluster %s/%s", cluster.Namespace, cluster.Name)
-		fmt.Printf("XGMTEST OnNamespace creating/updating agent bundle for cluster %s/%s\n", cluster.Namespace, cluster.Name)
 		bundle, err := h.newAgentBundle(namespace.Name, cluster)
 		if err != nil {
 			logrus.Errorf("Failed to update agent bundle for cluster %s/%s", cluster.Namespace, cluster.Name)
