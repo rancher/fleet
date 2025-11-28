@@ -286,7 +286,7 @@ var _ = Describe("Testing go-getter CA bundles and insecureSkipVerify for clonin
 				"-n", env.Namespace)
 			Expect(err).ToNot(HaveOccurred(), out)
 
-			createGitRepo(gitRepoOptions{HelmSecretName: secretName})
+			createGitRepo(gitRepoOptions{HelmSecretName: secretName, InsecureSkipTLSVerify: true})
 			Eventually(expectGitRepoToBeReady).Should(Succeed())
 		})
 
