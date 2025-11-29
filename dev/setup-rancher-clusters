@@ -19,8 +19,13 @@ rancherpassword="${RANCHER_PASSWORD-rancherpassword}"
 
 public_hostname="${public_hostname:-}"
 if [ -z "${public_hostname}" ]; then
-  until kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}'; do sleep 3; done
-  ip=$(kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+  success=-1
+  until [ "$success" -eq 0 ]; do
+    echo "Waiting for Traefik LoadBalancer IP..."
+    sleep 5
+    ip=$(kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+    success=$?
+  done
   public_hostname="$ip.sslip.io"
 fi
 
@@ -61,7 +66,7 @@ timeout 300 bash -c 'until kubectl get bundles -n fleet-local 2>/dev/null | grep
 
 export cluster_downstream="$downstream_ctx"
 export public_hostname="$public_hostname"
-./.github/scripts/register-downstream-clusters.sh
+until ./.github/scripts/register-downstream-clusters.sh; do sleep 3; done
 
 # register-downstream-clusters.sh only supports fleet-default
 export FLEET_E2E_NS_DOWNSTREAM=fleet-default
