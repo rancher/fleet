@@ -10,12 +10,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/rancher/fleet/internal/cmd/controller/errorutil"
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	"github.com/rancher/fleet/internal/cmd/controller/reconciler"
 	"github.com/rancher/fleet/internal/cmd/controller/target"
 	"github.com/rancher/fleet/internal/mocks"
 	fleetv1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/sharding"
 	"github.com/rancher/wrangler/v3/pkg/genericcondition"
 
 	"go.uber.org/mock/gomock"
@@ -1076,4 +1078,119 @@ func getBundleReadyCondition(b *fleetv1.Bundle) (genericcondition.GenericConditi
 		}
 	}
 	return genericcondition.GenericCondition{}, false
+}
+
+func TestBundleDeploymentMapFunc(t *testing.T) {
+	r := &reconciler.BundleReconciler{ShardID: "test-shard"}
+	mapFunc := reconciler.BundleDeploymentMapFunc(r)
+
+	testCases := []struct {
+		name     string
+		obj      client.Object
+		expected []reconcile.Request
+	}{
+		{
+			name: "Matching Shard ID",
+			obj: &fleetv1.BundleDeployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "bd-1",
+					Namespace: "cluster-ns",
+					Labels: map[string]string{
+						fleetv1.BundleLabel:          "my-bundle",
+						fleetv1.BundleNamespaceLabel: "fleet-ns",
+						sharding.ShardingRefLabel:    "test-shard",
+					},
+				},
+			},
+			expected: []reconcile.Request{
+				{NamespacedName: types.NamespacedName{Namespace: "fleet-ns", Name: "my-bundle"}},
+			},
+		},
+		{
+			name: "Non-matching Shard ID",
+			obj: &fleetv1.BundleDeployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "bd-2",
+					Namespace: "cluster-ns",
+					Labels: map[string]string{
+						fleetv1.BundleLabel:          "my-bundle",
+						fleetv1.BundleNamespaceLabel: "fleet-ns",
+						sharding.ShardingRefLabel:    "other-shard",
+					},
+				},
+			},
+			expected: nil,
+		},
+		{
+			name: "Default Shard, Object has no shard label",
+			obj: &fleetv1.BundleDeployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "bd-3",
+					Namespace: "cluster-ns",
+					Labels: map[string]string{
+						fleetv1.BundleLabel:          "my-bundle",
+						fleetv1.BundleNamespaceLabel: "fleet-ns",
+					},
+				},
+			},
+			expected: nil, // default shard is "", not "test-shard"
+		},
+		{
+			name: "Missing bundle labels",
+			obj: &fleetv1.BundleDeployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "bd-4",
+					Namespace: "cluster-ns",
+					Labels: map[string]string{
+						sharding.ShardingRefLabel: "test-shard",
+					},
+				},
+			},
+			expected: nil,
+		},
+		{
+			name: "Nil labels",
+			obj: &fleetv1.BundleDeployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "bd-5",
+					Namespace: "cluster-ns",
+				},
+			},
+			expected: nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			reqs := mapFunc(context.Background(), tc.obj)
+			if diff := cmp.Diff(tc.expected, reqs); diff != "" {
+				t.Errorf("mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+
+	t.Run("Default Shard ID", func(t *testing.T) {
+		r := &reconciler.BundleReconciler{ShardID: ""}
+		mapFunc := reconciler.BundleDeploymentMapFunc(r)
+
+		bd := &fleetv1.BundleDeployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "bd-default",
+				Namespace: "cluster-ns",
+				Labels: map[string]string{
+					fleetv1.BundleLabel:          "my-bundle",
+					fleetv1.BundleNamespaceLabel: "fleet-ns",
+				},
+			},
+		}
+
+		expected := []reconcile.Request{
+			{NamespacedName: types.NamespacedName{Namespace: "fleet-ns", Name: "my-bundle"}},
+		}
+
+		reqs := mapFunc(context.Background(), bd)
+		if diff := cmp.Diff(expected, reqs); diff != "" {
+			t.Errorf("mismatch (-want +got):\n%s", diff)
+		}
+	})
 }
