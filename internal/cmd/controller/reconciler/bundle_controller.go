@@ -336,6 +336,15 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		// Changes in the values hash trigger a bundle deployment reconcile.
 		bd.Spec.ValuesHash = valuesHash
 
+		// When content resources are stored in etcd, we need to keep track of the content resource so they
+		// are properly gargabe-collected by the content controller.
+		if !contentsInOCI && !contentsInHelmChart {
+			if bd.Labels == nil {
+				bd.Labels = make(map[string]string)
+			}
+			bd.Labels[fleet.ContentNameLabel] = manifestID
+		}
+
 		helmvalues.ClearOptions(bd)
 
 		// If there's already a bundledeployment for this target, track its UID
@@ -349,10 +358,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		op, bd, err := r.createBundleDeployment(
 			ctx,
 			logger,
-			bd,
-			contentsInOCI,
-			bundle.Spec.HelmOpOptions != nil,
-			manifestID)
+			bd)
 		if err != nil {
 			// We could end up here, because we cannot add a
 			// finalizer to a content resource, which has a
@@ -468,45 +474,11 @@ func (r *BundleReconciler) createBundleDeployment(
 	ctx context.Context,
 	l logr.Logger,
 	bd *fleet.BundleDeployment,
-	contentsInOCI bool,
-	contentsInHelmChart bool,
-	manifestID string,
 ) (controllerutil.OperationResult, *fleet.BundleDeployment, error) {
 	logger := l.WithValues("deploymentID", bd.Spec.DeploymentID)
 
-	// When content resources are stored in etcd, we need to add finalizers.
-	if !contentsInOCI && !contentsInHelmChart {
-		content := &fleet.Content{}
-		if err := r.Get(ctx, types.NamespacedName{Name: manifestID}, content); err != nil {
-			return controllerutil.OperationResultNone, nil, fmt.Errorf("failed to get content resource: %w", err)
-		}
-
-		if added := controllerutil.AddFinalizer(content, bd.Name); added {
-			if err := r.Update(ctx, content); err != nil {
-				return controllerutil.OperationResultNone, nil, fmt.Errorf(
-					"could not add finalizer to content resource, thus cannot create/update bundledeployment: %w",
-					err,
-				)
-			}
-		}
-	}
-
 	updated := bd.DeepCopy()
 	op, err := controllerutil.CreateOrUpdate(ctx, r.Client, bd, func() error {
-		// When this mutation function is called by CreateOrUpdate, bd contains the
-		// _old_ bundle deployment, if any.
-		// The corresponding Content resource must only be deleted if it is no longer in use, ie if the
-		// latest version of the bundle points to a different deployment ID.
-		// An empty value for bd.Spec.DeploymentID means that we are deploying the first version of this
-		// bundle, hence there are no Contents left over to purge.
-		if (!bd.Spec.OCIContents || !contentsInHelmChart) &&
-			bd.Spec.DeploymentID != "" &&
-			bd.Spec.DeploymentID != updated.Spec.DeploymentID {
-			if err := finalize.PurgeContent(ctx, r.Client, bd.Name, bd.Spec.DeploymentID); err != nil {
-				logger.Error(err, "Reconcile failed to purge old content resource")
-			}
-		}
-
 		// check if there's any OCI secret that can be purged
 		if err := maybePurgeOCIReferenceSecret(ctx, r.Client, bd, updated); err != nil {
 			logger.Error(err, "Reconcile failed to purge old OCI reference secret")

@@ -93,6 +93,10 @@ spec:
         - name: SCHEDULE_RECONCILER_WORKERS
           value: {{ quote $.Values.controller.reconciler.workers.schedule }}
         {{- end }}
+        {{- if $.Values.controller.reconciler.workers.content }}
+        - name: CONTENT_RECONCILER_WORKERS
+          value: {{ quote $.Values.controller.reconciler.workers.content }}
+        {{- end }}
 {{- if $.Values.extraEnv }}
 {{ toYaml $.Values.extraEnv | indent 8}}
 {{- end }}
