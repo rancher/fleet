@@ -234,6 +234,9 @@ func getHTTPClient(auth Auth) *http.Client {
 	transport.TLSClientConfig = &tls.Config{
 		InsecureSkipVerify: auth.InsecureSkipVerify, //nolint:gosec
 	}
+	// This is mainly a throw-away HTTP client and won't be reused for successive bundles processing.
+	// DisableKeepAlives will close TCP connections as soon as the HTTP request finishes, preventing idle connections to be left open longer than needed.
+	transport.DisableKeepAlives = true
 
 	if auth.CABundle != nil {
 		pool, err := x509.SystemCertPool()
