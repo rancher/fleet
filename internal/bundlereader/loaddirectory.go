@@ -239,6 +239,8 @@ func GetContent(ctx context.Context, base, source, version string, auth Auth, di
 	getters["http"] = httpGetter
 	getters["https"] = httpGetter
 
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	c := getter.Client{
 		Ctx:     ctx,
 		Src:     source,
