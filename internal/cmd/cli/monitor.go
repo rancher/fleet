@@ -318,39 +318,43 @@ type GitRepoInfo struct {
 }
 
 type BundleInfo struct {
-	Namespace           string   `json:"namespace"`
-	Name                string   `json:"name"`
-	UID                 string   `json:"uid"`
-	Generation          int64    `json:"generation"`
-	ObservedGeneration  int64    `json:"observedGeneration,omitempty"`
-	Commit              string   `json:"commit,omitempty"`
-	RepoName            string   `json:"repoName,omitempty"`
-	ForceSyncGeneration int64    `json:"forceSyncGeneration,omitempty"`
-	ResourcesSHA256Sum  string   `json:"resourcesSHA256Sum,omitempty"`
-	SizeBytes           *int64   `json:"sizeBytes,omitempty"`
-	DeletionTimestamp   *string  `json:"deletionTimestamp,omitempty"`
-	Finalizers          []string `json:"finalizers,omitempty"`
-	Ready               bool     `json:"ready"`
-	ReadyMessage        string   `json:"readyMessage,omitempty"`
-	ErrorMessage        string   `json:"errorMessage,omitempty"`
+	Namespace           string            `json:"namespace"`
+	Name                string            `json:"name"`
+	UID                 string            `json:"uid"`
+	Generation          int64             `json:"generation"`
+	ObservedGeneration  int64             `json:"observedGeneration,omitempty"`
+	Commit              string            `json:"commit,omitempty"`
+	RepoName            string            `json:"repoName,omitempty"`
+	Labels              map[string]string `json:"labels,omitempty"`
+	ForceSyncGeneration int64             `json:"forceSyncGeneration,omitempty"`
+	ResourcesSHA256Sum  string            `json:"resourcesSHA256Sum,omitempty"`
+	SizeBytes           *int64            `json:"sizeBytes,omitempty"`
+	DeletionTimestamp   *string           `json:"deletionTimestamp,omitempty"`
+	Finalizers          []string          `json:"finalizers,omitempty"`
+	Ready               bool              `json:"ready"`
+	ReadyMessage        string            `json:"readyMessage,omitempty"`
+	ErrorMessage        string            `json:"errorMessage,omitempty"`
 }
 
 type BundleDeploymentInfo struct {
-	Namespace           string   `json:"namespace"`
-	Name                string   `json:"name"`
-	UID                 string   `json:"uid"`
-	Generation          int64    `json:"generation"`
-	Commit              string   `json:"commit,omitempty"`
-	ForceSyncGeneration int64    `json:"forceSyncGeneration,omitempty"`
-	SyncGeneration      *int64   `json:"syncGeneration,omitempty"`
-	DeploymentID        string   `json:"deploymentID,omitempty"`
-	StagedDeploymentID  string   `json:"stagedDeploymentID,omitempty"`
-	AppliedDeploymentID string   `json:"appliedDeploymentID,omitempty"`
-	DeletionTimestamp   *string  `json:"deletionTimestamp,omitempty"`
-	Finalizers          []string `json:"finalizers,omitempty"`
-	Ready               bool     `json:"ready"`
-	ReadyMessage        string   `json:"readyMessage,omitempty"`
-	ErrorMessage        string   `json:"errorMessage,omitempty"`
+	Namespace           string            `json:"namespace"`
+	Name                string            `json:"name"`
+	UID                 string            `json:"uid"`
+	Generation          int64             `json:"generation"`
+	Commit              string            `json:"commit,omitempty"`
+	ForceSyncGeneration int64             `json:"forceSyncGeneration,omitempty"`
+	SyncGeneration      *int64            `json:"syncGeneration,omitempty"`
+	DeploymentID        string            `json:"deploymentID,omitempty"`
+	StagedDeploymentID  string            `json:"stagedDeploymentID,omitempty"`
+	AppliedDeploymentID string            `json:"appliedDeploymentID,omitempty"`
+	DeletionTimestamp   *string           `json:"deletionTimestamp,omitempty"`
+	Finalizers          []string          `json:"finalizers,omitempty"`
+	Ready               bool              `json:"ready"`
+	ReadyMessage        string            `json:"readyMessage,omitempty"`
+	ErrorMessage        string            `json:"errorMessage,omitempty"`
+	Labels              map[string]string `json:"labels,omitempty"`
+	BundleName          string            `json:"bundleName,omitempty"`
+	BundleNamespace     string            `json:"bundleNamespace,omitempty"`
 }
 
 type ContentInfo struct {
@@ -621,6 +625,7 @@ func (m *Monitor) convertBundles(bundles []fleet.Bundle) []BundleInfo {
 			ObservedGeneration:  b.Status.ObservedGeneration,
 			Commit:              b.Labels["fleet.cattle.io/commit"],
 			RepoName:            b.Labels["fleet.cattle.io/repo-name"],
+			Labels:              b.Labels,
 			ForceSyncGeneration: b.Spec.ForceSyncGeneration,
 			ResourcesSHA256Sum:  b.Status.ResourcesSHA256Sum,
 			Finalizers:          b.Finalizers,
@@ -674,6 +679,9 @@ func (m *Monitor) convertBundleDeployments(bds []fleet.BundleDeployment) []Bundl
 			StagedDeploymentID:  bd.Spec.StagedDeploymentID,
 			AppliedDeploymentID: bd.Status.AppliedDeploymentID,
 			Finalizers:          bd.Finalizers,
+			Labels:              bd.Labels,
+			BundleName:          bd.Labels["fleet.cattle.io/bundle-name"],
+			BundleNamespace:     bd.Labels["fleet.cattle.io/bundle-namespace"],
 		}
 
 		if bd.DeletionTimestamp != nil {
