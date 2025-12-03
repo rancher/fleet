@@ -176,7 +176,7 @@ func loadDirectory(ctx context.Context, opts loadOpts, dir directory) ([]fleet.B
 		if opts.compress || !utf8.Valid(data) {
 			content, err := content.Base64GZ(data)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("decoding compressed base64 data: %w", err)
 			}
 			r.Content = content
 			r.Encoding = "base64+gz"
@@ -208,7 +208,7 @@ func GetContent(ctx context.Context, base, source, version string, auth Auth, di
 	if strings.HasPrefix(source, ociURLPrefix) {
 		source, err = downloadOCIChart(source, version, temp, auth)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("downloading OCI chart from %s: %w", source, err)
 		}
 	}
 
@@ -272,7 +272,7 @@ func GetContent(ctx context.Context, base, source, version string, auth Auth, di
 	}
 
 	if _, err := client.Get(ctx, req); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("retrieving file from %s: %w", source, err)
 	}
 
 	files := map[string][]byte{}
@@ -309,7 +309,7 @@ func GetContent(ctx context.Context, base, source, version string, auth Auth, di
 			// try to update possible dependencies.
 			if !disableDepsUpdate && helmupdater.ChartYAMLExists(path) {
 				if err = helmupdater.UpdateHelmDependencies(path); err != nil {
-					return err
+					return fmt.Errorf("updating helm dependencies: %w", err)
 				}
 			}
 			// Skip .fleetignore'd and hidden directories
