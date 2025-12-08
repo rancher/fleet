@@ -109,9 +109,9 @@ func getOCIRepoClient(repoURI string, a Auth) (*remote.Repository, error) {
 	return r, nil
 }
 
-// chartURL returns the URL to the helm chart from a helm repo server, by
+// ChartURL returns the URL to the helm chart from a helm repo server, by
 // inspecting the repo's index.yaml
-func chartURL(location fleet.HelmOptions, auth Auth, isHelmOps bool) (string, error) {
+func ChartURL(location fleet.HelmOptions, auth Auth, isHelmOps bool) (string, error) {
 	if uri, ok := isOCIChart(location, isHelmOps); ok {
 		return uri, nil
 	}
@@ -328,10 +328,5 @@ func toAbsoluteURLIfNeeded(baseURL, chartURL string) (string, error) {
 		return chartURL, err
 	}
 
-	u, err := url.Parse(baseURL)
-	if err != nil {
-		return "", err
-	}
-
-	return u.ResolveReference(chartU).String(), nil
+	return url.JoinPath(baseURL, chartURL)
 }
