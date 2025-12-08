@@ -217,7 +217,7 @@ func addRemoteCharts(ctx context.Context, directories []directory, base string, 
 				auth = Auth{}
 			}
 
-			chartURL, err := chartURL(ctx, *chart, auth, false)
+			chartURL, err := ChartURL(ctx, *chart, auth, false)
 			if err != nil {
 				return nil, fmt.Errorf("failed to resolve URL of %s: %w", downloadChartError(*chart), err)
 			}
