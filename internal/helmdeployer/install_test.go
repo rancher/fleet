@@ -492,6 +492,70 @@ func TestIsInDownstreamResources(t *testing.T) {
 
 	found5 := isInDownstreamResources("not-present", "Secret", opts)
 	a.False(found5, "expected not to find not-present in DownstreamResources")
+
+	// Test case-insensitive kind matching for the parameter
+	found6 := isInDownstreamResources("my-config", "configmap", opts)
+	a.True(found6, "expected to find my-config with lowercase kind 'configmap'")
+
+	found7 := isInDownstreamResources("my-config", "CONFIGMAP", opts)
+	a.True(found7, "expected to find my-config with uppercase kind 'CONFIGMAP'")
+
+	found8 := isInDownstreamResources("some-secret", "secret", opts)
+	a.True(found8, "expected to find some-secret with lowercase kind 'secret'")
+
+	found9 := isInDownstreamResources("some-secret", "SECRET", opts)
+	a.True(found9, "expected to find some-secret with uppercase kind 'SECRET'")
+
+	found10 := isInDownstreamResources("my-config", "CoNfIgMaP", opts)
+	a.True(found10, "expected to find my-config with mixed case kind 'CoNfIgMaP'")
+
+	found11 := isInDownstreamResources("not-present", "configmap", opts)
+	a.False(found11, "expected not to find not-present even with lowercase kind")
+
+	// Test case-insensitive kind matching for the DownstreamResources Kind field
+	optsLowercaseKind := fleet.BundleDeploymentOptions{
+		DownstreamResources: []fleet.DownstreamResource{
+			{Kind: "configmap", Name: "my-config-lower"},
+			{Kind: "secret", Name: "some-secret-lower"},
+		},
+	}
+
+	found12 := isInDownstreamResources("my-config-lower", "ConfigMap", optsLowercaseKind)
+	a.True(found12, "expected to find my-config-lower when DownstreamResource has lowercase 'configmap'")
+
+	found13 := isInDownstreamResources("my-config-lower", "CONFIGMAP", optsLowercaseKind)
+	a.True(found13, "expected to find my-config-lower with uppercase parameter and lowercase DownstreamResource kind")
+
+	found14 := isInDownstreamResources("some-secret-lower", "Secret", optsLowercaseKind)
+	a.True(found14, "expected to find some-secret-lower when DownstreamResource has lowercase 'secret'")
+
+	optsUppercaseKind := fleet.BundleDeploymentOptions{
+		DownstreamResources: []fleet.DownstreamResource{
+			{Kind: "CONFIGMAP", Name: "my-config-upper"},
+			{Kind: "SECRET", Name: "some-secret-upper"},
+		},
+	}
+
+	found15 := isInDownstreamResources("my-config-upper", "ConfigMap", optsUppercaseKind)
+	a.True(found15, "expected to find my-config-upper when DownstreamResource has uppercase 'CONFIGMAP'")
+
+	found16 := isInDownstreamResources("my-config-upper", "configmap", optsUppercaseKind)
+	a.True(found16, "expected to find my-config-upper with lowercase parameter and uppercase DownstreamResource kind")
+
+	found17 := isInDownstreamResources("some-secret-upper", "secret", optsUppercaseKind)
+	a.True(found17, "expected to find some-secret-upper with lowercase parameter and uppercase DownstreamResource kind")
+
+	optsMixedKind := fleet.BundleDeploymentOptions{
+		DownstreamResources: []fleet.DownstreamResource{
+			{Kind: "CoNfIgMaP", Name: "my-config-mixed"},
+		},
+	}
+
+	found18 := isInDownstreamResources("my-config-mixed", "ConfigMap", optsMixedKind)
+	a.True(found18, "expected to find my-config-mixed when DownstreamResource has mixed case 'CoNfIgMaP'")
+
+	found19 := isInDownstreamResources("my-config-mixed", "configmap", optsMixedKind)
+	a.True(found19, "expected to find my-config-mixed with lowercase parameter and mixed case DownstreamResource kind")
 }
 
 func TestValuesFromUsesDefaultNamespaceWhenResourceCopiedDownstream(t *testing.T) {
