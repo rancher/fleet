@@ -3,8 +3,6 @@ package bundlereader
 import (
 	"bufio"
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/base64"
 	"fmt"
 	"io/fs"
@@ -179,7 +177,7 @@ func loadDirectory(ctx context.Context, opts loadOpts, dir directory) ([]fleet.B
 		if opts.compress || !utf8.Valid(data) {
 			content, err := content.Base64GZ(data)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("decoding compressed base64 data: %w", err)
 			}
 			r.Content = content
 			r.Encoding = "base64+gz"
@@ -211,7 +209,7 @@ func GetContent(ctx context.Context, base, source, version string, auth Auth, di
 	if hasOCIURL.MatchString(source) {
 		source, err = downloadOCIChart(source, version, temp, auth)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("downloading OCI chart from %s: %w", source, err)
 		}
 	}
 
@@ -251,7 +249,7 @@ func GetContent(ctx context.Context, base, source, version string, auth Auth, di
 	}
 
 	if err := c.Get(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("retrieving file from %s: %w", source, err)
 	}
 
 	files := map[string][]byte{}
@@ -288,7 +286,7 @@ func GetContent(ctx context.Context, base, source, version string, auth Auth, di
 			// try to update possible dependencies.
 			if !disableDepsUpdate && helmupdater.ChartYAMLExists(path) {
 				if err = helmupdater.UpdateHelmDependencies(path); err != nil {
-					return err
+					return fmt.Errorf("updating helm dependencies: %w", err)
 				}
 			}
 			// Skip .fleetignore'd and hidden directories
@@ -408,7 +406,7 @@ func downloadOCIChart(name, version, path string, auth Auth) (string, error) {
 
 func newHttpGetter(auth Auth) *getter.HttpGetter {
 	httpGetter := &getter.HttpGetter{
-		Client: &http.Client{},
+		Client: getHTTPClient(auth),
 	}
 
 	if auth.Username != "" && auth.Password != "" {
@@ -416,25 +414,6 @@ func newHttpGetter(auth Auth) *getter.HttpGetter {
 		header.Add("Authorization", "Basic "+basicAuth(auth.Username, auth.Password))
 		httpGetter.Header = header
 	}
-
-	transport := http.DefaultTransport.(*http.Transport).Clone()
-	if auth.CABundle != nil {
-		pool, err := x509.SystemCertPool()
-		if err != nil {
-			pool = x509.NewCertPool()
-		}
-		pool.AppendCertsFromPEM(auth.CABundle)
-		transport.TLSClientConfig = &tls.Config{
-			RootCAs:            pool,
-			MinVersion:         tls.VersionTLS12,
-			InsecureSkipVerify: auth.InsecureSkipVerify, // nolint:gosec
-		}
-	} else if auth.InsecureSkipVerify {
-		transport.TLSClientConfig = &tls.Config{
-			InsecureSkipVerify: auth.InsecureSkipVerify, // nolint:gosec
-		}
-	}
-	httpGetter.Client.Transport = transport
 
 	return httpGetter
 }
