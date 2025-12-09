@@ -366,12 +366,13 @@ func mergeValues(dest, src map[string]interface{}) map[string]interface{} {
 // provided name exists in the provided BundleDeploymentOptions.DownstreamResources slice.
 // If not found, returns false.
 func isInDownstreamResources(resourceName, kind string, options fleet.BundleDeploymentOptions) bool {
+	kind = strings.ToLower(kind)
 	if !experimental.CopyResourcesDownstreamEnabled() {
 		return false
 	}
 
 	for _, dr := range options.DownstreamResources {
-		if dr.Name == resourceName && dr.Kind == kind {
+		if dr.Name == resourceName && strings.ToLower(dr.Kind) == kind {
 			return true
 		}
 	}
