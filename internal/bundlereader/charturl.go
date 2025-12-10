@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -256,12 +257,22 @@ func getHTTPClient(auth Auth) *http.Client {
 
 func transportHash(insecureSkipVerify bool, caBundle []byte) string {
 	hash := sha256.New()
-	for _, v := range [][]byte{
+
+	// Write a length prefix for every field to avoid collisions
+	lenBuf := make([]byte, 8)
+	writeField := func(data []byte) {
+		binary.LittleEndian.PutUint64(lenBuf, uint64(len(data)))
+		hash.Write(lenBuf)
+		hash.Write(data)
+	}
+
+	for _, v := range [][]byte{ // values to hash
 		caBundle,
 		{toByte(insecureSkipVerify)},
 	} {
-		hash.Write(v)
+		writeField(v)
 	}
+
 	return hex.EncodeToString(hash.Sum(nil))
 }
 
