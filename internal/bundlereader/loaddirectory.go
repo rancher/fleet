@@ -209,7 +209,7 @@ func GetContent(ctx context.Context, base, source, version string, auth Auth, di
 	if hasOCIURL.MatchString(source) {
 		source, err = downloadOCIChart(source, version, temp, auth)
 		if err != nil {
-			return nil, fmt.Errorf("downloading OCI chart from %s: %w", source, err)
+			return nil, fmt.Errorf("downloading OCI chart from %q: %w", orgSource, err)
 		}
 	}
 
@@ -273,7 +273,7 @@ func GetContent(ctx context.Context, base, source, version string, auth Auth, di
 	}
 
 	if _, err := client.Get(ctx, req); err != nil {
-		return nil, fmt.Errorf("retrieving file from %s: %w", source, err)
+		return nil, fmt.Errorf("retrieving file from %q: %w", source, err)
 	}
 
 	files := map[string][]byte{}
