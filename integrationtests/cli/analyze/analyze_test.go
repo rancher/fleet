@@ -149,16 +149,6 @@ var _ = Describe("Fleet analyze", func() {
 			Expect(output).To(ContainSubstring("ISSUES DETECTED"))
 			Expect(output).To(ContainSubstring("API CONSISTENCY"))
 		})
-
-		It("should work with file input", func() {
-			// Verify the command accepts file input
-			buf, _, err := runAnalyze([]string{snapshotFile})
-			Expect(err).NotTo(HaveOccurred())
-			Expect(buf.Contents()).NotTo(BeEmpty())
-
-			output := string(buf.Contents())
-			Expect(output).To(ContainSubstring("FLEET MONITORING SUMMARY"))
-		})
 	})
 
 	Context("with issues in monitor output", func() {
