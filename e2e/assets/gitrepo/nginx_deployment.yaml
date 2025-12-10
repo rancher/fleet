@@ -18,6 +18,7 @@ spec:
         - name: git-certs
           secret:
             secretName: git-server-certs
+            optional: false
             items:
               - key: helm.crt
                 path: helm.crt
@@ -34,3 +35,16 @@ spec:
             - name: git-certs
               mountPath: "/etc/ssl/certs"
               readOnly: true
+          startupProbe:
+            tcpSocket:
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 30
+          readinessProbe:
+            tcpSocket:
+              port: 80
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3

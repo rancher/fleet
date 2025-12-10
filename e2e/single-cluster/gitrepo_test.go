@@ -209,6 +209,9 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 		BeforeEach(func() {
 			localRepoName = "webhook-test"
 			targetNamespace = testenv.NewNamespaceName("target", r)
+
+			gitServerPort = port
+			gitProtocol = "http"
 		})
 
 		JustBeforeEach(func() {
@@ -267,10 +270,8 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 				return err
 			}).ShouldNot(HaveOccurred(), out)
 
-			// Clone previously created repo
-			clone, err = gh.Create(clonedir, testenv.AssetPath("gitrepo/sleeper-chart"), "examples")
-			Expect(err).ToNot(HaveOccurred())
-
+			// Create the GitRepo resource first, before pushing content
+			// This ensures the webhook will find the GitRepo when the push triggers it
 			err = testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo.yaml"), gitRepoTestValues{
 				Name:            gitrepoName,
 				Repo:            inClusterRepoURL,
@@ -279,9 +280,19 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 				TargetNamespace: targetNamespace, // to avoid conflicts with other tests
 			})
 			Expect(err).ToNot(HaveOccurred())
+
+			// Now push content, which will trigger the webhook
+			clone, err = gh.Create(clonedir, testenv.AssetPath("gitrepo/sleeper-chart"), "examples")
+			Expect(err).ToNot(HaveOccurred())
 		})
 
 		It("updates the deployment", func() {
+			By("waiting for the gitrepo to be ready")
+			Eventually(func(g Gomega) {
+				status := getGitRepoStatus(g, k, gitrepoName)
+				g.Expect(status.Commit).ToNot(BeEmpty(), "GitRepo should have synced initially")
+			}, testenv.MediumTimeout, testenv.ShortTimeout).Should(Succeed())
+
 			By("checking the pod exists")
 			Eventually(func() string {
 				out, _ := k.Namespace(targetNamespace).Get("pods")
