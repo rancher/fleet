@@ -49,7 +49,7 @@ require (
 	github.com/testcontainers/testcontainers-go v0.38.0
 	go.uber.org/mock v0.6.0
 	go.uber.org/zap v1.27.1
-	golang.org/x/crypto v0.44.0
+	golang.org/x/crypto v0.45.0
 	golang.org/x/sync v0.19.0
 	gonum.org/v1/gonum v0.16.0
 	gotest.tools v2.2.0+incompatible
