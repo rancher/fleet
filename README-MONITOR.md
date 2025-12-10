@@ -4,28 +4,28 @@ Advanced diagnostic tool for troubleshooting Fleet GitOps bundle deployments.
 
 ## Overview
 
-The `fleet-util monitor` command provides deep insights into Fleet's GitOps lifecycle by capturing snapshots of all relevant resources and performing automated diagnostics. It helps identify why bundles get stuck during targeting and deployment phases, and provides actionable information about the health of your Fleet installation.
+The `fleet monitor` command provides deep insights into Fleet's GitOps lifecycle by capturing snapshots of all relevant resources and performing automated diagnostics. It helps identify why bundles get stuck during targeting and deployment phases, and provides actionable information about the health of your Fleet installation.
 
 ## Quick Start
 
 ```bash
 # Single snapshot with formatted output
-fleet-util monitor | jq
+fleet monitor | jq
 
 # Single snapshot with human-readable analysis
-fleet-util monitor | fleet-util analyze
+fleet monitor | fleet analyze
 
 # Continuous monitoring with built-in watch mode (every 60 seconds)
-fleet-util monitor --watch --interval 60 >> monitor.json
+fleet monitor --watch --interval 60 >> monitor.json
 
-# Analyze collected snapshots (now built into fleet-util!)
-fleet-util analyze monitor.json
+# Analyze collected snapshots (now built into fleet!)
+fleet analyze monitor.json
 
 # Show changes between snapshots
-fleet-util analyze --diff monitor.json
+fleet analyze --diff monitor.json
 
 # Show only issues
-fleet-util analyze --issues monitor.json
+fleet analyze --issues monitor.json
 ```
 
 ## What It Detects
@@ -198,7 +198,7 @@ fleet monitor | jq
 
 ```
 Usage:
-  fleet-util monitor [flags]
+  fleet monitor [flags]
 
 Flags:
   -n, --namespace string          Namespace to monitor (default: all namespaces)
@@ -215,45 +215,45 @@ Flags:
 
 ```bash
 # Single snapshot with pretty formatting
-fleet-util monitor | jq
+fleet monitor | jq
 
 # Monitor specific namespace
-fleet-util monitor -n fleet-local | jq
+fleet monitor -n fleet-local | jq
 
 # Check fleet-default namespace (common for local clusters)
-fleet-util monitor -n fleet-default | jq
+fleet monitor -n fleet-default | jq
 ```
 
 ### Continuous Monitoring
 
 ```bash
 # Collect snapshots every 60 seconds using watch mode
-fleet-util monitor --watch --interval 60 >> monitor.json
+fleet monitor --watch --interval 60 >> monitor.json
 
 # Or monitor with a shorter interval (every 30 seconds)
-fleet-util monitor --watch --interval 30 >> monitor.json
+fleet monitor --watch --interval 30 >> monitor.json
 ```
 
 ### Targeted Diagnostics
 
 ```bash
 # Check for stuck resources
-fleet-util monitor | jq '.diagnostics | {
+fleet monitor | jq '.diagnostics | {
   bundlesWithGenerationMismatch: .bundlesWithGenerationMismatch | length,
   stuckBundleDeployments: .stuckBundleDeployments | length
 }'
 
 # Find bundles with old commits
-fleet-util monitor | jq '.diagnostics.gitRepoBundleInconsistencies'
+fleet monitor | jq '.diagnostics.gitRepoBundleInconsistencies'
 
 # Check agent health across all clusters
-fleet-util monitor | jq '.diagnostics.clustersWithAgentIssues'
+fleet monitor | jq '.diagnostics.clustersWithAgentIssues'
 
 # Find large bundles that might impact etcd
-fleet-util monitor | jq '.diagnostics.largeBundles'
+fleet monitor | jq '.diagnostics.largeBundles'
 
 # Check target matching issues
-fleet-util monitor | jq '.diagnostics | {
+fleet monitor | jq '.diagnostics | {
   bundlesNoDeployments: .bundlesWithNoDeployments | length,
   gitreposNoBundles: .gitReposWithNoBundles | length,
   clusterGroupsNoClusters: .clusterGroupsWithNoClusters | length
@@ -264,33 +264,33 @@ fleet-util monitor | jq '.diagnostics | {
 
 ```bash
 # Before making changes
-fleet-util monitor > before.json
+fleet monitor > before.json
 
 # Make changes to GitRepo, bundles, etc.
 kubectl edit gitrepo my-repo
 
 # After changes
-fleet-util monitor > after.json
+fleet monitor > after.json
 
 # Compare
-fleet-util analyze --compare after.json before.json
+fleet analyze --compare after.json before.json
 ```
 
 ## Analyzing Monitor Output
 
-The `fleet-util analyze` command provides powerful analysis capabilities for monitor output.
+The `fleet analyze` command provides powerful analysis capabilities for monitor output.
 
 ### Basic Analysis
 
 ```bash
 # Show summary of latest snapshot
-fleet-util analyze monitor.json
+fleet analyze monitor.json
 
 # Show only issues (useful for quick health checks)
-fleet-util analyze --issues monitor.json
+fleet analyze --issues monitor.json
 
 # Show detailed analysis with all information
-fleet-util analyze --detailed monitor.json
+fleet analyze --detailed monitor.json
 ```
 
 ### Multi-Snapshot Analysis
@@ -299,16 +299,16 @@ When your monitor.json file contains multiple snapshots (one JSON object per lin
 
 ```bash
 # Show summary of latest snapshot only
-fleet-util analyze monitor.json
+fleet analyze monitor.json
 
 # Show differences between consecutive snapshots
-fleet-util analyze --diff monitor.json
+fleet analyze --diff monitor.json
 
 # Show summary of all snapshots
-fleet-util analyze --all monitor.json
+fleet analyze --all monitor.json
 
 # Compare two specific snapshot files
-fleet-util analyze --compare snapshot2.json snapshot1.json
+fleet analyze --compare snapshot2.json snapshot1.json
 ```
 
 ### Example Output
@@ -383,7 +383,7 @@ BUNDLE SIZE CHANGES:
 
 ```bash
 # Capture current state
-fleet-util monitor | jq > bundle-status.json
+fleet monitor | jq > bundle-status.json
 
 # Check for bundles with generation mismatch
 jq '.diagnostics.bundlesWithGenerationMismatch' bundle-status.json
@@ -399,40 +399,40 @@ jq '.diagnostics.gitRepoBundleInconsistencies' bundle-status.json
 
 ```bash
 # Check agent health
-fleet-util monitor | jq '.diagnostics.clustersWithAgentIssues'
+fleet monitor | jq '.diagnostics.clustersWithAgentIssues'
 
 # See detailed cluster info
-fleet-util monitor | jq '.clusters[] | select(.agentStatus != "ready")'
+fleet monitor | jq '.clusters[] | select(.agentStatus != "ready")'
 
 # Check when agents last checked in
-fleet-util monitor | jq '.clusters[] | {name, lastSeen, agentAge}'
+fleet monitor | jq '.clusters[] | {name, lastSeen, agentAge}'
 ```
 
 ### Scenario 3: Resources Stuck with Deletion Timestamps
 
 ```bash
 # Find resources with deletion timestamps
-fleet-util monitor | jq '{
+fleet monitor | jq '{
   bundles: [.bundles[] | select(.deletionTimestamp != null) | .name],
   bundledeployments: [.bundledeployments[] | select(.deletionTimestamp != null) | .name]
 }'
 
 # Check finalizers preventing deletion
-fleet-util monitor | jq '.bundles[] | select(.deletionTimestamp != null) | {name, finalizers}'
+fleet monitor | jq '.bundles[] | select(.deletionTimestamp != null) | {name, finalizers}'
 ```
 
 ### Scenario 4: Commits Not Propagating
 
 ```bash
 # Track commits through the lifecycle
-fleet-util monitor | jq '{
+fleet monitor | jq '{
   gitrepo: .gitrepos[0].commit[0:8],
   bundles: [.bundles[] | {name, commit: .commit[0:8]}],
   bundledeployments: [.bundledeployments[] | {name, commit: .commit[0:8]}]
 }'
 
 # Find commit mismatches
-fleet-util monitor | jq '.diagnostics.gitRepoBundleInconsistencies[] | 
+fleet monitor | jq '.diagnostics.gitRepoBundleInconsistencies[] | 
   select(.commitMismatch == true)'
 ```
 
@@ -440,14 +440,14 @@ fleet-util monitor | jq '.diagnostics.gitRepoBundleInconsistencies[] |
 
 ```bash
 # Check bundle sizes
-fleet-util monitor | jq '.diagnostics.largeBundles'
+fleet monitor | jq '.diagnostics.largeBundles'
 
 # Find bundles with most resources
-fleet-util monitor | jq '[.bundles[] | {name, size: .sizeBytes, sizeMB: (.sizeBytes / 1048576 | floor)}] | 
+fleet monitor | jq '[.bundles[] | {name, size: .sizeBytes, sizeMB: (.sizeBytes / 1048576 | floor)}] | 
   sort_by(.size) | reverse'
 
 # Check for missing content resources
-fleet-util monitor | jq '.diagnostics.bundlesWithMissingContent'
+fleet monitor | jq '.diagnostics.bundlesWithMissingContent'
 ```
 
 ## Continuous Monitoring Workflow
@@ -456,13 +456,13 @@ For long-term monitoring and trend analysis:
 
 ```bash
 # 1. Start continuous collection with watch mode (runs in background)
-nohup fleet-util monitor --watch --interval 60 >> /var/log/fleet-monitor.json 2>&1 &
+nohup fleet monitor --watch --interval 60 >> /var/log/fleet-monitor.json 2>&1 &
 
 # 2. Periodically analyze for issues
-watch -n 300 "fleet-util analyze --issues /var/log/fleet-monitor.json | tail -30"
+watch -n 300 "fleet analyze --issues /var/log/fleet-monitor.json | tail -30"
 
 # 3. Generate daily reports
-fleet-util analyze --diff /var/log/fleet-monitor.json > fleet-report-$(date +%Y%m%d).txt
+fleet analyze --diff /var/log/fleet-monitor.json > fleet-report-$(date +%Y%m%d).txt
 
 # 4. Log rotation (keep last 7 days)
 find /var/log -name "fleet-report-*.txt" -mtime +7 -delete
@@ -549,42 +549,42 @@ kubectl auth can-i list bundledeployments --all-namespaces
 kubectl get crds | grep fleet.cattle.io
 
 # Enable verbose logging
-fleet-util monitor --verbose 2>&1 | tee monitor-debug.log
+fleet monitor --verbose 2>&1 | tee monitor-debug.log
 ```
 
 ## Analyze Command
 
-The `fleet-util analyze` command provides human-readable analysis of monitor snapshots.
+The `fleet analyze` command provides human-readable analysis of monitor snapshots.
 
 ### Usage
 
 ```bash
 # Analyze latest snapshot
-fleet-util analyze monitor.json
+fleet analyze monitor.json
 
 # Analyze from stdin
-fleet-util monitor | fleet-util analyze
+fleet monitor | fleet analyze
 
 # Show all snapshots in file
-fleet-util analyze --all monitor.json
+fleet analyze --all monitor.json
 
 # Show changes between consecutive snapshots
-fleet-util analyze --diff monitor.json
+fleet analyze --diff monitor.json
 
 # Show only resources with issues
-fleet-util analyze --issues monitor.json
+fleet analyze --issues monitor.json
 
 # Detailed analysis with controller info and events
-fleet-util analyze --detailed monitor.json
+fleet analyze --detailed monitor.json
 
 # Compare two specific snapshot files
-fleet-util analyze --compare before.json after.json
+fleet analyze --compare before.json after.json
 
 # JSON output for programmatic use
-fleet-util analyze --json monitor.json
+fleet analyze --json monitor.json
 
 # Disable colored output
-fleet-util analyze --no-color monitor.json
+fleet analyze --no-color monitor.json
 ```
 
 ### Output Modes
@@ -611,11 +611,11 @@ Common analysis commands:
 
 | Task | Command |
 |------|---------|
-| Basic summary | `fleet-util analyze monitor.json` |
-| Show changes over time | `fleet-util analyze --diff monitor.json` |
-| Only show issues | `fleet-util analyze --issues monitor.json` |
-| Detailed analysis | `fleet-util analyze --detailed monitor.json` |
-| Compare two snapshots | `fleet-util analyze --compare after.json before.json` |
+| Basic summary | `fleet analyze monitor.json` |
+| Show changes over time | `fleet analyze --diff monitor.json` |
+| Only show issues | `fleet analyze --issues monitor.json` |
+| Detailed analysis | `fleet analyze --detailed monitor.json` |
+| Compare two snapshots | `fleet analyze --compare after.json before.json` |
 
 ## Building Fleet Util
 
@@ -623,24 +623,24 @@ The monitor and analyze commands are built as part of the Fleet CLI:
 
 ```bash
 # Build the fleetcli binary
-go build -o fleet-util ./cmd/fleetcli
+go build -o fleet ./cmd/fleetcli
 
 # Run monitor
-./fleet-util monitor | jq
+./fleet monitor | jq
 
 # Analyze snapshots
-./fleet-util analyze monitor.json
+./fleet analyze monitor.json
 ```
 
 ## Creating Releases
 
-To create releases of fleet-util for distribution:
+To create releases of fleet for distribution:
 
 1. Fork the Fleet repository on GitHub
 2. The `.github/workflows/release-monitor.yml` workflow is already configured
 3. Create a Git tag with the `util-` prefix and push:
    ```bash
-   git tag -a util-v1.0.0 -m "Release fleet-util v1.0.0"
+   git tag -a util-v1.0.0 -m "Release fleet v1.0.0"
    git push origin util-v1.0.0
    ```
 4. GitHub Actions will automatically:
