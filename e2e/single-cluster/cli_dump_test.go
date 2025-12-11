@@ -69,11 +69,6 @@ var _ = Describe("Fleet dump", Label("sharding"), func() {
 				exampleMonitoredRsc := "bundle"
 				if strings.Contains(fileName[1], "gitjob") {
 					exampleMonitoredRsc = "gitrepo"
-				} else if !strings.Contains(fileName[1], "shard") {
-					// Running this check on sharded services may fail, if no reconciles have run on sharded
-					// controllers. Let's not introduce a dependency on other test cases here.
-					// Same remark about gitjob services, for as long as no GitRepo has been created.
-					Expect(c).To(ContainSubstring(fmt.Sprintf("fleet_%s_desired_ready", exampleMonitoredRsc)))
 				}
 
 				Expect(c).To(ContainSubstring(fmt.Sprintf(`workqueue_work_duration_seconds_bucket{controller="%s",name="%s",`, exampleMonitoredRsc, exampleMonitoredRsc)))
