@@ -1,0 +1,59 @@
+name: Fleet CRD for JSON Schema
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/check-crds.yml'  # allows testing on push
+
+jobs:
+  detect-crd-change:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout this repo
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Download latest Fleet crds.yaml
+        run: |
+          curl -sSL -o fleet-crds.yaml https://raw.githubusercontent.com/rancher/fleet/main/charts/fleet-crd/templates/crds.yaml
+
+      - name: Check for changes in crds.yaml
+        id: check
+        run: |
+          if [ -f .cached-fleet-crds.yaml ]; then
+            if diff -q .cached-fleet-crds.yaml fleet-crds.yaml > /dev/null; then
+              echo "changed=false" >> "$GITHUB_OUTPUT"
+              echo "No CRD change detected."
+            else
+              echo "changed=true" >> "$GITHUB_OUTPUT"
+              echo "CRD changed!"
+            fi
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "First-time run. Treating as change."
+          fi
+
+      - name: Generate schema
+        if: steps.check.outputs.changed == 'true'
+        run: |
+          echo "Generating schema from Go code..."
+          go run pkg/apis/fleet.cattle.io/v1alpha1/JSON/json-schema.go
+
+      - name: Cache latest crds.yaml
+        if: steps.check.outputs.changed == 'true'
+        run: cp fleet-crds.yaml .cached-fleet-crds.yaml
+
+      - name: Commit and push updates
+        if: steps.check.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add fleet-combined.schema.json .cached-fleet-crds.yaml
+          git commit -m "chore: update JSON Schema from Fleet CRD change"
+          git push
