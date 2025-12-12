@@ -12,15 +12,43 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/rancher/fleet/e2e/testenv"
 	"github.com/rancher/fleet/internal/cmd/cli/dump"
 )
 
 var _ = Describe("Fleet dump", Label("sharding"), func() {
 	When("the cluster has Fleet installed with metrics enabled", func() {
+		var (
+			testName = "test-cli-dump"
+		)
+
 		It("includes metrics into the archive", func() {
+			k := env.Kubectl.Namespace(env.Namespace)
+
+			// Create a GitRepo to ensure fleet metrics are populated
+			err := testenv.CreateGitRepo(k, env.Namespace, testName, "master", "", "simple")
+			Expect(err).ToNot(HaveOccurred())
+
+			// Clean up the test GitRepo after the test
+			DeferCleanup(func() {
+				out, err := k.Delete("gitrepo", testName)
+				Expect(err).ToNot(HaveOccurred(), out)
+			})
+
+			// Wait for Bundle to be created and have its status updated
+			// This ensures metrics are collected by the Bundle controller
+			Eventually(func() bool {
+				out, err := k.Namespace(env.Namespace).Get("bundles")
+				if err != nil {
+					return false
+				}
+				// Check if at least one bundle exists and has been processed
+				return strings.Contains(out, testName)
+			}).Should(BeTrue())
+
 			tgzPath := "test.tgz"
 
-			err := dump.Create(context.Background(), restConfig, tgzPath)
+			err = dump.Create(context.Background(), restConfig, tgzPath)
 			Expect(err).ToNot(HaveOccurred())
 
 			defer func() {
@@ -70,9 +98,7 @@ var _ = Describe("Fleet dump", Label("sharding"), func() {
 				if strings.Contains(fileName[1], "gitjob") {
 					exampleMonitoredRsc = "gitrepo"
 				} else if !strings.Contains(fileName[1], "shard") {
-					// Running this check on sharded services may fail, if no reconciles have run on sharded
-					// controllers. Let's not introduce a dependency on other test cases here.
-					// Same remark about gitjob services, for as long as no GitRepo has been created.
+					// Check for fleet_*_desired_ready metrics on non-sharded services
 					Expect(c).To(ContainSubstring(fmt.Sprintf("fleet_%s_desired_ready", exampleMonitoredRsc)))
 				}
 
