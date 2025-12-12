@@ -35,11 +35,16 @@ var _ = Describe("Fleet dump", Label("sharding"), func() {
 				Expect(err).ToNot(HaveOccurred(), out)
 			})
 
-			// Wait for GitRepo to be processed and metrics to be exported
-			Eventually(func() error {
-				_, err := k.Get("gitrepo", testName, "-n", env.Namespace)
-				return err
-			}).Should(Succeed())
+			// Wait for Bundle to be created and have its status updated
+			// This ensures metrics are collected by the Bundle controller
+			Eventually(func() bool {
+				out, err := k.Namespace(env.Namespace).Get("bundles")
+				if err != nil {
+					return false
+				}
+				// Check if at least one bundle exists and has been processed
+				return strings.Contains(out, testName)
+			}).Should(BeTrue())
 
 			tgzPath := "test.tgz"
 
