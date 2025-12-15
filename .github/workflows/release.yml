@@ -220,7 +220,7 @@ jobs:
 
             cat provenance-slsav1.json
             cosign attest --yes --predicate provenance-slsav1.json --type slsaprovenance1 "${URL}"
-            rm provenance-slsav1.json
+            rm -f provenance-slsav1.json
           done
 
       - name: Upload charts to release
