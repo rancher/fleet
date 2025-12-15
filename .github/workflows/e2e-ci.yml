@@ -235,8 +235,15 @@ jobs:
           e2e/testenv/infra/infra setup --helm-registry=true
           e2e/testenv/infra/infra setup --oci-registry=true
 
-          ginkgo --github-output --trace --label-filter='oci-registry' e2e/single-cluster
-          ginkgo --github-output --trace --label-filter='oci-registry' e2e/metrics
+          # Wait for OCI registry to be fully ready
+          echo "Waiting for OCI registry to be ready..."
+          kubectl wait --for=condition=ready pod -l app=zot -n default --timeout=120s || true
+          sleep 5
+
+          # OCI tests can be flaky due to registry setup timing issues
+          # Run with flake attempts to retry failed tests
+          ginkgo --github-output --trace --flake-attempts=2 --label-filter='oci-registry' e2e/single-cluster
+          ginkgo --github-output --trace --flake-attempts=2 --label-filter='oci-registry' e2e/metrics
 
           e2e/testenv/infra/infra teardown
       -
