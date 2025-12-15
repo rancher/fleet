@@ -111,10 +111,31 @@ jobs:
       -
         name: Provision k3d Cluster
         run: |
-          k3d cluster create upstream --wait \
-            --agents 1 \
-            --network "nw01" \
-            --image docker.io/rancher/k3s:${{matrix.k3s.version}}
+          # Retry cluster creation up to 3 times to handle transient network issues
+          max_attempts=3
+          attempt=1
+          while [ $attempt -le $max_attempts ]; do
+            echo "Attempt $attempt of $max_attempts to create k3d cluster..."
+            if k3d cluster create upstream --wait \
+              --agents 1 \
+              --network "nw01" \
+              --image docker.io/rancher/k3s:${{matrix.k3s.version}}; then
+              echo "Cluster created successfully"
+              break
+            else
+              echo "Cluster creation failed on attempt $attempt"
+              if [ $attempt -lt $max_attempts ]; then
+                echo "Cleaning up and retrying..."
+                k3d cluster delete upstream 2>/dev/null || true
+                docker network rm nw01 2>/dev/null || true
+                sleep 10
+              else
+                echo "All attempts failed"
+                exit 1
+              fi
+            fi
+            attempt=$((attempt + 1))
+          done
       -
         name: Import Images Into k3d
         run: |
