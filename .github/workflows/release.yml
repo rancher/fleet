@@ -212,7 +212,7 @@ jobs:
               fi
               if [ "${i}" -eq "$(( max_retries - 1 ))" ]; then
                 echo "ERROR: Failed to generate slsav1 provenance. Check whether the image is present in the Staging registry."
-                cat provenance-slsav1.json
+                cat provenance-slsav1.json 2>/dev/null || echo "No provenance file generated"
                 exit 1
               fi
               sleep "${retry_delay}"
