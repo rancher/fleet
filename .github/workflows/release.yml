@@ -212,12 +212,15 @@ jobs:
               fi
               if [ "${i}" -eq "$(( max_retries - 1 ))" ]; then
                 echo "ERROR: Failed to generate slsav1 provenance. Check whether the image is present in the Staging registry."
+                cat provenance-slsav1.json
                 exit 1
               fi
               sleep "${retry_delay}"
             done
 
+            cat provenance-slsav1.json
             cosign attest --yes --predicate provenance-slsav1.json --type slsaprovenance1 "${URL}"
+            rm provenance-slsav1.json
           done
 
       - name: Upload charts to release
