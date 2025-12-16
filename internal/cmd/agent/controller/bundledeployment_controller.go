@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/monitor"
 	"github.com/rancher/fleet/internal/helmvalues"
 	fleetv1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/durations"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -152,6 +154,15 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 		// do not use the returned status, instead set the condition and possibly a timestamp
 		bd.Status = setCondition(bd.Status, err, monitor.Cond(fleetv1.BundleDeploymentConditionDeployed))
+
+		// Not-ready dependencies should not be treated as an error.
+		// Instead, a controlled requeue should happen until the conditions
+		if errors.Is(err, &deployer.NotReadyDependenciesError{}) {
+			if err := r.updateStatus(ctx, orig, bd); err != nil {
+				return ctrl.Result{}, err
+			}
+			return ctrl.Result{RequeueAfter: durations.WaitForDependenciesReadyRequeueInterval}, nil
+		}
 
 		merr = append(merr, fmt.Errorf("failed deploying bundle: %w", err))
 	} else {
