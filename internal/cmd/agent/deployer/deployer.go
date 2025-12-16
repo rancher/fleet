@@ -25,6 +25,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
+type NotReadyDependenciesError struct {
+	pending []string
+}
+
+func (e *NotReadyDependenciesError) Error() string {
+	return fmt.Sprintf("dependent bundle(s) are not ready: %v", e.pending)
+}
+
 type Deployer struct {
 	client         client.Client
 	upstreamClient client.Reader
@@ -352,7 +360,7 @@ func (d *Deployer) checkDependency(ctx context.Context, bd *fleet.BundleDeployme
 	}
 
 	if len(depBundleList) != 0 {
-		return fmt.Errorf("dependent bundle(s) are not ready: %v", depBundleList)
+		return &NotReadyDependenciesError{pending: depBundleList}
 	}
 
 	return nil
