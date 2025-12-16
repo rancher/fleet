@@ -41,7 +41,9 @@ kubectl wait --for=condition=Available deployment --timeout=2m -n cert-manager -
 
 helm upgrade rancher "https://releases.rancher.com/server-charts/${channel}/rancher-${version#v}.tgz" \
   --devel \
-  --install --wait \
+  --install \
+  --timeout 10m \
+  --wait \
   --create-namespace \
   --namespace cattle-system \
   --set "extraEnv[0].name=CATTLE_SERVER_URL" \
