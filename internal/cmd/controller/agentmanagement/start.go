@@ -4,60 +4,38 @@ import (
 	"context"
 
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/controllers"
-
 	"github.com/rancher/wrangler/v3/pkg/kubeconfig"
-	"github.com/rancher/wrangler/v3/pkg/leader"
-	"github.com/rancher/wrangler/v3/pkg/schemes"
-
 	"github.com/sirupsen/logrus"
-
-	v1 "k8s.io/api/apps/v1"
-	policyv1 "k8s.io/api/policy/v1"
-	schedulingv1 "k8s.io/api/scheduling/v1"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 )
 
 func start(ctx context.Context, kubeConfig, namespace string, disableBootstrap bool) error {
 	clientConfig := kubeconfig.GetNonInteractiveClientConfig(kubeConfig)
-	kc, err := clientConfig.ClientConfig()
+	restConfig, err := clientConfig.ClientConfig()
 	if err != nil {
 		return err
 	}
 
-	// try to claim leadership lease without rate limiting
-	localConfig := rest.CopyConfig(kc)
+	// Disable rate limiting for API server communication
+	localConfig := rest.CopyConfig(restConfig)
 	localConfig.QPS = -1
 	localConfig.RateLimiter = nil
-	k8s, err := kubernetes.NewForConfig(localConfig)
+
+	// Create controller-runtime manager with built-in leader election
+	mgr, err := controllers.NewControllerRuntimeMgrFromConfig(localConfig, namespace)
 	if err != nil {
-		return err
+		logrus.Fatal(err)
 	}
 
-	// Register all Kinds we apply dynamically so their GVKs resolve
-	err = schemes.Register(v1.AddToScheme)
-	if err != nil {
-		return err
-	}
-	if err = schemes.Register(policyv1.AddToScheme); err != nil {
-		return err
-	}
-	if err = schemes.Register(schedulingv1.AddToScheme); err != nil {
-		return err
+	// Register all controllers
+	if err := controllers.RegisterAll(ctx, mgr, localConfig, clientConfig, namespace, disableBootstrap); err != nil {
+		logrus.Fatal(err)
 	}
 
-	leader.RunOrDie(ctx, namespace, "fleet-agentmanagement-lock", k8s, func(ctx context.Context) {
-		appCtx, err := controllers.NewAppContext(clientConfig)
-		if err != nil {
-			logrus.Fatal(err)
-		}
-		if err := controllers.Register(ctx, appCtx, namespace, disableBootstrap); err != nil {
-			logrus.Fatal(err)
-		}
-		if err := appCtx.Start(ctx); err != nil {
-			logrus.Fatal(err)
-		}
-	})
+	// Start the manager (includes leader election)
+	if err := controllers.StartControllerRuntimeManager(ctx, mgr); err != nil {
+		logrus.Fatal(err)
+	}
 
 	return nil
 }

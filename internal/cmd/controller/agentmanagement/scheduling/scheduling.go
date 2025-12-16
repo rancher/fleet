@@ -20,6 +20,10 @@ const (
 
 func PriorityClass(priorityClass *fleet.PriorityClassSpec) *schedulingv1.PriorityClass {
 	return &schedulingv1.PriorityClass{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: schedulingv1.SchemeGroupVersion.String(),
+			Kind:       "PriorityClass",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: FleetAgentPriorityClassName,
 		},
@@ -53,6 +57,10 @@ func PodDisruptionBudget(agentNamespace string, pdbs *fleet.PodDisruptionBudgetS
 	}
 
 	return &policyv1.PodDisruptionBudget{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: policyv1.SchemeGroupVersion.String(),
+			Kind:       "PodDisruptionBudget",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      FleetAgentPodDisruptionBudgetName,
 			Namespace: agentNamespace,

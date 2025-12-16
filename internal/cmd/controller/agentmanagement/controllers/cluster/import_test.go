@@ -4,362 +4,186 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rancher/wrangler/v3/pkg/generic/fake"
-	"go.uber.org/mock/gomock"
-	"k8s.io/apimachinery/pkg/labels"
-
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/rancher/fleet/internal/config"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
-func TestOnConfig(t *testing.T) {
-	cases := map[string]struct {
-		cfg              config.Config
-		handlerWithMocks func(t *testing.T) importHandler
+func TestHasAPIServerConfigChanged(t *testing.T) {
+	// Helper to create hash from byte array (matching actual config usage)
+	makeHash := func(data []byte) string {
+		h, _ := hashStatusField(data)
+		return h
+	}
+
+	tests := []struct {
+		name          string
+		cfg           *config.Config
+		secret        *corev1.Secret
+		cluster       *fleet.Cluster
+		expectChanged bool
+		expectError   bool
 	}{
-		"no clusters, no import": {
-			cfg: config.Config{
-				APIServerCA:  []byte("foo"),
-				APIServerURL: "https://hello.world",
-				AgentTLSMode: "system-store",
-			},
-			handlerWithMocks: func(t *testing.T) importHandler {
-				t.Helper()
-				ctrl := gomock.NewController(t)
-
-				secretsCache := fake.NewMockCacheInterface[*corev1.Secret](ctrl)
-
-				clustersCache := fake.NewMockCacheInterface[*fleet.Cluster](ctrl)
-				clustersCache.EXPECT().List("", gomock.Eq(labels.Everything())).Return(nil, nil)
-
-				return importHandler{
-					clustersCache: clustersCache,
-					secretsCache:  secretsCache,
-				}
-			},
-		},
-		"no URL or CA in secret, do not trigger import when URL changes": {
-			cfg: config.Config{
-				APIServerCA:               []byte("foo"),
-				APIServerURL:              "https://hello.new.world",
-				AgentTLSMode:              "system-store",
-				GarbageCollectionInterval: metav1.Duration{Duration: 10 * time.Minute},
-			},
-			handlerWithMocks: func(t *testing.T) importHandler {
-				t.Helper()
-				ctrl := gomock.NewController(t)
-
-				secretsCache := fake.NewMockCacheInterface[*corev1.Secret](ctrl)
-				secretsCache.EXPECT().Get(gomock.Any(), "my-kubeconfig-secret").Return(&corev1.Secret{}, nil)
-
-				clustersCache := fake.NewMockCacheInterface[*fleet.Cluster](ctrl)
-				clustersCache.EXPECT().List("", gomock.Eq(labels.Everything())).
-					Return([]*fleet.Cluster{
-						{
-							ObjectMeta: metav1.ObjectMeta{
-								Name:      "cluster",
-								Namespace: "fleet-default",
-							},
-							Spec: fleet.ClusterSpec{
-								KubeConfigSecret: "my-kubeconfig-secret",
-							},
-							Status: fleet.ClusterStatus{
-								APIServerURL:              "https://hello.world",
-								APIServerCAHash:           hashStatusField("foo"),
-								AgentTLSMode:              "system-store",
-								GarbageCollectionInterval: &metav1.Duration{Duration: 10 * time.Minute},
-							},
-						},
-					}, nil)
-				clustersController := fake.NewMockControllerInterface[*fleet.Cluster, *fleet.ClusterList](ctrl)
-				clustersController.EXPECT().UpdateStatus(gomock.Any()) // import triggered
-
-				return importHandler{
-					clusters:      clustersController,
-					clustersCache: clustersCache,
-					secretsCache:  secretsCache,
-				}
-			},
-		},
-		"no URL or CA in secret, do not trigger import when CA changes": {
-			cfg: config.Config{
-				APIServerCA:               []byte("new-foo"),
+		{
+			name: "no change when URL and CA match (from config)",
+			cfg: &config.Config{
 				APIServerURL:              "https://hello.world",
+				APIServerCA:               []byte("foo"),
 				AgentTLSMode:              "system-store",
 				GarbageCollectionInterval: metav1.Duration{Duration: 10 * time.Minute},
 			},
-			handlerWithMocks: func(t *testing.T) importHandler {
-				t.Helper()
-				ctrl := gomock.NewController(t)
-
-				secretsCache := fake.NewMockCacheInterface[*corev1.Secret](ctrl)
-				secretsCache.EXPECT().Get(gomock.Any(), "my-kubeconfig-secret").Return(&corev1.Secret{}, nil)
-
-				clustersCache := fake.NewMockCacheInterface[*fleet.Cluster](ctrl)
-				clustersCache.EXPECT().List("", gomock.Eq(labels.Everything())).
-					Return([]*fleet.Cluster{
-						{
-							ObjectMeta: metav1.ObjectMeta{
-								Name:      "cluster",
-								Namespace: "fleet-default",
-							},
-							Spec: fleet.ClusterSpec{
-								KubeConfigSecret: "my-kubeconfig-secret",
-							},
-							Status: fleet.ClusterStatus{
-								APIServerURL:              "https://hello.world",
-								APIServerCAHash:           hashStatusField("foo"),
-								AgentTLSMode:              "system-store",
-								GarbageCollectionInterval: &metav1.Duration{Duration: 10 * time.Minute},
-							},
-						},
-					}, nil)
-				clustersController := fake.NewMockControllerInterface[*fleet.Cluster, *fleet.ClusterList](ctrl)
-				clustersController.EXPECT().UpdateStatus(gomock.Any()) // import triggered
-
-				return importHandler{
-					clusters:      clustersController,
-					clustersCache: clustersCache,
-					secretsCache:  secretsCache,
-				}
+			secret: &corev1.Secret{
+				Data: map[string][]byte{},
 			},
+			cluster: &fleet.Cluster{
+				Status: fleet.ClusterStatus{
+					APIServerURL:              "https://hello.world",
+					APIServerCAHash:           makeHash([]byte("foo")),
+					AgentTLSMode:              "system-store",
+					GarbageCollectionInterval: &metav1.Duration{Duration: 10 * time.Minute},
+				},
+			},
+			expectChanged: false,
 		},
-		"non-ready config and no URL or CA in secret, do not trigger import when CA changes": {
-			cfg: config.Config{
+		{
+			name: "change detected when URL changes (from config)",
+			cfg: &config.Config{
+				APIServerURL:              "https://hello.new.world",
+				APIServerCA:               []byte("foo"),
+				AgentTLSMode:              "system-store",
+				GarbageCollectionInterval: metav1.Duration{Duration: 10 * time.Minute},
+			},
+			secret: &corev1.Secret{
+				Data: map[string][]byte{},
+			},
+			cluster: &fleet.Cluster{
+				Status: fleet.ClusterStatus{
+					APIServerURL:              "https://hello.world",
+					APIServerCAHash:           makeHash([]byte("foo")),
+					AgentTLSMode:              "system-store",
+					GarbageCollectionInterval: &metav1.Duration{Duration: 10 * time.Minute},
+				},
+			},
+			expectChanged: true,
+		},
+		{
+			name: "change detected when CA changes (from config)",
+			cfg: &config.Config{
+				APIServerURL:              "https://hello.world",
+				APIServerCA:               []byte("new-foo"),
+				AgentTLSMode:              "system-store",
+				GarbageCollectionInterval: metav1.Duration{Duration: 10 * time.Minute},
+			},
+			secret: &corev1.Secret{
+				Data: map[string][]byte{},
+			},
+			cluster: &fleet.Cluster{
+				Status: fleet.ClusterStatus{
+					APIServerURL:              "https://hello.world",
+					APIServerCAHash:           makeHash([]byte("foo")),
+					AgentTLSMode:              "system-store",
+					GarbageCollectionInterval: &metav1.Duration{Duration: 10 * time.Minute},
+				},
+			},
+			expectChanged: true,
+		},
+		{
+			name: "no API config change when URL and CA match (from secret)",
+			cfg: &config.Config{
+				APIServerURL:              "https://hello.world",
+				APIServerCA:               []byte("foo"),
+				AgentTLSMode:              "system-store",
+				GarbageCollectionInterval: metav1.Duration{Duration: 10 * time.Minute},
+			},
+			secret: &corev1.Secret{
+				Data: map[string][]byte{
+					"apiServerURL": []byte("https://hello.secret.world"),
+					"apiServerCA":  []byte("secret-foo"),
+				},
+			},
+			cluster: &fleet.Cluster{
+				Status: fleet.ClusterStatus{
+					APIServerURL:              "https://hello.secret.world",
+					APIServerCAHash:           makeHash([]byte("secret-foo")),
+					AgentTLSMode:              "system-store",
+					GarbageCollectionInterval: &metav1.Duration{Duration: 10 * time.Minute},
+				},
+			},
+			expectChanged: false,
+		},
+		{
+			name: "no API config change when config URL/CA differs but secret values match",
+			cfg: &config.Config{
+				APIServerURL:              "https://hello.new.world",
+				APIServerCA:               []byte("new-foo"),
+				AgentTLSMode:              "system-store",
+				GarbageCollectionInterval: metav1.Duration{Duration: 10 * time.Minute},
+			},
+			secret: &corev1.Secret{
+				Data: map[string][]byte{
+					"apiServerURL": []byte("https://hello.secret.world"),
+					"apiServerCA":  []byte("secret-foo"),
+				},
+			},
+			cluster: &fleet.Cluster{
+				Status: fleet.ClusterStatus{
+					APIServerURL:              "https://hello.secret.world",
+					APIServerCAHash:           makeHash([]byte("secret-foo")),
+					AgentTLSMode:              "system-store",
+					GarbageCollectionInterval: &metav1.Duration{Duration: 10 * time.Minute},
+				},
+			},
+			expectChanged: false,
+		},
+		{
+			name: "error when config URL empty and not in secret",
+			cfg: &config.Config{
 				APIServerURL:              "",
+				APIServerCA:               nil,
 				AgentTLSMode:              "strict",
 				GarbageCollectionInterval: metav1.Duration{Duration: 10 * time.Minute},
 			},
-			handlerWithMocks: func(t *testing.T) importHandler {
-				t.Helper()
-				ctrl := gomock.NewController(t)
-
-				secretsCache := fake.NewMockCacheInterface[*corev1.Secret](ctrl)
-				secretsCache.EXPECT().Get(gomock.Any(), "my-kubeconfig-secret").Return(&corev1.Secret{}, nil)
-
-				clustersCache := fake.NewMockCacheInterface[*fleet.Cluster](ctrl)
-				clustersCache.EXPECT().List("", gomock.Eq(labels.Everything())).
-					Return([]*fleet.Cluster{
-						{
-							ObjectMeta: metav1.ObjectMeta{
-								Name:      "cluster",
-								Namespace: "fleet-default",
-							},
-							Spec: fleet.ClusterSpec{
-								KubeConfigSecret: "my-kubeconfig-secret",
-							},
-							Status: fleet.ClusterStatus{
-								APIServerURL:              "",
-								APIServerCAHash:           "",
-								AgentTLSMode:              "system-store",
-								GarbageCollectionInterval: &metav1.Duration{Duration: 10 * time.Minute},
-							},
-						},
-					}, nil)
-				clustersController := fake.NewMockControllerInterface[*fleet.Cluster, *fleet.ClusterList](ctrl)
-				clustersController.EXPECT().UpdateStatus(gomock.Any()).Times(0) // import not triggered
-
-				return importHandler{
-					clusters:      clustersController,
-					clustersCache: clustersCache,
-					secretsCache:  secretsCache,
-				}
+			secret: &corev1.Secret{
+				Data: map[string][]byte{},
 			},
-		},
-		"no URL or CA in secret, trigger import when agent TLS mode changes": {
-			cfg: config.Config{
-				APIServerCA:               []byte("foo"),
-				APIServerURL:              "https://hello.world",
-				AgentTLSMode:              "strict",
-				GarbageCollectionInterval: metav1.Duration{Duration: 10 * time.Minute},
+			cluster: &fleet.Cluster{
+				Status: fleet.ClusterStatus{
+					APIServerURL:              "",
+					APIServerCAHash:           "",
+					AgentTLSMode:              "system-store",
+					GarbageCollectionInterval: &metav1.Duration{Duration: 10 * time.Minute},
+				},
 			},
-			handlerWithMocks: func(t *testing.T) importHandler {
-				t.Helper()
-				ctrl := gomock.NewController(t)
-
-				secretsCache := fake.NewMockCacheInterface[*corev1.Secret](ctrl)
-				secretsCache.EXPECT().Get(gomock.Any(), "my-kubeconfig-secret").Return(&corev1.Secret{}, nil)
-
-				clustersCache := fake.NewMockCacheInterface[*fleet.Cluster](ctrl)
-				clustersCache.EXPECT().List("", gomock.Eq(labels.Everything())).
-					Return([]*fleet.Cluster{
-						{
-							ObjectMeta: metav1.ObjectMeta{
-								Name:      "cluster",
-								Namespace: "fleet-default",
-							},
-							Spec: fleet.ClusterSpec{
-								KubeConfigSecret: "my-kubeconfig-secret",
-							},
-							Status: fleet.ClusterStatus{
-								APIServerURL:              "https://hello.world",
-								APIServerCAHash:           hashStatusField("foo"),
-								AgentTLSMode:              "system-store",
-								GarbageCollectionInterval: &metav1.Duration{Duration: 10 * time.Minute},
-							},
-						},
-					}, nil)
-				clustersController := fake.NewMockControllerInterface[*fleet.Cluster, *fleet.ClusterList](ctrl)
-				clustersController.EXPECT().UpdateStatus(gomock.Any()) // import triggered
-
-				return importHandler{
-					clusters:      clustersController,
-					clustersCache: clustersCache,
-					secretsCache:  secretsCache,
-				}
-			},
-		},
-		"no URL or CA in secret, trigger import when agent garbage collection interval changes": {
-			cfg: config.Config{
-				APIServerCA:               []byte("foo"),
-				APIServerURL:              "https://hello.world",
-				AgentTLSMode:              "system-store",
-				GarbageCollectionInterval: metav1.Duration{Duration: 5 * time.Minute},
-			},
-			handlerWithMocks: func(t *testing.T) importHandler {
-				t.Helper()
-				ctrl := gomock.NewController(t)
-
-				secretsCache := fake.NewMockCacheInterface[*corev1.Secret](ctrl)
-				secretsCache.EXPECT().Get(gomock.Any(), "my-kubeconfig-secret").Return(&corev1.Secret{}, nil)
-
-				clustersCache := fake.NewMockCacheInterface[*fleet.Cluster](ctrl)
-				clustersCache.EXPECT().List("", gomock.Eq(labels.Everything())).
-					Return([]*fleet.Cluster{
-						{
-							ObjectMeta: metav1.ObjectMeta{
-								Name:      "cluster",
-								Namespace: "fleet-default",
-							},
-							Spec: fleet.ClusterSpec{
-								KubeConfigSecret: "my-kubeconfig-secret",
-							},
-							Status: fleet.ClusterStatus{
-								APIServerURL:              "https://hello.world",
-								APIServerCAHash:           hashStatusField("foo"),
-								AgentTLSMode:              "system-store",
-								GarbageCollectionInterval: &metav1.Duration{Duration: 10 * time.Minute},
-							},
-						},
-					}, nil)
-				clustersController := fake.NewMockControllerInterface[*fleet.Cluster, *fleet.ClusterList](ctrl)
-				clustersController.EXPECT().UpdateStatus(gomock.Any()) // import triggered
-
-				return importHandler{
-					clusters:      clustersController,
-					clustersCache: clustersCache,
-					secretsCache:  secretsCache,
-				}
-			},
-		},
-		"URL and CA in secret, do not trigger import when only URL or CA changes": {
-			cfg: config.Config{
-				APIServerCA:               []byte("new-foo"),
-				APIServerURL:              "https://hello.new.world",
-				AgentTLSMode:              "system-store",
-				GarbageCollectionInterval: metav1.Duration{Duration: 10 * time.Minute},
-			},
-			handlerWithMocks: func(t *testing.T) importHandler {
-				t.Helper()
-				ctrl := gomock.NewController(t)
-
-				clustersCache := fake.NewMockCacheInterface[*fleet.Cluster](ctrl)
-				clustersCache.EXPECT().List("", gomock.Eq(labels.Everything())).
-					Return([]*fleet.Cluster{
-						{
-							ObjectMeta: metav1.ObjectMeta{
-								Name:      "cluster",
-								Namespace: "fleet-default",
-							},
-							Spec: fleet.ClusterSpec{
-								KubeConfigSecret: "my-kubeconfig-secret",
-							},
-							Status: fleet.ClusterStatus{
-								APIServerURL:              "https://hello.secret.world",
-								APIServerCAHash:           hashStatusField("secret-foo"),
-								AgentTLSMode:              "system-store",
-								GarbageCollectionInterval: &metav1.Duration{Duration: 10 * time.Minute},
-							},
-						},
-					}, nil)
-				secretsCache := fake.NewMockCacheInterface[*corev1.Secret](ctrl)
-				secretsCache.EXPECT().Get(gomock.Any(), "my-kubeconfig-secret").Return(&corev1.Secret{
-					Data: map[string][]byte{
-						"apiServerURL": []byte("https://hello.secret.world"),
-						"apiServerCA":  []byte(hashStatusField("secret-foo")),
-					},
-				}, nil)
-
-				// No UpdateStatus expected
-
-				return importHandler{
-					clustersCache: clustersCache,
-					secretsCache:  secretsCache,
-				}
-			},
-		},
-		"URL and CA in secret, trigger import when agent TLS mode changes": {
-			cfg: config.Config{
-				APIServerCA:               []byte("foo"),
-				APIServerURL:              "https://hello.world",
-				AgentTLSMode:              "strict",
-				GarbageCollectionInterval: metav1.Duration{Duration: 10 * time.Minute},
-			},
-			handlerWithMocks: func(t *testing.T) importHandler {
-				t.Helper()
-				ctrl := gomock.NewController(t)
-
-				clustersCache := fake.NewMockCacheInterface[*fleet.Cluster](ctrl)
-				clustersCache.EXPECT().List("", gomock.Eq(labels.Everything())).
-					Return([]*fleet.Cluster{
-						{
-							ObjectMeta: metav1.ObjectMeta{
-								Name:      "cluster",
-								Namespace: "fleet-default",
-							},
-							Spec: fleet.ClusterSpec{
-								KubeConfigSecret: "my-kubeconfig-secret",
-							},
-							Status: fleet.ClusterStatus{
-								APIServerURL:              "https://hello.secret.world",
-								APIServerCAHash:           hashStatusField("secret-foo"),
-								AgentTLSMode:              "system-store",
-								GarbageCollectionInterval: &metav1.Duration{Duration: 10 * time.Minute},
-							},
-						},
-					}, nil)
-				secretsCache := fake.NewMockCacheInterface[*corev1.Secret](ctrl)
-				secretsCache.EXPECT().Get(gomock.Any(), "my-kubeconfig-secret").Return(&corev1.Secret{
-					Data: map[string][]byte{
-						"apiServerURL": []byte("https://hello.secret.world"),
-						"apiServerCA":  []byte(hashStatusField("secret-foo")),
-					},
-				}, nil)
-
-				clustersController := fake.NewMockControllerInterface[*fleet.Cluster, *fleet.ClusterList](ctrl)
-				clustersController.EXPECT().UpdateStatus(gomock.Any()) // import triggered
-
-				return importHandler{
-					clusters:      clustersController,
-					clustersCache: clustersCache,
-					secretsCache:  secretsCache,
-				}
-			},
+			expectError: true,
 		},
 	}
 
-	for name, c := range cases {
-		t.Run(name, func(t *testing.T) {
-			ih := c.handlerWithMocks(t)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			scheme := runtime.NewScheme()
+			_ = fleet.AddToScheme(scheme)
+			_ = corev1.AddToScheme(scheme)
 
-			err := ih.onConfig(&c.cfg)
-			if err != nil {
-				t.Errorf("unexpected error: expected nil, got %v", err)
+			r := &ClusterImportReconciler{
+				Client:          fake.NewClientBuilder().WithScheme(scheme).Build(),
+				Scheme:          scheme,
+				SystemNamespace: "cattle-fleet-system",
 			}
 
+			changed, err := r.hasAPIServerConfigChanged(tt.cfg, tt.secret, tt.cluster)
+
+			if tt.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.expectChanged, changed, "config change detection mismatch")
+			}
 		})
 	}
 }
