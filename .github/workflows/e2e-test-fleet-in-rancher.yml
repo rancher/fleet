@@ -302,7 +302,7 @@ jobs:
           kubectl config use-context k3d-upstream
           ginkgo --github-output --trace e2e/acceptance/single-cluster-examples
 
-          export CI_REGISTERED_CLUSTER=$(kubectl get clusters.fleet.cattle.io -n $FLEET_E2E_NS_DOWNSTREAM -o jsonpath='{..name}')
+          export CI_REGISTERED_CLUSTER=$(kubectl get clusters.fleet.cattle.io -n $FLEET_E2E_NS_DOWNSTREAM -o jsonpath='{.items[0].metadata.name}')
 
           ginkgo --github-output --trace e2e/multi-cluster
 
