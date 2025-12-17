@@ -35,7 +35,7 @@ type ContentReconciler struct {
 // SetupWithManager sets up the controller with the Manager.
 func (r *ContentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&fleet.Content{}, // using with CreateFunc only to reconcile Contents to check for finalizers
+		For(&fleet.Content{}, // using For with CreateFunc only to reconcile Contents to check for finalizers
 			builder.WithPredicates(
 				predicate.Funcs{
 					CreateFunc:  func(e event.CreateEvent) bool { return true },
@@ -148,7 +148,8 @@ func (r *ContentReconciler) mapBundleDeploymentToContent(ctx context.Context, ob
 	}
 }
 
-// removeFinalizers removes all finalizers from the given object if any exist.
+// removeFinalizers removes all finalizers from the given object if any exist and returns true if
+// finalizers were removed, false otherwise.
 func removeFinalizers(ctx context.Context, c client.Client, obj client.Object) (bool, error) {
 	finalizers := obj.GetFinalizers()
 	if len(finalizers) == 0 {
