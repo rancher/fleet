@@ -91,6 +91,20 @@ while true; do
     break
   fi
 
+  # Fail fast if cluster goes into error states
+  if [ "$state" = "error" ] || [ "$state" = "unavailable" ] || [ "$state" = "removed" ]; then
+    echo "ERROR: Cluster entered error state: $state"
+    echo ""
+    echo "=== Cluster details from Rancher ==="
+    $rancher_cli cluster ls --format json | jq 'select(.Name=="second")'
+    echo ""
+    echo "=== Checking downstream cluster ==="
+    kubectl config use-context "$cluster_downstream"
+    kubectl get pods -n cattle-system || true
+    kubectl logs -n cattle-system -l app=cattle-cluster-agent --tail=100 || true
+    exit 1
+  fi
+
   if [ $elapsed -ge $timeout ]; then
     echo "ERROR: Timeout waiting for cluster registration after ${timeout}s"
     echo "Current cluster state: $state"
@@ -119,6 +133,20 @@ while true; do
   echo "Waiting for cluster registration (current state: $state, elapsed: ${elapsed}s)"
   sleep 5
   elapsed=$((elapsed + 5))
+
+  # Every 60 seconds, show additional diagnostics
+  if [ $((elapsed % 60)) -eq 0 ] && [ $elapsed -gt 0 ]; then
+    echo ""
+    echo "=== Status check at ${elapsed}s ==="
+    kubectl config use-context "$cluster_downstream"
+    echo "cattle-cluster-agent pods:"
+    kubectl get pods -n cattle-system -l app=cattle-cluster-agent || true
+    echo "Recent logs from cattle-cluster-agent:"
+    kubectl logs -n cattle-system -l app=cattle-cluster-agent --tail=10 --since=60s 2>/dev/null || echo "No recent logs"
+    kubectl config use-context "$ctx"
+    echo "==================================="
+    echo ""
+  fi
 done
 
 kubectl config use-context "$ctx"
