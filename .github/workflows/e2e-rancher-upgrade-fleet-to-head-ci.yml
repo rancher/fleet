@@ -171,9 +171,20 @@ jobs:
             --image docker.io/rancher/k3s:${{ env.SETUP_K3S_VERSION }}
       -
         name: Set up Rancher
-        env:
-          public_hostname: "172.18.0.1.sslip.io"
         run: |
+          set -x
+
+          kubectl config use-context k3d-upstream
+
+          # Get the actual IP from traefik LoadBalancer service
+          until kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null; do
+            echo "Waiting for traefik LoadBalancer IP..."
+            sleep 3
+          done
+          ip=$(kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          echo "Traefik LoadBalancer IP: $ip"
+          export public_hostname="$ip.sslip.io"
+
           ./.github/scripts/setup-rancher.sh
           ./.github/scripts/wait-for-loadbalancer.sh
           ./.github/scripts/register-downstream-clusters.sh
