@@ -6,11 +6,6 @@ on:
     # Run everyday day at 1:00 PM
     - cron:  '0 13 * * *'
   workflow_dispatch:
-    inputs:
-      ref:
-        description: "checkout git branch/tag"
-        required: true
-        default: "main"
   push:
     tags: [ 'v*' ]
     paths-ignore:
@@ -31,7 +26,6 @@ jobs:
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
         with:
           fetch-depth: 0
-          ref: ${{ github.event.inputs.ref }}
       -
         uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6
         with:
