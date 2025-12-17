@@ -49,7 +49,7 @@ jobs:
 
       -
         name: Checkout
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
         with:
           fetch-depth: 0
 
@@ -214,8 +214,43 @@ jobs:
           kubectl -n cattle-system rollout status deploy/rancher
 
           # wait for rancher to create fleet namespace, deployment and controller
-          until kubectl get deployments -n cattle-fleet-system | grep -q "fleet"; do sleep 3; done
-          kubectl -n cattle-fleet-system rollout status deploy/fleet-controller
+          echo "Waiting for Fleet namespace and deployments to be created by Rancher..."
+          timeout=600
+          elapsed=0
+          until kubectl get deployments -n cattle-fleet-system 2>/dev/null | grep -q "fleet"; do
+            if [ $elapsed -ge $timeout ]; then
+              echo "Timeout waiting for Fleet deployment to be created"
+              echo "Checking Rancher logs:"
+              kubectl -n cattle-system logs deploy/rancher --tail=100 | grep -i fleet || true
+              echo "Checking all namespaces:"
+              kubectl get namespaces | grep fleet || true
+              exit 1
+            fi
+            sleep 3
+            elapsed=$((elapsed + 3))
+          done
+
+          echo "Fleet deployment found, checking status:"
+          kubectl get deployments -n cattle-fleet-system
+          kubectl get pods -n cattle-fleet-system
+
+          echo "Checking for pod errors:"
+          kubectl describe pods -n cattle-fleet-system || true
+
+          echo "Checking fleet-controller logs (if pod is running):"
+          kubectl logs -n cattle-fleet-system -l app=fleet-controller --tail=50 || true
+
+          echo "Waiting for fleet-controller deployment to be ready..."
+          if ! kubectl -n cattle-fleet-system rollout status deploy/fleet-controller --timeout=10m; then
+            echo "Fleet controller failed to become ready, gathering diagnostics:"
+            kubectl get all -n cattle-fleet-system
+            kubectl describe deployment -n cattle-fleet-system fleet-controller
+            kubectl describe pods -n cattle-fleet-system
+            kubectl logs -n cattle-fleet-system -l app=fleet-controller --tail=200 || true
+            echo "Checking Rancher logs for Fleet errors:"
+            kubectl -n cattle-system logs deploy/rancher --tail=200 | grep -i fleet || true
+            exit 1
+          fi
 
           until kubectl get bundles -n fleet-local | grep -q "fleet-agent-local.*1/1"; do sleep 3; done
 
@@ -227,7 +262,7 @@ jobs:
 
       -
         name: Checkout rancher/rancher
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
         with:
           fetch-depth: 0
           repository: rancher/rancher

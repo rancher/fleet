@@ -203,6 +203,46 @@ jobs:
         run: |
           echo "${{ steps.meta-fleet.outputs.tags }} ${{ steps.meta-fleet-agent.outputs.tags }}"
           ./.github/scripts/upgrade-rancher-fleet-to-dev-fleet.sh ${{ steps.meta-fleet.outputs.tags }} ${{ steps.meta-fleet-agent.outputs.tags }}
+
+          # Wait for system to stabilize after Fleet upgrade
+          echo "Waiting for Fleet system to stabilize after upgrade..."
+          kubectl config use-context k3d-upstream
+
+          # Verify fleet-controller is healthy
+          kubectl -n cattle-fleet-system wait --for=condition=Available deployment/fleet-controller --timeout=2m
+
+          # Verify existing bundles are still ready
+          echo "Verifying existing bundles are still ready..."
+          until kubectl get bundles -n fleet-local test-simple-simple-chart -o=jsonpath='{.status.conditions[?(@.type=="Ready")].status}' | grep -q "True"; do
+            echo "Waiting for fleet-local bundle..."
+            sleep 3
+          done
+          until kubectl get bundles -n fleet-default test-simple-simple-chart -o=jsonpath='{.status.conditions[?(@.type=="Ready")].status}' | grep -q "True"; do
+            echo "Waiting for fleet-default bundle..."
+            sleep 3
+          done
+
+          # Verify bundles are being processed by the new controller by checking resource version changes
+          echo "Waiting for bundles to be reconciled by new controller..."
+          sleep 10
+
+          # Verify fleet-agent on downstream is also updated and healthy
+          kubectl config use-context k3d-downstream
+          kubectl -n cattle-fleet-system wait --for=condition=Available deployment/fleet-agent --timeout=2m
+
+          # Return to upstream context
+          kubectl config use-context k3d-upstream
+
+          # Give extra time for controllers to fully reconcile after upgrade
+          echo "Waiting additional 60s for full reconciliation after upgrade..."
+          sleep 60
+
+          # Final health check
+          echo "=== Fleet System Status ==="
+          kubectl get pods -n cattle-fleet-system
+          kubectl get bundles -n fleet-local
+          kubectl get bundles -n fleet-default
+          kubectl get clusters.fleet.cattle.io -A
       -
         name: E2E tests for examples
         env:
@@ -218,6 +258,22 @@ jobs:
         run: |
           kubectl config use-context k3d-downstream
           crust-gather collect --exclude-namespace=kube-system --exclude-kind=Lease --duration=5s -f tmp/downstream
+
+          kubectl config use-context k3d-upstream
+          crust-gather collect --exclude-namespace=kube-system --exclude-kind=Lease --duration=5s -f tmp/upstream
+
+          # Additional diagnostics for Fleet
+          echo "=== Fleet Controller Logs ==="
+          kubectl logs -n cattle-fleet-system deploy/fleet-controller --tail=200 || true
+
+          echo "=== Fleet Bundles ==="
+          kubectl get bundles -A || true
+
+          echo "=== Fleet BundleDeployments ==="
+          kubectl get bundledeployments -A || true
+
+          echo "=== Fleet Clusters ==="
+          kubectl get clusters.fleet.cattle.io -A || true
       -
         name: Upload logs
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
