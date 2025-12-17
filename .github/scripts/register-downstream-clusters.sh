@@ -81,7 +81,7 @@ else
 fi
 
 echo "Waiting for cluster to become active..."
-timeout=600  # 10 minutes
+timeout=900  # 15 minutes
 elapsed=0
 while true; do
   state=$($rancher_cli cluster ls --format json | jq -r 'select(.Name=="second") | .Cluster.state' || echo "unknown")
@@ -109,6 +109,11 @@ while true; do
     echo "ERROR: Timeout waiting for cluster registration after ${timeout}s"
     echo "Current cluster state: $state"
     echo ""
+    if [ "$state" = "waiting" ]; then
+      echo "NOTE: Cluster is in 'waiting' state with agent connected."
+      echo "This may indicate a Rancher timing/sync issue rather than a connectivity problem."
+      echo ""
+    fi
     echo "=== Cluster details from Rancher ==="
     $rancher_cli cluster ls --format json | jq 'select(.Name=="second")'
     echo ""
