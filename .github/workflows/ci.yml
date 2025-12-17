@@ -31,7 +31,7 @@ jobs:
       -
         name: helm-unittest
         run: |
-          helm plugin install https://github.com/helm-unittest/helm-unittest.git
+          helm plugin install https://github.com/helm-unittest/helm-unittest.git --version v1.0.2
           helm unittest ./charts/fleet
       -
         uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6
