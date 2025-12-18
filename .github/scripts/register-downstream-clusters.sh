@@ -80,6 +80,25 @@ else
   echo "WARNING: cattle-cluster-agent deployment not found"
 fi
 
+echo "Waiting for cattle-cluster-agent pods to be ready..."
+timeout=120
+elapsed=0
+while ! kubectl get pods -n cattle-system -l app=cattle-cluster-agent -o jsonpath='{.items[0].status.phase}' 2>/dev/null | grep -q "Running"; do
+  if [ $elapsed -ge $timeout ]; then
+    echo "WARNING: cattle-cluster-agent pods not running after ${timeout}s, but proceeding..."
+    kubectl get pods -n cattle-system -l app=cattle-cluster-agent -o yaml || true
+    break
+  fi
+  echo "Waiting for cattle-cluster-agent pod to start (${elapsed}s)..."
+  sleep 5
+  elapsed=$((elapsed + 5))
+done
+
+if [ $elapsed -lt $timeout ]; then
+  echo "cattle-cluster-agent pod is now running"
+  sleep 10  # Give it a bit of time to connect to Rancher
+fi
+
 echo "Waiting for cluster to become active..."
 timeout=1200  # 20 minutes - increased from 15 to handle slower registrations
 elapsed=0
