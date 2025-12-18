@@ -208,9 +208,80 @@ jobs:
         run: |
           kubectl apply -n fleet-local -f e2e/assets/fleet-upgrade/gitrepo-simple.yaml
           kubectl apply -n fleet-default -f e2e/assets/fleet-upgrade/gitrepo-simple.yaml
-          # wait for bundle ready
+
+          echo "Waiting for GitRepos to be processed and bundles created..."
+
+          # Check Fleet system health first
+          echo "=== Fleet System Status ==="
+          kubectl get deployments -n cattle-fleet-system
+          kubectl get pods -n cattle-fleet-system
+
+          # Wait for bundles with timeout and diagnostics
+          timeout=600  # 10 minutes
+          elapsed=0
+
+          echo "Waiting for fleet-local bundle..."
+          while [ $elapsed -lt $timeout ]; do
+            if kubectl get bundle -n fleet-local test-simple-simple-chart 2>/dev/null; then
+              echo "Bundle found in fleet-local"
+              break
+            fi
+            if [ $((elapsed % 30)) -eq 0 ] && [ $elapsed -gt 0 ]; then
+              echo "Still waiting for bundle (${elapsed}s)..."
+              echo "Current GitRepos:"
+              kubectl get gitrepo -n fleet-local
+              echo "Current Bundles:"
+              kubectl get bundles -n fleet-local || true
+            fi
+            sleep 3
+            elapsed=$((elapsed + 3))
+          done
+
+          if [ $elapsed -ge $timeout ]; then
+            echo "ERROR: Timeout waiting for fleet-local bundle"
+            echo "GitRepos:"
+            kubectl get gitrepo -n fleet-local -o yaml
+            echo "Bundles:"
+            kubectl get bundles -n fleet-local -o yaml || true
+            echo "Fleet controller logs:"
+            kubectl logs -n cattle-fleet-system deploy/fleet-controller --tail=100 || true
+            exit 1
+          fi
+
+          echo "Waiting for fleet-default bundle..."
+          elapsed=0
+          while [ $elapsed -lt $timeout ]; do
+            if kubectl get bundle -n fleet-default test-simple-simple-chart 2>/dev/null; then
+              echo "Bundle found in fleet-default"
+              break
+            fi
+            if [ $((elapsed % 30)) -eq 0 ] && [ $elapsed -gt 0 ]; then
+              echo "Still waiting for bundle (${elapsed}s)..."
+              echo "Current GitRepos:"
+              kubectl get gitrepo -n fleet-default
+              echo "Current Bundles:"
+              kubectl get bundles -n fleet-default || true
+            fi
+            sleep 3
+            elapsed=$((elapsed + 3))
+          done
+
+          if [ $elapsed -ge $timeout ]; then
+            echo "ERROR: Timeout waiting for fleet-default bundle"
+            echo "GitRepos:"
+            kubectl get gitrepo -n fleet-default -o yaml
+            echo "Bundles:"
+            kubectl get bundles -n fleet-default -o yaml || true
+            echo "Fleet controller logs:"
+            kubectl logs -n cattle-fleet-system deploy/fleet-controller --tail=100 || true
+            exit 1
+          fi
+
+          echo "Waiting for bundles to be ready..."
           until kubectl get bundles -n fleet-local test-simple-simple-chart -o=jsonpath='{.status.conditions[?(@.type=="Ready")].status}' | grep -q "True"; do sleep 3; done
           until kubectl get bundles -n fleet-default test-simple-simple-chart -o=jsonpath='{.status.conditions[?(@.type=="Ready")].status}' | grep -q "True"; do sleep 3; done
+
+          echo "Example workloads created and ready"
       -
         name: Deploy development fleet
         run: |
