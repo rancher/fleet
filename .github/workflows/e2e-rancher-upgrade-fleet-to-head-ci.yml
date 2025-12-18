@@ -190,11 +190,28 @@ jobs:
           kubectl config use-context k3d-upstream
 
           # Get the actual IP from traefik LoadBalancer service
-          until kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null; do
-            echo "Waiting for traefik LoadBalancer IP..."
-            sleep 3
+          echo "Waiting for traefik LoadBalancer IP..."
+          timeout=180
+          elapsed=0
+          ip=""
+          while [ -z "$ip" ] && [ $elapsed -lt $timeout ]; do
+            ip=$(kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "")
+            if [ -z "$ip" ]; then
+              echo "Still waiting for traefik LoadBalancer IP (${elapsed}s)..."
+              sleep 3
+              elapsed=$((elapsed + 3))
+            fi
           done
-          ip=$(kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+
+          if [ -z "$ip" ]; then
+            echo "ERROR: Timeout waiting for traefik LoadBalancer IP after ${elapsed}s"
+            echo "Traefik service status:"
+            kubectl get service -n kube-system traefik -o yaml
+            echo "Kube-system pods:"
+            kubectl get pods -n kube-system
+            exit 1
+          fi
+
           echo "Traefik LoadBalancer IP: $ip"
           export public_hostname="$ip.sslip.io"
 
