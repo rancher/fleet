@@ -81,7 +81,7 @@ else
 fi
 
 echo "Waiting for cluster to become active..."
-timeout=900  # 15 minutes
+timeout=1200  # 20 minutes - increased from 15 to handle slower registrations
 elapsed=0
 while true; do
   state=$($rancher_cli cluster ls --format json | jq -r 'select(.Name=="second") | .Cluster.state' || echo "unknown")
@@ -113,7 +113,18 @@ while true; do
       echo "NOTE: Cluster is in 'waiting' state with agent connected."
       echo "This may indicate a Rancher timing/sync issue rather than a connectivity problem."
       echo ""
+      echo "=== Detailed agent diagnostics ==="
+      kubectl config use-context "$cluster_downstream"
+      echo "cattle-cluster-agent pod status:"
+      kubectl get pods -n cattle-system -l app=cattle-cluster-agent -o wide || true
+      echo ""
+      echo "cattle-cluster-agent logs (last 200 lines):"
+      kubectl logs -n cattle-system -l app=cattle-cluster-agent --tail=200 || true
+      echo ""
+      echo "cattle-cluster-agent env vars (checking for connectivity settings):"
+      kubectl get pod -n cattle-system -l app=cattle-cluster-agent -o jsonpath='{.items[0].spec.containers[0].env[*].name}' | tr ' ' '\n' || true
     fi
+    echo ""
     echo "=== Cluster details from Rancher ==="
     $rancher_cli cluster ls --format json | jq 'select(.Name=="second")'
     echo ""
@@ -146,8 +157,8 @@ while true; do
     kubectl config use-context "$cluster_downstream"
     echo "cattle-cluster-agent pods:"
     kubectl get pods -n cattle-system -l app=cattle-cluster-agent || true
-    echo "Recent logs from cattle-cluster-agent:"
-    kubectl logs -n cattle-system -l app=cattle-cluster-agent --tail=10 --since=60s 2>/dev/null || echo "No recent logs"
+    echo "Recent logs from cattle-cluster-agent (last 20 lines, last 60 seconds):"
+    kubectl logs -n cattle-system -l app=cattle-cluster-agent --tail=20 --since=60s 2>/dev/null || echo "No recent logs"
     kubectl config use-context "$ctx"
     echo "==================================="
     echo ""
