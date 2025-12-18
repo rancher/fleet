@@ -35,7 +35,8 @@ The monitor command performs comprehensive diagnostics to detect:
 ### Resource Lifecycle Issues
 - **Bundles with Generation Mismatch**: Bundles not progressing through their lifecycle (generation != observedGeneration)
 - **Stuck BundleDeployments**: BundleDeployments where the agent isn't applying new deploymentIDs
-- **Multiple Finalizers**: Resources with more than one finalizer (indicates bugs - only Contents should have multiple finalizers for ref counting)
+- **Multiple Finalizers**: Resources with more than one finalizer (indicates bugs - only Contents should have multiple
+finalizers for ref counting, in Fleet v0.11.1 to v0.14.x)
 - **Orphaned Resources**: Resources with deletion timestamps that can't be garbage collected
 
 ### Data Consistency Problems
