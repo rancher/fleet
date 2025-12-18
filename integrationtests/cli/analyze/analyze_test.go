@@ -416,12 +416,11 @@ var _ = Describe("Fleet analyze", func() {
 			err := k8sClient.Create(ctx, bundle)
 			Expect(err).NotTo(HaveOccurred())
 
-			// Set a large size in status (simulating large bundle)
 			bundle.Status.ResourcesSHA256Sum = "abc123"
 			err = k8sClient.Status().Update(ctx, bundle)
 			Expect(err).NotTo(HaveOccurred())
 
-			// Create a small content resource with size metadata
+			// Create a small content resource
 			content := &fleet.Content{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "s-abc123",
