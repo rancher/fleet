@@ -177,7 +177,8 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 		// Not-ready dependencies should not be treated as an error.
 		// Instead, a controlled requeue should happen until the conditions
-		if errors.Is(err, &deployer.NotReadyDependenciesError{}) {
+		var notReadyDependenciesError *deployer.NotReadyDependenciesError
+		if errors.As(err, &notReadyDependenciesError) {
 			if err := r.updateStatus(ctx, orig, bd); err != nil {
 				return ctrl.Result{}, err
 			}
