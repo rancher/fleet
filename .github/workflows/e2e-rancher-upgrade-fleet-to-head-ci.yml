@@ -318,15 +318,27 @@ jobs:
           kubectl config use-context k3d-upstream
 
           # Give extra time for controllers to fully reconcile after upgrade
-          echo "Waiting additional 60s for full reconciliation after upgrade..."
-          sleep 60
+          echo "Waiting additional 120s for full reconciliation after upgrade..."
+          sleep 120
 
-          # Final health check
+          # Final health check with extended diagnostics
           echo "=== Fleet System Status ==="
           kubectl get pods -n cattle-fleet-system
+          echo ""
+          echo "=== Bundles Status ==="
           kubectl get bundles -n fleet-local
           kubectl get bundles -n fleet-default
+          echo ""
+          echo "=== Clusters Status ==="
           kubectl get clusters.fleet.cattle.io -A
+          echo ""
+          echo "=== BundleDeployments Status ==="
+          kubectl get bundledeployments -A | head -20
+          echo ""
+          echo "=== Fleet Controller Health ==="
+          kubectl get deployment -n cattle-fleet-system fleet-controller -o jsonpath='{.status}' | head -c 500
+          echo ""
+          echo "Ready to run tests"
       -
         name: E2E tests for examples
         env:
