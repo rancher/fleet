@@ -11,6 +11,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+const (
+	APIConsistencyRetries = 3
+)
+
 // checkContentIssues identifies BundleDeployments with missing or problematic Content resources
 func (m *Monitor) checkContentIssues(bundleDeployments []fleet.BundleDeployment, contents []fleet.Content) []ContentIssue {
 	var issues []ContentIssue
@@ -91,9 +95,11 @@ func extractContentName(deploymentID string) string {
 func (m *Monitor) checkAPIConsistency(ctx context.Context, c client.Client) (*APIConsistency, error) {
 	// Test by fetching the namespace multiple times and checking if resourceVersion changes unexpectedly
 	namespace := &corev1.Namespace{}
-	versions := make([]string, 3)
+	versions := make([]string, APIConsistencyRetries)
 
-	for i := 0; i < 3; i++ {
+	consistent := true
+
+	for i := range APIConsistencyRetries {
 		if i > 0 {
 			time.Sleep(100 * time.Millisecond)
 		}
@@ -103,9 +109,11 @@ func (m *Monitor) checkAPIConsistency(ctx context.Context, c client.Client) (*AP
 			return nil, err
 		}
 		versions[i] = namespace.ResourceVersion
-	}
 
-	consistent := versions[0] == versions[1] && versions[1] == versions[2]
+		if i > 0 && versions[i] != versions[i-1] {
+			consistent = false
+		}
+	}
 
 	return &APIConsistency{
 		Consistent: consistent,
