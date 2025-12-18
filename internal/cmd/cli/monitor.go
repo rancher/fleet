@@ -86,65 +86,65 @@ import (
 //
 // Basic usage - single snapshot:
 //
-//	fleetcli monitor | jq
+//	fleet monitor | jq
 //
 // Watch mode - continuous monitoring every 5 seconds:
 //
-//	fleetcli monitor --watch --interval 5
+//	fleet monitor --watch --interval 5
 //
 // Monitor a specific namespace:
 //
-//	fleetcli monitor -n fleet-local | jq
+//	fleet monitor -n fleet-local | jq
 //
 // Analyze the output with jq:
 //
 //	# Show summary with formatting
-//	fleetcli monitor | jq '{timestamp, controller, diagnostics}'
+//	fleet monitor | jq '{timestamp, controller, diagnostics}'
 //
 //	# Check bundles with generation mismatch
-//	fleetcli monitor | jq '.diagnostics.bundlesWithGenerationMismatch'
+//	fleet monitor | jq '.diagnostics.bundlesWithGenerationMismatch'
 //
 //	# Find bundles with old commits
-//	fleetcli monitor | jq '.diagnostics.gitrepoBundleInconsistencies'
+//	fleet monitor | jq '.diagnostics.gitrepoBundleInconsistencies'
 //
 //	# Check for large bundles
-//	fleetcli monitor | jq '.diagnostics.largeBundles'
+//	fleet monitor | jq '.diagnostics.largeBundles'
 //
 //	# Check agent connectivity issues
-//	fleetcli monitor | jq '.diagnostics.clustersWithAgentIssues'
+//	fleet monitor | jq '.diagnostics.clustersWithAgentIssues'
 //
 //	# Check target matching problems
-//	fleetcli monitor | jq '{
+//	fleet monitor | jq '{
 //	  bundlesWithNoDeployments: (.diagnostics.bundlesWithNoDeployments | length),
 //	  gitreposWithNoBundles: (.diagnostics.gitreposWithNoBundles | length),
 //	  clustergroupsWithNoClusters: (.diagnostics.clustergroupsWithNoClusters | length)
 //	}'
 //
 //	# Check generation mismatches
-//	fleetcli monitor | jq '{
+//	fleet monitor | jq '{
 //	  gitrepos: .diagnostics.gitreposWithGenerationMismatch,
 //	  bundles: .diagnostics.bundlesWithGenerationMismatch
 //	}'
 //
 //	# Monitor agent health over time
 //	while true; do
-//	  fleetcli monitor | jq '.clusters[] | {name, agentLastSeenAge, ready}'
+//	  fleet monitor | jq '.clusters[] | {name, agentLastSeenAge, ready}'
 //	  sleep 30
 //	done
 //
 //	# Check API consistency
-//	fleetcli monitor | jq '.apiConsistency'
+//	fleet monitor | jq '.apiConsistency'
 //
 // Compare before/after snapshots:
 //
 //	# Before change
-//	fleetcli monitor > before.json
+//	fleet monitor > before.json
 //
 //	# Make your change (e.g., update GitRepo)
 //	kubectl edit gitrepo/my-repo -n fleet-local
 //
 //	# After change
-//	fleetcli monitor > after.json
+//	fleet monitor > after.json
 //
 //	# Compare commits
 //	diff <(jq '.bundles[] | {name, commit}' before.json) \
@@ -154,7 +154,7 @@ import (
 //
 // 1. Capture initial state:
 //
-//	fleetcli monitor > initial.json
+//	fleet monitor > initial.json
 //
 // 2. Check diagnostics for issues:
 //
@@ -173,7 +173,7 @@ import (
 //
 // 4. Fix the identified issues and capture new state:
 //
-//	fleetcli monitor > fixed.json
+//	fleet monitor > fixed.json
 //
 // 5. Verify the fix by comparing:
 //
@@ -256,16 +256,16 @@ The output is designed to be piped to jq for analysis or saved for comparison ov
 
 Examples:
   # Single snapshot
-  fleetcli monitor > snapshot.json
+  fleet monitor > snapshot.json
 
   # Continuous monitoring
-  fleetcli monitor --watch --interval 5
+  fleet monitor --watch --interval 5
 
   # Check diagnostics summary
-  fleetcli monitor | jq '.diagnostics'
+  fleet monitor | jq '.diagnostics'
 
   # Find bundles with generation mismatch
-  fleetcli monitor | jq '.diagnostics.bundlesWithGenerationMismatch'`,
+  fleet monitor | jq '.diagnostics.bundlesWithGenerationMismatch'`,
 	})
 	cmd.SetOut(os.Stdout)
 
