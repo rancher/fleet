@@ -179,48 +179,6 @@ import (
 //
 //	diff <(jq -S . initial.json) <(jq -S . fixed.json)
 //
-// # Output Field Reference
-//
-// GitRepoInfo fields:
-//   - namespace, name: Resource identifiers
-//   - generation, observedGeneration: Track reconciliation status
-//   - commit: Current commit hash from the Git repository
-//   - forceSyncGeneration: Used to force redeployment
-//   - ready: Whether the GitRepo is in Ready state
-//   - readyMessage: Error message if not ready
-//
-// BundleInfo fields:
-//   - namespace, name, uid: Resource identifiers
-//   - generation, observedGeneration: Track reconciliation status
-//   - commit: Commit hash from GitRepo (should match GitRepo.status.commit)
-//   - forceSyncGeneration: Should match GitRepo.spec.forceSyncGeneration
-//   - resourcesSHA256Sum: Hash of bundle resources
-//   - deletionTimestamp: Set when bundle is being deleted
-//   - finalizers: Finalizers blocking deletion
-//   - ready: Whether bundle is in Ready state
-//   - readyMessage, errorMessage: Error details if not ready
-//
-// BundleDeploymentInfo fields:
-//   - namespace, name, uid: Resource identifiers
-//   - generation: Resource generation (incremented on spec changes)
-//   - observedGeneration: Same as syncGeneration (kept for compatibility)
-//   - commit: Commit hash from bundle
-//   - forceSyncGeneration: Spec value for forcing redeployment (from spec.options.forceSyncGeneration)
-//   - syncGeneration: Status value tracking if forceSyncGeneration has been applied (from status.syncGeneration)
-//   - deploymentID: Target deployment (spec.deploymentID) - the content that should be deployed
-//   - stagedDeploymentID: Staged deployment before applying
-//   - appliedDeploymentID: Currently applied deployment (should eventually match deploymentID)
-//   - deletionTimestamp: Set when being deleted
-//   - finalizers: Finalizers blocking deletion
-//   - ready: Whether deployment is in Ready state
-//   - readyMessage, errorMessage: Error details if not ready
-//
-// Note: syncGeneration tracks forceSyncGeneration application, NOT resource generation.
-// A BundleDeployment is stuck if:
-//  1. forceSyncGeneration > 0 and syncGeneration != forceSyncGeneration (forced sync not applied)
-//  2. deploymentID != appliedDeploymentID (new content not applied)
-//  3. deletionTimestamp is set (being deleted but finalizers blocking)
-//
 // # Related Commands
 //
 // For live cluster monitoring, also consider:
@@ -280,7 +238,6 @@ Examples:
 
 // Resources holds the information about the fleet resources
 // It is used to marshal the output to JSON
-// Based on monitor-fleet-resources.sh
 
 type Resources struct {
 	Timestamp         string                 `json:"timestamp"`
@@ -336,6 +293,11 @@ type BundleInfo struct {
 	ErrorMessage        string            `json:"errorMessage,omitempty"`
 }
 
+// Note: syncGeneration tracks forceSyncGeneration application, NOT resource generation.
+// A BundleDeployment is stuck if:
+//  1. forceSyncGeneration > 0 and syncGeneration != forceSyncGeneration (forced sync not applied)
+//  2. deploymentID != appliedDeploymentID (new content not applied)
+//  3. deletionTimestamp is set (being deleted but finalizers blocking)
 type BundleDeploymentInfo struct {
 	Namespace           string            `json:"namespace"`
 	Name                string            `json:"name"`
