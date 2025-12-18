@@ -101,8 +101,8 @@ import (
 //	# Show summary with formatting
 //	fleetcli monitor | jq '{timestamp, controller, diagnostics}'
 //
-//	# Check stuck bundles
-//	fleetcli monitor | jq '.diagnostics.stuckBundles'
+//	# Check bundles with generation mismatch
+//	fleetcli monitor | jq '.diagnostics.bundlesWithGenerationMismatch'
 //
 //	# Find bundles with old commits
 //	fleetcli monitor | jq '.diagnostics.gitrepoBundleInconsistencies'
@@ -163,7 +163,7 @@ import (
 // 3. If bundles are stuck, check specific issues:
 //
 //	# Check for generation mismatches
-//	cat initial.json | jq '.diagnostics.stuckBundles[] | {name, generation, observedGeneration}'
+//	cat initial.json | jq '.diagnostics.bundlesWithGenerationMismatch[] | {name, generation, observedGeneration}'
 //
 //	# Check for deployment ID mismatches
 //	cat initial.json | jq '.diagnostics.stuckBundleDeployments[] | {name, deploymentID, appliedDeploymentID}'
@@ -264,8 +264,8 @@ Examples:
   # Check diagnostics summary
   fleetcli monitor | jq '.diagnostics'
 
-  # Find stuck bundles
-  fleetcli monitor | jq '.diagnostics.stuckBundles'`,
+  # Find bundles with generation mismatch
+  fleetcli monitor | jq '.diagnostics.bundlesWithGenerationMismatch'`,
 	})
 	cmd.SetOut(os.Stdout)
 
