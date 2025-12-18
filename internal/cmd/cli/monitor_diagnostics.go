@@ -13,6 +13,7 @@ import (
 
 const (
 	APIConsistencyRetries = 3
+	RecentEventsCount     = 20
 )
 
 // checkContentIssues identifies BundleDeployments with missing or problematic Content resources
@@ -138,8 +139,8 @@ func (m *Monitor) getRecentEvents(ctx context.Context, c client.Client) ([]corev
 	}
 
 	// Return last 20 events
-	if len(fleetEvents) > 20 {
-		fleetEvents = fleetEvents[len(fleetEvents)-20:]
+	if len(fleetEvents) > RecentEventsCount {
+		fleetEvents = fleetEvents[len(fleetEvents)-RecentEventsCount:]
 	}
 
 	return fleetEvents, nil
