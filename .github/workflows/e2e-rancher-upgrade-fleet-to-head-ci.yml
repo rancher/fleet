@@ -295,14 +295,70 @@ jobs:
           # Verify fleet-controller is healthy
           kubectl -n cattle-fleet-system wait --for=condition=Available deployment/fleet-controller --timeout=2m
 
+          # IMPORTANT: Wait for fleet-agent on upstream cluster to be ready
+          # This is critical for downstream resource cloning feature
+          echo "Waiting for fleet-agent on upstream cluster (cattle-fleet-local-system) to be ready..."
+          timeout=180
+          elapsed=0
+          while [ $elapsed -lt $timeout ]; do
+            # Check if fleet-agent deployment exists and has ready replicas
+            if kubectl get deployment -n cattle-fleet-local-system fleet-agent 2>/dev/null | grep -q "1/1"; then
+              echo "fleet-agent deployment is ready"
+              break
+            fi
+            if [ $((elapsed % 30)) -eq 0 ] && [ $elapsed -gt 0 ]; then
+              echo "Still waiting for fleet-agent to be ready (${elapsed}s)..."
+              kubectl get deployment -n cattle-fleet-local-system fleet-agent 2>/dev/null || echo "Deployment not yet created"
+            fi
+            sleep 3
+            elapsed=$((elapsed + 3))
+          done
+
+          if [ $elapsed -ge $timeout ]; then
+            echo "WARNING: Timeout waiting for fleet-agent deployment to be ready"
+            echo "Checking pod status in cattle-fleet-local-system namespace..."
+            kubectl get pods -n cattle-fleet-local-system || true
+            kubectl get deployment -n cattle-fleet-local-system fleet-agent -o yaml || true
+          fi
+
+          # Also ensure the fleet-agent pod is fully running (not just ready)
+          echo "Ensuring fleet-agent pods are fully running..."
+          kubectl -n cattle-fleet-local-system wait --for=condition=Ready pod -l app=fleet-agent --timeout=2m 2>/dev/null || true
+
+          # Wait for fleet-agent bundles to be ready on both clusters (upstream local agent)
+          echo "Waiting for fleet-agent bundles to reach ready state..."
+          timeout=180
+          elapsed=0
+          while [ $elapsed -lt $timeout ]; do
+            local_agent_ready=$(kubectl get bundles -n fleet-local fleet-agent-local -o=jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "False")
+            if [ "$local_agent_ready" = "True" ]; then
+              echo "fleet-agent-local bundle is ready"
+              break
+            fi
+            if [ $((elapsed % 30)) -eq 0 ] && [ $elapsed -gt 0 ]; then
+              echo "Still waiting for fleet-agent-local bundle to be ready (${elapsed}s)..."
+              kubectl get bundles -n fleet-local fleet-agent-local || true
+            fi
+            sleep 3
+            elapsed=$((elapsed + 3))
+          done
+
+          if [ $elapsed -ge $timeout ]; then
+            echo "WARNING: Timeout waiting for fleet-agent-local bundle to be ready (this may affect downstream resource cloning)"
+            echo "Current fleet-agent-local bundle status:"
+            kubectl get bundles -n fleet-local fleet-agent-local -o yaml || true
+            echo "Fleet agent deployment status:"
+            kubectl get deployment -n cattle-fleet-local-system fleet-agent -o yaml || true
+          fi
+
           # Verify existing bundles are still ready
-          echo "Verifying existing bundles are still ready..."
+          echo "Verifying existing example bundles are still ready..."
           until kubectl get bundles -n fleet-local test-simple-simple-chart -o=jsonpath='{.status.conditions[?(@.type=="Ready")].status}' | grep -q "True"; do
-            echo "Waiting for fleet-local bundle..."
+            echo "Waiting for fleet-local test bundle..."
             sleep 3
           done
           until kubectl get bundles -n fleet-default test-simple-simple-chart -o=jsonpath='{.status.conditions[?(@.type=="Ready")].status}' | grep -q "True"; do
-            echo "Waiting for fleet-default bundle..."
+            echo "Waiting for fleet-default test bundle..."
             sleep 3
           done
 
@@ -337,6 +393,9 @@ jobs:
           echo ""
           echo "=== Fleet Controller Health ==="
           kubectl get deployment -n cattle-fleet-system fleet-controller -o jsonpath='{.status}' | head -c 500
+          echo ""
+          echo "=== Fleet Agent Status (upstream local) ==="
+          kubectl get deployment -n cattle-fleet-local-system fleet-agent -o jsonpath='{.status}' 2>/dev/null | head -c 500 || echo "Not found or not ready"
           echo ""
           echo "Ready to run tests"
       -
