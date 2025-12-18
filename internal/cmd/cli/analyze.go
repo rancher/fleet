@@ -26,36 +26,36 @@ import (
 //
 // Single Snapshot Analysis (default):
 //
-//	fleetcli monitor | fleetcli analyze
-//	fleetcli analyze snapshot.json
+//	fleet monitor | fleet analyze
+//	fleet analyze snapshot.json
 //
 // Multiple Snapshots (shows latest):
 //
-//	fleetcli analyze monitor.json
+//	fleet analyze monitor.json
 //
 // Show All Snapshots:
 //
-//	fleetcli analyze --all monitor.json
+//	fleet analyze --all monitor.json
 //
 // Diff Between Snapshots:
 //
-//	fleetcli analyze --diff monitor.json
+//	fleet analyze --diff monitor.json
 //
 // Show Only Issues:
 //
-//	fleetcli analyze --issues monitor.json
+//	fleet analyze --issues monitor.json
 //
 // Detailed Analysis:
 //
-//	fleetcli analyze --detailed monitor.json
+//	fleet analyze --detailed monitor.json
 //
 // JSON Output (programmatic):
 //
-//	fleetcli analyze --json monitor.json
+//	fleet analyze --json monitor.json
 //
 // Compare Two Snapshots:
 //
-//	fleetcli analyze --compare snapshot1.json snapshot2.json
+//	fleet analyze --compare snapshot1.json snapshot2.json
 //
 // # Output Formats
 //
@@ -87,22 +87,22 @@ analysis, detect changes over time, and identify issues with Fleet deployments.
 
 Examples:
   # Analyze latest snapshot from file
-  fleetcli analyze monitor.json
+  fleet analyze monitor.json
 
   # Show all snapshots
-  fleetcli analyze --all monitor.json
+  fleet analyze --all monitor.json
 
   # Show changes between snapshots
-  fleetcli analyze --diff monitor.json
+  fleet analyze --diff monitor.json
 
   # Show only issues
-  fleetcli analyze --issues monitor.json
+  fleet analyze --issues monitor.json
 
   # Compare two specific snapshots
-  fleetcli analyze --compare snapshot1.json snapshot2.json
+  fleet analyze --compare snapshot1.json snapshot2.json
 
   # Pipe from monitor command
-  fleetcli monitor | fleetcli analyze`,
+  fleet monitor | fleet analyze`,
 	})
 	cmd.SetOut(os.Stdout)
 	return cmd
