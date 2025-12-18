@@ -150,8 +150,6 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	// helm deploy the bundledeployment
 	if status, err := r.Deployer.DeployBundle(ctx, bd); err != nil {
-		logger.V(1).Info("Failed to deploy bundle", "status", status, "error", err)
-
 		// do not use the returned status, instead set the condition and possibly a timestamp
 		bd.Status = setCondition(bd.Status, err, monitor.Cond(fleetv1.BundleDeploymentConditionDeployed))
 
@@ -162,9 +160,11 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			if err := r.updateStatus(ctx, orig, bd); err != nil {
 				return ctrl.Result{}, err
 			}
+			logger.V(1).Info("Dependencies not ready, requeuing...", "pending", notReadyDependenciesError.Pending)
 			return ctrl.Result{RequeueAfter: durations.WaitForDependenciesReadyRequeueInterval}, nil
 		}
 
+		logger.V(1).Info("Failed to deploy bundle", "status", status, "error", err)
 		merr = append(merr, fmt.Errorf("failed deploying bundle: %w", err))
 	} else {
 		logger.V(1).Info("Bundle deployed", "status", status)
