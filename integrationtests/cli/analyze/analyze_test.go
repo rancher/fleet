@@ -115,8 +115,8 @@ var _ = Describe("Fleet analyze", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			var result struct {
-				SnapshotCount int            `json:"snapshotCount"`
-				Latest        *cli.Resources `json:"latest"`
+				SnapshotCount int           `json:"snapshotCount"`
+				Latest        *cli.Snapshot `json:"latest"`
 			}
 			err = json.Unmarshal(buf.Contents(), &result)
 			Expect(err).NotTo(HaveOccurred())
@@ -238,7 +238,7 @@ var _ = Describe("Fleet analyze", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			var result struct {
-				Latest *cli.Resources `json:"latest"`
+				Latest *cli.Snapshot `json:"latest"`
 			}
 			err = json.Unmarshal(buf.Contents(), &result)
 			Expect(err).NotTo(HaveOccurred())

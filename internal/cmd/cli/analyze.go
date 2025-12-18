@@ -163,8 +163,8 @@ func (a *Analyze) Run(cmd *cobra.Command, args []string) error {
 	}
 }
 
-func (a *Analyze) readSnapshots(input io.Reader) ([]*Resources, error) {
-	var snapshots []*Resources
+func (a *Analyze) readSnapshots(input io.Reader) ([]*Snapshot, error) {
+	var snapshots []*Snapshot
 	scanner := bufio.NewScanner(input)
 
 	// Increase buffer size for large snapshots
@@ -177,7 +177,7 @@ func (a *Analyze) readSnapshots(input io.Reader) ([]*Resources, error) {
 			continue
 		}
 
-		var snapshot Resources
+		var snapshot Snapshot
 		if err := json.Unmarshal(line, &snapshot); err != nil {
 			return nil, fmt.Errorf("failed to parse snapshot: %w", err)
 		}
@@ -191,7 +191,7 @@ func (a *Analyze) readSnapshots(input io.Reader) ([]*Resources, error) {
 	return snapshots, nil
 }
 
-func (a *Analyze) outputSummary(cmd *cobra.Command, snapshot *Resources) error {
+func (a *Analyze) outputSummary(cmd *cobra.Command, snapshot *Snapshot) error {
 	w := cmd.OutOrStdout()
 
 	printHeader(w, "FLEET MONITORING SUMMARY - "+snapshot.Timestamp)
@@ -283,7 +283,7 @@ func (a *Analyze) printDiagnosticsSummary(w io.Writer, diag *Diagnostics) {
 	tw.Flush()
 }
 
-func (a *Analyze) outputAll(cmd *cobra.Command, snapshots []*Resources) error {
+func (a *Analyze) outputAll(cmd *cobra.Command, snapshots []*Snapshot) error {
 	w := cmd.OutOrStdout()
 
 	printHeader(w, fmt.Sprintf("Analyzing %d snapshots", len(snapshots)))
@@ -300,7 +300,7 @@ func (a *Analyze) outputAll(cmd *cobra.Command, snapshots []*Resources) error {
 	return nil
 }
 
-func (a *Analyze) outputDiff(cmd *cobra.Command, snapshots []*Resources) error {
+func (a *Analyze) outputDiff(cmd *cobra.Command, snapshots []*Snapshot) error {
 	w := cmd.OutOrStdout()
 
 	if len(snapshots) < 2 {
@@ -327,7 +327,7 @@ func (a *Analyze) outputDiff(cmd *cobra.Command, snapshots []*Resources) error {
 	return a.outputSummary(cmd, snapshots[len(snapshots)-1])
 }
 
-func (a *Analyze) printSnapshotDiff(w io.Writer, before, after *Resources) {
+func (a *Analyze) printSnapshotDiff(w io.Writer, before, after *Snapshot) {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 
 	fmt.Fprintln(tw, "\nRESOURCE COUNTS:")
@@ -359,7 +359,7 @@ func (a *Analyze) printSnapshotDiff(w io.Writer, before, after *Resources) {
 	a.printBundleSizeChanges(w, before, after)
 }
 
-func (a *Analyze) printBundleSizeChanges(w io.Writer, before, after *Resources) {
+func (a *Analyze) printBundleSizeChanges(w io.Writer, before, after *Snapshot) {
 	beforeSizes := make(map[string]int64)
 	for _, b := range before.Bundles {
 		if b.SizeBytes != nil {
@@ -396,7 +396,7 @@ func (a *Analyze) printBundleSizeChanges(w io.Writer, before, after *Resources) 
 	}
 }
 
-func (a *Analyze) outputIssues(cmd *cobra.Command, snapshots []*Resources) error {
+func (a *Analyze) outputIssues(cmd *cobra.Command, snapshots []*Snapshot) error {
 	w := cmd.OutOrStdout()
 	snapshot := snapshots[len(snapshots)-1]
 
@@ -522,7 +522,7 @@ func (a *Analyze) outputIssues(cmd *cobra.Command, snapshots []*Resources) error
 	return nil
 }
 
-func (a *Analyze) outputDetailed(cmd *cobra.Command, snapshots []*Resources) error {
+func (a *Analyze) outputDetailed(cmd *cobra.Command, snapshots []*Snapshot) error {
 	w := cmd.OutOrStdout()
 	snapshot := snapshots[len(snapshots)-1]
 
@@ -592,11 +592,11 @@ func (a *Analyze) outputDetailed(cmd *cobra.Command, snapshots []*Resources) err
 	return nil
 }
 
-func (a *Analyze) outputJSON(cmd *cobra.Command, snapshots []*Resources) error {
+func (a *Analyze) outputJSON(cmd *cobra.Command, snapshots []*Snapshot) error {
 	type Output struct {
-		SnapshotCount int          `json:"snapshotCount"`
-		Latest        *Resources   `json:"latest"`
-		All           []*Resources `json:"all,omitempty"`
+		SnapshotCount int         `json:"snapshotCount"`
+		Latest        *Snapshot   `json:"latest"`
+		All           []*Snapshot `json:"all,omitempty"`
 	}
 
 	output := Output{

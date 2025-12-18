@@ -236,10 +236,8 @@ Examples:
 	return cmd
 }
 
-// Resources holds the information about the fleet resources
-// It is used to marshal the output to JSON
-
-type Resources struct {
+type Snapshot struct {
+	// Timestamp is an UTC timestamp of when the snapshot was created.
 	Timestamp         string                 `json:"timestamp"`
 	Controller        *ControllerInfo        `json:"controller,omitempty"`
 	GitRepos          []GitRepoInfo          `json:"gitrepos,omitempty"`
@@ -459,7 +457,7 @@ func (m *Monitor) collectAndOutput(ctx context.Context, c client.Client, cmd *co
 	return nil
 }
 
-func (m *Monitor) collectResources(ctx context.Context, c client.Client) (*Resources, error) {
+func (m *Monitor) collectResources(ctx context.Context, c client.Client) (*Snapshot, error) {
 	timestamp := time.Now().UTC().Format(time.RFC3339)
 
 	// Collect controller info
@@ -528,7 +526,7 @@ func (m *Monitor) collectResources(ctx context.Context, c client.Client) (*Resou
 	// Collect diagnostics
 	diagnostics := m.collectDiagnostics(gitRepos, bundles, bundleDeployments, contents, clusters, clusterGroups, orphanedSecrets, contentIssues)
 
-	return &Resources{
+	return &Snapshot{
 		Timestamp:         timestamp,
 		Controller:        controllerInfo,
 		GitRepos:          m.convertGitRepos(gitRepos),
