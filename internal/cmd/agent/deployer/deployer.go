@@ -26,11 +26,11 @@ import (
 )
 
 type NotReadyDependenciesError struct {
-	pending []string
+	Pending []string
 }
 
 func (e *NotReadyDependenciesError) Error() string {
-	return fmt.Sprintf("dependent bundle(s) are not ready: %v", e.pending)
+	return fmt.Sprintf("dependent bundle(s) are not ready: %v", e.Pending)
 }
 
 type Deployer struct {
@@ -360,7 +360,7 @@ func (d *Deployer) checkDependency(ctx context.Context, bd *fleet.BundleDeployme
 	}
 
 	if len(depBundleList) != 0 {
-		return &NotReadyDependenciesError{pending: depBundleList}
+		return &NotReadyDependenciesError{Pending: depBundleList}
 	}
 
 	return nil
