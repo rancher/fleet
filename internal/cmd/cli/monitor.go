@@ -583,8 +583,8 @@ func (m *Monitor) convertBundles(bundles []fleet.Bundle) []BundleInfo {
 			UID:                 string(b.UID),
 			Generation:          b.Generation,
 			ObservedGeneration:  b.Status.ObservedGeneration,
-			Commit:              b.Labels["fleet.cattle.io/commit"],
-			RepoName:            b.Labels["fleet.cattle.io/repo-name"],
+			Commit:              b.Labels[fleet.CommitLabel],
+			RepoName:            b.Labels[fleet.RepoLabel],
 			Labels:              b.Labels,
 			ForceSyncGeneration: b.Spec.ForceSyncGeneration,
 			ResourcesSHA256Sum:  b.Status.ResourcesSHA256Sum,
@@ -632,7 +632,7 @@ func (m *Monitor) convertBundleDeployments(bds []fleet.BundleDeployment) []Bundl
 			Name:                bd.Name,
 			UID:                 string(bd.UID),
 			Generation:          bd.Generation,
-			Commit:              bd.Labels["fleet.cattle.io/commit"],
+			Commit:              bd.Labels[fleet.CommitLabel],
 			ForceSyncGeneration: bd.Spec.Options.ForceSyncGeneration,
 			SyncGeneration:      bd.Status.SyncGeneration,
 			DeploymentID:        bd.Spec.DeploymentID,
@@ -640,8 +640,8 @@ func (m *Monitor) convertBundleDeployments(bds []fleet.BundleDeployment) []Bundl
 			AppliedDeploymentID: bd.Status.AppliedDeploymentID,
 			Finalizers:          bd.Finalizers,
 			Labels:              bd.Labels,
-			BundleName:          bd.Labels["fleet.cattle.io/bundle-name"],
-			BundleNamespace:     bd.Labels["fleet.cattle.io/bundle-namespace"],
+			BundleName:          bd.Labels[fleet.BundleLabel],
+			BundleNamespace:     bd.Labels[fleet.BundleNamespaceLabel],
 		}
 
 		if bd.DeletionTimestamp != nil {
@@ -757,7 +757,7 @@ func (m *Monitor) convertSecrets(secrets []corev1.Secret) []SecretInfo {
 			Namespace:  s.Namespace,
 			Name:       s.Name,
 			Type:       string(s.Type),
-			Commit:     s.Labels["fleet.cattle.io/commit"],
+			Commit:     s.Labels[fleet.CommitLabel],
 			Finalizers: s.Finalizers,
 		}
 
@@ -891,14 +891,14 @@ func (m *Monitor) getBundleSecrets(ctx context.Context, c client.Client) []corev
 
 	// Get bundle-values secrets
 	valuesSecrets := &corev1.SecretList{}
-	err := c.List(ctx, valuesSecrets, client.MatchingFields{"type": "fleet.cattle.io/bundle-values/v1alpha1"})
+	err := c.List(ctx, valuesSecrets, client.MatchingFields{"type": fleet.SecretTypeBundleValues})
 	if err == nil {
 		allSecrets = append(allSecrets, valuesSecrets.Items...)
 	}
 
 	// Get bundle-deployment secrets
 	deploymentSecrets := &corev1.SecretList{}
-	err = c.List(ctx, deploymentSecrets, client.MatchingFields{"type": "fleet.cattle.io/bundle-deployment/v1alpha1"})
+	err = c.List(ctx, deploymentSecrets, client.MatchingFields{"type": fleet.SecretTypeBundleDeploymentOptions})
 	if err == nil {
 		allSecrets = append(allSecrets, deploymentSecrets.Items...)
 	}

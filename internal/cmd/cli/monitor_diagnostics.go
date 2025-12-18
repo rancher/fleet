@@ -217,7 +217,7 @@ func (m *Monitor) detectStuckBundleDeployments(bundleDeployments []fleet.BundleD
 func (m *Monitor) detectGitRepoBundleInconsistencies(gitRepos []fleet.GitRepo, bundles []fleet.Bundle) []fleet.Bundle {
 	var inconsistentBundles []fleet.Bundle
 	for _, bundle := range bundles {
-		repoName, ok := bundle.Labels["fleet.cattle.io/repo-name"]
+		repoName, ok := bundle.Labels[fleet.RepoLabel]
 		if !ok {
 			continue
 		}
@@ -233,7 +233,7 @@ func (m *Monitor) detectGitRepoBundleInconsistencies(gitRepos []fleet.GitRepo, b
 		}
 
 		inconsistent := false
-		if bundle.Labels["fleet.cattle.io/commit"] != gitRepo.Status.Commit {
+		if bundle.Labels[fleet.CommitLabel] != gitRepo.Status.Commit {
 			inconsistent = true
 		}
 		if bundle.Spec.ForceSyncGeneration != gitRepo.Spec.ForceSyncGeneration {
@@ -419,8 +419,8 @@ func (m *Monitor) detectBundlesWithNoDeployments(bundles []fleet.Bundle, bundleD
 	// Count deployments per bundle using bundle-name and bundle-namespace labels
 	bundleDeploymentCounts := make(map[string]int)
 	for _, bd := range bundleDeployments {
-		bundleName := bd.Labels["fleet.cattle.io/bundle-name"]
-		bundleNamespace := bd.Labels["fleet.cattle.io/bundle-namespace"]
+		bundleName := bd.Labels[fleet.BundleLabel]
+		bundleNamespace := bd.Labels[fleet.BundleNamespaceLabel]
 		if bundleName != "" && bundleNamespace != "" {
 			key := bundleNamespace + "/" + bundleName
 			bundleDeploymentCounts[key]++
@@ -444,7 +444,7 @@ func (m *Monitor) detectGitReposWithNoBundles(gitRepos []fleet.GitRepo, bundles 
 	// Count bundles per gitrepo
 	bundleCounts := make(map[string]int)
 	for _, bundle := range bundles {
-		repoName := bundle.Labels["fleet.cattle.io/repo-name"]
+		repoName := bundle.Labels[fleet.RepoLabel]
 		if repoName != "" {
 			key := bundle.Namespace + "/" + repoName
 			bundleCounts[key]++
@@ -522,7 +522,7 @@ func (m *Monitor) detectBundlesWithMissingGitRepo(bundles []fleet.Bundle, gitRep
 	}
 
 	for _, bundle := range bundles {
-		repoName := bundle.Labels["fleet.cattle.io/repo-name"]
+		repoName := bundle.Labels[fleet.RepoLabel]
 		// Skip bundles without repo-name label (e.g., agent bundles)
 		if repoName == "" {
 			continue
@@ -548,8 +548,8 @@ func (m *Monitor) detectBundleDeploymentsWithMissingBundle(bundleDeployments []f
 	}
 
 	for _, bd := range bundleDeployments {
-		bundleName := bd.Labels["fleet.cattle.io/bundle-name"]
-		bundleNamespace := bd.Labels["fleet.cattle.io/bundle-namespace"]
+		bundleName := bd.Labels[fleet.BundleLabel]
+		bundleNamespace := bd.Labels[fleet.BundleNamespaceLabel]
 		if bundleName != "" && bundleNamespace != "" {
 			key := bundleNamespace + "/" + bundleName
 			if !bundleExists[key] {
