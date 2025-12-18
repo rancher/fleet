@@ -27,8 +27,6 @@ func (m *Monitor) checkContentIssues(bundleDeployments []fleet.BundleDeployment,
 			Issues:    []string{},
 		}
 
-		hasIssue := false
-
 		// Check spec.deploymentID content
 		if bd.Spec.DeploymentID != "" {
 			contentName := extractContentName(bd.Spec.DeploymentID)
@@ -39,12 +37,10 @@ func (m *Monitor) checkContentIssues(bundleDeployments []fleet.BundleDeployment,
 
 			if !exists {
 				issue.Issues = append(issue.Issues, "content_not_found")
-				hasIssue = true
 			} else if content.DeletionTimestamp != nil {
 				ts := content.DeletionTimestamp.UTC().Format(time.RFC3339)
 				issue.ContentDeletionTimestamp = &ts
 				issue.Issues = append(issue.Issues, "content_has_deletion_timestamp")
-				hasIssue = true
 			}
 		}
 
@@ -58,7 +54,6 @@ func (m *Monitor) checkContentIssues(bundleDeployments []fleet.BundleDeployment,
 
 				if !exists {
 					issue.Issues = append(issue.Issues, "staged_content_not_found")
-					hasIssue = true
 				}
 			}
 		}
@@ -73,12 +68,11 @@ func (m *Monitor) checkContentIssues(bundleDeployments []fleet.BundleDeployment,
 
 				if !exists {
 					issue.Issues = append(issue.Issues, "applied_content_not_found")
-					hasIssue = true
 				}
 			}
 		}
 
-		if hasIssue {
+		if len(issue.Issues) > 0 {
 			issues = append(issues, issue)
 		}
 	}
