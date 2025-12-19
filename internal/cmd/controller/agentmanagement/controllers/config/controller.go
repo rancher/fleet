@@ -6,44 +6,39 @@ import (
 
 	"github.com/rancher/fleet/internal/config"
 
-	corecontrollers "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	v1 "k8s.io/api/core/v1"
 )
 
-// Register watches for changes in the config. Both fleetcontroller and agentmanagement needs to register this since it
-// is used in both programs.
-func Register(ctx context.Context,
-	namespace string,
-	cm corecontrollers.ConfigMapController) error {
+// Register registers the config controller using controller-runtime.
+func Register(ctx context.Context, mgr ctrl.Manager, namespace string) error {
+	// First, load the initial config
+	// We need a client to get the configmap
+	cm := &v1.ConfigMap{}
+	// Use the APIReader to avoid cache dependency before manager start
+	if err := mgr.GetAPIReader().Get(ctx, client.ObjectKey{
+		Namespace: namespace,
+		Name:      config.ManagerConfigName,
+	}, cm); err != nil {
+		return err
+	}
 
-	cm.OnChange(ctx, "global-config", func(_ string, configMap *v1.ConfigMap) (*v1.ConfigMap, error) {
-		return reloadConfig(namespace, configMap)
-	})
-
-	cfg, err := config.Lookup(ctx, namespace, config.ManagerConfigName, cm)
+	cfg, err := config.ReadConfig(cm)
 	if err != nil {
 		return err
 	}
 
-	return config.SetAndTrigger(cfg)
-}
+	// Do not trigger callbacks before the manager starts; reconciler will handle triggering
+	config.Set(cfg)
 
-func reloadConfig(namespace string, configMap *v1.ConfigMap) (*v1.ConfigMap, error) {
-	if configMap == nil {
-		// ConfigMap was deleted, nothing to reload. This is a normal deletion event.
-		return nil, nil
+	// Set up the reconciler
+	reconciler := &ConfigMapReconciler{
+		Client:          mgr.GetClient(),
+		Scheme:          mgr.GetScheme(),
+		SystemNamespace: namespace,
 	}
 
-	if configMap.Name != config.ManagerConfigName ||
-		configMap.Namespace != namespace {
-		return configMap, nil
-	}
-
-	cfg, err := config.ReadConfig(configMap)
-	if err != nil {
-		return configMap, err
-	}
-
-	return configMap, config.SetAndTrigger(cfg)
+	return reconciler.SetupWithManager(mgr)
 }
