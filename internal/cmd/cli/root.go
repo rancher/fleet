@@ -25,13 +25,13 @@ func App() *cobra.Command {
 		NewApply(),
 		NewTest(),
 		NewCleanUp(),
-		NewMonitor(),
-		NewAnalyze(),
 
 		NewTarget(),
 		NewDeploy(),
 		gitcloner.NewCmd(gitcloner.New()),
 
+		NewMonitor(),
+		NewAnalyze(),
 		NewDump(),
 	)
 
