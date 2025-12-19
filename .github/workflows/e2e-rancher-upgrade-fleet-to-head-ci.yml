@@ -215,7 +215,7 @@ jobs:
           echo "Traefik LoadBalancer IP: $ip"
           export public_hostname="$ip.sslip.io"
 
-          ./.github/scripts/setup-rancher.sh
+          ./.github/scripts/setup-rancher.sh 2.13.1
           ./.github/scripts/wait-for-loadbalancer.sh
           ./.github/scripts/register-downstream-clusters.sh
           sleep 30
