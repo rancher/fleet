@@ -35,7 +35,15 @@ type ContentReconciler struct {
 // SetupWithManager sets up the controller with the Manager.
 func (r *ContentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		Named("content"). // naming because this controller does not use For()
+		For(&fleet.Content{}, // using For with CreateFunc only to reconcile Contents to check for finalizers
+			builder.WithPredicates(
+				predicate.Funcs{
+					CreateFunc:  func(e event.CreateEvent) bool { return true },
+					UpdateFunc:  func(e event.UpdateEvent) bool { return false },
+					DeleteFunc:  func(e event.DeleteEvent) bool { return false },
+					GenericFunc: func(e event.GenericEvent) bool { return false },
+				},
+			)).
 		Watches(
 			&fleet.BundleDeployment{},
 			handler.EnqueueRequestsFromMapFunc(r.mapBundleDeploymentToContent),
@@ -78,9 +86,14 @@ func (r *ContentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
+	finalizersDeleted, err := removeFinalizers(ctx, r.Client, content)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
 	// List all BundleDeployments that reference this Content resource
 	bdList := &fleet.BundleDeploymentList{}
-	err := r.List(ctx, bdList, client.MatchingFields{config.ContentNameIndex: content.Name})
+	err = r.List(ctx, bdList, client.MatchingFields{config.ContentNameIndex: content.Name})
 	if err != nil {
 		logger.Error(err, "Failed to list BundleDeployments for Content resource")
 		return ctrl.Result{}, err
@@ -95,7 +108,7 @@ func (r *ContentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	// If the Content resource has no more references... delete it
-	if newReferenceCount == 0 && content.Status.ReferenceCount > 0 {
+	if newReferenceCount == 0 && (content.Status.ReferenceCount > 0 || finalizersDeleted) {
 		logger.V(1).Info("Content resource has no more references, deleting it")
 		return ctrl.Result{}, r.Delete(ctx, content)
 	}
@@ -133,4 +146,24 @@ func (r *ContentReconciler) mapBundleDeploymentToContent(ctx context.Context, ob
 			},
 		},
 	}
+}
+
+// removeFinalizers removes all finalizers from the given object if any exist and returns true if
+// finalizers were removed, false otherwise.
+func removeFinalizers(ctx context.Context, c client.Client, obj client.Object) (bool, error) {
+	finalizers := obj.GetFinalizers()
+	if len(finalizers) == 0 {
+		// Nothing to do
+		return false, nil
+	}
+
+	// Clear finalizers
+	obj.SetFinalizers([]string{})
+
+	// Update the object
+	if err := c.Update(ctx, obj); err != nil {
+		return false, err
+	}
+
+	return true, nil
 }
