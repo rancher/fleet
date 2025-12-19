@@ -38,6 +38,8 @@ const (
 	// the helmop status first, before the status controller looks at
 	// bundledeployments.
 	HelmOpStatusDelay = time.Second * 5
+	// WaitForDependenciesReadyRequeueInterval is the wait time after the Fleet agent finds a BundleDeployment has non-ready dependencies
+	WaitForDependenciesReadyRequeueInterval = time.Second * 15
 )
 
 // Equal reports whether the duration t is equal to u.
