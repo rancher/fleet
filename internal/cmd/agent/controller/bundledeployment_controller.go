@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/rancher/fleet/internal/helmvalues"
 	"github.com/rancher/fleet/internal/namespaces"
 	fleetv1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/durations"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
@@ -166,11 +168,21 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	// helm deploy the bundledeployment
 	if status, err := r.Deployer.DeployBundle(ctx, bd, forceDeploy); err != nil {
-		logger.V(1).Info("Failed to deploy bundle", "status", status, "error", err)
-
 		// do not use the returned status, instead set the condition and possibly a timestamp
 		bd.Status = setCondition(bd.Status, err, monitor.Cond(fleetv1.BundleDeploymentConditionDeployed))
 
+		// Not-ready dependencies should not be treated as an error.
+		// Instead, a controlled requeue should happen until the conditions are met.
+		var notReadyDependenciesError *deployer.NotReadyDependenciesError
+		if errors.As(err, &notReadyDependenciesError) {
+			if err := r.updateStatus(ctx, orig, bd); err != nil {
+				return ctrl.Result{}, err
+			}
+			logger.V(1).Info("Dependencies not ready, requeuing...", "pending", notReadyDependenciesError.Pending)
+			return ctrl.Result{RequeueAfter: durations.WaitForDependenciesReadyRequeueInterval}, nil
+		}
+
+		logger.V(1).Info("Failed to deploy bundle", "status", status, "error", err)
 		merr = append(merr, fmt.Errorf("failed deploying bundle: %w", err))
 	} else {
 		logger.V(1).Info("Bundle deployed", "status", status)
