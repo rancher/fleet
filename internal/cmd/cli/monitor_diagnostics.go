@@ -147,7 +147,16 @@ func (m *Monitor) getRecentEvents(ctx context.Context, c client.Client) ([]corev
 }
 
 // collectDiagnostics gathers all diagnostic checks and returns a comprehensive diagnostics report
-func (m *Monitor) collectDiagnostics(gitRepos []fleet.GitRepo, bundles []fleet.Bundle, bundleDeployments []fleet.BundleDeployment, contents []fleet.Content, clusters []fleet.Cluster, clusterGroups []fleet.ClusterGroup, orphanedSecrets []corev1.Secret, contentIssues []ContentIssue) *Diagnostics {
+func (m *Monitor) collectDiagnostics(
+	gitRepos []fleet.GitRepo,
+	bundles []fleet.Bundle,
+	bundleDeployments []fleet.BundleDeployment,
+	contents []fleet.Content,
+	clusters []fleet.Cluster,
+	clusterGroups []fleet.ClusterGroup,
+	orphanedSecrets []corev1.Secret,
+	contentIssues []ContentIssue,
+) *Diagnostics {
 	// Extract secrets with invalid owners from orphaned secrets (UID mismatches)
 	invalidSecretOwners := m.filterSecretsWithInvalidOwners(orphanedSecrets)
 
