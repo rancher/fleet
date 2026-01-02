@@ -573,17 +573,20 @@ func (a *Analyze) outputDetailed(cmd *cobra.Command, snapshots []*Snapshot) erro
 	}
 
 	// Show controller info
-	if snapshot.Controller != nil {
+	if len(snapshot.Controller) > 0 {
 		fmt.Fprintln(w)
 		printSubHeader(w, "CONTROLLER INFO")
+	}
+	for _, c := range snapshot.Controller {
 		tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-		fmt.Fprintf(tw, "  Name:\t%s\n", snapshot.Controller.Name)
-		fmt.Fprintf(tw, "  Status:\t%s\n", snapshot.Controller.Status)
-		fmt.Fprintf(tw, "  Restarts:\t%d\n", snapshot.Controller.Restarts)
-		if snapshot.Controller.StartTime != "" {
-			fmt.Fprintf(tw, "  Start Time:\t%s\n", snapshot.Controller.StartTime)
+		fmt.Fprintf(tw, "  Name:\t%s\n", c.Name)
+		fmt.Fprintf(tw, "  Status:\t%s\n", c.Status)
+		fmt.Fprintf(tw, "  Restarts:\t%d\n", c.Restarts)
+		if c.StartTime != "" {
+			fmt.Fprintf(tw, "  Start Time:\t%s\n", c.StartTime)
 		}
 		tw.Flush()
+		fmt.Fprintln(w)
 	}
 
 	// Show API consistency

@@ -240,7 +240,7 @@ Examples:
 type Snapshot struct {
 	// Timestamp is an UTC timestamp of when the snapshot was created.
 	Timestamp         string                 `json:"timestamp"`
-	Controller        *ControllerInfo        `json:"controller,omitempty"`
+	Controller        []ControllerInfo       `json:"controller,omitempty"`
 	GitRepos          []GitRepoInfo          `json:"gitrepos,omitempty"`
 	Bundles           []BundleInfo           `json:"bundles,omitempty"`
 	BundleDeployments []BundleDeploymentInfo `json:"bundledeployments,omitempty"`
@@ -823,32 +823,42 @@ func (m *Monitor) convertEvents(events []corev1.Event) []EventInfo {
 	return result
 }
 
-func (m *Monitor) getControllerInfo(ctx context.Context, c client.Client) (*ControllerInfo, error) {
+func (m *Monitor) getControllerInfo(ctx context.Context, c client.Client) ([]ControllerInfo, error) {
 	podList := &corev1.PodList{}
-	err := c.List(ctx, podList, client.InNamespace(m.System), client.MatchingLabels{"app": "fleet-controller"})
-	if err != nil {
-		return nil, err
+
+	appValues := []string{"fleet-controller", "gitjob", "helmops"}
+
+	result := []ControllerInfo{}
+
+	for _, v := range appValues {
+		err := c.List(ctx, podList, client.InNamespace(m.System), client.MatchingLabels{"app": v})
+		if err != nil {
+			return nil, err
+		}
+
+		if len(podList.Items) == 0 {
+			continue
+		}
+
+		for _, pod := range podList.Items {
+			info := ControllerInfo{
+				Name:   pod.Name,
+				Status: string(pod.Status.Phase),
+			}
+
+			if pod.Status.StartTime != nil {
+				info.StartTime = pod.Status.StartTime.UTC().Format(time.RFC3339)
+			}
+
+			if len(pod.Status.ContainerStatuses) > 0 {
+				info.Restarts = pod.Status.ContainerStatuses[0].RestartCount
+			}
+
+			result = append(result, info)
+		}
 	}
 
-	if len(podList.Items) == 0 {
-		return nil, nil
-	}
-
-	pod := podList.Items[0]
-	info := &ControllerInfo{
-		Name:   pod.Name,
-		Status: string(pod.Status.Phase),
-	}
-
-	if pod.Status.StartTime != nil {
-		info.StartTime = pod.Status.StartTime.UTC().Format(time.RFC3339)
-	}
-
-	if len(pod.Status.ContainerStatuses) > 0 {
-		info.Restarts = pod.Status.ContainerStatuses[0].RestartCount
-	}
-
-	return info, nil
+	return result, nil
 }
 
 func (m *Monitor) getGitRepos(ctx context.Context, c client.Client) ([]fleet.GitRepo, error) {
