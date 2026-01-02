@@ -423,8 +423,7 @@ var _ = Describe("Fleet analyze", func() {
 			// Create a small content resource
 			content := &fleet.Content{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "s-abc123",
-					Namespace: namespace,
+					Name: "s-abc123",
 				},
 				Content: []byte("small content"), // Small content for testing
 			}
