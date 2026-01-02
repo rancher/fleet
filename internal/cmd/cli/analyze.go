@@ -280,6 +280,11 @@ func (a *Analyze) printDiagnosticsSummary(w io.Writer, diag *Diagnostics) {
 		}
 	}
 
+	if diag.ContentsWithZeroReferenceCount > 0 {
+		fmt.Fprintln(tw, "  Reference counts:")
+		printDiagLine(tw, "Contents with 0 reference count", diag.ContentsWithZeroReferenceCount)
+	}
+
 	tw.Flush()
 }
 

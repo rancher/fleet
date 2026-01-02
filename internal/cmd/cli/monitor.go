@@ -322,6 +322,7 @@ type ContentInfo struct {
 	Size              int64    `json:"size,omitempty"`
 	DeletionTimestamp *string  `json:"deletionTimestamp,omitempty"`
 	Finalizers        []string `json:"finalizers,omitempty"`
+	ReferenceCount    int      `json:"referenceCount,omitempty"`
 }
 
 type SecretInfo struct {
@@ -389,6 +390,7 @@ type Diagnostics struct {
 	BundlesWithDeletionTimestamp                int                      `json:"bundlesWithDeletionTimestamp,omitempty"`
 	BundleDeploymentsWithDeletionTimestamp      int                      `json:"bundleDeploymentsWithDeletionTimestamp,omitempty"`
 	ContentsWithDeletionTimestamp               int                      `json:"contentsWithDeletionTimestamp,omitempty"`
+	ContentsWithZeroReferenceCount              int                      `json:"contentsWithZeroReferenceCount,omitempty"`
 }
 
 type ResourceWithFinalizers struct {
@@ -674,8 +676,9 @@ func (m *Monitor) convertContents(contents []fleet.Content) []ContentInfo {
 	result := make([]ContentInfo, 0, len(contents))
 	for _, c := range contents {
 		info := ContentInfo{
-			Name:       c.Name,
-			Finalizers: c.Finalizers,
+			Name:           c.Name,
+			Finalizers:     c.Finalizers,
+			ReferenceCount: c.Status.ReferenceCount,
 		}
 
 		// Calculate size from content data
