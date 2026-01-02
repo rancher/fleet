@@ -267,6 +267,8 @@ type GitRepoInfo struct {
 	Generation          int64  `json:"generation"`
 	ObservedGeneration  int64  `json:"observedGeneration,omitempty"`
 	Commit              string `json:"commit,omitempty"`
+	PollingCommit       string `json:"pollingCommit,omitempty"`
+	WebhookCommit       string `json:"webhookCommit,omitempty"`
 	ForceSyncGeneration int64  `json:"forceSyncGeneration,omitempty"`
 	Ready               bool   `json:"ready"`
 	ReadyMessage        string `json:"readyMessage,omitempty"`
@@ -379,6 +381,7 @@ type Diagnostics struct {
 	ClusterGroupsWithNoClusters                 []ClusterGroupInfo       `json:"clusterGroupsWithNoClusters,omitempty"`
 	BundlesWithMissingGitRepo                   []BundleInfo             `json:"bundlesWithMissingGitRepo,omitempty"`
 	BundleDeploymentsWithMissingBundle          []BundleDeploymentInfo   `json:"bundleDeploymentsWithMissingBundle,omitempty"`
+	GitReposWithCommitMismatch                  []GitRepoInfo            `json:"gitReposWithCommitMismatch,omitempty"`
 	GitReposWithGenerationMismatch              []GitRepoInfo            `json:"gitReposWithGenerationMismatch,omitempty"`
 	BundlesWithGenerationMismatch               []BundleInfo             `json:"bundlesWithGenerationMismatch,omitempty"`
 	BundleDeploymentsWithSyncGenerationMismatch []BundleDeploymentInfo   `json:"bundleDeploymentsWithSyncGenerationMismatch,omitempty"`
@@ -557,6 +560,8 @@ func (m *Monitor) convertGitRepos(gitRepos []fleet.GitRepo) []GitRepoInfo {
 			Generation:          gr.Generation,
 			ObservedGeneration:  gr.Status.ObservedGeneration,
 			Commit:              gr.Status.Commit,
+			PollingCommit:       gr.Status.PollingCommit,
+			WebhookCommit:       gr.Status.WebhookCommit,
 			ForceSyncGeneration: gr.Spec.ForceSyncGeneration,
 		}
 
