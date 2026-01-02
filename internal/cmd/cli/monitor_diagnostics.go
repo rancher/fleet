@@ -187,6 +187,7 @@ func (m *Monitor) collectDiagnostics(
 		BundlesWithDeletionTimestamp:                m.countBundlesWithDeletionTimestamp(bundles),
 		BundleDeploymentsWithDeletionTimestamp:      m.countBundleDeploymentsWithDeletionTimestamp(bundleDeployments),
 		ContentsWithDeletionTimestamp:               m.countContentsWithDeletionTimestamp(contents),
+		ContentsWithZeroReferenceCount:              m.countContentsWithZeroReferenceCount(contents),
 	}
 }
 
@@ -306,6 +307,17 @@ func (m *Monitor) countContentsWithDeletionTimestamp(contents []fleet.Content) i
 	count := 0
 	for _, content := range contents {
 		if content.DeletionTimestamp != nil {
+			count++
+		}
+	}
+	return count
+}
+
+// countContentsWithZeroReferenceCount counts non-deleted contents with reference counts set to 0.
+func (m *Monitor) countContentsWithZeroReferenceCount(contents []fleet.Content) int {
+	count := 0
+	for _, content := range contents {
+		if content.DeletionTimestamp == nil && content.Status.ReferenceCount == 0 {
 			count++
 		}
 	}

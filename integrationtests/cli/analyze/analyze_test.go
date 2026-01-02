@@ -449,5 +449,16 @@ var _ = Describe("Fleet analyze", func() {
 			// Should show total bundle size
 			Expect(output).To(ContainSubstring("Total Size:"))
 		})
+
+		It("should include a non-zero count of contents with 0 reference counts", func() {
+			buf, _, err := runAnalyze([]string{snapshotFile})
+			Expect(err).NotTo(HaveOccurred())
+
+			output := string(buf.Contents())
+
+			// This works without the need to create additional contents, because Content resource `s-abc123` above is
+			// not referenced, as no Fleet controller is running.
+			Expect(output).To(ContainSubstring("Contents with 0 reference count"))
+		})
 	})
 })
