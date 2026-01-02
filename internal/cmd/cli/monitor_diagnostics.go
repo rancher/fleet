@@ -176,6 +176,7 @@ func (m *Monitor) collectDiagnostics(
 		ClusterGroupsWithNoClusters:                 m.convertClusterGroups(m.detectClusterGroupsWithNoClusters(clusterGroups)),
 		BundlesWithMissingGitRepo:                   m.convertBundles(m.detectBundlesWithMissingGitRepo(bundles, gitRepos)),
 		BundleDeploymentsWithMissingBundle:          m.convertBundleDeployments(m.detectBundleDeploymentsWithMissingBundle(bundleDeployments, bundles)),
+		GitReposWithCommitMismatch:                  m.convertGitRepos(m.detectGitReposWithCommitMismatch(gitRepos)),
 		GitReposWithGenerationMismatch:              m.convertGitRepos(m.detectGitReposWithGenerationMismatch(gitRepos)),
 		BundlesWithGenerationMismatch:               m.convertBundles(m.detectBundlesWithGenerationMismatch(bundles)),
 		BundleDeploymentsWithSyncGenerationMismatch: m.convertBundleDeployments(m.detectBundleDeploymentsWithSyncGenerationMismatch(bundleDeployments)),
@@ -580,6 +581,20 @@ func (m *Monitor) detectBundleDeploymentsWithMissingBundle(bundleDeployments []f
 	}
 
 	return orphanedBundleDeployments
+}
+
+// detectGitReposWithCommitMismatch detects GitRepos with their status commit not matching any of the same status'
+// webhook or polling commits.
+func (m *Monitor) detectGitReposWithCommitMismatch(gitRepos []fleet.GitRepo) []fleet.GitRepo {
+	var mismatchedGitRepos []fleet.GitRepo
+
+	for _, gr := range gitRepos {
+		if gr.Status.Commit != gr.Status.PollingCommit && gr.Status.Commit != gr.Status.WebhookCommit {
+			mismatchedGitRepos = append(mismatchedGitRepos, gr)
+		}
+	}
+
+	return mismatchedGitRepos
 }
 
 // detectGitReposWithGenerationMismatch detects GitRepos with generation != observedGeneration

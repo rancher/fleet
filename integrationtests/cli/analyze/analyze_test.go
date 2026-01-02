@@ -154,8 +154,51 @@ var _ = Describe("Fleet analyze", func() {
 	Context("with issues in monitor output", func() {
 		var bundleName string
 		var bdName string
+		var gitRepoName1 = "test-gitrepo-1"
+		var gitRepoName2 = "test-gitrepo-2"
 
 		BeforeEach(func() {
+			// Create 2 GitRepos with a commit mismatch (one from webhook, one from polling)
+			gitRepo1 := &fleet.GitRepo{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      gitRepoName1,
+					Namespace: namespace,
+				},
+				Spec: fleet.GitRepoSpec{
+					Repo:   "https://github.com/rancher/fleet-examples",
+					Branch: "master",
+				},
+			}
+
+			err := k8sClient.Create(ctx, gitRepo1)
+			Expect(err).ToNot(HaveOccurred())
+
+			gitRepo2 := &fleet.GitRepo{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      gitRepoName2,
+					Namespace: namespace,
+				},
+				Spec: fleet.GitRepoSpec{
+					Repo:   "https://github.com/rancher/fleet-examples",
+					Branch: "master",
+				},
+			}
+
+			err = k8sClient.Create(ctx, gitRepo2)
+			Expect(err).ToNot(HaveOccurred())
+
+			gitRepo1.Status.Commit = "b785d408903225ed0ff86d22a749779f200561d7"
+			gitRepo1.Status.PollingCommit = "cf70b2422b58c878b56c0b2a1ccce368a4a6ed33"
+
+			err = k8sClient.Status().Update(ctx, gitRepo1)
+			Expect(err).ToNot(HaveOccurred())
+
+			gitRepo2.Status.Commit = "b785d408903225ed0ff86d22a749779f200561d7"
+			gitRepo2.Status.WebhookCommit = "cf70b2422b58c878b56c0b2a1ccce368a4a6ed33"
+
+			err = k8sClient.Status().Update(ctx, gitRepo2)
+			Expect(err).ToNot(HaveOccurred())
+
 			// Create a bundle with generation mismatch
 			bundleName = "test-bundle-mismatch"
 			bundle := &fleet.Bundle{
@@ -168,7 +211,7 @@ var _ = Describe("Fleet analyze", func() {
 					Paused: true,
 				},
 			}
-			err := k8sClient.Create(ctx, bundle)
+			err = k8sClient.Create(ctx, bundle)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Set observed generation to create mismatch
@@ -201,6 +244,8 @@ var _ = Describe("Fleet analyze", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			DeferCleanup(func() {
+				_ = k8sClient.Delete(ctx, gitRepo1)
+				_ = k8sClient.Delete(ctx, gitRepo2)
 				_ = k8sClient.Delete(ctx, bundle)
 				_ = k8sClient.Delete(ctx, bd)
 			})
@@ -220,6 +265,11 @@ var _ = Describe("Fleet analyze", func() {
 			// Should detect generation mismatch
 			Expect(output).To(ContainSubstring("Generation Mismatch"))
 			Expect(output).To(ContainSubstring(bundleName))
+
+			// Should detect commit mismatch
+			Expect(output).To(ContainSubstring("Commit Mismatch"))
+			Expect(output).To(ContainSubstring(gitRepoName1))
+			Expect(output).To(ContainSubstring(gitRepoName2))
 		})
 
 		It("should show issues in summary mode", func() {
@@ -231,6 +281,7 @@ var _ = Describe("Fleet analyze", func() {
 			// Should show non-zero counts for issues
 			Expect(output).To(MatchRegexp(`Stuck BundleDeployments:\s+\d+`))
 			Expect(output).To(MatchRegexp(`Generation Mismatches:\s+\d+`))
+			Expect(output).To(MatchRegexp(`Commit Mismatches:\s+2`))
 		})
 
 		It("should include issues in JSON output", func() {

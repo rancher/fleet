@@ -266,6 +266,10 @@ func (a *Analyze) printDiagnosticsSummary(w io.Writer, diag *Diagnostics) {
 	printDiagLine(tw, "Bundles", len(diag.BundlesWithGenerationMismatch))
 	printDiagLine(tw, "BundleDeployments (SyncGen)", len(diag.BundleDeploymentsWithSyncGenerationMismatch))
 
+	// Commit Mismatches
+	commitIssues := len(diag.GitReposWithCommitMismatch)
+	fmt.Fprintf(tw, "  Commit Mismatches:\t%d\t%s\n", commitIssues, statusIcon(commitIssues))
+
 	// Deletion Timestamps
 	if diag.BundlesWithDeletionTimestamp > 0 || diag.BundleDeploymentsWithDeletionTimestamp > 0 || diag.ContentsWithDeletionTimestamp > 0 {
 		fmt.Fprintln(tw, "  Deletion Timestamps:")
@@ -496,6 +500,17 @@ func (a *Analyze) outputIssues(cmd *cobra.Command, snapshots []*Snapshot) error 
 				size = *b.SizeBytes
 			}
 			fmt.Fprintf(w, "  • %s/%s (%dKB)\n", b.Namespace, b.Name, size/1024)
+		}
+	}
+
+	// Commit mismatches
+	if len(diag.GitReposWithCommitMismatch) > 0 {
+		hasIssues = true
+		fmt.Fprintln(w)
+		printWarning(w, fmt.Sprintf("GitRepos with Commit Mismatch (%d)", len(diag.GitReposWithCommitMismatch)))
+		for _, gr := range diag.GitReposWithCommitMismatch {
+			fmt.Fprintf(w, "  • %s/%s (polling: %s, webhook: %s, status commit: %s)\n",
+				gr.Namespace, gr.Name, gr.WebhookCommit, gr.PollingCommit, gr.Commit)
 		}
 	}
 
