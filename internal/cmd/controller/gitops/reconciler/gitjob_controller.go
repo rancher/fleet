@@ -592,7 +592,7 @@ func (r *GitJobReconciler) managePollingJob(logger logr.Logger, gitrepo v1alpha1
 
 		newJob := newGitPollingJob(r.Client, r.Recorder, gitrepo, r.GitFetcher)
 		currentTrigger := ctrlquartz.NewControllerTrigger(
-			getPollingIntervalDuration(&gitrepo),
+			GetPollingIntervalDuration(&gitrepo),
 			gitJobPollingJitterPercent,
 		)
 
@@ -660,7 +660,7 @@ func generationChanged(r *v1alpha1.GitRepo) bool {
 	return (r.Generation != r.Status.ObservedGeneration) && r.Status.ObservedGeneration > 0
 }
 
-func getPollingIntervalDuration(gitrepo *v1alpha1.GitRepo) time.Duration {
+func GetPollingIntervalDuration(gitrepo *v1alpha1.GitRepo) time.Duration {
 	if gitrepo.Spec.PollingInterval == nil || gitrepo.Spec.PollingInterval.Duration == 0 {
 		return defaultPollingSyncInterval
 	}
