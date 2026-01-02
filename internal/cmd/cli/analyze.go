@@ -270,6 +270,10 @@ func (a *Analyze) printDiagnosticsSummary(w io.Writer, diag *Diagnostics) {
 	commitIssues := len(diag.GitReposWithCommitMismatch)
 	fmt.Fprintf(tw, "  Commit Mismatches:\t%d\t%s\n", commitIssues, statusIcon(commitIssues))
 
+	// GitRepos last polled too long ago
+	pollingIssues := len(diag.GitReposUnpolled)
+	fmt.Fprintf(tw, "  GitRepos last polled too long ago:\t%d\t%s\n", pollingIssues, statusIcon(pollingIssues))
+
 	// Deletion Timestamps
 	if diag.BundlesWithDeletionTimestamp > 0 || diag.BundleDeploymentsWithDeletionTimestamp > 0 || diag.ContentsWithDeletionTimestamp > 0 {
 		fmt.Fprintln(tw, "  Deletion Timestamps:")
@@ -405,6 +409,7 @@ func (a *Analyze) printBundleSizeChanges(w io.Writer, before, after *Snapshot) {
 	}
 }
 
+//nolint:gocyclo
 func (a *Analyze) outputIssues(cmd *cobra.Command, snapshots []*Snapshot) error {
 	w := cmd.OutOrStdout()
 	snapshot := snapshots[len(snapshots)-1]
@@ -500,6 +505,17 @@ func (a *Analyze) outputIssues(cmd *cobra.Command, snapshots []*Snapshot) error 
 				size = *b.SizeBytes
 			}
 			fmt.Fprintf(w, "  • %s/%s (%dKB)\n", b.Namespace, b.Name, size/1024)
+		}
+	}
+
+	// Unpolled GitRepos
+	if len(diag.GitReposUnpolled) > 0 {
+		hasIssues = true
+		fmt.Fprintln(w)
+		printWarning(w, fmt.Sprintf("GitRepos last polled too long ago (%d)", len(diag.GitReposUnpolled)))
+		for _, gr := range diag.GitReposUnpolled {
+			fmt.Fprintf(w, "  • %s/%s (last polled: %s, polling interval: %s)\n",
+				gr.Namespace, gr.Name, gr.LastPollingTime, gr.PollingInterval)
 		}
 	}
 

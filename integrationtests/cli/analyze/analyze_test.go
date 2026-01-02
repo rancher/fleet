@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -190,11 +191,15 @@ var _ = Describe("Fleet analyze", func() {
 			gitRepo1.Status.Commit = "b785d408903225ed0ff86d22a749779f200561d7"
 			gitRepo1.Status.PollingCommit = "cf70b2422b58c878b56c0b2a1ccce368a4a6ed33"
 
+			// older than (default) polling interval
+			gitRepo1.Status.LastPollingTime = metav1.NewTime(time.Now().Add(time.Minute * -1))
+
 			err = k8sClient.Status().Update(ctx, gitRepo1)
 			Expect(err).ToNot(HaveOccurred())
 
 			gitRepo2.Status.Commit = "b785d408903225ed0ff86d22a749779f200561d7"
 			gitRepo2.Status.WebhookCommit = "cf70b2422b58c878b56c0b2a1ccce368a4a6ed33"
+			gitRepo2.Status.LastPollingTime = metav1.NewTime(time.Now().Add(-10 * time.Second))
 
 			err = k8sClient.Status().Update(ctx, gitRepo2)
 			Expect(err).ToNot(HaveOccurred())
@@ -270,6 +275,8 @@ var _ = Describe("Fleet analyze", func() {
 			Expect(output).To(ContainSubstring("Commit Mismatch"))
 			Expect(output).To(ContainSubstring(gitRepoName1))
 			Expect(output).To(ContainSubstring(gitRepoName2))
+
+			Expect(output).To(ContainSubstring("GitRepos last polled too long ago"))
 		})
 
 		It("should show issues in summary mode", func() {
@@ -282,6 +289,9 @@ var _ = Describe("Fleet analyze", func() {
 			Expect(output).To(MatchRegexp(`Stuck BundleDeployments:\s+\d+`))
 			Expect(output).To(MatchRegexp(`Generation Mismatches:\s+\d+`))
 			Expect(output).To(MatchRegexp(`Commit Mismatches:\s+2`))
+
+			// one with set, but too old, last polling time; another one with unset last polling time.
+			Expect(output).To(MatchRegexp(`GitRepos last polled too long ago:\s+2`))
 		})
 
 		It("should include issues in JSON output", func() {

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rancher/fleet/internal/cmd/controller/gitops/reconciler"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -178,6 +179,7 @@ func (m *Monitor) collectDiagnostics(
 		BundleDeploymentsWithMissingBundle:          m.convertBundleDeployments(m.detectBundleDeploymentsWithMissingBundle(bundleDeployments, bundles)),
 		GitReposWithCommitMismatch:                  m.convertGitRepos(m.detectGitReposWithCommitMismatch(gitRepos)),
 		GitReposWithGenerationMismatch:              m.convertGitRepos(m.detectGitReposWithGenerationMismatch(gitRepos)),
+		GitReposUnpolled:                            m.convertGitRepos(m.detectUnpolledGitRepos(gitRepos)),
 		BundlesWithGenerationMismatch:               m.convertBundles(m.detectBundlesWithGenerationMismatch(bundles)),
 		BundleDeploymentsWithSyncGenerationMismatch: m.convertBundleDeployments(m.detectBundleDeploymentsWithSyncGenerationMismatch(bundleDeployments)),
 		OrphanedSecretsCount:                        len(orphanedSecrets),
@@ -595,6 +597,28 @@ func (m *Monitor) detectGitReposWithCommitMismatch(gitRepos []fleet.GitRepo) []f
 	}
 
 	return mismatchedGitRepos
+}
+
+// detectUnpolledGitRepos detects GitRepos which last poll happened too long ago considering their polling intervals.
+// It uses default polling interval settings set in Fleet controllers if no interval is set.
+func (m *Monitor) detectUnpolledGitRepos(gitRepos []fleet.GitRepo) []fleet.GitRepo {
+	var unpolledGitRepos []fleet.GitRepo
+
+	for _, gr := range gitRepos {
+		var interval time.Duration
+
+		if gr.Spec.PollingInterval == nil || gr.Spec.PollingInterval.Duration == 0 {
+			interval = reconciler.GetPollingIntervalDuration(&gr)
+		} else {
+			interval = gr.Spec.PollingInterval.Duration
+		}
+
+		if gr.Status.LastPollingTime.Time.Before(time.Now().Add(-1 * interval)) {
+			unpolledGitRepos = append(unpolledGitRepos, gr)
+		}
+	}
+
+	return unpolledGitRepos
 }
 
 // detectGitReposWithGenerationMismatch detects GitRepos with generation != observedGeneration

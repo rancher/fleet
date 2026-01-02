@@ -16,6 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	command "github.com/rancher/fleet/internal/cmd"
+	"github.com/rancher/fleet/internal/cmd/controller/gitops/reconciler"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 )
@@ -262,16 +263,18 @@ type ControllerInfo struct {
 }
 
 type GitRepoInfo struct {
-	Namespace           string `json:"namespace"`
-	Name                string `json:"name"`
-	Generation          int64  `json:"generation"`
-	ObservedGeneration  int64  `json:"observedGeneration,omitempty"`
-	Commit              string `json:"commit,omitempty"`
-	PollingCommit       string `json:"pollingCommit,omitempty"`
-	WebhookCommit       string `json:"webhookCommit,omitempty"`
-	ForceSyncGeneration int64  `json:"forceSyncGeneration,omitempty"`
-	Ready               bool   `json:"ready"`
-	ReadyMessage        string `json:"readyMessage,omitempty"`
+	Namespace           string        `json:"namespace"`
+	Name                string        `json:"name"`
+	Generation          int64         `json:"generation"`
+	ObservedGeneration  int64         `json:"observedGeneration,omitempty"`
+	Commit              string        `json:"commit,omitempty"`
+	PollingCommit       string        `json:"pollingCommit,omitempty"`
+	WebhookCommit       string        `json:"webhookCommit,omitempty"`
+	LastPollingTime     time.Time     `json:"lastPollingTime,omitempty"`
+	PollingInterval     time.Duration `json:"pollingInterval,omitempty"`
+	ForceSyncGeneration int64         `json:"forceSyncGeneration,omitempty"`
+	Ready               bool          `json:"ready"`
+	ReadyMessage        string        `json:"readyMessage,omitempty"`
 }
 
 type BundleInfo struct {
@@ -383,6 +386,7 @@ type Diagnostics struct {
 	BundleDeploymentsWithMissingBundle          []BundleDeploymentInfo   `json:"bundleDeploymentsWithMissingBundle,omitempty"`
 	GitReposWithCommitMismatch                  []GitRepoInfo            `json:"gitReposWithCommitMismatch,omitempty"`
 	GitReposWithGenerationMismatch              []GitRepoInfo            `json:"gitReposWithGenerationMismatch,omitempty"`
+	GitReposUnpolled                            []GitRepoInfo            `json:"gitReposUnpolled,omitempty"`
 	BundlesWithGenerationMismatch               []BundleInfo             `json:"bundlesWithGenerationMismatch,omitempty"`
 	BundleDeploymentsWithSyncGenerationMismatch []BundleDeploymentInfo   `json:"bundleDeploymentsWithSyncGenerationMismatch,omitempty"`
 	OrphanedSecretsCount                        int                      `json:"orphanedSecretsCount,omitempty"`
@@ -562,7 +566,14 @@ func (m *Monitor) convertGitRepos(gitRepos []fleet.GitRepo) []GitRepoInfo {
 			Commit:              gr.Status.Commit,
 			PollingCommit:       gr.Status.PollingCommit,
 			WebhookCommit:       gr.Status.WebhookCommit,
+			LastPollingTime:     gr.Status.LastPollingTime.Time,
 			ForceSyncGeneration: gr.Spec.ForceSyncGeneration,
+		}
+
+		if gr.Spec.PollingInterval == nil || gr.Spec.PollingInterval.Duration == 0 {
+			info.PollingInterval = reconciler.GetPollingIntervalDuration(&gr)
+		} else {
+			info.PollingInterval = gr.Spec.PollingInterval.Duration
 		}
 
 		// Extract ready status
