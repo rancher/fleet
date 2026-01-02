@@ -367,24 +367,24 @@ type APIConsistency struct {
 
 type Diagnostics struct {
 	StuckBundleDeployments                      []BundleDeploymentInfo   `json:"stuckBundleDeployments,omitempty"`
-	GitRepoBundleInconsistencies                []BundleInfo             `json:"gitrepoBundleInconsistencies,omitempty"`
+	GitRepoBundleInconsistencies                []BundleInfo             `json:"gitRepoBundleInconsistencies,omitempty"`
 	InvalidSecretOwners                         []SecretInfo             `json:"invalidSecretOwners,omitempty"`
 	ResourcesWithMultipleFinalizers             []ResourceWithFinalizers `json:"resourcesWithMultipleFinalizers,omitempty"`
 	LargeBundles                                []BundleInfo             `json:"largeBundles,omitempty"`
 	BundlesWithMissingContent                   []BundleInfo             `json:"bundlesWithMissingContent,omitempty"`
 	BundlesWithNoDeployments                    []BundleInfo             `json:"bundlesWithNoDeployments,omitempty"`
-	GitReposWithNoBundles                       []GitRepoInfo            `json:"gitreposWithNoBundles,omitempty"`
+	GitReposWithNoBundles                       []GitRepoInfo            `json:"gitReposWithNoBundles,omitempty"`
 	ClustersWithAgentIssues                     []ClusterInfo            `json:"clustersWithAgentIssues,omitempty"`
-	ClusterGroupsWithNoClusters                 []ClusterGroupInfo       `json:"clustergroupsWithNoClusters,omitempty"`
-	BundlesWithMissingGitRepo                   []BundleInfo             `json:"bundlesWithMissingGitrepo,omitempty"`
-	BundleDeploymentsWithMissingBundle          []BundleDeploymentInfo   `json:"bundledeploymentsWithMissingBundle,omitempty"`
-	GitReposWithGenerationMismatch              []GitRepoInfo            `json:"gitreposWithGenerationMismatch,omitempty"`
+	ClusterGroupsWithNoClusters                 []ClusterGroupInfo       `json:"clusterGroupsWithNoClusters,omitempty"`
+	BundlesWithMissingGitRepo                   []BundleInfo             `json:"bundlesWithMissingGitRepo,omitempty"`
+	BundleDeploymentsWithMissingBundle          []BundleDeploymentInfo   `json:"bundleDeploymentsWithMissingBundle,omitempty"`
+	GitReposWithGenerationMismatch              []GitRepoInfo            `json:"gitReposWithGenerationMismatch,omitempty"`
 	BundlesWithGenerationMismatch               []BundleInfo             `json:"bundlesWithGenerationMismatch,omitempty"`
-	BundleDeploymentsWithSyncGenerationMismatch []BundleDeploymentInfo   `json:"bundledeploymentsWithSyncGenerationMismatch,omitempty"`
+	BundleDeploymentsWithSyncGenerationMismatch []BundleDeploymentInfo   `json:"bundleDeploymentsWithSyncGenerationMismatch,omitempty"`
 	OrphanedSecretsCount                        int                      `json:"orphanedSecretsCount,omitempty"`
 	InvalidSecretOwnersCount                    int                      `json:"invalidSecretOwnersCount,omitempty"`
 	ContentIssuesCount                          int                      `json:"contentIssuesCount,omitempty"`
-	GitRepoBundleInconsistenciesCount           int                      `json:"gitrepoBundleInconsistenciesCount,omitempty"`
+	GitRepoBundleInconsistenciesCount           int                      `json:"gitRepoBundleInconsistenciesCount,omitempty"`
 	ResourcesWithMultipleFinalizersCount        int                      `json:"resourcesWithMultipleFinalizersCount,omitempty"`
 	BundlesWithDeletionTimestamp                int                      `json:"bundlesWithDeletionTimestamp,omitempty"`
 	BundleDeploymentsWithDeletionTimestamp      int                      `json:"bundleDeploymentsWithDeletionTimestamp,omitempty"`

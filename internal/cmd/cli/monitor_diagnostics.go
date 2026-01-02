@@ -190,7 +190,7 @@ func (m *Monitor) collectDiagnostics(
 	}
 }
 
-// detectStuckBundleDeployments identifies bundledeployments stuck due to various issues
+// detectStuckBundleDeployments identifies BundleDeployments stuck due to various issues
 func (m *Monitor) detectStuckBundleDeployments(bundleDeployments []fleet.BundleDeployment) []fleet.BundleDeployment {
 	var stuckBundleDeployments []fleet.BundleDeployment
 	for _, bd := range bundleDeployments {
@@ -290,7 +290,7 @@ func (m *Monitor) countBundlesWithDeletionTimestamp(bundles []fleet.Bundle) int 
 	return count
 }
 
-// countBundleDeploymentsWithDeletionTimestamp counts bundledeployments with deletion timestamps
+// countBundleDeploymentsWithDeletionTimestamp counts BundleDeployments with deletion timestamps
 func (m *Monitor) countBundleDeploymentsWithDeletionTimestamp(bundleDeployments []fleet.BundleDeployment) int {
 	count := 0
 	for _, bd := range bundleDeployments {
