@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 	"unicode/utf8"
 
 	"github.com/hashicorp/go-getter/v2"
@@ -24,6 +25,15 @@ import (
 	"github.com/rancher/fleet/internal/helmupdater"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
+
+var (
+	gitHTTPSCloneMutex sync.Mutex
+)
+
+// Getter abstracts the go-getter client for testing.
+type Getter interface {
+	Get(ctx context.Context, req *getter.Request) (*getter.GetResult, error)
+}
 
 // ignoreTree represents a tree of ignored paths (read from .fleetignore files), each node being a directory.
 // It provides a means for ignored paths to be propagated down the tree, but not between subdirectories of a same
@@ -251,27 +261,7 @@ func GetContent(ctx context.Context, base, source, version string, auth Auth, di
 		GetMode: getter.ModeDir,
 	}
 
-	if auth.CABundle != nil {
-		file, err := os.CreateTemp("", "cabundle-*")
-		if err != nil {
-			return nil, err
-		}
-		if _, err := file.Write(auth.CABundle); err != nil {
-			return nil, err
-		}
-		file.Close()
-		defer os.Remove(file.Name())
-
-		os.Setenv("GIT_SSL_CAINFO", file.Name())
-		defer os.Unsetenv("GIT_SSL_CAINFO")
-	}
-
-	if auth.InsecureSkipVerify {
-		os.Setenv("GIT_SSL_NO_VERIFY", "true")
-		defer os.Unsetenv("GIT_SSL_NO_VERIFY")
-	}
-
-	if _, err := client.Get(ctx, req); err != nil {
+	if err := get(ctx, client, req, auth); err != nil {
 		return nil, fmt.Errorf("retrieving file from %q: %w", source, err)
 	}
 
@@ -426,6 +416,63 @@ func downloadOCIChart(name, version, path string, auth Auth) (string, error) {
 	}
 
 	return saved, nil
+}
+
+// get performs the actual get operation, handling the mutex and environment variables for git-over-HTTPS operations.
+func get(ctx context.Context, client Getter, req *getter.Request, auth Auth) error {
+	if needsGitSSLEnvVars(req, auth) {
+		gitHTTPSCloneMutex.Lock()
+		defer gitHTTPSCloneMutex.Unlock()
+	}
+
+	if auth.CABundle != nil {
+		file, err := os.CreateTemp("", "cabundle-*")
+		if err != nil {
+			return err
+		}
+		defer os.Remove(file.Name())
+
+		if _, err := file.Write(auth.CABundle); err != nil {
+			file.Close()
+			return err
+		}
+		file.Close()
+
+		os.Setenv("GIT_SSL_CAINFO", file.Name())
+		defer os.Unsetenv("GIT_SSL_CAINFO")
+	}
+
+	if auth.InsecureSkipVerify {
+		os.Setenv("GIT_SSL_NO_VERIFY", "true")
+		defer os.Unsetenv("GIT_SSL_NO_VERIFY")
+	}
+
+	_, err := client.Get(ctx, req)
+	return err
+}
+
+// needsGitSSLEnvVars checks whether the request will use git over HTTPS with custom TLS settings that require
+// environment variables (and thus mutex protection).
+func needsGitSSLEnvVars(req *getter.Request, auth Auth) bool {
+	if auth.CABundle == nil && !auth.InsecureSkipVerify {
+		return false
+	}
+
+	src := req.Src
+
+	// Check for explicit git::https:// prefix
+	if strings.HasPrefix(src, "git::https://") {
+		return true
+	}
+
+	// Check for shorthand URLs that go-getter's GitHubDetector/GitLabDetector will transform to git::https://
+	// internally. The GitGetter.Detect() method strips the "git::" prefix when storing back to req.Src, so we need to
+	// detect these patterns directly. These patterns match what go-getter's detectors recognize.
+	if strings.HasPrefix(src, "github.com/") || strings.HasPrefix(src, "gitlab.com/") || strings.HasPrefix(src, "bitbucket.org/") {
+		return true
+	}
+
+	return false
 }
 
 func newHttpGetter(auth Auth) *getter.HttpGetter {

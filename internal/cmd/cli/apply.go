@@ -44,7 +44,7 @@ type Apply struct {
 	OutputArgsNoDefault
 	Label                        map[string]string `usage:"Labels to apply to created bundles" short:"l"`
 	TargetsFile                  string            `usage:"Addition source of targets and restrictions to be append"`
-	Compress                     bool              `usage:"Force all resources to be compress" short:"c"`
+	Compress                     bool              `usage:"Force all resources to be compressed" short:"c"`
 	ServiceAccount               string            `usage:"Service account to assign to bundle created" short:"a"`
 	SyncGeneration               int               `usage:"Generation number used to force sync the deployment"`
 	TargetNamespace              string            `usage:"Ensure this bundle goes to this target namespace"`
