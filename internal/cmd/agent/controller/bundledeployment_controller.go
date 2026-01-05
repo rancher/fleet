@@ -338,6 +338,7 @@ func (r *BundleDeploymentReconciler) copyResourcesFromUpstream(
 
 			updated := s.DeepCopy()
 			op, err := controllerutil.CreateOrUpdate(ctx, r.LocalClient, &s, func() error {
+				s.Type = updated.Type // important for e.g. image pull secrets
 				s.Data = updated.Data
 				s.StringData = updated.StringData
 
