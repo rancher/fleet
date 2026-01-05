@@ -35,7 +35,7 @@ func newTestRepository(t *testing.T, remoteUrl string) *git.Repository {
 	return r
 }
 
-func newTestRepositoryWithRemote(t *testing.T, remoteName, remoteURL string) *git.Repository {
+/* func newTestRepositoryWithRemote(t *testing.T, remoteName, remoteURL string) *git.Repository {
 	t.Helper()
 
 	fs := memfs.New()
@@ -53,7 +53,7 @@ func newTestRepositoryWithRemote(t *testing.T, remoteName, remoteURL string) *gi
 	}
 
 	return r
-}
+} */
 
 // =============================================================================
 // Integration tests - Strategy behavior verification

@@ -18,14 +18,14 @@ import (
 )
 
 type MockFetcher struct {
-	FetchFunc func(ctx context.Context, opts *plumbing.Hash) error
+	FetchFunc  func(ctx context.Context, opts *plumbing.Hash) error
 	FetchCalls []plumbing.Hash
 }
 
 func (m *MockFetcher) Fetch(ctx context.Context, opts *plumbing.Hash) error {
 	m.FetchCalls = append(m.FetchCalls, *opts)
 	if m.FetchFunc != nil {
-		return m.FetchFunc(ctx,opts)
+		return m.FetchFunc(ctx, opts)
 	}
 	return nil
 }
@@ -40,12 +40,11 @@ func mockFetcherFactory(mock *MockFetcher) FetcherFactory {
 	}
 }
 
-func mockFetcherFactoryWithError(err error) FetcherFactory {
+/* func mockFetcherFactoryWithError(err error) FetcherFactory {
 	return func(auth transport.AuthMethod, repo *git.Repository) (SubmoduleFetcher, error) {
 		return nil, err
 	}
-}
-
+} */
 
 // =============================================================================
 // Test repository helpers
@@ -70,6 +69,7 @@ func newBareRepo(t *testing.T) *git.Repository {
 	return repo
 }
 
+//nolint:unparam // submodulePath kept for test clarity
 func newRepoWithSubmodule(t *testing.T, submodulePath, submoduleURL string, submoduleHash plumbing.Hash) *git.Repository {
 	t.Helper()
 	storage := memory.NewStorage()
@@ -82,8 +82,8 @@ func newRepoWithSubmodule(t *testing.T, submodulePath, submoduleURL string, subm
 
 	// Creating .gitmodules
 	gitmodulesContent := "[submodule \"" + submodulePath + "\"]\n" +
-	"\tpath = " + submodulePath + "\n" +
-	"\turl = " + submoduleURL + "\n"
+		"\tpath = " + submodulePath + "\n" +
+		"\turl = " + submoduleURL + "\n"
 
 	f, err := fs.Create(".gitmodules")
 	if err != nil {
@@ -101,7 +101,7 @@ func newRepoWithSubmodule(t *testing.T, submodulePath, submoduleURL string, subm
 		t.Fatalf("failed to create submodule dir: %v", err)
 	}
 
-	// Adding .gitmodules to the index 
+	// Adding .gitmodules to the index
 	wt, err := repo.Worktree()
 	if err != nil {
 		t.Fatalf("failed to get worktree: %v", err)
@@ -122,7 +122,6 @@ func newRepoWithSubmodule(t *testing.T, submodulePath, submoduleURL string, subm
 		Name: submodulePath,
 		Mode: filemode.Submodule,
 	})
-
 
 	if err := repo.Storer.SetIndex(idx); err != nil {
 		t.Fatalf("failed to set index: %v", err)
@@ -156,11 +155,9 @@ func getSubmodules(t *testing.T, repo *git.Repository) git.Submodules {
 	return subs
 }
 
-
 // =============================================================================
 // Tests
 // =============================================================================
-
 
 func TestSubmoduleUpdater_NoSubmodules(t *testing.T) {
 	mock := &MockFetcher{}
@@ -295,7 +292,6 @@ func TestSubmoduleUpdater_NoRecurseSubmodules(t *testing.T) {
 	}
 }
 
-
 func TestSubmoduleUpdater_RecurseSubmodulesDecrement(t *testing.T) {
 	// This test verifies that RecurseSubmodules gets decremented.
 	// We cannot test full recursion without real nested submodules,
@@ -322,7 +318,6 @@ func TestSubmoduleUpdater_RecurseSubmodulesDecrement(t *testing.T) {
 		t.Fatal("expected at least 1 fetch call")
 	}
 }
-
 
 func TestSubmoduleUpdater_MultipleSubmodules(t *testing.T) {
 	mock := &MockFetcher{}
@@ -358,11 +353,19 @@ func TestSubmoduleUpdater_MultipleSubmodules(t *testing.T) {
 	f.Close()
 
 	// Create directories
-	fs.MkdirAll("sub1", 0755)
-	fs.MkdirAll("sub2", 0755)
-
+	err = fs.MkdirAll("sub1", 0755)
+	if err != nil {
+		t.Fatalf("failed to create the directory sub1: %v", err)
+	}
+	err = fs.MkdirAll("sub2", 0755)
+	if err != nil {
+		t.Fatalf("failed to create the directory sub2: %v", err)
+	}
 	wt, _ := repo.Worktree()
-	wt.Add(".gitmodules")
+	_, err = wt.Add(".gitmodules")
+	if err != nil {
+		t.Fatalf("failed to add the .gitmodules file to the index: %v", err)
+	}
 
 	// Add both submodules to the index
 	idx, _ := repo.Storer.Index()
@@ -374,11 +377,17 @@ func TestSubmoduleUpdater_MultipleSubmodules(t *testing.T) {
 		&index.Entry{Hash: hash1, Name: "sub1", Mode: filemode.Submodule},
 		&index.Entry{Hash: hash2, Name: "sub2", Mode: filemode.Submodule},
 	)
-	repo.Storer.SetIndex(idx)
+	err = repo.Storer.SetIndex(idx)
+	if err != nil {
+		t.Fatalf("failed to set up the index: %v", err)
+	}
 
-	wt.Commit("Add submodules", &git.CommitOptions{
+	_, err = wt.Commit("Add submodules", &git.CommitOptions{
 		Author: &object.Signature{Name: "Test", Email: "test@example.com", When: time.Now()},
 	})
+	if err != nil {
+		t.Fatalf("failed to commit staged changes: %v", err)
+	}
 
 	// Run update - it will fail but the mock records the calls
 	_ = updater.UpdateSubmodules(repo, &git.SubmoduleUpdateOptions{})
@@ -444,7 +453,7 @@ func TestPackageLevel_SubmoduleUpdateContext(t *testing.T) {
 
 	// Will fail because submodule repo doesn't exist, but exercises the code path
 	err := SubmoduleUpdateContext(context.Background(), subs[0], &git.SubmoduleUpdateOptions{})
-	
+
 	// We expect an error since the submodule repo doesn't actually exist
 	if err == nil {
 		t.Log("no error returned - submodule might have been processed")

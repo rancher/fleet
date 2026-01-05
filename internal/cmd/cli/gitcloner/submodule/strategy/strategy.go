@@ -2,14 +2,14 @@ package strategy
 
 import (
 	"fmt"
+
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
-
 )
 
 type CheckoutOptions struct {
-	Hash           plumbing.Hash
-	//SparsePatterns []string
+	Hash plumbing.Hash
+	// SparsePatterns []string
 }
 
 // Checkout performs a git checkout to the specified hash.

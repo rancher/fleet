@@ -1,13 +1,13 @@
 package capability
 
 import (
-	"github.com/go-git/go-git/v5/plumbing/protocol/packp/capability"
-	"testing"
 	"errors"
 	"strings"
-	"github.com/go-git/go-git/v5/plumbing/transport"
-	"github.com/go-git/go-git/v5/plumbing/protocol/packp"
+	"testing"
 
+	"github.com/go-git/go-git/v5/plumbing/protocol/packp"
+	"github.com/go-git/go-git/v5/plumbing/protocol/packp/capability"
+	"github.com/go-git/go-git/v5/plumbing/transport"
 )
 
 func TestCapabilities_CanFetchBySHA(t *testing.T) {
@@ -322,7 +322,6 @@ func TestDetect_PassesURLAndAuth(t *testing.T) {
 		t.Errorf("URL not passed correctly: got %s, want %s", factory.lastURL, expectedURL)
 	}
 }
-
 
 func TestNewDefaultSessionFactory(t *testing.T) {
 	factory := NewDefaultSessionFactory()

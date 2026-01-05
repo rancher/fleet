@@ -14,7 +14,7 @@ import (
 // FullCloneStrategy fetches the entire repository (all branches and tags).
 // This is the fallback strategy when no optimizations are available.
 type FullCloneStrategy struct {
-	auth transport.AuthMethod
+	auth         transport.AuthMethod
 	fetchFunc    FetchFunc
 	checkoutFunc CheckoutFunc
 }

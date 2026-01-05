@@ -300,10 +300,8 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 				if !cmp.Equal(updateSubmodulesOptsCalled, test.expectedSubmoduleUpdateOpts, sshKeyComparer) {
 					t.Fatalf("expected submodule update options %v, got %v", test.expectedSubmoduleUpdateOpts, updateSubmodulesOptsCalled)
 				}
-			} else {
-				if updateSubmodulesCalled {
-					t.Fatal("expected updateSubmodules NOT to be called, but it was")
-				}
+			} else if updateSubmodulesCalled {
+				t.Fatal("expected updateSubmodules NOT to be called, but it was")
 			}
 
 			if !cmp.Equal(transport.UnsupportedCapabilities, []capability.Capability{capability.ThinPack}) {

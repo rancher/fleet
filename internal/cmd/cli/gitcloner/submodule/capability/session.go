@@ -29,7 +29,6 @@ func NewDefaultSessionFactory() *DefaultSessionFactory {
 	return &DefaultSessionFactory{}
 }
 
-
 // NewSession creates a new upload-pack session to the specified Git server.
 func (f *DefaultSessionFactory) NewSession(url string, auth transport.AuthMethod) (UploadPackSession, error) {
 	endpoint, err := transport.NewEndpoint(url)

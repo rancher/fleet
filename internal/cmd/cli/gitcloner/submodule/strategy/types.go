@@ -2,11 +2,10 @@ package strategy
 
 import (
 	"context"
+
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 )
-
-
 
 // FetchFunc performs a git fetch operation
 type FetchFunc func(ctx context.Context, r *git.Repository) error

@@ -86,7 +86,7 @@ func TestNewFetcher_noRemote(t *testing.T) {
 
 func TestNewFetcher_RemoteNoURLs(t *testing.T) {
 	repo, _ := git.Init(memory.NewStorage(), nil)
-	//nolint:errcheck // CreateRemote fails with empty URLs, but we need this invalid state to test NewFetcher
+
 	_, _ = repo.CreateRemote(&config.RemoteConfig{
 		Name: "origin",
 		URLs: []string{},
@@ -136,7 +136,7 @@ func TestFetch_Success(t *testing.T) {
 	r := newTestRepository(t, testURL)
 	caps := &capability.Capabilities{Shallow: true}
 
-	//Setup expectations
+	// Setup expectations
 	mockDetector.EXPECT().
 		Detect(testURL, nil).
 		Return(caps, nil)
@@ -436,7 +436,7 @@ func TestStrategiesWithExpectedCounts(t *testing.T) {
 	ctx := context.Background()
 
 	for strategyType, expectedCount := range expectedObjectCounts {
-		t.Run(string(strategyType.String()), func(t *testing.T) {
+		t.Run(strategyType.String(), func(t *testing.T) {
 			repo := newTestRepository(t, fixtureRepoURL)
 
 			fetcher, err := NewFetcher(

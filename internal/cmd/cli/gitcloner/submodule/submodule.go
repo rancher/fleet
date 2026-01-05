@@ -10,10 +10,7 @@ import (
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/transport"
-
 )
-
-
 
 type SubmoduleFetcher interface {
 	Fetch(ctx context.Context, opt *plumbing.Hash) error
@@ -21,7 +18,7 @@ type SubmoduleFetcher interface {
 
 type FetcherFactory func(auth transport.AuthMethod, repo *git.Repository) (SubmoduleFetcher, error)
 
-func DefaultFetcherFactory(auth transport.AuthMethod, repo *git.Repository) (SubmoduleFetcher,error) {
+func DefaultFetcherFactory(auth transport.AuthMethod, repo *git.Repository) (SubmoduleFetcher, error) {
 	return NewFetcher(auth, repo)
 }
 
@@ -47,7 +44,7 @@ func NewSubmoduleUpdater(opts ...UpdaterOption) *SubmoduleUpdater {
 }
 
 func (u *SubmoduleUpdater) UpdateSubmodules(r *git.Repository, o *git.SubmoduleUpdateOptions) error {
-	w , err := r.Worktree()
+	w, err := r.Worktree()
 	if errors.Is(err, git.ErrIsBareRepository) {
 		return fmt.Errorf("repository is bare: %w", err)
 	}
@@ -59,7 +56,7 @@ func (u *SubmoduleUpdater) UpdateSubmodules(r *git.Repository, o *git.SubmoduleU
 	if err != nil {
 		return fmt.Errorf("getting submodules: %w", err)
 	}
-		o.Init = true
+	o.Init = true
 	return u.UpdateContext(context.Background(), s, o)
 }
 
@@ -75,7 +72,6 @@ func (u *SubmoduleUpdater) UpdateContext(ctx context.Context, s git.Submodules, 
 func (u *SubmoduleUpdater) submoduleUpdateContext(ctx context.Context, s *git.Submodule, o *git.SubmoduleUpdateOptions) error {
 	return u.update(ctx, s, o)
 }
-
 
 func (u *SubmoduleUpdater) update(ctx context.Context, s *git.Submodule, o *git.SubmoduleUpdateOptions) error {
 	if err := s.Init(); err != nil {
@@ -97,14 +93,14 @@ func (u *SubmoduleUpdater) update(ctx context.Context, s *git.Submodule, o *git.
 		return fmt.Errorf("creating fetcher: %w", err)
 	}
 
-	if err := f.Fetch(ctx,&status.Expected); err != nil {
+	if err := f.Fetch(ctx, &status.Expected); err != nil {
 		return fmt.Errorf("fetching submodule: %w", err)
 	}
 
-	return u.doRecursiveUpdate(ctx, s, r, o)
+	return u.doRecursiveUpdate(ctx, r, o)
 }
 
-func (u *SubmoduleUpdater) doRecursiveUpdate(ctx context.Context, s *git.Submodule, r *git.Repository, o *git.SubmoduleUpdateOptions) error {
+func (u *SubmoduleUpdater) doRecursiveUpdate(ctx context.Context, r *git.Repository, o *git.SubmoduleUpdateOptions) error {
 	if o.RecurseSubmodules == git.NoRecurseSubmodules {
 		return nil
 	}

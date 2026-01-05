@@ -2,6 +2,7 @@ package capability
 
 import (
 	"fmt"
+
 	"github.com/go-git/go-git/v5/plumbing/protocol/packp/capability"
 	"github.com/go-git/go-git/v5/plumbing/transport"
 )
@@ -14,7 +15,6 @@ type Capabilities struct {
 }
 
 type StrategyType int
-
 
 const (
 	StrategyShallowSHA StrategyType = iota
@@ -38,14 +38,12 @@ type CapabilityDetector struct {
 	factory SessionFactory
 }
 
-
 // NewCapabilityDetector creates a new CapabilityDetector with the default session factory.
 func NewCapabilityDetector() *CapabilityDetector {
 	return &CapabilityDetector{
 		factory: NewDefaultSessionFactory(),
 	}
 }
-
 
 // NewCapabilityDetectorWithFactory creates a new CapabilityDetector with a custom session factory.
 func NewCapabilityDetectorWithFactory(factory SessionFactory) *CapabilityDetector {
@@ -63,7 +61,7 @@ func (d *CapabilityDetector) Detect(url string, auth transport.AuthMethod) (*Cap
 		return nil, fmt.Errorf("create session: %w", err)
 	}
 	defer session.Close()
-    // The connection is created only when you start to use the session
+	// The connection is created only when you start to use the session
 	advRefs, err := session.AdvertisedReferences()
 	if err != nil {
 		return nil, fmt.Errorf("get advertised refs: %w", err)

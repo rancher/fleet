@@ -6,8 +6,8 @@ import (
 
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
-	"github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/rancher/fleet/internal/cmd/cli/gitcloner/submodule/capability"
 )
 
@@ -15,12 +15,12 @@ import (
 // This is the most efficient strategy when the server supports both
 // allow-reachable-sha1-in-want and shallow.
 type ShallowSHAStrategy struct {
-	auth transport.AuthMethod
+	auth         transport.AuthMethod
 	fetchFunc    FetchFunc
 	checkoutFunc CheckoutFunc
 }
 
-func  NewShallowSHAStrategy(auth transport.AuthMethod) *ShallowSHAStrategy {
+func NewShallowSHAStrategy(auth transport.AuthMethod) *ShallowSHAStrategy {
 	s := &ShallowSHAStrategy{auth: auth}
 	s.checkoutFunc = defaultCheckout
 	return s
@@ -30,7 +30,7 @@ func (s *ShallowSHAStrategy) Type() capability.StrategyType {
 	return capability.StrategyShallowSHA
 }
 
-func (s *ShallowSHAStrategy) Execute(ctx context.Context,r *git.Repository, req plumbing.Hash) error {
+func (s *ShallowSHAStrategy) Execute(ctx context.Context, r *git.Repository, req plumbing.Hash) error {
 	fetchFunc := s.fetchFunc
 	if fetchFunc == nil {
 		fetchFunc = s.defaultFetch(req)

@@ -84,7 +84,7 @@ func TestFullCloneStrategy_CheckoutError(t *testing.T) {
 		},
 	}
 
-	CommitHash :=  plumbing.NewHash("abc123")
+	CommitHash := plumbing.NewHash("abc123")
 	err := s.Execute(context.Background(), nil, CommitHash)
 
 	if err == nil {
@@ -107,7 +107,7 @@ func TestFullCloneStrategy_ContextCancellation(t *testing.T) {
 			return nil
 		},
 	}
-	CommitHash :=  plumbing.NewHash("abc123")
+	CommitHash := plumbing.NewHash("abc123")
 	err := s.Execute(ctx, nil, CommitHash)
 
 	if err == nil {

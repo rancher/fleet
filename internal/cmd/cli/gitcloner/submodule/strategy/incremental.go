@@ -2,6 +2,7 @@ package strategy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/go-git/go-git/v5"
@@ -43,7 +44,7 @@ func (s *IncrementalDeepenStrategy) Execute(ctx context.Context, r *git.Reposito
 	for depth := 1; depth <= MaxDeepenIterations; depth++ {
 		err := s.fetchFunc(ctx, r, depth)
 		// "already up-to-date" is not a real error, it just means nothing new was fetched
-		if err != nil && err != git.NoErrAlreadyUpToDate {
+		if err != nil && !errors.Is(err, git.NoErrAlreadyUpToDate) {
 			return fmt.Errorf("fetch at depth %d: %w", depth, err)
 		}
 
