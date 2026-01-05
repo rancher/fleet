@@ -4,6 +4,8 @@ import (
 	"errors"
 	"os"
 	"testing"
+	"time"
+	"strings"
 
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/protocol/packp/capability"
@@ -12,6 +14,8 @@ import (
 	gossh "github.com/go-git/go-git/v5/plumbing/transport/ssh"
 	"github.com/google/go-cmp/cmp"
 	"github.com/rancher/fleet/internal/cmd/cli/gitcloner/submodule"
+	"github.com/go-git/go-git/v5/plumbing/object"
+
 )
 
 type fakeGetter struct{}
@@ -50,6 +54,8 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 		pathCalled      string
 		isBareCalled    bool
 		cloneOptsCalled *git.CloneOptions
+		updateSubmodulesCalled       bool
+		updateSubmodulesOptsCalled   *git.SubmoduleUpdateOptions
 	)
 
 	sshAuth, _ := gossh.NewPublicKeys("git", []byte(sshPrivateKeyFileContent), "")
@@ -363,5 +369,252 @@ func TestCloneRepo_CloneError(t *testing.T) {
 	}
 	if updateSubmodulesCalled {
 		t.Fatal("expected updateSubmodules NOT to be called when clone fails")
+	}
+}
+
+func TestCloneRevision(t *testing.T) {
+	var (
+		cloneOptsCalled            *git.CloneOptions
+		updateSubmodulesCalled     bool
+		updateSubmodulesOptsCalled *git.SubmoduleUpdateOptions
+		//resolveRevisionCalled      string
+		//checkoutOptsCalled         *git.CheckoutOptions
+	)
+
+	// Create a temp directory with a real git repo for testing
+	tempDir := t.TempDir()
+
+	// Initialize a real git repository so we can use its methods
+	testRepo, err := git.PlainInit(tempDir, false)
+	if err != nil {
+		t.Fatalf("failed to init test repo: %v", err)
+	}
+
+	plainClone = func(path string, isBare bool, o *git.CloneOptions) (*git.Repository, error) {
+		cloneOptsCalled = o
+		return testRepo, nil
+	}
+	updateSubmodules = func(r *git.Repository, opts *git.SubmoduleUpdateOptions) error {
+		updateSubmodulesCalled = true
+		updateSubmodulesOptsCalled = opts
+		return nil
+	}
+
+	// We need to mock the repository methods, but go-git doesn't use interfaces
+	// So we'll test via integration with a real repo that has a commit
+	// First, create a commit in the test repo
+	wt, err := testRepo.Worktree()
+	if err != nil {
+		t.Fatalf("failed to get worktree: %v", err)
+	}
+
+	// Create a file and commit it
+	testFile := tempDir + "/test.txt"
+	if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
+	if _, err := wt.Add("test.txt"); err != nil {
+		t.Fatalf("failed to add file: %v", err)
+	}
+	commitHash, err := wt.Commit("test commit", &git.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test",
+			Email: "test@test.com",
+			When:  time.Now(),
+		},
+	})
+	if err != nil {
+		t.Fatalf("failed to commit: %v", err)
+	}
+
+	defer func() {
+		plainClone = git.PlainClone
+		updateSubmodules = submodule.UpdateSubmodules
+	}()
+
+	tests := map[string]struct {
+		opts              *GitCloner
+		expectedCloneOpts *git.CloneOptions
+		expectedErr       error
+	}{
+		"revision clone success": {
+			opts: &GitCloner{
+				Repo:     "https://repo",
+				Path:     "path",
+				Revision: commitHash.String(),
+			},
+			expectedCloneOpts: &git.CloneOptions{
+				URL:               "https://repo",
+				Depth:             1,
+				RecurseSubmodules: git.NoRecurseSubmodules,
+				Tags:              git.NoTags,
+			},
+		},
+		"revision clone with auth": {
+			opts: &GitCloner{
+				Repo:         "https://repo",
+				Path:         "path",
+				Revision:     commitHash.String(),
+				Username:     "user",
+				PasswordFile: "passFile",
+			},
+			expectedCloneOpts: &git.CloneOptions{
+				URL:   "https://repo",
+				Depth: 1,
+				Auth: &httpgit.BasicAuth{
+					Username: "user",
+					Password: "1234",
+				},
+				RecurseSubmodules: git.NoRecurseSubmodules,
+				Tags:              git.NoTags,
+			},
+		},
+	}
+
+	readFile = func(name string) ([]byte, error) {
+		if name == "passFile" {
+			return []byte("1234"), nil
+		}
+		return nil, errors.New("file not found")
+	}
+
+	for name, test := range tests {
+		cloneOptsCalled = nil
+		updateSubmodulesCalled = false
+		updateSubmodulesOptsCalled = nil
+/* 		resolveRevisionCalled = ""
+		checkoutOptsCalled = nil */
+
+		t.Run(name, func(t *testing.T) {
+			c := Cloner{}
+			err := c.CloneRepo(test.opts)
+
+			if test.expectedErr != nil {
+				if err == nil {
+					t.Fatalf("expected error [%v], got nil", test.expectedErr)
+				}
+				if err.Error() != test.expectedErr.Error() {
+					t.Fatalf("expected error [%s], got [%s]", test.expectedErr.Error(), err.Error())
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			// Verify clone options (revision clone doesn't use SingleBranch/ReferenceName)
+			if !cmp.Equal(cloneOptsCalled, test.expectedCloneOpts) {
+				t.Fatalf("expected clone options %+v, got %+v", test.expectedCloneOpts, cloneOptsCalled)
+			}
+
+			// Verify updateSubmodules was called
+			if !updateSubmodulesCalled {
+				t.Fatal("expected updateSubmodules to be called")
+			}
+
+			// Verify submodule update options
+			expectedSubmoduleOpts := &git.SubmoduleUpdateOptions{
+				Init:              true,
+				RecurseSubmodules: git.DefaultSubmoduleRecursionDepth,
+				Depth:             1,
+				Auth:              test.expectedCloneOpts.Auth,
+			}
+			if !cmp.Equal(updateSubmodulesOptsCalled, expectedSubmoduleOpts) {
+				t.Fatalf("expected submodule options %+v, got %+v", expectedSubmoduleOpts, updateSubmodulesOptsCalled)
+			}
+		})
+	}
+}
+
+func TestCloneRevision_ResolveRevisionError(t *testing.T) {
+	tempDir := t.TempDir()
+	testRepo, _ := git.PlainInit(tempDir, false)
+
+	plainClone = func(path string, isBare bool, o *git.CloneOptions) (*git.Repository, error) {
+		return testRepo, nil
+	}
+	defer func() {
+		plainClone = git.PlainClone
+	}()
+
+	c := Cloner{}
+	err := c.CloneRepo(&GitCloner{
+		Repo:     "https://repo",
+		Path:     "path",
+		Revision: "nonexistent-revision",
+	})
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "failed to resolve revision") {
+		t.Fatalf("expected 'failed to resolve revision' error, got: %s", err.Error())
+	}
+}
+
+func TestCloneRevision_CloneError(t *testing.T) {
+	plainClone = func(path string, isBare bool, o *git.CloneOptions) (*git.Repository, error) {
+		return nil, errors.New("clone failed")
+	}
+	defer func() {
+		plainClone = git.PlainClone
+	}()
+
+	c := Cloner{}
+	err := c.CloneRepo(&GitCloner{
+		Repo:     "https://repo",
+		Path:     "path",
+		Revision: "abc123",
+	})
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "failed to clone repo from revision") {
+		t.Fatalf("expected 'failed to clone repo from revision' error, got: %s", err.Error())
+	}
+}
+
+func TestCloneRevision_SubmoduleUpdateError(t *testing.T) {
+	tempDir := t.TempDir()
+	testRepo, _ := git.PlainInit(tempDir, false)
+
+	// Create a commit
+	wt, _ := testRepo.Worktree()
+	testFile := tempDir + "/test.txt"
+	os.WriteFile(testFile, []byte("test"), 0644)
+	wt.Add("test.txt")
+	commitHash, _ := wt.Commit("test commit", &git.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test",
+			Email: "test@test.com",
+			When:  time.Now(),
+		},
+	})
+
+	plainClone = func(path string, isBare bool, o *git.CloneOptions) (*git.Repository, error) {
+		return testRepo, nil
+	}
+	updateSubmodules = func(r *git.Repository, opts *git.SubmoduleUpdateOptions) error {
+		return errors.New("submodule update failed")
+	}
+	defer func() {
+		plainClone = git.PlainClone
+		updateSubmodules = submodule.UpdateSubmodules
+	}()
+
+	c := Cloner{}
+	err := c.CloneRepo(&GitCloner{
+		Repo:     "https://repo",
+		Path:     "path",
+		Revision: commitHash.String(),
+	})
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if err.Error() != "submodule update failed" {
+		t.Fatalf("expected 'submodule update failed', got: %s", err.Error())
 	}
 }
