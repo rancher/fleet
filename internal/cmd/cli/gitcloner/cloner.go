@@ -79,14 +79,16 @@ func (c *Cloner) CloneRepo(opts *GitCloner) error {
 }
 
 func cloneBranch(opts *GitCloner, auth transport.AuthMethod, caBundle []byte) error {
-	_, err := plainClone(opts.Path, false, &git.CloneOptions{
+	r, err := plainClone(opts.Path, false, &git.CloneOptions{
 		URL:               opts.Repo,
+		Depth: 			   1,
 		Auth:              auth,
 		InsecureSkipTLS:   opts.InsecureSkipTLS,
 		CABundle:          caBundle,
 		SingleBranch:      true,
 		ReferenceName:     plumbing.ReferenceName(opts.Branch),
-		RecurseSubmodules: git.DefaultSubmoduleRecursionDepth,
+		RecurseSubmodules: git.NoRecurseSubmodules,
+		Tags: 			   git.NoTags,
 	})
 
 	if err != nil {
@@ -98,10 +100,12 @@ func cloneBranch(opts *GitCloner, auth transport.AuthMethod, caBundle []byte) er
 func cloneRevision(opts *GitCloner, auth transport.AuthMethod, caBundle []byte) error {
 	r, err := plainClone(opts.Path, false, &git.CloneOptions{
 		URL:               opts.Repo,
+		Depth: 			   1,
 		Auth:              auth,
 		InsecureSkipTLS:   opts.InsecureSkipTLS,
 		CABundle:          caBundle,
-		RecurseSubmodules: git.DefaultSubmoduleRecursionDepth,
+		RecurseSubmodules: git.NoRecurseSubmodules,
+		Tags: 			   git.NoTags,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to clone repo from revision %s: %w", repo(opts), err)

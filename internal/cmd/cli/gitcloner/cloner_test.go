@@ -104,9 +104,11 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 			},
 			expectedCloneOpts: &git.CloneOptions{
 				URL:               "https://repo",
+				Depth:             1,
 				SingleBranch:      true,
 				ReferenceName:     "master",
-				RecurseSubmodules: git.DefaultSubmoduleRecursionDepth,
+				RecurseSubmodules: git.NoRecurseSubmodules,
+				Tags:              git.NoTags,
 			},
 		},
 		"branch basic auth": {
@@ -119,12 +121,16 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 			},
 			expectedCloneOpts: &git.CloneOptions{
 				URL:           "https://repo",
+				Depth: 1,
 				SingleBranch:  true,
 				ReferenceName: "master",
 				Auth: &httpgit.BasicAuth{
 					Username: "user",
 					Password: passwordFileContent,
 				},
+				RecurseSubmodules: git.NoRecurseSubmodules,
+				Tags:              git.NoTags,
+			},
 				RecurseSubmodules: git.DefaultSubmoduleRecursionDepth,
 			},
 		},
@@ -137,9 +143,11 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 			},
 			expectedCloneOpts: &git.CloneOptions{
 				URL:               "ssh://git@localhost/test/test-repo",
+				Depth: 1,
 				SingleBranch:      true,
 				ReferenceName:     "master",
 				Auth:              sshAuth,
+				RecurseSubmodules: git.NoRecurseSubmodules,
 				RecurseSubmodules: git.DefaultSubmoduleRecursionDepth,
 			},
 		},
@@ -154,12 +162,16 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 			},
 			expectedCloneOpts: &git.CloneOptions{
 				URL:           "https://repo",
+				Depth: 1,
 				SingleBranch:  true,
 				ReferenceName: "master",
 				Auth: &httpgit.BasicAuth{
 					Username: "x-access-token",
 					Password: "token",
 				},
+				RecurseSubmodules: git.NoRecurseSubmodules,
+				Tags:              git.NoTags,
+			},
 				RecurseSubmodules: git.DefaultSubmoduleRecursionDepth,
 			},
 		},
