@@ -17,12 +17,14 @@ import (
 	fleetgithub "github.com/rancher/fleet/internal/github"
 	fleetssh "github.com/rancher/fleet/internal/ssh"
 	giturls "github.com/rancher/fleet/pkg/git-urls"
+	"github.com/rancher/fleet/internal/cmd/cli/gitcloner/submodule"
 )
 
 const defaultBranch = "master"
 
 var (
 	plainClone                              = git.PlainClone
+	updateSubmodules 						= submodule.UpdateSubmodules
 	readFile                                = os.ReadFile
 	fileStat                                = os.Stat
 	appAuthGetter fleetgithub.AppAuthGetter = fleetgithub.DefaultAppAuthGetter{}
@@ -92,8 +94,20 @@ func cloneBranch(opts *GitCloner, auth transport.AuthMethod, caBundle []byte) er
 	})
 
 	if err != nil {
-		return fmt.Errorf("failed to clone repo from branch %s: %w", repo(opts), err)
+		return fmt.Errorf("failed to clone main repo from branch %s: %w, skipping submodule clone", repo(opts), err)
 	}
+
+	submoduleUpdateOptions := &git.SubmoduleUpdateOptions{
+		Init: 			   true,
+		RecurseSubmodules: git.DefaultSubmoduleRecursionDepth,
+		Depth:             1,
+		Auth:              auth,
+	}
+
+	if err := updateSubmodules(r, submoduleUpdateOptions); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -121,6 +135,17 @@ func cloneRevision(opts *GitCloner, auth transport.AuthMethod, caBundle []byte) 
 
 	if err := w.Checkout(&git.CheckoutOptions{Hash: *h}); err != nil {
 		return fmt.Errorf("failed to checkout in worktree %s: %w", repo(opts), err)
+	}
+
+	submoduleUpdateOptions := &git.SubmoduleUpdateOptions{
+		Init: 			   true,
+		RecurseSubmodules: git.DefaultSubmoduleRecursionDepth,
+		Depth:             1,
+		Auth:              auth,
+	}
+
+	if err := updateSubmodules(r, submoduleUpdateOptions); err != nil {
+		return err
 	}
 
 	return nil
