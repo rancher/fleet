@@ -377,8 +377,6 @@ func TestCloneRevision(t *testing.T) {
 		cloneOptsCalled            *git.CloneOptions
 		updateSubmodulesCalled     bool
 		updateSubmodulesOptsCalled *git.SubmoduleUpdateOptions
-		//resolveRevisionCalled      string
-		//checkoutOptsCalled         *git.CheckoutOptions
 	)
 
 	// Create a temp directory with a real git repo for testing
@@ -482,8 +480,6 @@ func TestCloneRevision(t *testing.T) {
 		cloneOptsCalled = nil
 		updateSubmodulesCalled = false
 		updateSubmodulesOptsCalled = nil
-/* 		resolveRevisionCalled = ""
-		checkoutOptsCalled = nil */
 
 		t.Run(name, func(t *testing.T) {
 			c := Cloner{}

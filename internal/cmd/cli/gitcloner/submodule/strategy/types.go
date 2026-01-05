@@ -8,13 +8,13 @@ import (
 
 
 
-// FetchFunch perform a git fetch operation
+// FetchFunc performs a git fetch operation
 type FetchFunc func(ctx context.Context, r *git.Repository) error
 
-// CheckoutFunc perform a git chechout operation
+// CheckoutFunc performs a git chechout operation
 type CheckoutFunc func(r *git.Repository, hash *plumbing.Hash) error
 
-// CommitExistFunc check if a commit exists in the repository
+// CommitExistFunc checks if a commit exists in the repository
 type CommitExistsFunc func(r *git.Repository, hash plumbing.Hash) bool
 
 // DepthFetchFunc performs a git fetch at a specific depth

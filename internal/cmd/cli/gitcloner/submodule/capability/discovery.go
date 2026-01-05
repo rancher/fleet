@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/go-git/go-git/v5/plumbing/protocol/packp/capability"
 	"github.com/go-git/go-git/v5/plumbing/transport"
-	//"github.com/go-git/go-git/v5/plumbing/transport/client"
 )
 
 // Capabilities represents fetch-related capabilities advertised by a Git server.

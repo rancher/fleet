@@ -97,9 +97,6 @@ func (u *SubmoduleUpdater) update(ctx context.Context, s *git.Submodule, o *git.
 		return fmt.Errorf("creating fetcher: %w", err)
 	}
 
-/* 	fr := &strategy.FetchRequest{
-		CommitHash: status.Expected,
-	} */
 	if err := f.Fetch(ctx,&status.Expected); err != nil {
 		return fmt.Errorf("fetching submodule: %w", err)
 	}

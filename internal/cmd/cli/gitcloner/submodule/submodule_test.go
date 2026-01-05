@@ -80,7 +80,7 @@ func newRepoWithSubmodule(t *testing.T, submodulePath, submoduleURL string, subm
 		t.Fatalf("failed to init repo: %v", err)
 	}
 
-	// Creating .gitsubmodules
+	// Creating .gitmodules
 	gitmodulesContent := "[submodule \"" + submodulePath + "\"]\n" +
 	"\tpath = " + submodulePath + "\n" +
 	"\turl = " + submoduleURL + "\n"
@@ -98,7 +98,7 @@ func newRepoWithSubmodule(t *testing.T, submodulePath, submoduleURL string, subm
 		t.Fatalf("failed to create submodule dir: %v", err)
 	}
 
-	// Adding the .gitmodules to the index 
+	// Adding .gitmodules to the index 
 	wt, err := repo.Worktree()
 	if err != nil {
 		t.Fatalf("failed to get worktree: %v", err)
@@ -278,7 +278,7 @@ func TestSubmoduleUpdater_NoRecurseSubmodules(t *testing.T) {
 	submoduleHash := plumbing.NewHash("1234567890abcdef1234567890abcdef12345678")
 	repo := newRepoWithSubmodule(t, "mysubmodule", "https://github.com/example/repo.git", submoduleHash)
 
-	// Con NoRecurseSubmodules, doRecursiveUpdate should return early
+	// With NoRecurseSubmodules, doRecursiveUpdate should return early
 	opts := &git.SubmoduleUpdateOptions{
 		RecurseSubmodules: git.NoRecurseSubmodules,
 	}
