@@ -3,8 +3,6 @@ package submodule
 import (
 	"context"
 	"github.com/rancher/fleet/internal/cmd/cli/gitcloner/submodule/capability"
-	"github.com/rancher/fleet/internal/cmd/cli/gitcloner/submodule/strategy"
-
 	"github.com/rancher/fleet/internal/mocks"
 	"go.uber.org/mock/gomock"
 	"testing"
@@ -160,7 +158,7 @@ func TestFetch_Success(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = f.Fetch(context.Background(), &strategy.FetchRequest{})
+	err = f.Fetch(context.Background(), &plumbing.Hash{})
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -185,7 +183,7 @@ func TestFetch_DetectError(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = f.Fetch(context.Background(), &strategy.FetchRequest{})
+	err = f.Fetch(context.Background(), &plumbing.Hash{})
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -216,7 +214,7 @@ func TestFetch_StrategyNotFound(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = f.Fetch(context.Background(), &strategy.FetchRequest{})
+	err = f.Fetch(context.Background(), &plumbing.Hash{})
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -254,7 +252,7 @@ func TestFetch_StrategyError(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = f.Fetch(context.Background(), &strategy.FetchRequest{})
+	err = f.Fetch(context.Background(), &plumbing.Hash{})
 
 	if err == nil {
 		t.Fatal("expected error")
@@ -293,7 +291,7 @@ func TestFetch_NilCaps(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = f.Fetch(context.Background(), &strategy.FetchRequest{})
+	err = f.Fetch(context.Background(), &plumbing.Hash{})
 
 
 	if err != nil {
@@ -332,7 +330,7 @@ func TestFetch_WithForcedStrategy_BypassesDetection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = f.Fetch(context.Background(), &strategy.FetchRequest{})
+	err = f.Fetch(context.Background(), &plumbing.Hash{})
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -349,7 +347,7 @@ func TestFetch_WithForcedStrategy_Strategy_Not_Found(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = f.Fetch(context.Background(), &strategy.FetchRequest{})
+	err = f.Fetch(context.Background(), &plumbing.Hash{})
 	if err == nil {
 		t.Fatal("expected error for missing strategy")
 	}
@@ -377,7 +375,7 @@ func TestFetch_WithForcedStrategy_StrategyError (t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = f.Fetch(context.Background(), &strategy.FetchRequest{})
+	err = f.Fetch(context.Background(), &plumbing.Hash{})
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -453,9 +451,7 @@ func TestStrategiesWithExpectedCounts(t *testing.T) {
 			)
 			require.NoError(t, err)
 
-			err = fetcher.Fetch(ctx, &strategy.FetchRequest{
-				CommitHash: commitHash,
-			})
+			err = fetcher.Fetch(ctx, &commitHash)
 			require.NoError(t, err)
 
 			count := countObjects(t, repo)

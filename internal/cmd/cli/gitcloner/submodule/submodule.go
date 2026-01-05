@@ -8,15 +8,15 @@ import (
 	"fmt"
 
 	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/transport"
-	"github.com/rancher/fleet/internal/cmd/cli/gitcloner/submodule/strategy"
 
 )
 
 
 
 type SubmoduleFetcher interface {
-	Fetch(ctx context.Context, opt *strategy.FetchRequest) error
+	Fetch(ctx context.Context, opt *plumbing.Hash) error
 }
 
 type FetcherFactory func(auth transport.AuthMethod, repo *git.Repository) (SubmoduleFetcher, error)
@@ -97,10 +97,10 @@ func (u *SubmoduleUpdater) update(ctx context.Context, s *git.Submodule, o *git.
 		return fmt.Errorf("creating fetcher: %w", err)
 	}
 
-	fr := &strategy.FetchRequest{
+/* 	fr := &strategy.FetchRequest{
 		CommitHash: status.Expected,
-	}
-	if err := f.Fetch(ctx, fr); err != nil {
+	} */
+	if err := f.Fetch(ctx,&status.Expected); err != nil {
 		return fmt.Errorf("fetching submodule: %w", err)
 	}
 
@@ -141,4 +141,3 @@ func UpdateContext(ctx context.Context, s git.Submodules, o *git.SubmoduleUpdate
 func SubmoduleUpdateContext(ctx context.Context, s *git.Submodule, o *git.SubmoduleUpdateOptions) error {
 	return defaultUpdater.submoduleUpdateContext(ctx, s, o)
 }
-

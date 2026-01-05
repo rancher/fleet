@@ -28,18 +28,16 @@ func TestFullSHAStrategy_Success(t *testing.T) {
 			fetchCalled = true
 			return nil
 		},
-		checkoutFunc: func(r *git.Repository, hash plumbing.Hash) error {
+		checkoutFunc: func(r *git.Repository, hash *plumbing.Hash) error {
 			checkoutCalled = true
-			if hash != expectedHash {
+			if *hash != expectedHash {
 				t.Errorf("expected hash %v, got %v", expectedHash, hash)
 			}
 			return nil
 		},
 	}
 
-	err := s.Execute(context.Background(), nil, &FetchRequest{
-		CommitHash: expectedHash,
-	})
+	err := s.Execute(context.Background(), nil, expectedHash)
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -57,15 +55,13 @@ func TestFullSHAStrategy_FetchError(t *testing.T) {
 		fetchFunc: func(ctx context.Context, r *git.Repository) error {
 			return errors.New("network error")
 		},
-		checkoutFunc: func(r *git.Repository, hash plumbing.Hash) error {
+		checkoutFunc: func(r *git.Repository, hash *plumbing.Hash) error {
 			t.Fatal("checkout should not be called after fetch error")
 			return nil
 		},
 	}
-
-	err := s.Execute(context.Background(), nil, &FetchRequest{
-		CommitHash: plumbing.NewHash("abc123"),
-	})
+	CommitHash := plumbing.NewHash("abc123")
+	err := s.Execute(context.Background(), nil, CommitHash)
 
 	if err == nil {
 		t.Fatal("expected error")
@@ -83,14 +79,12 @@ func TestFullSHAStrategy_CheckoutError(t *testing.T) {
 		fetchFunc: func(ctx context.Context, r *git.Repository) error {
 			return nil
 		},
-		checkoutFunc: func(r *git.Repository, hash plumbing.Hash) error {
+		checkoutFunc: func(r *git.Repository, hash *plumbing.Hash) error {
 			return errors.New("checkout failed")
 		},
 	}
-
-	err := s.Execute(context.Background(), nil, &FetchRequest{
-		CommitHash: plumbing.NewHash("abc123"),
-	})
+	CommitHash := plumbing.NewHash("abc123")
+	err := s.Execute(context.Background(), nil, CommitHash)
 
 	if err == nil {
 		t.Fatal("expected error")
@@ -108,14 +102,12 @@ func TestFullSHAStrategy_ContextCancellation(t *testing.T) {
 		fetchFunc: func(ctx context.Context, r *git.Repository) error {
 			return ctx.Err()
 		},
-		checkoutFunc: func(r *git.Repository, hash plumbing.Hash) error {
+		checkoutFunc: func(r *git.Repository, hash *plumbing.Hash) error {
 			return nil
 		},
 	}
-
-	err := s.Execute(ctx, nil, &FetchRequest{
-		CommitHash: plumbing.NewHash("abc123"),
-	})
+	CommitHash := plumbing.NewHash("abc123")
+	err := s.Execute(ctx, nil, CommitHash)
 
 	if err == nil {
 		t.Fatal("expected error")

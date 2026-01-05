@@ -31,8 +31,8 @@ func Checkout(r *git.Repository, opts *CheckoutOptions) error {
 }
 
 // defaultCheckout is the default implementation of CheckoutFunc.
-func defaultCheckout(r *git.Repository, hash plumbing.Hash) error {
-	opts := &CheckoutOptions{Hash: hash}
+func defaultCheckout(r *git.Repository, hash *plumbing.Hash) error {
+	opts := &CheckoutOptions{Hash: *hash}
 	if err := Checkout(r, opts); err != nil {
 		return fmt.Errorf("checkout failed: %w", err)
 	}

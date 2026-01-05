@@ -13,7 +13,7 @@ import (
 	context "context"
 	reflect "reflect"
 
-	strategy "github.com/rancher/fleet/internal/cmd/cli/gitcloner/submodule/strategy"
+	plumbing "github.com/go-git/go-git/v5/plumbing"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -42,7 +42,7 @@ func (m *MockSubmoduleFetcher) EXPECT() *MockSubmoduleFetcherMockRecorder {
 }
 
 // Fetch mocks base method.
-func (m *MockSubmoduleFetcher) Fetch(ctx context.Context, opt *strategy.FetchRequest) error {
+func (m *MockSubmoduleFetcher) Fetch(ctx context.Context, opt *plumbing.Hash) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Fetch", ctx, opt)
 	ret0, _ := ret[0].(error)

@@ -31,18 +31,16 @@ func TestIncrementalDeepenStrategy_CommitFoundAtDepth1(t *testing.T) {
 		commitExistsFunc: func(r *git.Repository, hash plumbing.Hash) bool {
 			return true // commit found immediately
 		},
-		checkoutFunc: func(r *git.Repository, hash plumbing.Hash) error {
+		checkoutFunc: func(r *git.Repository, hash *plumbing.Hash) error {
 			checkoutCalled = true
-			if hash != expectedHash {
+			if *hash != expectedHash {
 				t.Errorf("expected hash %v, got %v", expectedHash, hash)
 			}
 			return nil
 		},
 	}
 
-	err := s.Execute(context.Background(), nil, &FetchRequest{
-		CommitHash: expectedHash,
-	})
+	err := s.Execute(context.Background(), nil, expectedHash)
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -67,14 +65,13 @@ func TestIncrementalDeepenStrategy_CommitFoundAtDepth5(t *testing.T) {
 		commitExistsFunc: func(r *git.Repository, hash plumbing.Hash) bool {
 			return fetchCalls >= targetDepth // found at depth 5
 		},
-		checkoutFunc: func(r *git.Repository, hash plumbing.Hash) error {
+		checkoutFunc: func(r *git.Repository, hash *plumbing.Hash) error {
 			return nil
 		},
 	}
 
-	err := s.Execute(context.Background(), nil, &FetchRequest{
-		CommitHash: plumbing.NewHash("abc123"),
-	})
+	CommitHash := plumbing.NewHash("abc123")
+	err := s.Execute(context.Background(), nil, CommitHash)
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -95,16 +92,14 @@ func TestIncrementalDeepenStrategy_CommitNotFound(t *testing.T) {
 		commitExistsFunc: func(r *git.Repository, hash plumbing.Hash) bool {
 			return false // commit NEVER found
 		},
-		checkoutFunc: func(r *git.Repository, hash plumbing.Hash) error {
+		checkoutFunc: func(r *git.Repository, hash *plumbing.Hash) error {
 			t.Fatal("checkout should not be called")
 			return nil
 		},
 	}
 
 	commitHash := plumbing.NewHash("abc123")
-	err := s.Execute(context.Background(), nil, &FetchRequest{
-		CommitHash: commitHash,
-	})
+	err := s.Execute(context.Background(), nil, commitHash)
 
 	if err == nil {
 		t.Fatal("expected error")
@@ -129,15 +124,13 @@ func TestIncrementalDeepenStrategy_FetchError(t *testing.T) {
 			t.Fatal("commitExists should not be called after fetch error")
 			return false
 		},
-		checkoutFunc: func(r *git.Repository, hash plumbing.Hash) error {
+		checkoutFunc: func(r *git.Repository, hash *plumbing.Hash) error {
 			t.Fatal("checkout should not be called after fetch error")
 			return nil
 		},
 	}
-
-	err := s.Execute(context.Background(), nil, &FetchRequest{
-		CommitHash: plumbing.NewHash("abc123"),
-	})
+	CommitHash := plumbing.NewHash("abc123")
+	err := s.Execute(context.Background(), nil, CommitHash)
 
 	if err == nil {
 		t.Fatal("expected error")
@@ -162,14 +155,12 @@ func TestIncrementalDeepenStrategy_FetchAlreadyUpToDate(t *testing.T) {
 		commitExistsFunc: func(r *git.Repository, hash plumbing.Hash) bool {
 			return fetchCalls >= 3 // found at depth 3
 		},
-		checkoutFunc: func(r *git.Repository, hash plumbing.Hash) error {
+		checkoutFunc: func(r *git.Repository, hash *plumbing.Hash) error {
 			return nil
 		},
 	}
-
-	err := s.Execute(context.Background(), nil, &FetchRequest{
-		CommitHash: plumbing.NewHash("abc123"),
-	})
+	CommitHash := plumbing.NewHash("abc123")
+	err := s.Execute(context.Background(), nil, CommitHash)
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -187,14 +178,12 @@ func TestIncrementalDeepenStrategy_CheckoutError(t *testing.T) {
 		commitExistsFunc: func(r *git.Repository, hash plumbing.Hash) bool {
 			return true
 		},
-		checkoutFunc: func(r *git.Repository, hash plumbing.Hash) error {
+		checkoutFunc: func(r *git.Repository, hash *plumbing.Hash) error {
 			return errors.New("checkout failed")
 		},
 	}
-
-	err := s.Execute(context.Background(), nil, &FetchRequest{
-		CommitHash: plumbing.NewHash("abc123"),
-	})
+	CommitHash := plumbing.NewHash("abc123")
+	err := s.Execute(context.Background(), nil, CommitHash)
 
 	if err == nil {
 		t.Fatal("expected error")
@@ -215,14 +204,12 @@ func TestIncrementalDeepenStrategy_ContextCancellation(t *testing.T) {
 		commitExistsFunc: func(r *git.Repository, hash plumbing.Hash) bool {
 			return false
 		},
-		checkoutFunc: func(r *git.Repository, hash plumbing.Hash) error {
+		checkoutFunc: func(r *git.Repository, hash *plumbing.Hash) error {
 			return nil
 		},
 	}
-
-	err := s.Execute(ctx, nil, &FetchRequest{
-		CommitHash: plumbing.NewHash("abc123"),
-	})
+	CommitHash := plumbing.NewHash("abc123")
+	err := s.Execute(ctx, nil, CommitHash)
 
 	if err == nil {
 		t.Fatal("expected error")
@@ -243,14 +230,12 @@ func TestIncrementalDeepenStrategy_DepthPassedCorrectly(t *testing.T) {
 		commitExistsFunc: func(r *git.Repository, hash plumbing.Hash) bool {
 			return len(depths) >= 3 // found at depth 3
 		},
-		checkoutFunc: func(r *git.Repository, hash plumbing.Hash) error {
+		checkoutFunc: func(r *git.Repository, hash *plumbing.Hash) error {
 			return nil
 		},
 	}
-
-	s.Execute(context.Background(), nil, &FetchRequest{
-		CommitHash: plumbing.NewHash("abc123"),
-	})
+	CommitHash := plumbing.NewHash("abc123")
+	s.Execute(context.Background(), nil, CommitHash)
 
 	expected := []int{1, 2, 3}
 	if len(depths) != len(expected) {

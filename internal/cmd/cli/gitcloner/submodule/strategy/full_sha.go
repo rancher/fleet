@@ -29,11 +29,11 @@ func (s *FullSHAStrategy) Type() capability.StrategyType {
 	return capability.StrategyFullSHA
 }
 
-func (s *FullSHAStrategy) Execute(ctx context.Context, r *git.Repository, req *FetchRequest) error {
+func (s *FullSHAStrategy) Execute(ctx context.Context, r *git.Repository, req plumbing.Hash) error {
 
 	fetchFunc := s.fetchFunc
 	if fetchFunc == nil {
-		fetchFunc = s.defaultFetch(req.CommitHash)
+		fetchFunc = s.defaultFetch(req)
 	}
 
 	err := fetchFunc(ctx, r)
@@ -41,7 +41,7 @@ func (s *FullSHAStrategy) Execute(ctx context.Context, r *git.Repository, req *F
 		return fmt.Errorf("fetch: %w", err)
 	}
 
-	if err := s.checkoutFunc(r, req.CommitHash); err != nil {
+	if err := s.checkoutFunc(r, &req); err != nil {
 		return err
 	}
 

@@ -7,7 +7,7 @@ import (
 	"fmt"
 
 	"github.com/go-git/go-git/v5"
-
+	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/rancher/fleet/internal/cmd/cli/gitcloner/submodule/capability"
 	"github.com/rancher/fleet/internal/cmd/cli/gitcloner/submodule/strategy"
@@ -15,7 +15,7 @@ import (
 
 type Strategy interface {
 	Type() capability.StrategyType
-	Execute(ctx context.Context, r *git.Repository, req *strategy.FetchRequest)  error
+	Execute(ctx context.Context, r *git.Repository, CommitHash plumbing.Hash)  error
 }
 
 type CapabilityDetector interface {
@@ -96,7 +96,7 @@ func NewFetcher(auth transport.AuthMethod, repo *git.Repository, opts ...Fetcher
 }
 
 
-func (f *Fetcher) Fetch(ctx context.Context, opts *strategy.FetchRequest) error {
+func (f *Fetcher) Fetch(ctx context.Context, opts *plumbing.Hash) error {
 	var strategyType capability.StrategyType
 
 	if f.forcedStrategy != nil {
@@ -118,7 +118,7 @@ func (f *Fetcher) Fetch(ctx context.Context, opts *strategy.FetchRequest) error 
 		return fmt.Errorf("strategy %s not implemented", strategyType)
 	}
 
-	err := st.Execute(ctx,f.repository, opts)
+	err := st.Execute(ctx,f.repository, *opts)
 	if err != nil {
 		return fmt.Errorf("fetch with strategy %s: %w", strategyType, err)
 	}

@@ -15,16 +15,15 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/go-git/go-git/v5/storage/memory"
-	"github.com/rancher/fleet/internal/cmd/cli/gitcloner/submodule/strategy"
 )
 
 type MockFetcher struct {
-	FetchFunc func(ctx context.Context, opts *strategy.FetchRequest) error
-	FetchCalls []*strategy.FetchRequest
+	FetchFunc func(ctx context.Context, opts *plumbing.Hash) error
+	FetchCalls []plumbing.Hash
 }
 
-func (m *MockFetcher) Fetch(ctx context.Context, opts *strategy.FetchRequest) error {
-	m.FetchCalls = append(m.FetchCalls, opts)
+func (m *MockFetcher) Fetch(ctx context.Context, opts *plumbing.Hash) error {
+	m.FetchCalls = append(m.FetchCalls, *opts)
 	if m.FetchFunc != nil {
 		return m.FetchFunc(ctx,opts)
 	}
@@ -198,7 +197,7 @@ func TestSubmoduleUpdater_BareRepository(t *testing.T) {
 func TestSubmoduleUpdater_FetchError(t *testing.T) {
 	fetchErr := errors.New("network timeout")
 	mock := &MockFetcher{
-		FetchFunc: func(ctx context.Context, opts *strategy.FetchRequest) error {
+		FetchFunc: func(ctx context.Context, opts *plumbing.Hash) error {
 			return fetchErr
 		},
 	}
@@ -236,8 +235,8 @@ func TestSubmoduleUpdater_FetchCalledWithCorrectHash(t *testing.T) {
 	if len(mock.FetchCalls) == 0 {
 		t.Fatal("expected at least 1 fetch call")
 	}
-	if mock.FetchCalls[0].CommitHash != expectedHash {
-		t.Errorf("expected hash %v, got %v", expectedHash, mock.FetchCalls[0].CommitHash)
+	if mock.FetchCalls[0] != expectedHash {
+		t.Errorf("expected hash %v, got %v", expectedHash, mock.FetchCalls[0])
 	}
 }
 
@@ -246,7 +245,7 @@ func TestSubmoduleUpdater_ContextCancellation(t *testing.T) {
 	cancel() // Cancel immediately
 
 	mock := &MockFetcher{
-		FetchFunc: func(ctx context.Context, opts *strategy.FetchRequest) error {
+		FetchFunc: func(ctx context.Context, opts *plumbing.Hash) error {
 			return ctx.Err()
 		},
 	}
@@ -385,7 +384,7 @@ func TestSubmoduleUpdater_MultipleSubmodules(t *testing.T) {
 	}
 
 	// The first processed submodule should have one of the two hashes
-	firstHash := mock.FetchCalls[0].CommitHash
+	firstHash := mock.FetchCalls[0]
 	if firstHash != hash1 && firstHash != hash2 {
 		t.Errorf("unexpected hash: %v", firstHash)
 	}

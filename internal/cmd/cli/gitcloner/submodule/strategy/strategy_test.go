@@ -111,18 +111,18 @@ func countObjects(t *testing.T, repo *git.Repository) int {
 
 
 // executeStrategy executes the appropriate strategy for the given type
-func executeStrategy(t *testing.T, ctx context.Context, repo *git.Repository, stratType capability.StrategyType, req *FetchRequest) error {
+func executeStrategy(t *testing.T, ctx context.Context, repo *git.Repository, stratType capability.StrategyType, req *plumbing.Hash) error {
 	t.Helper()
 
 	switch stratType {
 	case capability.StrategyShallowSHA:
-		return NewShallowSHAStrategy(nil).Execute(ctx, repo, req)
+		return NewShallowSHAStrategy(nil).Execute(ctx, repo, *req)
 	case capability.StrategyFullSHA:
-		return NewFullSHAStrategy(nil).Execute(ctx, repo, req)
+		return NewFullSHAStrategy(nil).Execute(ctx, repo, *req)
 	case capability.StrategyIncrementalDeepen:
-		return NewIncrementalStrategy(nil).Execute(ctx, repo, req)
+		return NewIncrementalStrategy(nil).Execute(ctx, repo, *req)
 	case capability.StrategyFullClone:
-		return NewFullCloneStrategy(nil).Execute(ctx, repo, req)
+		return NewFullCloneStrategy(nil).Execute(ctx, repo, *req)
 	default:
 		t.Fatalf("unknown strategy type: %v", stratType)
 		return nil
@@ -142,9 +142,7 @@ func TestStrategiesWithExpectedCounts(t *testing.T) {
 		t.Run(stratType.String(), func(t *testing.T) {
 			repo := newTestRepository(t, fixtureRepoURL)
 
-			err := executeStrategy(t, ctx, repo, stratType, &FetchRequest{
-				CommitHash: commitHash,
-			})
+			err := executeStrategy(t, ctx, repo, stratType, &commitHash)
 			require.NoError(t, err)
 
 			count := countObjects(t, repo)

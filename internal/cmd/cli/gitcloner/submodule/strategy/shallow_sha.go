@@ -30,10 +30,10 @@ func (s *ShallowSHAStrategy) Type() capability.StrategyType {
 	return capability.StrategyShallowSHA
 }
 
-func (s *ShallowSHAStrategy) Execute(ctx context.Context,r *git.Repository, req *FetchRequest) error {
+func (s *ShallowSHAStrategy) Execute(ctx context.Context,r *git.Repository, req plumbing.Hash) error {
 	fetchFunc := s.fetchFunc
 	if fetchFunc == nil {
-		fetchFunc = s.defaultFetch(req.CommitHash)
+		fetchFunc = s.defaultFetch(req)
 	}
 
 	err := fetchFunc(ctx, r)
@@ -41,7 +41,7 @@ func (s *ShallowSHAStrategy) Execute(ctx context.Context,r *git.Repository, req 
 		return fmt.Errorf("fetch: %w", err)
 	}
 
-	if err := s.checkoutFunc(r, req.CommitHash); err != nil {
+	if err := s.checkoutFunc(r, &req); err != nil {
 		return err
 	}
 
@@ -60,5 +60,3 @@ func (s *ShallowSHAStrategy) defaultFetch(hash plumbing.Hash) FetchFunc {
 		})
 	}
 }
-
-

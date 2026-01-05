@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
+	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/rancher/fleet/internal/cmd/cli/gitcloner/submodule/capability"
 )
@@ -37,7 +38,7 @@ func (s *IncrementalDeepenStrategy) Type() capability.StrategyType {
 	return capability.StrategyIncrementalDeepen
 }
 
-func (s *IncrementalDeepenStrategy) Execute(ctx context.Context, r *git.Repository, req *FetchRequest) error {
+func (s *IncrementalDeepenStrategy) Execute(ctx context.Context, r *git.Repository, req plumbing.Hash) error {
 	// Start with depth 1 and increase until we find the commit
 	for depth := 1; depth <= MaxDeepenIterations; depth++ {
 		err := s.fetchFunc(ctx, r, depth)
@@ -46,12 +47,12 @@ func (s *IncrementalDeepenStrategy) Execute(ctx context.Context, r *git.Reposito
 			return fmt.Errorf("fetch at depth %d: %w", depth, err)
 		}
 
-		if s.commitExistsFunc(r, req.CommitHash) {
-			return s.checkoutFunc(r, req.CommitHash)
+		if s.commitExistsFunc(r, req) {
+			return s.checkoutFunc(r, &req)
 		}
 	}
 
-	return fmt.Errorf("commit %s not found after deepening to %d", req.CommitHash, MaxDeepenIterations)
+	return fmt.Errorf("commit %s not found after deepening to %d", req, MaxDeepenIterations)
 }
 
 func (s *IncrementalDeepenStrategy) defaultFetch(ctx context.Context, r *git.Repository, depth int) error {

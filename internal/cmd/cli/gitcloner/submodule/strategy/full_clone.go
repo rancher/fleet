@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
+	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/rancher/fleet/internal/cmd/cli/gitcloner/submodule/capability"
 )
@@ -28,7 +29,7 @@ func (s *FullCloneStrategy) Type() capability.StrategyType {
 	return capability.StrategyFullClone
 }
 
-func (s *FullCloneStrategy) Execute(ctx context.Context, r *git.Repository, req *FetchRequest) error {
+func (s *FullCloneStrategy) Execute(ctx context.Context, r *git.Repository, req plumbing.Hash) error {
 	fetchFunc := s.fetchFunc
 	if fetchFunc == nil {
 		fetchFunc = s.defaultFetch()
@@ -38,7 +39,7 @@ func (s *FullCloneStrategy) Execute(ctx context.Context, r *git.Repository, req 
 		return fmt.Errorf("fetch: %w", err)
 	}
 
-	if err := s.checkoutFunc(r, req.CommitHash); err != nil {
+	if err := s.checkoutFunc(r, &req); err != nil {
 		return err
 	}
 
