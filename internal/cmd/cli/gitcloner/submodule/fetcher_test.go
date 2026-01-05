@@ -3,6 +3,7 @@ package submodule
 import (
 	"context"
 	"github.com/rancher/fleet/internal/cmd/cli/gitcloner/submodule/capability"
+
 	"github.com/rancher/fleet/internal/mocks"
 	"go.uber.org/mock/gomock"
 	"testing"
@@ -84,10 +85,12 @@ func TestNewFetcher_noRemote(t *testing.T) {
 
 func TestNewFetcher_RemoteNoURLs(t *testing.T) {
 	repo, _ := git.Init(memory.NewStorage(), nil)
-	repo.CreateRemote(&config.RemoteConfig{
+	//nolint:errcheck // CreateRemote fails with empty URLs, but we need this invalid state to test NewFetcher
+	_, _ = repo.CreateRemote(&config.RemoteConfig{
 		Name: "origin",
 		URLs: []string{},
 	})
+
 
 	_, err := NewFetcher(nil, repo)
 

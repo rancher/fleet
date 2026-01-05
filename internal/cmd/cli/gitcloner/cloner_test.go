@@ -579,8 +579,14 @@ func TestCloneRevision_SubmoduleUpdateError(t *testing.T) {
 	// Create a commit
 	wt, _ := testRepo.Worktree()
 	testFile := tempDir + "/test.txt"
-	os.WriteFile(testFile, []byte("test"), 0644)
-	wt.Add("test.txt")
+	err := os.WriteFile(testFile, []byte("test"), 0644)
+	if err != nil {
+		t.Fatalf("failed to create the file %s: %v", testFile, err)
+	}
+	_, err = wt.Add("test.txt")
+	if err != nil {
+		t.Fatalf("failed to add the file test.txt: %v", err)
+	}
 	commitHash, _ := wt.Commit("test commit", &git.CommitOptions{
 		Author: &object.Signature{
 			Name:  "Test",
@@ -601,7 +607,7 @@ func TestCloneRevision_SubmoduleUpdateError(t *testing.T) {
 	}()
 
 	c := Cloner{}
-	err := c.CloneRepo(&GitCloner{
+	err = c.CloneRepo(&GitCloner{
 		Repo:     "https://repo",
 		Path:     "path",
 		Revision: commitHash.String(),

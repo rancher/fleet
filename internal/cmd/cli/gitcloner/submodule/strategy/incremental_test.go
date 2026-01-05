@@ -235,8 +235,10 @@ func TestIncrementalDeepenStrategy_DepthPassedCorrectly(t *testing.T) {
 		},
 	}
 	CommitHash := plumbing.NewHash("abc123")
-	s.Execute(context.Background(), nil, CommitHash)
-
+	err := s.Execute(context.Background(), nil, CommitHash)
+	if err != nil {
+    	t.Fatalf("unexpected error: %v", err)
+	}
 	expected := []int{1, 2, 3}
 	if len(depths) != len(expected) {
 		t.Fatalf("expected %d depths, got %d", len(expected), len(depths))

@@ -57,27 +57,25 @@ func TestCapabilities_CanShallow(t *testing.T) {
 func TestCapabilitiesFromList(t *testing.T) {
 	tests := []struct {
 		name     string
-		setup    func(*capability.List)
+		caps     []capability.Capability
 		expected Capabilities
 	}{
 		{
 			name:     "empty",
-			setup:    func(c *capability.List) {},
+			caps:     nil,
 			expected: Capabilities{},
 		},
 		{
-			name: "shallow only",
-			setup: func(c *capability.List) {
-				c.Set(capability.Shallow)
-			},
+			name:     "shallow only",
+			caps:     []capability.Capability{capability.Shallow},
 			expected: Capabilities{Shallow: true},
 		},
 		{
 			name: "all capabilities",
-			setup: func(c *capability.List) {
-				c.Set(capability.AllowReachableSHA1InWant)
-				c.Set(capability.AllowTipSHA1InWant)
-				c.Set(capability.Shallow)
+			caps: []capability.Capability{
+				capability.AllowReachableSHA1InWant,
+				capability.AllowTipSHA1InWant,
+				capability.Shallow,
 			},
 			expected: Capabilities{
 				AllowReachableSHA1InWant: true,
@@ -89,17 +87,20 @@ func TestCapabilitiesFromList(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			caps := capability.NewList()
-			tt.setup(caps)
+			list := capability.NewList()
+			for _, c := range tt.caps {
+				if err := list.Set(c); err != nil {
+					t.Fatalf("failed to set capability %v: %v", c, err)
+				}
+			}
 
-			result := capabilitiesFromList(caps)
+			result := capabilitiesFromList(list)
 
 			if *result != tt.expected {
-				t.Errorf("got %+v, want %+v", result, tt.expected)
+				t.Errorf("got %+v, want %+v", *result, tt.expected)
 			}
 		})
 	}
-
 }
 
 func TestChooseStrategy(t *testing.T) {
@@ -207,16 +208,20 @@ func (f *mockSessionFactory) NewSession(url string, auth transport.AuthMethod) (
 
 // --- Helper ---
 
-func newAdvRefsWithCaps(caps ...capability.Capability) *packp.AdvRefs {
+func newAdvRefsWithCaps(t *testing.T, caps ...capability.Capability) *packp.AdvRefs {
+	t.Helper()
 	list := capability.NewList()
 	for _, c := range caps {
-		list.Set(c)
+		if err := list.Set(c); err != nil {
+			t.Fatalf("failed to set capability %v: %v", c, err)
+		}
 	}
 	return &packp.AdvRefs{Capabilities: list}
 }
 
 func TestDetect_Success(t *testing.T) {
 	advRefs := newAdvRefsWithCaps(
+		t,
 		capability.AllowReachableSHA1InWant,
 		capability.Shallow,
 	)
@@ -278,7 +283,7 @@ func TestDetect_AdvertisedRefsError(t *testing.T) {
 }
 
 func TestDetect_SessionClosed(t *testing.T) {
-	advRefs := newAdvRefsWithCaps()
+	advRefs := newAdvRefsWithCaps(t)
 	session := &mockSession{advRefs: advRefs}
 	factory := &mockSessionFactory{session: session}
 	detector := NewCapabilityDetectorWithFactory(factory)
@@ -305,7 +310,7 @@ func TestDetect_SessionClosedOnError(t *testing.T) {
 }
 
 func TestDetect_PassesURLAndAuth(t *testing.T) {
-	advRefs := newAdvRefsWithCaps()
+	advRefs := newAdvRefsWithCaps(t)
 	session := &mockSession{advRefs: advRefs}
 	factory := &mockSessionFactory{session: session}
 	detector := NewCapabilityDetectorWithFactory(factory)

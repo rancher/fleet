@@ -89,7 +89,10 @@ func newRepoWithSubmodule(t *testing.T, submodulePath, submoduleURL string, subm
 	if err != nil {
 		t.Fatalf("failed to create .gitmodules: %v", err)
 	}
-	f.Write([]byte(gitmodulesContent))
+	_, err = f.Write([]byte(gitmodulesContent))
+	if err != nil {
+		t.Fatalf("failed to create .gitmodules content: %v", err)
+	}
 	f.Close()
 
 	// Creating the submodule directory
@@ -348,7 +351,10 @@ func TestSubmoduleUpdater_MultipleSubmodules(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create .gitmodules: %v", err)
 	}
-	f.Write([]byte(gitmodulesContent))
+	_, err = f.Write([]byte(gitmodulesContent))
+	if err != nil {
+		t.Fatalf("failed to write  .gitmodules content: %v", err)
+	}
 	f.Close()
 
 	// Create directories
