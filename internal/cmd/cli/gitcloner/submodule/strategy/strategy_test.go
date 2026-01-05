@@ -1,15 +1,15 @@
 package strategy
 
-
 import (
 	"context"
-	"github.com/rancher/fleet/internal/cmd/cli/gitcloner/submodule/capability"
 	"testing"
-	"github.com/go-git/go-git/v5"
-	"github.com/go-git/go-git/v5/storage/memory"
+
 	"github.com/go-git/go-billy/v5/memfs"
+	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/storage/memory"
+	"github.com/rancher/fleet/internal/cmd/cli/gitcloner/submodule/capability"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -17,10 +17,10 @@ import (
 // =============================================================================
 // Repository tests
 // =============================================================================
-func newTestRepository(t *testing.T, remoteUrl string)  *git.Repository {
+func newTestRepository(t *testing.T, remoteUrl string) *git.Repository {
 	t.Helper()
 	fs := memfs.New()
-	r, err := git.Init(memory.NewStorage(),fs)
+	r, err := git.Init(memory.NewStorage(), fs)
 	if err != nil {
 		t.Fatalf("failed to init repo: %v", err)
 	}
@@ -54,8 +54,6 @@ func newTestRepositoryWithRemote(t *testing.T, remoteName, remoteURL string) *gi
 
 	return r
 }
-
-
 
 // =============================================================================
 // Integration tests - Strategy behavior verification
@@ -109,12 +107,11 @@ func countObjects(t *testing.T, repo *git.Repository) int {
 	return count
 }
 
-
 // executeStrategy executes the appropriate strategy for the given type
-func executeStrategy(t *testing.T, ctx context.Context, repo *git.Repository, stratType capability.StrategyType, req *plumbing.Hash) error {
+func executeStrategy(t *testing.T, ctx context.Context, repo *git.Repository, strategyType capability.StrategyType, req *plumbing.Hash) error {
 	t.Helper()
 
-	switch stratType {
+	switch strategyType {
 	case capability.StrategyShallowSHA:
 		return NewShallowSHAStrategy(nil).Execute(ctx, repo, *req)
 	case capability.StrategyFullSHA:
@@ -124,12 +121,10 @@ func executeStrategy(t *testing.T, ctx context.Context, repo *git.Repository, st
 	case capability.StrategyFullClone:
 		return NewFullCloneStrategy(nil).Execute(ctx, repo, *req)
 	default:
-		t.Fatalf("unknown strategy type: %v", stratType)
+		t.Fatalf("unknown strategy type: %v", strategyType)
 		return nil
 	}
 }
-
-
 
 // TestStrategiesWithExpectedCounts verifies that each strategy produces
 // exactly the expected number of objects
@@ -138,17 +133,17 @@ func TestStrategiesWithExpectedCounts(t *testing.T) {
 	commitHash := plumbing.NewHash(fixtureCommitSHA)
 	ctx := context.Background()
 
-	for stratType, expectedCount := range expectedObjectCounts {
-		t.Run(stratType.String(), func(t *testing.T) {
+	for strategyType, expectedCount := range expectedObjectCounts {
+		t.Run(strategyType.String(), func(t *testing.T) {
 			repo := newTestRepository(t, fixtureRepoURL)
 
-			err := executeStrategy(t, ctx, repo, stratType, &commitHash)
+			err := executeStrategy(t, ctx, repo, strategyType, &commitHash)
 			require.NoError(t, err)
 
 			count := countObjects(t, repo)
 			assert.Equal(t, expectedCount, count,
 				"Strategy %s should produce exactly %d objects, got %d",
-				stratType, expectedCount, count)
+				strategyType, expectedCount, count)
 		})
 	}
 }

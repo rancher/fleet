@@ -2,28 +2,30 @@ package submodule
 
 import (
 	"context"
+
 	"github.com/rancher/fleet/internal/cmd/cli/gitcloner/submodule/capability"
 
-	"github.com/rancher/fleet/internal/mocks"
-	"go.uber.org/mock/gomock"
-	"testing"
 	"errors"
+	"testing"
+
+	"github.com/go-git/go-billy/v5/memfs"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
-	"github.com/go-git/go-billy/v5/memfs"
-	"github.com/go-git/go-git/v5/storage/memory"
 	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/storage/memory"
+	"github.com/rancher/fleet/internal/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 )
 
 // =============================================================================
 // Repository tests
 // =============================================================================
-func newTestRepository(t *testing.T, remoteUrl string)  *git.Repository {
+func newTestRepository(t *testing.T, remoteUrl string) *git.Repository {
 	t.Helper()
 	fs := memfs.New()
-	r, err := git.Init(memory.NewStorage(),fs)
+	r, err := git.Init(memory.NewStorage(), fs)
 	if err != nil {
 		t.Fatalf("failed to init repo: %v", err)
 	}
@@ -58,14 +60,13 @@ func newTestRepositoryWithRemote(t *testing.T, remoteName, remoteURL string) *gi
 	return r
 }
 
-
 // =============================================================================
 // NewFetcher tests
 // =============================================================================
 
 func TestNewFetcher_Success(t *testing.T) {
 	r := newTestRepository(t, "https://github.com/test/repo.git")
-	f, err := NewFetcher(nil,r)
+	f, err := NewFetcher(nil, r)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -90,7 +91,6 @@ func TestNewFetcher_RemoteNoURLs(t *testing.T) {
 		Name: "origin",
 		URLs: []string{},
 	})
-
 
 	_, err := NewFetcher(nil, repo)
 
@@ -121,11 +121,9 @@ func TestNewFetcher_WithCustomRemoteName_NotFound(t *testing.T) {
 	}
 }
 
-
 // =============================================================================
 // Fetch tests
 // =============================================================================
-
 
 func TestFetch_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -148,7 +146,7 @@ func TestFetch_Success(t *testing.T) {
 		Return(capability.StrategyShallowSHA)
 
 	mockStrategy.EXPECT().
-		Execute(gomock.Any(), gomock.Any(),gomock.Any()).
+		Execute(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil)
 
 	f, err := NewFetcher(nil, r,
@@ -174,7 +172,6 @@ func TestFetch_DetectError(t *testing.T) {
 	mockDetector := mocks.NewMockCapabilityDetector(ctrl)
 	r := newTestRepository(t, "https://github.com/test/repo.git")
 
-
 	mockDetector.EXPECT().
 		Detect(gomock.Any(), gomock.Any()).
 		Return(nil, errors.New("connection refused"))
@@ -191,7 +188,6 @@ func TestFetch_DetectError(t *testing.T) {
 		t.Fatal("expected error")
 	}
 }
-
 
 func TestFetch_StrategyNotFound(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -242,7 +238,7 @@ func TestFetch_StrategyError(t *testing.T) {
 		Return(capability.StrategyShallowSHA)
 
 	mockStrategy.EXPECT().
-		Execute(gomock.Any(), gomock.Any(),gomock.Any()).
+		Execute(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(errors.New("fetch failed"))
 
 	f, err := NewFetcher(nil, r,
@@ -269,7 +265,6 @@ func TestFetch_NilCaps(t *testing.T) {
 	mockDetector := mocks.NewMockCapabilityDetector(ctrl)
 	mockStrategy := mocks.NewMockStrategy(ctrl)
 
-
 	r := newTestRepository(t, "https://github.com/test/repo.git")
 
 	mockDetector.EXPECT().
@@ -281,7 +276,7 @@ func TestFetch_NilCaps(t *testing.T) {
 		Return(capability.StrategyFullClone)
 
 	mockStrategy.EXPECT().
-		Execute(gomock.Any(), gomock.Any(),gomock.Any()).
+		Execute(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil)
 
 	f, err := NewFetcher(nil, r,
@@ -296,12 +291,10 @@ func TestFetch_NilCaps(t *testing.T) {
 
 	err = f.Fetch(context.Background(), &plumbing.Hash{})
 
-
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
 }
-
 
 // =============================================================================
 // WithForcedStrategy tests (unit tests with mocks)
@@ -320,7 +313,7 @@ func TestFetch_WithForcedStrategy_BypassesDetection(t *testing.T) {
 	// no EXPECT calls for mockDetector
 
 	mockStrategy.EXPECT().
-		Execute(gomock.Any(),gomock.Any(),gomock.Any()).
+		Execute(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil)
 
 	f, err := NewFetcher(nil, r,
@@ -340,7 +333,7 @@ func TestFetch_WithForcedStrategy_BypassesDetection(t *testing.T) {
 }
 
 func TestFetch_WithForcedStrategy_Strategy_Not_Found(t *testing.T) {
-	r := newTestRepository(t,"https://github.com/test/repo.git")
+	r := newTestRepository(t, "https://github.com/test/repo.git")
 
 	f, err := NewFetcher(nil, r,
 		WithStrategies(map[capability.StrategyType]Strategy{}),
@@ -356,13 +349,12 @@ func TestFetch_WithForcedStrategy_Strategy_Not_Found(t *testing.T) {
 	}
 }
 
-
-func TestFetch_WithForcedStrategy_StrategyError (t *testing.T) {
+func TestFetch_WithForcedStrategy_StrategyError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mockStrategy := mocks.NewMockStrategy(ctrl)
-	r := newTestRepository(t,"https://github.com/test/repo.git")
+	r := newTestRepository(t, "https://github.com/test/repo.git")
 
 	mockStrategy.EXPECT().
 		Execute(gomock.Any(), gomock.Any(), gomock.Any()).
@@ -383,6 +375,7 @@ func TestFetch_WithForcedStrategy_StrategyError (t *testing.T) {
 		t.Fatal("expected error")
 	}
 }
+
 // =============================================================================
 // Integration tests - Strategy behavior verification
 // =============================================================================
@@ -409,13 +402,13 @@ var expectedObjectCounts = map[capability.StrategyType]int{
 	capability.StrategyShallowSHA: 6,
 
 	// FullSHA: all commits up to that SHA + trees + blobs
-	capability.StrategyFullSHA: 13, 
+	capability.StrategyFullSHA: 13,
 
 	//  Incremental Shallow:  all the commit from the tip to the commit  + tree + blobs
 	capability.StrategyIncrementalDeepen: 24,
 
 	// FullClone: entire repository
-	capability.StrategyFullClone: 31, 
+	capability.StrategyFullClone: 31,
 }
 
 // countObjects counts all objects in the repository
@@ -435,7 +428,6 @@ func countObjects(t *testing.T, repo *git.Repository) int {
 	return count
 }
 
-
 // TestStrategiesWithExpectedCounts verifies that each strategy produces
 // exactly the expected number of objects
 func TestStrategiesWithExpectedCounts(t *testing.T) {
@@ -443,14 +435,14 @@ func TestStrategiesWithExpectedCounts(t *testing.T) {
 	commitHash := plumbing.NewHash(fixtureCommitSHA)
 	ctx := context.Background()
 
-	for stratType, expectedCount := range expectedObjectCounts {
-		t.Run(string(stratType.String()), func(t *testing.T) {
+	for strategyType, expectedCount := range expectedObjectCounts {
+		t.Run(string(strategyType.String()), func(t *testing.T) {
 			repo := newTestRepository(t, fixtureRepoURL)
 
 			fetcher, err := NewFetcher(
 				nil,
 				repo,
-				WithForcedStrategy(stratType),
+				WithForcedStrategy(strategyType),
 			)
 			require.NoError(t, err)
 
@@ -460,7 +452,7 @@ func TestStrategiesWithExpectedCounts(t *testing.T) {
 			count := countObjects(t, repo)
 			assert.Equal(t, expectedCount, count,
 				"Strategy %s should produce exactly %d objects, got %d",
-				stratType, expectedCount, count)
+				strategyType, expectedCount, count)
 		})
 	}
 }

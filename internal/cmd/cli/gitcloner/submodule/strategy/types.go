@@ -11,7 +11,7 @@ import (
 // FetchFunc performs a git fetch operation
 type FetchFunc func(ctx context.Context, r *git.Repository) error
 
-// CheckoutFunc performs a git chechout operation
+// CheckoutFunc performs a git checkout operation
 type CheckoutFunc func(r *git.Repository, hash *plumbing.Hash) error
 
 // CommitExistFunc checks if a commit exists in the repository

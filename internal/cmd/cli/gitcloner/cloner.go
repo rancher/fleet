@@ -14,20 +14,20 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/rancher/fleet/internal/cmd/cli/gitcloner/submodule"
 	fleetgithub "github.com/rancher/fleet/internal/github"
 	fleetssh "github.com/rancher/fleet/internal/ssh"
 	giturls "github.com/rancher/fleet/pkg/git-urls"
-	"github.com/rancher/fleet/internal/cmd/cli/gitcloner/submodule"
 )
 
 const defaultBranch = "master"
 
 var (
-	plainClone                              = git.PlainClone
-	updateSubmodules 						= submodule.UpdateSubmodules
-	readFile                                = os.ReadFile
-	fileStat                                = os.Stat
-	appAuthGetter fleetgithub.AppAuthGetter = fleetgithub.DefaultAppAuthGetter{}
+	plainClone                                 = git.PlainClone
+	updateSubmodules                           = submodule.UpdateSubmodules
+	readFile                                   = os.ReadFile
+	fileStat                                   = os.Stat
+	appAuthGetter    fleetgithub.AppAuthGetter = fleetgithub.DefaultAppAuthGetter{}
 )
 
 type Cloner struct{}
@@ -83,14 +83,14 @@ func (c *Cloner) CloneRepo(opts *GitCloner) error {
 func cloneBranch(opts *GitCloner, auth transport.AuthMethod, caBundle []byte) error {
 	r, err := plainClone(opts.Path, false, &git.CloneOptions{
 		URL:               opts.Repo,
-		Depth: 			   1,
+		Depth:             1,
 		Auth:              auth,
 		InsecureSkipTLS:   opts.InsecureSkipTLS,
 		CABundle:          caBundle,
 		SingleBranch:      true,
 		ReferenceName:     plumbing.ReferenceName(opts.Branch),
 		RecurseSubmodules: git.NoRecurseSubmodules,
-		Tags: 			   git.NoTags,
+		Tags:              git.NoTags,
 	})
 
 	if err != nil {
@@ -98,7 +98,7 @@ func cloneBranch(opts *GitCloner, auth transport.AuthMethod, caBundle []byte) er
 	}
 
 	submoduleUpdateOptions := &git.SubmoduleUpdateOptions{
-		Init: 			   true,
+		Init:              true,
 		RecurseSubmodules: git.DefaultSubmoduleRecursionDepth,
 		Depth:             1,
 		Auth:              auth,
@@ -114,12 +114,12 @@ func cloneBranch(opts *GitCloner, auth transport.AuthMethod, caBundle []byte) er
 func cloneRevision(opts *GitCloner, auth transport.AuthMethod, caBundle []byte) error {
 	r, err := plainClone(opts.Path, false, &git.CloneOptions{
 		URL:               opts.Repo,
-		Depth: 			   1,
+		Depth:             1,
 		Auth:              auth,
 		InsecureSkipTLS:   opts.InsecureSkipTLS,
 		CABundle:          caBundle,
 		RecurseSubmodules: git.NoRecurseSubmodules,
-		Tags: 			   git.NoTags,
+		Tags:              git.NoTags,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to clone repo from revision %s: %w", repo(opts), err)
@@ -138,7 +138,7 @@ func cloneRevision(opts *GitCloner, auth transport.AuthMethod, caBundle []byte) 
 	}
 
 	submoduleUpdateOptions := &git.SubmoduleUpdateOptions{
-		Init: 			   true,
+		Init:              true,
 		RecurseSubmodules: git.DefaultSubmoduleRecursionDepth,
 		Depth:             1,
 		Auth:              auth,

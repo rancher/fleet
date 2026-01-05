@@ -3,19 +3,18 @@ package gitcloner
 import (
 	"errors"
 	"os"
+	"strings"
 	"testing"
 	"time"
-	"strings"
 
 	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/plumbing/protocol/packp/capability"
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	httpgit "github.com/go-git/go-git/v5/plumbing/transport/http"
 	gossh "github.com/go-git/go-git/v5/plumbing/transport/ssh"
 	"github.com/google/go-cmp/cmp"
 	"github.com/rancher/fleet/internal/cmd/cli/gitcloner/submodule"
-	"github.com/go-git/go-git/v5/plumbing/object"
-
 )
 
 type fakeGetter struct{}
@@ -51,11 +50,11 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 		githubAppKeyFile = "githubAppKeyFile"
 	)
 	var (
-		pathCalled      string
-		isBareCalled    bool
-		cloneOptsCalled *git.CloneOptions
-		updateSubmodulesCalled       bool
-		updateSubmodulesOptsCalled   *git.SubmoduleUpdateOptions
+		pathCalled                 string
+		isBareCalled               bool
+		cloneOptsCalled            *git.CloneOptions
+		updateSubmodulesCalled     bool
+		updateSubmodulesOptsCalled *git.SubmoduleUpdateOptions
 	)
 
 	sshAuth, _ := gossh.NewPublicKeys("git", []byte(sshPrivateKeyFileContent), "")
@@ -111,10 +110,10 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 	}
 
 	tests := map[string]struct {
-		opts              *GitCloner
-		expectedCloneOpts *git.CloneOptions
+		opts                        *GitCloner
+		expectedCloneOpts           *git.CloneOptions
 		expectedSubmoduleUpdateOpts *git.SubmoduleUpdateOptions
-		expectedErr       error
+		expectedErr                 error
 	}{
 		"branch no auth": {
 			opts: &GitCloner{
@@ -142,7 +141,7 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 			},
 			expectedCloneOpts: &git.CloneOptions{
 				URL:           "https://repo",
-				Depth: 1,
+				Depth:         1,
 				SingleBranch:  true,
 				ReferenceName: "master",
 				Auth: &httpgit.BasicAuth{
@@ -171,7 +170,7 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 			},
 			expectedCloneOpts: &git.CloneOptions{
 				URL:               "ssh://git@localhost/test/test-repo",
-				Depth: 1,
+				Depth:             1,
 				SingleBranch:      true,
 				ReferenceName:     "master",
 				Auth:              sshAuth,
@@ -196,7 +195,7 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 			},
 			expectedCloneOpts: &git.CloneOptions{
 				URL:           "https://repo",
-				Depth: 1,
+				Depth:         1,
 				SingleBranch:  true,
 				ReferenceName: "master",
 				Auth: &httpgit.BasicAuth{
@@ -223,9 +222,9 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 				PasswordFile: "doesntexist",
 				Username:     "user",
 			},
-			expectedCloneOpts: nil,
+			expectedCloneOpts:           nil,
 			expectedSubmoduleUpdateOpts: nil,
-			expectedErr:       errors.New(`failed to create auth from options for repo="https://repo" branch="master" revision="" path="": file not found`),
+			expectedErr:                 errors.New(`failed to create auth from options for repo="https://repo" branch="master" revision="" path="": file not found`),
 		},
 		"ca file does not exist": {
 			opts: &GitCloner{
@@ -233,9 +232,9 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 				Branch:       "master",
 				CABundleFile: "doesntexist",
 			},
-			expectedCloneOpts: nil,
+			expectedCloneOpts:           nil,
 			expectedSubmoduleUpdateOpts: nil,
-			expectedErr:       errors.New(`failed to read CA bundle from file for repo="https://repo" branch="master" revision="" path="": file not found`),
+			expectedErr:                 errors.New(`failed to read CA bundle from file for repo="https://repo" branch="master" revision="" path="": file not found`),
 		},
 		"ssh private key file does not exist": {
 			opts: &GitCloner{
@@ -243,9 +242,9 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 				Branch:            "master",
 				SSHPrivateKeyFile: "doesntexist",
 			},
-			expectedCloneOpts: nil,
+			expectedCloneOpts:           nil,
 			expectedSubmoduleUpdateOpts: nil,
-			expectedErr:       errors.New(`failed to create auth from options for repo="https://repo" branch="master" revision="" path="": file not found`),
+			expectedErr:                 errors.New(`failed to create auth from options for repo="https://repo" branch="master" revision="" path="": file not found`),
 		},
 		"github app key file does not exist": {
 			opts: &GitCloner{
@@ -255,9 +254,9 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 				GitHubAppInstallation: 456,
 				GitHubAppKeyFile:      "doesntexist",
 			},
-			expectedCloneOpts: nil,
+			expectedCloneOpts:           nil,
 			expectedSubmoduleUpdateOpts: nil,
-			expectedErr:       errors.New(`failed to create auth from options for repo="https://repo" branch="master" revision="" path="": failed to resolve GitHub app private key from path: file not found`),
+			expectedErr:                 errors.New(`failed to create auth from options for repo="https://repo" branch="master" revision="" path="": failed to resolve GitHub app private key from path: file not found`),
 		},
 	}
 
@@ -313,7 +312,6 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 		})
 	}
 }
-
 
 func TestCloneRepo_SubmoduleUpdateError(t *testing.T) {
 	plainClone = func(path string, isBare bool, o *git.CloneOptions) (*git.Repository, error) {
