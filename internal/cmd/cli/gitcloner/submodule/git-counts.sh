@@ -79,9 +79,9 @@ echo "IncrementalDeepen final depth: $depth"
 echo ""
 
 # -----------------------------------------------------------------------------
-# 4. StategyFullClone (full clone, all branches and tags)
+# 4. StrategyFullClone (full clone, all branches and tags)
 # -----------------------------------------------------------------------------
-echo "=== StategyFullClone ==="
+echo "=== StrategyFullClone ==="
 rm -rf /tmp/full-clone-test
 git clone $REPO_URL /tmp/full-clone-test
 cd /tmp/full-clone-test
@@ -100,5 +100,5 @@ echo "var expectedObjectCounts = map[capability.StrategyType]int{"
 cd /tmp/shallow-sha-test && echo "    capability.StrategyShallowSHA:        $(git rev-list --all --objects | wc -l | tr -d ' '),"
 cd /tmp/full-sha-test && echo "    capability.StrategyFullSHA:           $(git rev-list --all --objects | wc -l | tr -d ' '),"
 cd /tmp/incremental-test && echo "    capability.StrategyIncrementalDeepen: $(git rev-list --all --objects | wc -l | tr -d ' '),"
-cd /tmp/full-clone-test && echo "    capability.StategyFullClone:          $(git rev-list --all --objects | wc -l | tr -d ' '),"
+cd /tmp/full-clone-test && echo "    capability.StrategyFullClone:          $(git rev-list --all --objects | wc -l | tr -d ' '),"
 echo "}"
