@@ -378,10 +378,19 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 			},
 		})
 		// Ignore AlreadyExists errors (race condition with another reconcile)
-		if err != nil && !apierrors.IsAlreadyExists(err) {
-			logrus.Debugf("Failed to create ClusterRegistrationToken for cluster %s/%s: %v (requeuing)", cluster.Namespace, cluster.Name, err)
-			i.clusters.EnqueueAfter(cluster.Namespace, cluster.Name, durations.TokenClusterEnqueueDelay)
-			return status, err
+		if err != nil {
+			if apierrors.IsAlreadyExists(err) {
+				token, err = i.tokens.Get(cluster.Namespace, tokenName)
+				if err != nil {
+					logrus.Debugf("Failed to get existing ClusterRegistrationToken for cluster %s/%s: %v (requeuing)", cluster.Namespace, cluster.Name, err)
+					i.clusters.EnqueueAfter(cluster.Namespace, cluster.Name, durations.TokenClusterEnqueueDelay)
+					return status, err
+				}
+			} else {
+				logrus.Debugf("Failed to create ClusterRegistrationToken for cluster %s/%s: %v (requeuing)", cluster.Namespace, cluster.Name, err)
+				i.clusters.EnqueueAfter(cluster.Namespace, cluster.Name, durations.TokenClusterEnqueueDelay)
+				return status, err
+			}
 		}
 	}
 
