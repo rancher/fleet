@@ -360,7 +360,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 	token, err := i.tokens.Get(cluster.Namespace, tokenName)
 	if err != nil {
 		// If token doesn't exist, try to create it
-		_, err = i.tokenClient.Create(&fleet.ClusterRegistrationToken{
+		token, err = i.tokenClient.Create(&fleet.ClusterRegistrationToken{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: cluster.Namespace,
 				Name:      tokenName,
