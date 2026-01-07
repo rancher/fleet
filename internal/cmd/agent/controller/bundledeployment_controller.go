@@ -311,7 +311,9 @@ func (r *BundleDeploymentReconciler) copyResourcesFromUpstream(
 				return false, fmt.Errorf("failed to create or update secret %s/%s downstream: %v", bd.Namespace, rsc.Name, err)
 			}
 
-			requiresBDUpdate = op == controllerutil.OperationResultUpdated
+			if !requiresBDUpdate {
+				requiresBDUpdate = op == controllerutil.OperationResultUpdated
+			}
 
 		case "configmap":
 			var cm corev1.ConfigMap
@@ -345,7 +347,9 @@ func (r *BundleDeploymentReconciler) copyResourcesFromUpstream(
 				return false, fmt.Errorf("failed to create or update configmap %s/%s downstream: %v", bd.Namespace, rsc.Name, err)
 			}
 
-			requiresBDUpdate = op == controllerutil.OperationResultUpdated
+			if !requiresBDUpdate {
+				requiresBDUpdate = op == controllerutil.OperationResultUpdated
+			}
 		default:
 			return false, fmt.Errorf("unknown resource type for copy to downstream cluster: %q", rsc.Kind)
 		}
