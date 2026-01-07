@@ -658,6 +658,7 @@ func (r *BundleReconciler) cloneSecret(
 		},
 		Data:       secret.Data,
 		StringData: secret.StringData,
+		Type:       secret.Type,
 	}
 
 	if secretType != "" {
