@@ -15,7 +15,7 @@ on:
       charts_branch:
         description: Branch from which to source Fleet charts
         required: true
-        default: "dev-v2.12"
+        default: "dev-v2.14"
         type: string
   push:
     tags: [ 'v*' ]
