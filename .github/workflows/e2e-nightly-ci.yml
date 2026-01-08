@@ -42,13 +42,7 @@ jobs:
       -
         name: Determine cache key
         id: cache-key
-        run: |
-          DAY_OF_YEAR=$(date +%j)
-          if [ $(($DAY_OF_YEAR % 28)) -eq 0 ]; then
-            echo "value=$(date +%Y-%m-%d)" >> $GITHUB_OUTPUT
-          else
-            echo "value=latest" >> $GITHUB_OUTPUT
-          fi
+        run: ./.github/scripts/determine-cache-key.sh
       -
         name: Cache crust-gather CLI
         id: cache-crust
