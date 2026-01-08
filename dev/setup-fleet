@@ -19,22 +19,6 @@ helm -n cattle-fleet-system upgrade --install --create-namespace --wait fleet-cr
 
 # Constructing the shards settings dynamically
 shards_settings=""
-if [ -n "$shards_json" ]; then
-  index=0
-  for shard in $(echo "${shards_json}" | jq -c '.[]'); do
-    shard_id=$(echo "$shard" | jq -r '.id')
-    shards_settings="$shards_settings --set shards[$index].id=$shard_id"
-    node_selector=$(echo "$shard" | jq -r '.nodeSelector // empty')
-    if [ -n "$node_selector" ]; then
-      for key in $(echo "$node_selector" | jq -r 'keys[]'); do
-        value=$(echo "$node_selector" | jq -r --arg key "$key" '.[$key]')
-        escaped_key=$(echo "$key" | sed 's/\./\\./g')
-        shards_settings="$shards_settings --set shards[$index].nodeSelector.$escaped_key=$value"
-      done
-    fi
-    index=$((index + 1))
-  done
-fi
 
 helm -n cattle-fleet-system upgrade --install --create-namespace --wait --reset-values \
   --set apiServerCA="$ca" \

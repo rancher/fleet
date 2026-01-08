@@ -2,38 +2,45 @@
 package secret
 
 import (
+	"context"
 	"fmt"
 	"time"
 
 	"github.com/sirupsen/logrus"
 
 	"github.com/rancher/fleet/pkg/durations"
-	corecontrollers "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // GetServiceAccountTokenSecret gets or creates a secret for the service
 // account. It waits 2 seconds for the data to be populated with a token.
-func GetServiceAccountTokenSecret(sa *corev1.ServiceAccount, secretsController corecontrollers.SecretController) (*corev1.Secret, error) {
+func GetServiceAccountTokenSecret(ctx context.Context, sa *corev1.ServiceAccount, c client.Client) (*corev1.Secret, error) {
 	name := sa.Name + "-token"
-	secret, err := secretsController.Get(sa.Namespace, name, metav1.GetOptions{})
+	secret := &corev1.Secret{}
+	err := c.Get(ctx, types.NamespacedName{Namespace: sa.Namespace, Name: name}, secret)
 	if err != nil {
 		if !apierrors.IsNotFound(err) {
 			return nil, fmt.Errorf("error getting secret: %w", err)
 		}
-		return createServiceAccountTokenSecret(sa, secretsController)
+		return createServiceAccountTokenSecret(ctx, sa, c)
 	}
 	return secret, nil
 }
 
-func createServiceAccountTokenSecret(sa *corev1.ServiceAccount, secretsController corecontrollers.SecretController) (*corev1.Secret, error) {
+func createServiceAccountTokenSecret(ctx context.Context, sa *corev1.ServiceAccount, c client.Client) (*corev1.Secret, error) {
 	// create the secret for the serviceAccount
 	logrus.Debugf("creating ServiceAccountTokenSecret for sa %v", sa.Name)
 	name := sa.Name + "-token"
-	sc := corev1.Secret{
+	sc := &corev1.Secret{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: corev1.SchemeGroupVersion.String(),
+			Kind:       "Secret",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: sa.Namespace,
@@ -51,31 +58,31 @@ func createServiceAccountTokenSecret(sa *corev1.ServiceAccount, secretsControlle
 		},
 		Type: corev1.SecretTypeServiceAccountToken,
 	}
-	secret, err := secretsController.Create(&sc)
+	err := c.Create(ctx, sc)
 	if err != nil {
 		if !apierrors.IsAlreadyExists(err) {
 			return nil, fmt.Errorf("error creating secret: %w", err)
 		}
-		secret, err = secretsController.Get(sa.Namespace, name, metav1.GetOptions{})
+		err = c.Get(ctx, types.NamespacedName{Namespace: sa.Namespace, Name: name}, sc)
 		if err != nil {
 			logrus.Debugf("secret %v already exists, error getting it", name)
 			return nil, fmt.Errorf("error getting secret: %w", err)
 		}
 	}
 	// Kubernetes auto populates the secret token after it is created, for which we should wait
-	logrus.Infof("Waiting for service account token key to be populated for secret %s/%s", secret.Namespace, secret.Name)
-	if _, ok := secret.Data[corev1.ServiceAccountTokenKey]; !ok {
+	logrus.Infof("Waiting for service account token key to be populated for secret %s/%s", sc.Namespace, sc.Name)
+	if _, ok := sc.Data[corev1.ServiceAccountTokenKey]; !ok {
 		for {
-			logrus.Debugf("wait for svc account secret to be populated with token %s", secret.Name)
+			logrus.Debugf("wait for svc account secret to be populated with token %s", sc.Name)
 			time.Sleep(durations.ServiceTokenSleep)
-			secret, err = secretsController.Get(sa.Namespace, name, metav1.GetOptions{})
+			err = c.Get(ctx, types.NamespacedName{Namespace: sa.Namespace, Name: name}, sc)
 			if err != nil {
 				return nil, err
 			}
-			if _, ok := secret.Data[corev1.ServiceAccountTokenKey]; ok {
+			if _, ok := sc.Data[corev1.ServiceAccountTokenKey]; ok {
 				break
 			}
 		}
 	}
-	return secret, nil
+	return sc, nil
 }

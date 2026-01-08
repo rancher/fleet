@@ -69,6 +69,10 @@ func Manifest(namespace string, agentScope string, opts ManifestOptions) []runti
 
 	clusterRole := []runtime.Object{
 		&rbacv1.ClusterRole{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: rbacv1.SchemeGroupVersion.String(),
+				Kind:       "ClusterRole",
+			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name: names.SafeConcatName(admin.Namespace, admin.Name, "role"),
 			},
@@ -85,6 +89,10 @@ func Manifest(namespace string, agentScope string, opts ManifestOptions) []runti
 			},
 		},
 		&rbacv1.ClusterRoleBinding{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: rbacv1.SchemeGroupVersion.String(),
+				Kind:       "ClusterRoleBinding",
+			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name: names.SafeConcatName(admin.Namespace, admin.Name, "role", "binding"),
 			},
@@ -106,6 +114,10 @@ func Manifest(namespace string, agentScope string, opts ManifestOptions) []runti
 	agent := agentApp(namespace, agentScope, opts)
 
 	networkPolicy := &networkv1.NetworkPolicy{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: networkv1.SchemeGroupVersion.String(),
+			Kind:       "NetworkPolicy",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "default-allow-all",
 			Namespace: namespace,
@@ -150,6 +162,10 @@ func agentApp(namespace string, agentScope string, opts ManifestOptions) *appsv1
 	replicas := opts.AgentReplicas
 
 	app := &appsv1.Deployment{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: appsv1.SchemeGroupVersion.String(),
+			Kind:       "Deployment",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
 			Name:      name,
@@ -327,6 +343,10 @@ func agentApp(namespace string, agentScope string, opts ManifestOptions) *appsv1
 
 func serviceAccount(namespace, name string) *corev1.ServiceAccount {
 	return &corev1.ServiceAccount{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: corev1.SchemeGroupVersion.String(),
+			Kind:       "ServiceAccount",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
