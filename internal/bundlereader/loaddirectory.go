@@ -430,13 +430,14 @@ func get(ctx context.Context, client Getter, req *getter.Request, auth Auth) err
 		if err != nil {
 			return err
 		}
-		defer os.Remove(file.Name())
+		defer func() {
+			file.Close()
+			os.Remove(file.Name())
+		}()
 
 		if _, err := file.Write(auth.CABundle); err != nil {
-			file.Close()
 			return err
 		}
-		file.Close()
 
 		os.Setenv("GIT_SSL_CAINFO", file.Name())
 		defer os.Unsetenv("GIT_SSL_CAINFO")
