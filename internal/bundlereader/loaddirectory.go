@@ -465,7 +465,7 @@ func needsGitSSLEnvVars(req *getter.Request, auth Auth) bool {
 		return true
 	}
 
-	// Check for shorthand URLs that go-getter's GitHubDetector/GitLabDetector will transform to git::https://
+	// Check for shorthand URLs that go-getter's {BitBucket,GitHub,GitLab}Detector will transform to git::https://
 	// internally. The GitGetter.Detect() method strips the "git::" prefix when storing back to req.Src, so we need to
 	// detect these patterns directly. These patterns match what go-getter's detectors recognize.
 	if strings.HasPrefix(src, "github.com/") || strings.HasPrefix(src, "gitlab.com/") || strings.HasPrefix(src, "bitbucket.org/") {
