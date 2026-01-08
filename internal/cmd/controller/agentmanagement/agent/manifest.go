@@ -279,6 +279,11 @@ func agentApp(namespace string, agentScope string, opts ManifestOptions) *appsv1
 
 	// Set hostNetwork
 	app.Spec.Template.Spec.HostNetwork = opts.HostNetwork
+	if opts.HostNetwork {
+		app.Spec.Strategy = appsv1.DeploymentStrategy{
+			Type: appsv1.RecreateDeploymentStrategyType,
+		}
+	}
 
 	// overwrite affinity if present on cluster
 	if opts.AgentAffinity != nil {
