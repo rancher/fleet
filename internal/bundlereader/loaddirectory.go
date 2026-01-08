@@ -420,7 +420,7 @@ func downloadOCIChart(name, version, path string, auth Auth) (string, error) {
 
 // get performs the actual get operation, handling the mutex and environment variables for git-over-HTTPS operations.
 func get(ctx context.Context, client Getter, req *getter.Request, auth Auth) error {
-	if needsGitSSLEnvVars(req, auth) {
+	if needsGitSSLEnvVars(req) {
 		gitHTTPSCloneMutex.Lock()
 		defer gitHTTPSCloneMutex.Unlock()
 	}
@@ -454,11 +454,7 @@ func get(ctx context.Context, client Getter, req *getter.Request, auth Auth) err
 
 // needsGitSSLEnvVars checks whether the request will use git over HTTPS with custom TLS settings that require
 // environment variables (and thus mutex protection).
-func needsGitSSLEnvVars(req *getter.Request, auth Auth) bool {
-	if auth.CABundle == nil && !auth.InsecureSkipVerify {
-		return false
-	}
-
+func needsGitSSLEnvVars(req *getter.Request) bool {
 	src := req.Src
 
 	// Check for explicit git::https:// prefix

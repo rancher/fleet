@@ -158,79 +158,41 @@ func TestNeedsGitSSLEnvVars(t *testing.T) {
 	tests := []struct {
 		name     string
 		src      string
-		auth     Auth
 		expected bool
 	}{
 		{
-			name:     "git https with CABundle needs env vars",
+			name:     "git https needs env vars",
 			src:      "git::https://github.com/example/repo.git",
-			auth:     Auth{CABundle: []byte("ca-bundle")},
 			expected: true,
 		},
 		{
-			name:     "git https with InsecureSkipVerify needs env vars",
-			src:      "git::https://github.com/example/repo.git",
-			auth:     Auth{InsecureSkipVerify: true},
-			expected: true,
-		},
-		{
-			name:     "git https without TLS options does not need env vars",
-			src:      "git::https://github.com/example/repo.git",
-			auth:     Auth{},
-			expected: false,
-		},
-		{
-			name:     "regular https with CABundle does not need env vars",
+			name:     "regular https does not need env vars",
 			src:      "https://example.com/file.tar.gz",
-			auth:     Auth{CABundle: []byte("ca-bundle")},
 			expected: false,
 		},
 		{
-			name:     "git ssh with CABundle does not need env vars",
+			name:     "git ssh does not need env vars",
 			src:      "git::ssh://git@github.com/example/repo.git",
-			auth:     Auth{CABundle: []byte("ca-bundle")},
 			expected: false,
 		},
 		{
-			name:     "github.com without protocol and TLS options does not need env vars",
+			name:     "github.com shorthand needs env vars",
 			src:      "github.com/foo/bar",
-			auth:     Auth{},
-			expected: false,
+			expected: true,
 		},
 		{
-			name:     "gitlab.com without protocol and TLS options does not need env vars",
+			name:     "gitlab.com shorthand needs env vars",
 			src:      "gitlab.com/foo/bar",
-			auth:     Auth{},
-			expected: false,
+			expected: true,
 		},
 		{
-			name:     "bitbucket.org without protocol and TLS options does not need env vars",
+			name:     "bitbucket.org shorthand needs env vars",
 			src:      "bitbucket.org/foo/bar",
-			auth:     Auth{},
-			expected: false,
-		},
-		{
-			name:     "github.com without protocol but TLS options needs env vars",
-			src:      "github.com/foo/bar",
-			auth:     Auth{CABundle: []byte("ca-bundle")},
 			expected: true,
 		},
 		{
-			name:     "gitlab.com without protocol but TLS options needs env vars",
-			src:      "gitlab.com/foo/bar",
-			auth:     Auth{CABundle: []byte("ca-bundle")},
-			expected: true,
-		},
-		{
-			name:     "bitbucket.org without protocol but TLS options needs env vars",
-			src:      "bitbucket.org/foo/bar",
-			auth:     Auth{CABundle: []byte("ca-bundle")},
-			expected: true,
-		},
-		{
-			name:     "unknown domain without protocol but TLS options does not need env vars",
+			name:     "unknown domain without protocol does not need env vars",
 			src:      "example.com/foo/bar",
-			auth:     Auth{CABundle: []byte("ca-bundle")},
 			expected: false,
 		},
 	}
@@ -238,7 +200,7 @@ func TestNeedsGitSSLEnvVars(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req := &getter.Request{Src: tt.src}
-			result := needsGitSSLEnvVars(req, tt.auth)
+			result := needsGitSSLEnvVars(req)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
