@@ -50,6 +50,17 @@ var _ = Describe("Downstream objects cloning", Ordered, func() {
 		out, err = k.Namespace(env.ClusterRegistrationNamespace).Create("secret", "generic", "secret-values", fmt.Sprintf("--from-file=values.yaml=%s", secretAsset))
 		Expect(err).ToNot(HaveOccurred(), out)
 
+		// Not actually used by the deployment, but validates secret type preservation over copy to downstream cluster
+		out, err = k.Namespace(env.ClusterRegistrationNamespace).Create(
+			"secret",
+			"docker-registry",
+			"secret-image-pull",
+			// credentials do not matter, we just need the combination of fields to obtain a valid secret
+			"--docker-username=test-user",
+			"--docker-password=test-pwd",
+		)
+		Expect(err).ToNot(HaveOccurred(), out)
+
 		err = testenv.ApplyTemplate(k.Namespace(env.ClusterRegistrationNamespace), testenv.AssetPath(asset), struct {
 			Name                  string
 			Namespace             string
@@ -80,6 +91,10 @@ var _ = Describe("Downstream objects cloning", Ordered, func() {
 					Kind: "ConfigMap",
 					Name: "config-values",
 				},
+				{
+					Kind: "Secret",
+					Name: "secret-image-pull",
+				},
 			},
 			keepResources,
 			valuesFrom,
@@ -89,6 +104,7 @@ var _ = Describe("Downstream objects cloning", Ordered, func() {
 
 	AfterEach(func() {
 		_, _ = k.Namespace(env.ClusterRegistrationNamespace).Delete("secret", "secret-values")
+		_, _ = k.Namespace(env.ClusterRegistrationNamespace).Delete("secret", "secret-image-pull")
 		_, _ = k.Namespace(env.ClusterRegistrationNamespace).Delete("configmap", "config-values")
 	})
 
@@ -118,6 +134,14 @@ var _ = Describe("Downstream objects cloning", Ordered, func() {
 				cms, err := kd.Get("configmaps")
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(cms).To(ContainSubstring("config-values"))
+			}).Should(Succeed())
+
+			By("preserving secret types upon copy to the downstream cluster")
+			Eventually(func(g Gomega) {
+				s, err := kd.Get("secret", "secret-image-pull", "-o=jsonpath='{.type}'")
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(s).To(ContainSubstring("kubernetes.io/dockerconfigjson"))
+
 			}).Should(Succeed())
 
 			By("deploying resources with templated values taken from cloned resources")
