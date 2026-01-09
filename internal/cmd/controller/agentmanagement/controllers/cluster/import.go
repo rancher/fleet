@@ -356,8 +356,8 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 	tokenName := names.SafeConcatName(ImportTokenPrefix + cluster.Name)
 	token, err := i.tokens.Get(cluster.Namespace, tokenName)
 	if err != nil {
-		// ignore error
-		_, err = i.tokenClient.Create(&fleet.ClusterRegistrationToken{
+		// If token doesn't exist, try to create it
+		token, err = i.tokenClient.Create(&fleet.ClusterRegistrationToken{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: cluster.Namespace,
 				Name:      tokenName,
@@ -374,9 +374,21 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 				TTL: &metav1.Duration{Duration: durations.ClusterImportTokenTTL},
 			},
 		})
-		logrus.Debugf("Failed to create ClusterRegistrationToken for cluster %s/%s: %v (requeuing)", cluster.Namespace, cluster.Name, err)
-		i.clusters.EnqueueAfter(cluster.Namespace, cluster.Name, durations.TokenClusterEnqueueDelay)
-		return status, nil
+		// Handle AlreadyExists errors (race condition with another reconcile)
+		if err != nil {
+			if apierrors.IsAlreadyExists(err) {
+				token, err = i.tokens.Get(cluster.Namespace, tokenName)
+				if err != nil {
+					logrus.Debugf("Failed to get existing ClusterRegistrationToken for cluster %s/%s: %v (requeuing)", cluster.Namespace, cluster.Name, err)
+					i.clusters.EnqueueAfter(cluster.Namespace, cluster.Name, durations.TokenClusterEnqueueDelay)
+					return status, err
+				}
+			} else {
+				logrus.Debugf("Failed to create ClusterRegistrationToken for cluster %s/%s: %v (requeuing)", cluster.Namespace, cluster.Name, err)
+				i.clusters.EnqueueAfter(cluster.Namespace, cluster.Name, durations.TokenClusterEnqueueDelay)
+				return status, err
+			}
+		}
 	}
 
 	agentNamespace := i.systemNamespace
