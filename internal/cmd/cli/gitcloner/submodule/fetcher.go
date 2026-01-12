@@ -36,18 +36,17 @@ type CapabilityDetector interface {
 // Fetcher orchestrates the fetching of a specific commit from a remote repository.
 // It automatically detects server capabilities and selects the optimal strategy,
 // or uses a forced strategy if configured (useful for testing or debugging).
-//
 type Fetcher struct {
-	detector       CapabilityDetector
+	detector CapabilityDetector
 	// strategies maps strategy types to their implementations.
-	strategies     map[capability.StrategyType]Strategy
+	strategies map[capability.StrategyType]Strategy
 	// Auth contains credentials for authenticating with the remote server.
-	Auth           transport.AuthMethod
+	Auth transport.AuthMethod
 	// repository is the local go-git repository where fetched objects are stored.
-	repository     *git.Repository
-	remoteName     string
+	repository *git.Repository
+	remoteName string
 	// url is the remote repository URL
-	url            string
+	url string
 	// forcedStrategy bypasses capability detection when set.
 	forcedStrategy *capability.StrategyType // Allows bypassing capability detection
 
