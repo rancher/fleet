@@ -13,33 +13,58 @@ import (
 	"github.com/rancher/fleet/internal/cmd/cli/gitcloner/submodule/strategy"
 )
 
+// Strategy defines the interface for fetch strategies.
+// Each strategy implements a different approach to fetching a specific commit
+// from a remote Git server, optimized for different server capabilities.
 type Strategy interface {
 	Type() capability.StrategyType
+	// Execute fetches the specified commit from the remote.
 	Execute(ctx context.Context, r *git.Repository, CommitHash plumbing.Hash) error
 }
 
+// CapabilityDetectorInterface abstracts capability detection for testing.
+// It allows injecting mock detectors to test Fetcher behavior without
+// making actual network calls to Git servers.
 type CapabilityDetector interface {
+	// Detect queries the Git server at the given URL for its capabilities.
+	// Returns the server's advertised capabilities or an error if unreachable.
 	Detect(url string, auth transport.AuthMethod) (*capability.Capabilities, error)
+	// ChooseStrategy selects the optimal fetch strategy based on capabilities.
 	ChooseStrategy(caps *capability.Capabilities) capability.StrategyType
 }
 
+// Fetcher orchestrates the fetching of a specific commit from a remote repository.
+// It automatically detects server capabilities and selects the optimal strategy,
+// or uses a forced strategy if configured (useful for testing or debugging).
+//
 type Fetcher struct {
 	detector       CapabilityDetector
+	// strategies maps strategy types to their implementations.
 	strategies     map[capability.StrategyType]Strategy
+	// Auth contains credentials for authenticating with the remote server.
 	Auth           transport.AuthMethod
+	// repository is the local go-git repository where fetched objects are stored.
 	repository     *git.Repository
 	remoteName     string
+	// url is the remote repository URL
 	url            string
+	// forcedStrategy bypasses capability detection when set.
 	forcedStrategy *capability.StrategyType // Allows bypassing capability detection
 
 }
 
+// FetcherOption configures a Fetcher instance.
+// Use with NewFetcher to customize behavior.
 type FetcherOption func(*Fetcher)
 
+// WithDetector injects a custom capability detector.
+// Primarily used for testing to avoid network calls.
 func WithDetector(d CapabilityDetector) FetcherOption {
 	return func(f *Fetcher) { f.detector = d }
 }
 
+// WithStrategies injects custom strategy implementations.
+// Primarily used for testing to verify strategy selection.
 func WithStrategies(s map[capability.StrategyType]Strategy) FetcherOption {
 	return func(f *Fetcher) { f.strategies = s }
 }
@@ -91,6 +116,7 @@ func NewFetcher(auth transport.AuthMethod, repo *git.Repository, opts ...Fetcher
 	return f, nil
 }
 
+// Fetch retrieves (fetch + checkout) a specific commit from the remote repository.
 func (f *Fetcher) Fetch(ctx context.Context, opts *plumbing.Hash) error {
 	var strategyType capability.StrategyType
 
@@ -106,13 +132,17 @@ func (f *Fetcher) Fetch(ctx context.Context, opts *plumbing.Hash) error {
 		if caps == nil {
 			caps = &capability.Capabilities{}
 		}
+		// Select strategy based on what the server supports.
 		strategyType = f.detector.ChooseStrategy(caps)
 	}
+	// Look up the strategy implementation.
 	st, ok := f.strategies[strategyType]
 	if !ok {
 		return fmt.Errorf("strategy %s not implemented", strategyType)
 	}
 
+	// Execute the selected strategy to fetch the commit.
+	// The strategy handles all git protocol details internally.
 	err := st.Execute(ctx, f.repository, *opts)
 	if err != nil {
 		return fmt.Errorf("fetch with strategy %s: %w", strategyType, err)
