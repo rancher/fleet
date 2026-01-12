@@ -52,7 +52,7 @@ require (
 	go.uber.org/zap v1.27.1
 	golang.org/x/crypto v0.46.0
 	golang.org/x/sync v0.19.0
-	gonum.org/v1/gonum v0.16.0
+	gonum.org/v1/gonum v0.17.0
 	gotest.tools v2.2.0+incompatible
 	helm.sh/helm/v4 v4.0.4
 	k8s.io/api v0.34.3
