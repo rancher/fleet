@@ -92,7 +92,7 @@ func (d *CapabilityDetector) ChooseStrategy(caps *Capabilities) StrategyType {
 		return StrategyFullSHA
 	}
 
-	if caps.Shallow {
+	if caps.CanFetchShallow() {
 		return StrategyIncrementalDeepen
 	}
 
