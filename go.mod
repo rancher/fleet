@@ -233,7 +233,7 @@ require (
 	k8s.io/code-generator v0.34.3 // indirect
 	k8s.io/component-base v0.34.3 // indirect
 	k8s.io/component-helpers v0.34.3 // indirect
-	k8s.io/controller-manager v0.32.1 // indirect
+	k8s.io/controller-manager v0.34.3 // indirect
 	k8s.io/gengo v0.0.0-20250130153323-76c5745d3511 // indirect
 	k8s.io/gengo/v2 v2.0.0-20250604051438-85fd79dbfd9f // indirect
 	k8s.io/helm v2.17.0+incompatible // indirect
