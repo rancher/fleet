@@ -106,8 +106,8 @@ func TestShallowSHAStrategy_ContextCancellation(t *testing.T) {
 			return nil
 		},
 	}
-	CommitHash := plumbing.NewHash("abc123")
-	err := s.Execute(ctx, nil, CommitHash)
+	commitHash := plumbing.NewHash("abc123")
+	err := s.Execute(ctx, nil, commitHash)
 
 	if err == nil {
 		t.Fatal("expected error")

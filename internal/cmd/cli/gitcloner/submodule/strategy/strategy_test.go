@@ -83,7 +83,7 @@ var expectedObjectCounts = map[capability.StrategyType]int{
 	// FullSHA: all commits up to that SHA + trees + blobs
 	capability.StrategyFullSHA: 13,
 
-	//  Incremental Shallow:  all the commit from the tip to the commit  + tree + blobs
+	//  Incremental Shallow: all commits from the tip to the target commit + tree + blobs
 	capability.StrategyIncrementalDeepen: 24,
 
 	// FullClone: entire repository

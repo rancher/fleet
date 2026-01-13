@@ -60,8 +60,8 @@ func TestFullSHAStrategy_FetchError(t *testing.T) {
 			return nil
 		},
 	}
-	CommitHash := plumbing.NewHash("abc123")
-	err := s.Execute(context.Background(), nil, CommitHash)
+	commitHash := plumbing.NewHash("abc123")
+	err := s.Execute(context.Background(), nil, commitHash)
 
 	if err == nil {
 		t.Fatal("expected error")

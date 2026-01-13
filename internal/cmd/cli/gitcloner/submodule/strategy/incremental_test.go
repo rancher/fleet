@@ -70,8 +70,8 @@ func TestIncrementalDeepenStrategy_CommitFoundAtDepth5(t *testing.T) {
 		},
 	}
 
-	CommitHash := plumbing.NewHash("abc123")
-	err := s.Execute(context.Background(), nil, CommitHash)
+	commitHash := plumbing.NewHash("abc123")
+	err := s.Execute(context.Background(), nil, commitHash)
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -234,8 +234,8 @@ func TestIncrementalDeepenStrategy_DepthPassedCorrectly(t *testing.T) {
 			return nil
 		},
 	}
-	CommitHash := plumbing.NewHash("abc123")
-	err := s.Execute(context.Background(), nil, CommitHash)
+	commitHash := plumbing.NewHash("abc123")
+	err := s.Execute(context.Background(), nil, commitHash)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

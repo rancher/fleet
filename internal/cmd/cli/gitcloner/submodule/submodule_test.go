@@ -101,7 +101,7 @@ func newRepoWithSubmodule(t *testing.T, submodulePath, submoduleURL string, subm
 		t.Fatalf("failed to create submodule dir: %v", err)
 	}
 
-	// Adding .gitmodules to the index
+	// Add .gitmodules to the index
 	wt, err := repo.Worktree()
 	if err != nil {
 		t.Fatalf("failed to get worktree: %v", err)

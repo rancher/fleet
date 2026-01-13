@@ -111,7 +111,7 @@ func TestChooseStrategy(t *testing.T) {
 		expected StrategyType
 	}{
 		{
-			name: "shallow SHA - can fetch by SHA and swallow",
+			name: "shallow SHA - can fetch by SHA and shallow",
 			caps: &Capabilities{
 				AllowReachableSHA1InWant: true,
 				Shallow:                  true,

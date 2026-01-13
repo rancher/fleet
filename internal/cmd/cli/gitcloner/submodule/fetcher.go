@@ -19,7 +19,7 @@ import (
 type Strategy interface {
 	Type() capability.StrategyType
 	// Execute fetches the specified commit from the remote.
-	Execute(ctx context.Context, r *git.Repository, CommitHash plumbing.Hash) error
+	Execute(ctx context.Context, r *git.Repository, commitHash plumbing.Hash) error
 }
 
 // CapabilityDetectorInterface abstracts capability detection for testing.

@@ -78,9 +78,9 @@ func capabilitiesFromList(caps *capability.List) *Capabilities {
 	}
 }
 
-// The `ChooseStrategy` method in the `CapabilityDetector` struct is
+// The ChooseStrategy method in the CapabilityDetector struct is
 // determining the appropriate strategy type based on the capabilities
-// provided by the Git server. It takes a `Capabilities` struct as input
+// provided by the Git server. It takes a Capabilities struct as input
 // and evaluates the capabilities to decide which strategy should be used
 // for fetching data from the server.
 func (d *CapabilityDetector) ChooseStrategy(caps *Capabilities) StrategyType {
