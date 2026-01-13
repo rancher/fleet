@@ -390,7 +390,7 @@ const (
 )
 
 // Expected object counts per strategy for the fixture repository.
-// These values must be determined empirically by running the script git-counts.sh
+// These values must be determined empirically by running the script https://github.com/rancher/tree/master/fleet-test-data.git/git-cloner/git-counts.sh
 //
 // To determine the correct values:
 // 1. Run: ./git-counts.sh
