@@ -3,14 +3,18 @@ package gitcloner
 import (
 	"errors"
 	"os"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/plumbing/protocol/packp/capability"
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	httpgit "github.com/go-git/go-git/v5/plumbing/transport/http"
 	gossh "github.com/go-git/go-git/v5/plumbing/transport/ssh"
 	"github.com/google/go-cmp/cmp"
+	"github.com/rancher/fleet/internal/cmd/cli/gitcloner/submodule"
 )
 
 type fakeGetter struct{}
@@ -46,9 +50,11 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 		githubAppKeyFile = "githubAppKeyFile"
 	)
 	var (
-		pathCalled      string
-		isBareCalled    bool
-		cloneOptsCalled *git.CloneOptions
+		pathCalled                 string
+		isBareCalled               bool
+		cloneOptsCalled            *git.CloneOptions
+		updateSubmodulesCalled     bool
+		updateSubmodulesOptsCalled *git.SubmoduleUpdateOptions
 	)
 
 	sshAuth, _ := gossh.NewPublicKeys("git", []byte(sshPrivateKeyFileContent), "")
@@ -82,6 +88,11 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 		}
 		return nil, errors.New("file not found")
 	}
+	updateSubmodules = func(r *git.Repository, opts *git.SubmoduleUpdateOptions) error {
+		updateSubmodulesCalled = true
+		updateSubmodulesOptsCalled = opts
+		return nil
+	}
 	origGetter := appAuthGetter
 	appAuthGetter = fakeGetter{}
 	defer func() {
@@ -89,12 +100,20 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 		readFile = os.ReadFile
 		fileStat = os.Stat
 		appAuthGetter = origGetter
+		updateSubmodules = submodule.UpdateSubmodules
 	}()
 
+	expectedSubmoduleUpdateOpts := &git.SubmoduleUpdateOptions{
+		Init:              true,
+		RecurseSubmodules: git.DefaultSubmoduleRecursionDepth,
+		Depth:             1,
+	}
+
 	tests := map[string]struct {
-		opts              *GitCloner
-		expectedCloneOpts *git.CloneOptions
-		expectedErr       error
+		opts                        *GitCloner
+		expectedCloneOpts           *git.CloneOptions
+		expectedSubmoduleUpdateOpts *git.SubmoduleUpdateOptions
+		expectedErr                 error
 	}{
 		"branch no auth": {
 			opts: &GitCloner{
@@ -104,10 +123,13 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 			},
 			expectedCloneOpts: &git.CloneOptions{
 				URL:               "https://repo",
+				Depth:             1,
 				SingleBranch:      true,
 				ReferenceName:     "master",
-				RecurseSubmodules: git.DefaultSubmoduleRecursionDepth,
+				RecurseSubmodules: git.NoRecurseSubmodules,
+				Tags:              git.NoTags,
 			},
+			expectedSubmoduleUpdateOpts: expectedSubmoduleUpdateOpts,
 		},
 		"branch basic auth": {
 			opts: &GitCloner{
@@ -119,13 +141,24 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 			},
 			expectedCloneOpts: &git.CloneOptions{
 				URL:           "https://repo",
+				Depth:         1,
 				SingleBranch:  true,
 				ReferenceName: "master",
 				Auth: &httpgit.BasicAuth{
 					Username: "user",
 					Password: passwordFileContent,
 				},
+				RecurseSubmodules: git.NoRecurseSubmodules,
+				Tags:              git.NoTags,
+			},
+			expectedSubmoduleUpdateOpts: &git.SubmoduleUpdateOptions{
+				Init:              true,
 				RecurseSubmodules: git.DefaultSubmoduleRecursionDepth,
+				Depth:             1,
+				Auth: &httpgit.BasicAuth{
+					Username: "user",
+					Password: passwordFileContent,
+				},
 			},
 		},
 		"branch ssh auth": {
@@ -137,10 +170,18 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 			},
 			expectedCloneOpts: &git.CloneOptions{
 				URL:               "ssh://git@localhost/test/test-repo",
+				Depth:             1,
 				SingleBranch:      true,
 				ReferenceName:     "master",
 				Auth:              sshAuth,
+				RecurseSubmodules: git.NoRecurseSubmodules,
+				Tags:              git.NoTags,
+			},
+			expectedSubmoduleUpdateOpts: &git.SubmoduleUpdateOptions{
+				Init:              true,
 				RecurseSubmodules: git.DefaultSubmoduleRecursionDepth,
+				Depth:             1,
+				Auth:              sshAuth,
 			},
 		},
 		"branch github app auth": {
@@ -154,13 +195,24 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 			},
 			expectedCloneOpts: &git.CloneOptions{
 				URL:           "https://repo",
+				Depth:         1,
 				SingleBranch:  true,
 				ReferenceName: "master",
 				Auth: &httpgit.BasicAuth{
 					Username: "x-access-token",
 					Password: "token",
 				},
+				RecurseSubmodules: git.NoRecurseSubmodules,
+				Tags:              git.NoTags,
+			},
+			expectedSubmoduleUpdateOpts: &git.SubmoduleUpdateOptions{
+				Init:              true,
 				RecurseSubmodules: git.DefaultSubmoduleRecursionDepth,
+				Depth:             1,
+				Auth: &httpgit.BasicAuth{
+					Username: "x-access-token",
+					Password: "token",
+				},
 			},
 		},
 		"password file does not exist": {
@@ -170,8 +222,9 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 				PasswordFile: "doesntexist",
 				Username:     "user",
 			},
-			expectedCloneOpts: nil,
-			expectedErr:       errors.New(`failed to create auth from options for repo="https://repo" branch="master" revision="" path="": file not found`),
+			expectedCloneOpts:           nil,
+			expectedSubmoduleUpdateOpts: nil,
+			expectedErr:                 errors.New(`failed to create auth from options for repo="https://repo" branch="master" revision="" path="": file not found`),
 		},
 		"ca file does not exist": {
 			opts: &GitCloner{
@@ -179,8 +232,9 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 				Branch:       "master",
 				CABundleFile: "doesntexist",
 			},
-			expectedCloneOpts: nil,
-			expectedErr:       errors.New(`failed to read CA bundle from file for repo="https://repo" branch="master" revision="" path="": file not found`),
+			expectedCloneOpts:           nil,
+			expectedSubmoduleUpdateOpts: nil,
+			expectedErr:                 errors.New(`failed to read CA bundle from file for repo="https://repo" branch="master" revision="" path="": file not found`),
 		},
 		"ssh private key file does not exist": {
 			opts: &GitCloner{
@@ -188,8 +242,9 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 				Branch:            "master",
 				SSHPrivateKeyFile: "doesntexist",
 			},
-			expectedCloneOpts: nil,
-			expectedErr:       errors.New(`failed to create auth from options for repo="https://repo" branch="master" revision="" path="": file not found`),
+			expectedCloneOpts:           nil,
+			expectedSubmoduleUpdateOpts: nil,
+			expectedErr:                 errors.New(`failed to create auth from options for repo="https://repo" branch="master" revision="" path="": file not found`),
 		},
 		"github app key file does not exist": {
 			opts: &GitCloner{
@@ -199,8 +254,9 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 				GitHubAppInstallation: 456,
 				GitHubAppKeyFile:      "doesntexist",
 			},
-			expectedCloneOpts: nil,
-			expectedErr:       errors.New(`failed to create auth from options for repo="https://repo" branch="master" revision="" path="": failed to resolve GitHub app private key from path: file not found`),
+			expectedCloneOpts:           nil,
+			expectedSubmoduleUpdateOpts: nil,
+			expectedErr:                 errors.New(`failed to create auth from options for repo="https://repo" branch="master" revision="" path="": failed to resolve GitHub app private key from path: file not found`),
 		},
 	}
 
@@ -208,6 +264,8 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 		// clear mock vars
 		pathCalled = ""
 		cloneOptsCalled = nil
+		updateSubmodulesCalled = false
+		updateSubmodulesOptsCalled = nil
 
 		t.Run(name, func(t *testing.T) {
 			c := Cloner{}
@@ -235,10 +293,326 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 			if !cmp.Equal(cloneOptsCalled, test.expectedCloneOpts, sshKeyComparer) {
 				t.Fatalf("expected options %v, got %v", test.expectedCloneOpts, cloneOptsCalled)
 			}
+			if test.expectedSubmoduleUpdateOpts != nil {
+				if !updateSubmodulesCalled {
+					t.Fatal("expected updateSubmodules to be called, but it wasn't")
+				}
+				if !cmp.Equal(updateSubmodulesOptsCalled, test.expectedSubmoduleUpdateOpts, sshKeyComparer) {
+					t.Fatalf("expected submodule update options %v, got %v", test.expectedSubmoduleUpdateOpts, updateSubmodulesOptsCalled)
+				}
+			} else if updateSubmodulesCalled {
+				t.Fatal("expected updateSubmodules NOT to be called, but it was")
+			}
 
 			if !cmp.Equal(transport.UnsupportedCapabilities, []capability.Capability{capability.ThinPack}) {
 				t.Errorf("expected transport.UnsupportedCapabilities []capability.Capability{capability.ThinPack}, got %v", transport.UnsupportedCapabilities)
 			}
 		})
+	}
+}
+
+func TestCloneRepo_SubmoduleUpdateError(t *testing.T) {
+	plainClone = func(path string, isBare bool, o *git.CloneOptions) (*git.Repository, error) {
+		return &git.Repository{}, nil
+	}
+	updateSubmodules = func(r *git.Repository, opts *git.SubmoduleUpdateOptions) error {
+		return errors.New("submodule update failed")
+	}
+	defer func() {
+		plainClone = git.PlainClone
+		updateSubmodules = submodule.UpdateSubmodules
+	}()
+
+	c := Cloner{}
+	err := c.CloneRepo(&GitCloner{
+		Repo:   "https://repo",
+		Path:   "path",
+		Branch: "master",
+	})
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if err.Error() != "submodule update failed" {
+		t.Fatalf("expected error 'submodule update failed', got '%s'", err.Error())
+	}
+}
+
+func TestCloneRepo_CloneError(t *testing.T) {
+	var updateSubmodulesCalled bool
+
+	plainClone = func(path string, isBare bool, o *git.CloneOptions) (*git.Repository, error) {
+		return nil, errors.New("clone failed")
+	}
+	updateSubmodules = func(r *git.Repository, opts *git.SubmoduleUpdateOptions) error {
+		updateSubmodulesCalled = true
+		return nil
+	}
+	defer func() {
+		plainClone = git.PlainClone
+		updateSubmodules = submodule.UpdateSubmodules
+	}()
+
+	c := Cloner{}
+	err := c.CloneRepo(&GitCloner{
+		Repo:   "https://repo",
+		Path:   "path",
+		Branch: "master",
+	})
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if updateSubmodulesCalled {
+		t.Fatal("expected updateSubmodules NOT to be called when clone fails")
+	}
+}
+
+func TestCloneRevision(t *testing.T) {
+	var (
+		cloneOptsCalled            *git.CloneOptions
+		updateSubmodulesCalled     bool
+		updateSubmodulesOptsCalled *git.SubmoduleUpdateOptions
+	)
+
+	// Create a temp directory with a real git repo for testing
+	tempDir := t.TempDir()
+
+	// Initialize a real git repository so we can use its methods
+	testRepo, err := git.PlainInit(tempDir, false)
+	if err != nil {
+		t.Fatalf("failed to init test repo: %v", err)
+	}
+
+	plainClone = func(path string, isBare bool, o *git.CloneOptions) (*git.Repository, error) {
+		cloneOptsCalled = o
+		return testRepo, nil
+	}
+	updateSubmodules = func(r *git.Repository, opts *git.SubmoduleUpdateOptions) error {
+		updateSubmodulesCalled = true
+		updateSubmodulesOptsCalled = opts
+		return nil
+	}
+
+	// We need to mock the repository methods, but go-git doesn't use interfaces
+	// So we'll test via integration with a real repo that has a commit
+	// First, create a commit in the test repo
+	wt, err := testRepo.Worktree()
+	if err != nil {
+		t.Fatalf("failed to get worktree: %v", err)
+	}
+
+	// Create a file and commit it
+	testFile := tempDir + "/test.txt"
+	if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
+	if _, err := wt.Add("test.txt"); err != nil {
+		t.Fatalf("failed to add file: %v", err)
+	}
+	commitHash, err := wt.Commit("test commit", &git.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test",
+			Email: "test@test.com",
+			When:  time.Now(),
+		},
+	})
+	if err != nil {
+		t.Fatalf("failed to commit: %v", err)
+	}
+
+	defer func() {
+		plainClone = git.PlainClone
+		updateSubmodules = submodule.UpdateSubmodules
+	}()
+
+	tests := map[string]struct {
+		opts              *GitCloner
+		expectedCloneOpts *git.CloneOptions
+		expectedErr       error
+	}{
+		"revision clone success": {
+			opts: &GitCloner{
+				Repo:     "https://repo",
+				Path:     "path",
+				Revision: commitHash.String(),
+			},
+			expectedCloneOpts: &git.CloneOptions{
+				URL:               "https://repo",
+				Depth:             1,
+				RecurseSubmodules: git.NoRecurseSubmodules,
+				Tags:              git.NoTags,
+			},
+		},
+		"revision clone with auth": {
+			opts: &GitCloner{
+				Repo:         "https://repo",
+				Path:         "path",
+				Revision:     commitHash.String(),
+				Username:     "user",
+				PasswordFile: "passFile",
+			},
+			expectedCloneOpts: &git.CloneOptions{
+				URL:   "https://repo",
+				Depth: 1,
+				Auth: &httpgit.BasicAuth{
+					Username: "user",
+					Password: "1234",
+				},
+				RecurseSubmodules: git.NoRecurseSubmodules,
+				Tags:              git.NoTags,
+			},
+		},
+	}
+
+	readFile = func(name string) ([]byte, error) {
+		if name == "passFile" {
+			return []byte("1234"), nil
+		}
+		return nil, errors.New("file not found")
+	}
+
+	for name, test := range tests {
+		cloneOptsCalled = nil
+		updateSubmodulesCalled = false
+		updateSubmodulesOptsCalled = nil
+
+		t.Run(name, func(t *testing.T) {
+			c := Cloner{}
+			err := c.CloneRepo(test.opts)
+
+			if test.expectedErr != nil {
+				if err == nil {
+					t.Fatalf("expected error [%v], got nil", test.expectedErr)
+				}
+				if err.Error() != test.expectedErr.Error() {
+					t.Fatalf("expected error [%s], got [%s]", test.expectedErr.Error(), err.Error())
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			// Verify clone options (revision clone doesn't use SingleBranch/ReferenceName)
+			if !cmp.Equal(cloneOptsCalled, test.expectedCloneOpts) {
+				t.Fatalf("expected clone options %+v, got %+v", test.expectedCloneOpts, cloneOptsCalled)
+			}
+
+			// Verify updateSubmodules was called
+			if !updateSubmodulesCalled {
+				t.Fatal("expected updateSubmodules to be called")
+			}
+
+			// Verify submodule update options
+			expectedSubmoduleOpts := &git.SubmoduleUpdateOptions{
+				Init:              true,
+				RecurseSubmodules: git.DefaultSubmoduleRecursionDepth,
+				Depth:             1,
+				Auth:              test.expectedCloneOpts.Auth,
+			}
+			if !cmp.Equal(updateSubmodulesOptsCalled, expectedSubmoduleOpts) {
+				t.Fatalf("expected submodule options %+v, got %+v", expectedSubmoduleOpts, updateSubmodulesOptsCalled)
+			}
+		})
+	}
+}
+
+func TestCloneRevision_ResolveRevisionError(t *testing.T) {
+	tempDir := t.TempDir()
+	testRepo, _ := git.PlainInit(tempDir, false)
+
+	plainClone = func(path string, isBare bool, o *git.CloneOptions) (*git.Repository, error) {
+		return testRepo, nil
+	}
+	defer func() {
+		plainClone = git.PlainClone
+	}()
+
+	c := Cloner{}
+	err := c.CloneRepo(&GitCloner{
+		Repo:     "https://repo",
+		Path:     "path",
+		Revision: "nonexistent-revision",
+	})
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "failed to resolve revision") {
+		t.Fatalf("expected 'failed to resolve revision' error, got: %s", err.Error())
+	}
+}
+
+func TestCloneRevision_CloneError(t *testing.T) {
+	plainClone = func(path string, isBare bool, o *git.CloneOptions) (*git.Repository, error) {
+		return nil, errors.New("clone failed")
+	}
+	defer func() {
+		plainClone = git.PlainClone
+	}()
+
+	c := Cloner{}
+	err := c.CloneRepo(&GitCloner{
+		Repo:     "https://repo",
+		Path:     "path",
+		Revision: "abc123",
+	})
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "failed to clone repo from revision") {
+		t.Fatalf("expected 'failed to clone repo from revision' error, got: %s", err.Error())
+	}
+}
+
+func TestCloneRevision_SubmoduleUpdateError(t *testing.T) {
+	tempDir := t.TempDir()
+	testRepo, _ := git.PlainInit(tempDir, false)
+
+	// Create a commit
+	wt, _ := testRepo.Worktree()
+	testFile := tempDir + "/test.txt"
+	err := os.WriteFile(testFile, []byte("test"), 0644)
+	if err != nil {
+		t.Fatalf("failed to create the file %s: %v", testFile, err)
+	}
+	_, err = wt.Add("test.txt")
+	if err != nil {
+		t.Fatalf("failed to add the file test.txt: %v", err)
+	}
+	commitHash, _ := wt.Commit("test commit", &git.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test",
+			Email: "test@test.com",
+			When:  time.Now(),
+		},
+	})
+
+	plainClone = func(path string, isBare bool, o *git.CloneOptions) (*git.Repository, error) {
+		return testRepo, nil
+	}
+	updateSubmodules = func(r *git.Repository, opts *git.SubmoduleUpdateOptions) error {
+		return errors.New("submodule update failed")
+	}
+	defer func() {
+		plainClone = git.PlainClone
+		updateSubmodules = submodule.UpdateSubmodules
+	}()
+
+	c := Cloner{}
+	err = c.CloneRepo(&GitCloner{
+		Repo:     "https://repo",
+		Path:     "path",
+		Revision: commitHash.String(),
+	})
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if err.Error() != "submodule update failed" {
+		t.Fatalf("expected 'submodule update failed', got: %s", err.Error())
 	}
 }
