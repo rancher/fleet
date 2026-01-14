@@ -19,6 +19,12 @@ agentTLSMode: "system-store"
 # A non-existent value or 0 will result in an interval of 15 minutes.
 garbageCollectionInterval: "15m"
 
+# http[s] proxy server
+# proxy: http://<username>:<password>@<url>:<port>
+
+# comma separated list of domains or ip addresses that will not use the proxy
+noProxy: 127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,.svc,.cluster.local
+
 # The cluster registration value
 token: ""
 
