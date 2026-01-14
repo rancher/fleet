@@ -132,12 +132,14 @@ func (r *BundleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			// referenced in DownstreamResources changes.
 			&corev1.Secret{},
 			handler.EnqueueRequestsFromMapFunc(r.downstreamResourceMapFunc("Secret")),
+			builder.WithPredicates(dataChangedPredicate()),
 		).
 		Watches(
 			// Fan out from configmap to bundle, reconcile bundles when a configmap
 			// referenced in DownstreamResources changes.
 			&corev1.ConfigMap{},
 			handler.EnqueueRequestsFromMapFunc(r.downstreamResourceMapFunc("ConfigMap")),
+			builder.WithPredicates(dataChangedPredicate()),
 		).
 		WithEventFilter(sharding.FilterByShardID(r.ShardID)).
 		WithOptions(controller.Options{MaxConcurrentReconciles: r.Workers}).
@@ -923,6 +925,39 @@ func batchDeleteBundleDeployments(ctx context.Context, c client.Client, list []f
 	}
 
 	return errors.Join(errs...)
+}
+
+// dataChangedPredicate filters Secret and ConfigMap events to only trigger reconciliation
+// when Data or BinaryData fields have changed.
+func dataChangedPredicate() predicate.Funcs {
+	return predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			return false
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			switch new := e.ObjectNew.(type) {
+			case *corev1.Secret:
+				old, ok := e.ObjectOld.(*corev1.Secret)
+				if !ok {
+					return false
+				}
+				// Secrets only have Data field (map[string][]byte)
+				return !reflect.DeepEqual(new.Data, old.Data)
+			case *corev1.ConfigMap:
+				old, ok := e.ObjectOld.(*corev1.ConfigMap)
+				if !ok {
+					return false
+				}
+				// ConfigMaps have Data (map[string]string) and BinaryData (map[string][]byte)
+				return !maps.Equal(new.Data, old.Data) || !reflect.DeepEqual(new.BinaryData, old.BinaryData)
+			default:
+				return false
+			}
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			return false
+		},
+	}
 }
 
 // clusterChangedPredicate filters cluster events that relate to bundldeployment creation.
