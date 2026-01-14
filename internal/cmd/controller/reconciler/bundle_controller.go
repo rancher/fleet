@@ -147,8 +147,6 @@ func (r *BundleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=bundles,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=bundles/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=bundles/finalizers,verbs=update
-//+kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
-//+kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch
 
 // Reconcile creates bundle deployments for a bundle
 //
@@ -755,7 +753,6 @@ func (r *BundleReconciler) updateErrorStatus(
 
 func (r *BundleReconciler) handleDownstreamObjects(ctx context.Context, bundle *fleet.Bundle, bd *fleet.BundleDeployment) error {
 	if !experimental.CopyResourcesDownstreamEnabled() {
-		bd.Spec.DownstreamResourcesGeneration = 0
 		return nil
 	}
 
