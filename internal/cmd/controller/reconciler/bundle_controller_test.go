@@ -1108,3 +1108,456 @@ func expectGetWithFinalizer(mockCli *mocks.MockK8sClient, bundle fleetv1.Bundle)
 		},
 	)
 }
+
+func TestReconcile_DownstreamResourcesGeneration_Increment(t *testing.T) {
+	envVar := "EXPERIMENTAL_COPY_RESOURCES_DOWNSTREAM"
+	bkp := os.Getenv(envVar)
+	defer func() {
+		os.Setenv(envVar, bkp)
+	}()
+
+	os.Setenv(envVar, "true")
+
+	testCases := []struct {
+		name                     string
+		downstreamResources      []fleetv1.DownstreamResource
+		initialGeneration        int64
+		existingBundleDeployment *fleetv1.BundleDeployment
+		setupResourceMocks       func(*gomock.Controller, *mocks.MockK8sClient)
+		expectGeneration         int64
+		expectPatch              bool
+	}{
+		{
+			name: "Secret created - generation increments from 0 to 1",
+			downstreamResources: []fleetv1.DownstreamResource{
+				{Kind: "Secret", Name: "my-secret"},
+			},
+			initialGeneration: 0,
+			existingBundleDeployment: &fleetv1.BundleDeployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-bd",
+					Namespace: "cluster-ns",
+					UID:       "test-uid",
+				},
+				Spec: fleetv1.BundleDeploymentSpec{
+					DeploymentID:                  "test-deployment",
+					DownstreamResourcesGeneration: 0,
+				},
+			},
+			setupResourceMocks: func(ctrl *gomock.Controller, mc *mocks.MockK8sClient) {
+				// Source secret get
+				mc.EXPECT().Get(gomock.Any(), types.NamespacedName{Namespace: "default", Name: "my-secret"}, gomock.AssignableToTypeOf(&corev1.Secret{}), gomock.Any()).
+					DoAndReturn(func(ctx context.Context, key types.NamespacedName, s *corev1.Secret, opts ...interface{}) error {
+						s.Name = "my-secret"
+						s.Namespace = "default"
+						s.Data = map[string][]byte{"key": []byte("value")}
+						return nil
+					})
+
+				// Target secret get (not found) + create
+				mc.EXPECT().Get(gomock.Any(), types.NamespacedName{Namespace: "cluster-ns", Name: "my-secret"}, gomock.AssignableToTypeOf(&corev1.Secret{}), gomock.Any()).
+					Return(&k8serrors.StatusError{ErrStatus: metav1.Status{Code: http.StatusNotFound}})
+				mc.EXPECT().Create(gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{}), gomock.Any()).
+					Return(nil)
+
+				// Patch to increment generation
+				mc.EXPECT().Patch(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.BundleDeployment{}), gomock.Any()).
+					DoAndReturn(func(ctx context.Context, bd *fleetv1.BundleDeployment, patch client.Patch, opts ...interface{}) error {
+						if bd.Spec.DownstreamResourcesGeneration != 1 {
+							t.Errorf("Expected generation 1, got %d", bd.Spec.DownstreamResourcesGeneration)
+						}
+						return nil
+					})
+			},
+			expectGeneration: 1,
+			expectPatch:      true,
+		},
+		{
+			name: "ConfigMap updated - generation increments from 5 to 6",
+			downstreamResources: []fleetv1.DownstreamResource{
+				{Kind: "ConfigMap", Name: "my-config"},
+			},
+			initialGeneration: 5,
+			existingBundleDeployment: &fleetv1.BundleDeployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-bd",
+					Namespace: "cluster-ns",
+					UID:       "test-uid",
+				},
+				Spec: fleetv1.BundleDeploymentSpec{
+					DeploymentID:                  "test-deployment",
+					DownstreamResourcesGeneration: 5,
+				},
+			},
+			setupResourceMocks: func(ctrl *gomock.Controller, mc *mocks.MockK8sClient) {
+				// Source configmap get
+				mc.EXPECT().Get(gomock.Any(), types.NamespacedName{Namespace: "default", Name: "my-config"}, gomock.AssignableToTypeOf(&corev1.ConfigMap{}), gomock.Any()).
+					DoAndReturn(func(ctx context.Context, key types.NamespacedName, cm *corev1.ConfigMap, opts ...interface{}) error {
+						cm.Name = "my-config"
+						cm.Namespace = "default"
+						cm.Data = map[string]string{"key": "new-value"}
+						return nil
+					})
+
+				// Target configmap get (exists) + update
+				mc.EXPECT().Get(gomock.Any(), types.NamespacedName{Namespace: "cluster-ns", Name: "my-config"}, gomock.AssignableToTypeOf(&corev1.ConfigMap{}), gomock.Any()).
+					DoAndReturn(func(ctx context.Context, key types.NamespacedName, cm *corev1.ConfigMap, opts ...interface{}) error {
+						cm.Name = "my-config"
+						cm.Namespace = "cluster-ns"
+						cm.Data = map[string]string{"key": "old-value"}
+						return nil
+					})
+				mc.EXPECT().Update(gomock.Any(), gomock.AssignableToTypeOf(&corev1.ConfigMap{}), gomock.Any()).
+					Return(nil)
+
+				// Patch to increment generation
+				mc.EXPECT().Patch(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.BundleDeployment{}), gomock.Any()).
+					DoAndReturn(func(ctx context.Context, bd *fleetv1.BundleDeployment, patch client.Patch, opts ...interface{}) error {
+						if bd.Spec.DownstreamResourcesGeneration != 6 {
+							t.Errorf("Expected generation 6, got %d", bd.Spec.DownstreamResourcesGeneration)
+						}
+						return nil
+					})
+			},
+			expectGeneration: 6,
+			expectPatch:      true,
+		},
+		{
+			name: "Both Secret and ConfigMap updated - generation increments once",
+			downstreamResources: []fleetv1.DownstreamResource{
+				{Kind: "Secret", Name: "my-secret"},
+				{Kind: "ConfigMap", Name: "my-config"},
+			},
+			initialGeneration: 10,
+			existingBundleDeployment: &fleetv1.BundleDeployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-bd",
+					Namespace: "cluster-ns",
+					UID:       "test-uid",
+				},
+				Spec: fleetv1.BundleDeploymentSpec{
+					DeploymentID:                  "test-deployment",
+					DownstreamResourcesGeneration: 10,
+				},
+			},
+			setupResourceMocks: func(ctrl *gomock.Controller, mc *mocks.MockK8sClient) {
+				// Source secret get
+				mc.EXPECT().Get(gomock.Any(), types.NamespacedName{Namespace: "default", Name: "my-secret"}, gomock.AssignableToTypeOf(&corev1.Secret{}), gomock.Any()).
+					DoAndReturn(func(ctx context.Context, key types.NamespacedName, s *corev1.Secret, opts ...interface{}) error {
+						s.Name = "my-secret"
+						s.Namespace = "default"
+						s.Data = map[string][]byte{"key": []byte("value")}
+						return nil
+					})
+
+				// Target secret get (not found) + create
+				mc.EXPECT().Get(gomock.Any(), types.NamespacedName{Namespace: "cluster-ns", Name: "my-secret"}, gomock.AssignableToTypeOf(&corev1.Secret{}), gomock.Any()).
+					Return(&k8serrors.StatusError{ErrStatus: metav1.Status{Code: http.StatusNotFound}})
+				mc.EXPECT().Create(gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{}), gomock.Any()).
+					Return(nil)
+
+				// Source configmap get
+				mc.EXPECT().Get(gomock.Any(), types.NamespacedName{Namespace: "default", Name: "my-config"}, gomock.AssignableToTypeOf(&corev1.ConfigMap{}), gomock.Any()).
+					DoAndReturn(func(ctx context.Context, key types.NamespacedName, cm *corev1.ConfigMap, opts ...interface{}) error {
+						cm.Name = "my-config"
+						cm.Namespace = "default"
+						cm.Data = map[string]string{"key": "value"}
+						return nil
+					})
+
+				// Target configmap get (exists) + update
+				mc.EXPECT().Get(gomock.Any(), types.NamespacedName{Namespace: "cluster-ns", Name: "my-config"}, gomock.AssignableToTypeOf(&corev1.ConfigMap{}), gomock.Any()).
+					DoAndReturn(func(ctx context.Context, key types.NamespacedName, cm *corev1.ConfigMap, opts ...interface{}) error {
+						cm.Name = "my-config"
+						cm.Namespace = "cluster-ns"
+						cm.Data = map[string]string{"key": "old-value"}
+						return nil
+					})
+				mc.EXPECT().Update(gomock.Any(), gomock.AssignableToTypeOf(&corev1.ConfigMap{}), gomock.Any()).
+					Return(nil)
+
+				// Patch to increment generation (only once for both resources)
+				mc.EXPECT().Patch(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.BundleDeployment{}), gomock.Any()).
+					DoAndReturn(func(ctx context.Context, bd *fleetv1.BundleDeployment, patch client.Patch, opts ...interface{}) error {
+						if bd.Spec.DownstreamResourcesGeneration != 11 {
+							t.Errorf("Expected generation 11, got %d", bd.Spec.DownstreamResourcesGeneration)
+						}
+						return nil
+					})
+			},
+			expectGeneration: 11,
+			expectPatch:      true,
+		},
+		{
+			name: "Resource unchanged - no generation increment",
+			downstreamResources: []fleetv1.DownstreamResource{
+				{Kind: "Secret", Name: "my-secret"},
+			},
+			initialGeneration: 3,
+			existingBundleDeployment: &fleetv1.BundleDeployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-bd",
+					Namespace: "cluster-ns",
+					UID:       "test-uid",
+				},
+				Spec: fleetv1.BundleDeploymentSpec{
+					DeploymentID:                  "test-deployment",
+					DownstreamResourcesGeneration: 3,
+				},
+			},
+			setupResourceMocks: func(ctrl *gomock.Controller, mc *mocks.MockK8sClient) {
+				// Source secret get
+				mc.EXPECT().Get(gomock.Any(), types.NamespacedName{Namespace: "default", Name: "my-secret"}, gomock.AssignableToTypeOf(&corev1.Secret{}), gomock.Any()).
+					DoAndReturn(func(ctx context.Context, key types.NamespacedName, s *corev1.Secret, opts ...interface{}) error {
+						s.Name = "my-secret"
+						s.Namespace = "default"
+						s.Data = map[string][]byte{"key": []byte("value")}
+						return nil
+					})
+
+				// Target secret get (exists with same data) - no update needed
+				mc.EXPECT().Get(gomock.Any(), types.NamespacedName{Namespace: "cluster-ns", Name: "my-secret"}, gomock.AssignableToTypeOf(&corev1.Secret{}), gomock.Any()).
+					DoAndReturn(func(ctx context.Context, key types.NamespacedName, s *corev1.Secret, opts ...interface{}) error {
+						s.Name = "my-secret"
+						s.Namespace = "cluster-ns"
+						s.Data = map[string][]byte{"key": []byte("value")}
+						return nil
+					})
+				// No create/update call expected
+
+				// No patch expected since nothing changed
+			},
+			expectGeneration: 3,
+			expectPatch:      false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			mockCtrl := gomock.NewController(t)
+			defer mockCtrl.Finish()
+
+			scheme := runtime.NewScheme()
+			utilruntime.Must(corev1.AddToScheme(scheme))
+			utilruntime.Must(fleetv1.AddToScheme(scheme))
+
+			bundle := fleetv1.Bundle{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-bundle",
+					Namespace: "default",
+				},
+				Spec: fleetv1.BundleSpec{
+					BundleDeploymentOptions: fleetv1.BundleDeploymentOptions{
+						DownstreamResources: tc.downstreamResources,
+					},
+				},
+			}
+
+			namespacedName := types.NamespacedName{Name: bundle.Name, Namespace: bundle.Namespace}
+
+			mockClient := mocks.NewMockK8sClient(mockCtrl)
+			expectGetWithFinalizer(mockClient, bundle)
+
+			// Options secret deletion (no values to store)
+			mockClient.EXPECT().Delete(gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{}), gomock.Any()).
+				Return(&k8serrors.StatusError{ErrStatus: metav1.Status{Code: http.StatusNotFound}})
+
+			// Target builder returns our test bundle deployment
+			matchedTargets := []*target.Target{
+				{
+					Bundle: &bundle,
+					Cluster: &fleetv1.Cluster{
+						ObjectMeta: metav1.ObjectMeta{
+							Namespace: "fleet-default",
+							Name:      "test-cluster",
+						},
+						Status: fleetv1.ClusterStatus{
+							Namespace: "cluster-ns",
+						},
+					},
+					Deployment:   tc.existingBundleDeployment,
+					DeploymentID: "test-deployment",
+				},
+			}
+
+			targetBuilderMock := mocks.NewMockTargetBuilder(mockCtrl)
+			targetBuilderMock.EXPECT().Targets(gomock.Any(), gomock.Any(), gomock.Any()).Return(matchedTargets, nil)
+
+			storeMock := mocks.NewMockStore(mockCtrl)
+			storeMock.EXPECT().Store(gomock.Any(), gomock.Any()).Return(nil)
+
+			// List BundleDeployments for cleanup
+			mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.BundleDeploymentList{}), gomock.Any()).
+				DoAndReturn(func(ctx context.Context, list *fleetv1.BundleDeploymentList, opts ...interface{}) error {
+					list.Items = []fleetv1.BundleDeployment{*tc.existingBundleDeployment}
+					return nil
+				})
+
+			// BundleDeployment get (for CreateOrUpdate)
+			mockClient.EXPECT().Get(gomock.Any(), types.NamespacedName{Namespace: "cluster-ns", Name: "test-bd"}, gomock.AssignableToTypeOf(&fleetv1.BundleDeployment{}), gomock.Any()).
+				DoAndReturn(func(ctx context.Context, key types.NamespacedName, bd *fleetv1.BundleDeployment, opts ...interface{}) error {
+					*bd = *tc.existingBundleDeployment
+					return nil
+				})
+
+			// BundleDeployment update (for CreateOrUpdate)
+			mockClient.EXPECT().Update(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.BundleDeployment{}), gomock.Any()).
+				Return(nil)
+
+			// Setup resource-specific mocks (secrets/configmaps)
+			tc.setupResourceMocks(mockCtrl, mockClient)
+
+			// Status update
+			statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
+			mockClient.EXPECT().Status().Return(statusClient).Times(1)
+			statusClient.EXPECT().Patch(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Bundle{}), gomock.Any()).
+				Return(nil)
+
+			recorderMock := mocks.NewMockEventRecorder(mockCtrl)
+
+			r := reconciler.BundleReconciler{
+				Client:   mockClient,
+				Scheme:   scheme,
+				Recorder: recorderMock,
+				Builder:  targetBuilderMock,
+				Store:    storeMock,
+			}
+
+			ctx := context.TODO()
+			_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: namespacedName})
+
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+func TestReconcile_DownstreamResources_FeatureDisabled(t *testing.T) {
+	envVar := "EXPERIMENTAL_COPY_RESOURCES_DOWNSTREAM"
+	bkp := os.Getenv(envVar)
+	defer func() {
+		os.Setenv(envVar, bkp)
+	}()
+
+	// Explicitly disable the feature
+	os.Setenv(envVar, "false")
+
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+
+	scheme := runtime.NewScheme()
+	utilruntime.Must(corev1.AddToScheme(scheme))
+	utilruntime.Must(fleetv1.AddToScheme(scheme))
+
+	bundle := fleetv1.Bundle{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-bundle",
+			Namespace: "default",
+		},
+		Spec: fleetv1.BundleSpec{
+			BundleDeploymentOptions: fleetv1.BundleDeploymentOptions{
+				DownstreamResources: []fleetv1.DownstreamResource{
+					{Kind: "Secret", Name: "my-secret"},
+					{Kind: "ConfigMap", Name: "my-config"},
+				},
+			},
+		},
+	}
+
+	existingBundleDeployment := &fleetv1.BundleDeployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-bd",
+			Namespace: "cluster-ns",
+			UID:       "test-uid",
+		},
+		Spec: fleetv1.BundleDeploymentSpec{
+			DeploymentID:                  "test-deployment",
+			DownstreamResourcesGeneration: 5, // Has a non-zero value
+		},
+	}
+
+	namespacedName := types.NamespacedName{Name: bundle.Name, Namespace: bundle.Namespace}
+
+	mockClient := mocks.NewMockK8sClient(mockCtrl)
+	expectGetWithFinalizer(mockClient, bundle)
+
+	// Options secret deletion
+	mockClient.EXPECT().Delete(gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{}), gomock.Any()).
+		Return(&k8serrors.StatusError{ErrStatus: metav1.Status{Code: http.StatusNotFound}})
+
+	matchedTargets := []*target.Target{
+		{
+			Bundle: &bundle,
+			Cluster: &fleetv1.Cluster{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "fleet-default",
+					Name:      "test-cluster",
+				},
+				Status: fleetv1.ClusterStatus{
+					Namespace: "cluster-ns",
+				},
+			},
+			Deployment:   existingBundleDeployment,
+			DeploymentID: "test-deployment",
+		},
+	}
+
+	targetBuilderMock := mocks.NewMockTargetBuilder(mockCtrl)
+	targetBuilderMock.EXPECT().Targets(gomock.Any(), gomock.Any(), gomock.Any()).Return(matchedTargets, nil)
+
+	storeMock := mocks.NewMockStore(mockCtrl)
+	storeMock.EXPECT().Store(gomock.Any(), gomock.Any()).Return(nil)
+
+	// List BundleDeployments for cleanup
+	mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.BundleDeploymentList{}), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, list *fleetv1.BundleDeploymentList, opts ...interface{}) error {
+			list.Items = []fleetv1.BundleDeployment{*existingBundleDeployment}
+			return nil
+		})
+
+	// BundleDeployment get (for CreateOrUpdate)
+	mockClient.EXPECT().Get(gomock.Any(), types.NamespacedName{Namespace: "cluster-ns", Name: "test-bd"}, gomock.AssignableToTypeOf(&fleetv1.BundleDeployment{}), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, key types.NamespacedName, bd *fleetv1.BundleDeployment, opts ...interface{}) error {
+			*bd = *existingBundleDeployment
+			return nil
+		})
+
+	// BundleDeployment update - when feature is disabled, generation stays unchanged
+	// because handleDownstreamObjects modifies BD in memory but doesn't persist it
+	mockClient.EXPECT().Update(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.BundleDeployment{}), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, obj client.Object, opts ...interface{}) error {
+			bd := obj.(*fleetv1.BundleDeployment)
+			// Feature is disabled, so resources are not cloned and generation stays as-is (5)
+			// The handleDownstreamObjects sets it to 0 in memory but doesn't persist that change
+			if bd.Spec.DownstreamResourcesGeneration != 5 {
+				t.Errorf("Expected generation to remain unchanged at 5 when feature is disabled, got %d", bd.Spec.DownstreamResourcesGeneration)
+			}
+			return nil
+		})
+
+	// No resource cloning calls expected since feature is disabled
+
+	// Status update
+	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
+	mockClient.EXPECT().Status().Return(statusClient).Times(1)
+	statusClient.EXPECT().Patch(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Bundle{}), gomock.Any()).
+		Return(nil)
+
+	recorderMock := mocks.NewMockEventRecorder(mockCtrl)
+
+	r := reconciler.BundleReconciler{
+		Client:   mockClient,
+		Scheme:   scheme,
+		Recorder: recorderMock,
+		Builder:  targetBuilderMock,
+		Store:    storeMock,
+	}
+
+	ctx := context.TODO()
+	_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: namespacedName})
+
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+}

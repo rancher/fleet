@@ -58,6 +58,9 @@ const (
 
 	// ImageScanGitRepoIndex is the name of the index for the gitrepo name in imagescans
 	ImageScanGitRepoIndex = "spec.gitrepoName"
+
+	// BundleDownstreamResourceIndex is the name of the index for downstream resources (secrets and configmaps) in bundles
+	BundleDownstreamResourceIndex = "spec.downstreamResources"
 )
 
 var (

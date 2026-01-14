@@ -19,6 +19,7 @@ import (
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
 	"github.com/rancher/fleet/internal/cmd/controller/target"
+	"github.com/rancher/fleet/internal/config"
 	"github.com/rancher/fleet/internal/experimental"
 	"github.com/rancher/fleet/internal/helmvalues"
 	"github.com/rancher/fleet/internal/manifest"
@@ -126,6 +127,18 @@ func (r *BundleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			}),
 			builder.WithPredicates(clusterChangedPredicate()),
 		).
+		Watches(
+			// Fan out from secret to bundle, reconcile bundles when a secret
+			// referenced in DownstreamResources changes.
+			&corev1.Secret{},
+			handler.EnqueueRequestsFromMapFunc(r.downstreamResourceMapFunc("Secret")),
+		).
+		Watches(
+			// Fan out from configmap to bundle, reconcile bundles when a configmap
+			// referenced in DownstreamResources changes.
+			&corev1.ConfigMap{},
+			handler.EnqueueRequestsFromMapFunc(r.downstreamResourceMapFunc("ConfigMap")),
+		).
 		WithEventFilter(sharding.FilterByShardID(r.ShardID)).
 		WithOptions(controller.Options{MaxConcurrentReconciles: r.Workers}).
 		Complete(r)
@@ -134,6 +147,8 @@ func (r *BundleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=bundles,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=bundles/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=bundles/finalizers,verbs=update
+//+kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
+//+kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch
 
 // Reconcile creates bundle deployments for a bundle
 //
@@ -580,19 +595,20 @@ func (r *BundleReconciler) getOCIReference(ctx context.Context, bundle *fleet.Bu
 // cloneConfigMap clones a config map, identified by the provided name and
 // namespace, to the namespace of the provided bundle deployment bd. This makes
 // the config map available to agents when deploying bd to downstream clusters.
+// Returns the operation result (Created, Updated, or Unchanged).
 func (r *BundleReconciler) cloneConfigMap(
 	ctx context.Context,
 	namespace string,
 	name string,
 	bd *fleet.BundleDeployment,
-) error {
+) (controllerutil.OperationResult, error) {
 	namespacedName := types.NamespacedName{
 		Namespace: namespace,
 		Name:      name,
 	}
 	var cm corev1.ConfigMap
 	if err := r.Get(ctx, namespacedName, &cm); err != nil {
-		return fmt.Errorf("failed to load source config map, cannot clone into %q: %w", namespace, err)
+		return controllerutil.OperationResultNone, fmt.Errorf("failed to load source config map, cannot clone into %q: %w", namespace, err)
 	}
 	// clone the config map, and just change the namespace so it's in the target's namespace
 	targetCM := &corev1.ConfigMap{
@@ -605,39 +621,41 @@ func (r *BundleReconciler) cloneConfigMap(
 	}
 
 	if err := controllerutil.SetControllerReference(bd, targetCM, r.Scheme); err != nil {
-		return err
+		return controllerutil.OperationResultNone, err
 	}
 
 	updated := targetCM.DeepCopy()
-	if _, err := controllerutil.CreateOrUpdate(ctx, r.Client, targetCM, func() error {
+	result, err := controllerutil.CreateOrUpdate(ctx, r.Client, targetCM, func() error {
 		targetCM.Data = updated.Data
 		targetCM.BinaryData = updated.BinaryData
 
 		return nil
-	}); err != nil {
-		return fmt.Errorf("failed to create or update source config map %s/%s: %w", bd.Namespace, cm.Name, err)
+	})
+	if err != nil {
+		return controllerutil.OperationResultNone, fmt.Errorf("failed to create or update source config map %s/%s: %w", bd.Namespace, cm.Name, err)
 	}
 
-	return nil
+	return result, nil
 }
 
 // cloneSecret clones a secret, identified by the provided secretName and
 // namespace, to the namespace of the provided bundle deployment bd. This makes
 // the secret available to agents when deploying bd to downstream clusters.
+// Returns the operation result (Created, Updated, or Unchanged).
 func (r *BundleReconciler) cloneSecret(
 	ctx context.Context,
 	ns string,
 	secretName string,
 	secretType string,
 	bd *fleet.BundleDeployment,
-) error {
+) (controllerutil.OperationResult, error) {
 	namespacedName := types.NamespacedName{
 		Namespace: ns,
 		Name:      secretName,
 	}
 	var secret corev1.Secret
 	if err := r.Get(ctx, namespacedName, &secret); err != nil {
-		return fmt.Errorf("failed to load source secret, cannot clone into %q: %w", ns, err)
+		return controllerutil.OperationResultNone, fmt.Errorf("failed to load source secret, cannot clone into %q: %w", ns, err)
 	}
 	// clone the secret, and just change the namespace so it's in the target's namespace
 	targetSecret := &corev1.Secret{
@@ -656,21 +674,22 @@ func (r *BundleReconciler) cloneSecret(
 	}
 
 	if err := controllerutil.SetControllerReference(bd, targetSecret, r.Scheme); err != nil {
-		return err
+		return controllerutil.OperationResultNone, err
 	}
 
 	updated := targetSecret.DeepCopy()
-	if _, err := controllerutil.CreateOrUpdate(ctx, r.Client, targetSecret, func() error {
+	result, err := controllerutil.CreateOrUpdate(ctx, r.Client, targetSecret, func() error {
 		targetSecret.Data = updated.Data
 		targetSecret.StringData = updated.StringData
 		targetSecret.Type = updated.Type
 
 		return nil
-	}); err != nil {
-		return fmt.Errorf("failed to create or update source secret %s/%s: %w", bd.Namespace, secret.Name, err)
+	})
+	if err != nil {
+		return controllerutil.OperationResultNone, fmt.Errorf("failed to create or update source secret %s/%s: %w", bd.Namespace, secret.Name, err)
 	}
 
-	return nil
+	return result, nil
 }
 
 func (r *BundleReconciler) handleContentAccessSecrets(ctx context.Context, bundle *fleet.Bundle, bd *fleet.BundleDeployment) error {
@@ -678,13 +697,14 @@ func (r *BundleReconciler) handleContentAccessSecrets(ctx context.Context, bundl
 	contentsInHelmChart := bundle.Spec.HelmOpOptions != nil
 
 	if contentsInOCI {
-		if err := r.cloneSecret(
+		_, err := r.cloneSecret(
 			ctx,
 			bundle.Namespace,
 			bundle.Spec.ContentsID,
 			fleet.SecretTypeOCIStorage,
 			bd,
-		); err != nil {
+		)
+		if err != nil {
 			return fmt.Errorf(
 				"%w: failed to clone secret %s/%s to downstream cluster namespace: %w",
 				fleetutil.ErrRetryable,
@@ -695,13 +715,14 @@ func (r *BundleReconciler) handleContentAccessSecrets(ctx context.Context, bundl
 		}
 	}
 	if contentsInHelmChart && bundle.Spec.HelmOpOptions.SecretName != "" {
-		if err := r.cloneSecret(
+		_, err := r.cloneSecret(
 			ctx,
 			bundle.Namespace,
 			bundle.Spec.HelmOpOptions.SecretName,
 			fleet.SecretTypeHelmOpsAccess,
 			bd,
-		); err != nil {
+		)
+		if err != nil {
 			return fmt.Errorf(
 				"%w: failed to clone secret %s/%s to downstream cluster namespace: %w",
 				fleetutil.ErrRetryable,
@@ -734,13 +755,18 @@ func (r *BundleReconciler) updateErrorStatus(
 
 func (r *BundleReconciler) handleDownstreamObjects(ctx context.Context, bundle *fleet.Bundle, bd *fleet.BundleDeployment) error {
 	if !experimental.CopyResourcesDownstreamEnabled() {
+		bd.Spec.DownstreamResourcesGeneration = 0
 		return nil
 	}
+
+	// Track if any resources were created or updated
+	resourcesUpdated := false
 
 	for _, dr := range bundle.Spec.DownstreamResources {
 		switch strings.ToLower(dr.Kind) {
 		case "secret":
-			if err := r.cloneSecret(ctx, bundle.Namespace, dr.Name, "", bd); err != nil {
+			result, err := r.cloneSecret(ctx, bundle.Namespace, dr.Name, "", bd)
+			if err != nil {
 				return fmt.Errorf(
 					"%w: failed to copy secret %s/%s to downstream cluster namespace: %w",
 					fleetutil.ErrRetryable,
@@ -749,8 +775,12 @@ func (r *BundleReconciler) handleDownstreamObjects(ctx context.Context, bundle *
 					err,
 				)
 			}
+			if result == controllerutil.OperationResultCreated || result == controllerutil.OperationResultUpdated {
+				resourcesUpdated = true
+			}
 		case "configmap":
-			if err := r.cloneConfigMap(ctx, bundle.Namespace, dr.Name, bd); err != nil {
+			result, err := r.cloneConfigMap(ctx, bundle.Namespace, dr.Name, bd)
+			if err != nil {
 				return fmt.Errorf(
 					"%w: failed to copy config map %s/%s to downstream cluster namespace: %w",
 					fleetutil.ErrRetryable,
@@ -759,8 +789,29 @@ func (r *BundleReconciler) handleDownstreamObjects(ctx context.Context, bundle *
 					err,
 				)
 			}
+			if result == controllerutil.OperationResultCreated || result == controllerutil.OperationResultUpdated {
+				resourcesUpdated = true
+			}
 		default:
 			return fmt.Errorf("unsupported kind for object to copy to downstream: %q", dr.Kind)
+		}
+	}
+
+	// Only patch if the value changed to true
+	if resourcesUpdated {
+		// Create a patch to update the BundleDeployment
+		patch := client.MergeFrom(bd.DeepCopy())
+		bd.Spec.DownstreamResourcesGeneration++
+
+		// Check if patch is empty before applying
+		if patchData, err := patch.Data(bd); err == nil && string(patchData) != "{}" {
+			if err := r.Patch(ctx, bd, patch); err != nil {
+				return fmt.Errorf(
+					"%w: failed to patch BundleDeployment with DownstreamResourcesGeneration: %w",
+					fleetutil.ErrRetryable,
+					err,
+				)
+			}
 		}
 	}
 
@@ -1022,5 +1073,41 @@ func BundleDeploymentMapFunc(r *BundleReconciler) func(ctx context.Context, a cl
 		}
 
 		return nil
+	}
+}
+
+// downstreamResourceMapFunc returns a function that maps a Secret or ConfigMap to Bundles
+// that reference it in their DownstreamResources.
+func (r *BundleReconciler) downstreamResourceMapFunc(kind string) func(ctx context.Context, obj client.Object) []reconcile.Request {
+	kind = strings.ToLower(kind) // the index uses lowercase kind
+	return func(ctx context.Context, obj client.Object) []reconcile.Request {
+		// Create the index key for this resource (Kind/Name)
+		indexKey := fmt.Sprintf("%s/%s", kind, obj.GetName())
+
+		// Find all bundles that reference this resource
+		bundleList := &fleet.BundleList{}
+		err := r.List(ctx, bundleList,
+			client.InNamespace(obj.GetNamespace()),
+			client.MatchingFields{config.BundleDownstreamResourceIndex: indexKey},
+		)
+		if err != nil {
+			return nil
+		}
+
+		// Create reconcile requests for each bundle found
+		requests := make([]reconcile.Request, 0, len(bundleList.Items))
+		for _, bundle := range bundleList.Items {
+			if !sharding.ShouldProcess(&bundle, r.ShardID) {
+				continue
+			}
+			requests = append(requests, reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Namespace: bundle.Namespace,
+					Name:      bundle.Name,
+				},
+			})
+		}
+
+		return requests
 	}
 }

@@ -86,7 +86,8 @@ func (r *BundleDeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 						if n == nil || o == nil {
 							return false
 						}
-						return n.Status.SyncGeneration != o.Status.SyncGeneration
+						return n.Status.SyncGeneration != o.Status.SyncGeneration ||
+							(o.Spec.DownstreamResourcesGeneration != n.Spec.DownstreamResourcesGeneration)
 					},
 					DeleteFunc: func(e event.DeleteEvent) bool {
 						return true
@@ -389,6 +390,9 @@ func (r *BundleDeploymentReconciler) copyResourcesFromUpstream(
 			return false, fmt.Errorf("unknown resource type for copy to downstream cluster: %q", rsc.Kind)
 		}
 	}
+
+	// update DownstreamResourcesGeneration to reflect that resources were copied/updated
+	bd.Status.DownstreamResourcesGeneration = bd.Spec.DownstreamResourcesGeneration
 
 	return requiresBDUpdate, nil
 }

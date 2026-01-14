@@ -162,6 +162,13 @@ spec:
                   description: DeploymentID is the ID of the currently applied deployment.
                   nullable: true
                   type: string
+                downstreamResourcesGeneration:
+                  description: 'DownstreamResourcesGeneration is used to track changes
+                    to DownstreamResources.
+
+                    It is incremented every time DownstreamResources are modified.'
+                  format: int64
+                  type: integer
                 helmChartOptions:
                   description: 'HelmChartOptions is not nil and has the helm chart
                     config details when contents
@@ -1043,6 +1050,16 @@ spec:
                       nullable: true
                       type: string
                   type: object
+                downstreamResourcesGeneration:
+                  description: 'DownstreamResourcesGeneration is used to track changes
+                    to DownstreamResources.
+
+                    It is incremented every time DownstreamResources are modified
+                    and reflects the value in the spec
+
+                    after it has been processed.'
+                  format: int64
+                  type: integer
                 incompleteState:
                   description: IncompleteState is true if there are more than 10 non-ready
                     or modified resources, meaning that the lists in those fields
