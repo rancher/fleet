@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/reugn/go-quartz/quartz"
 
@@ -193,6 +194,11 @@ func start(
 		return err
 	}
 
+	// Add an indexer for Bundle DownstreamResources (secrets and configmaps)
+	if err := AddBundleDownstreamResourceIndexer(ctx, mgr); err != nil {
+		return err
+	}
+
 	if err = (&reconciler.ContentReconciler{
 		Client:  mgr.GetClient(),
 		Scheme:  mgr.GetScheme(),
@@ -250,6 +256,34 @@ func AddContentNameLabelIndexer(ctx context.Context, mgr manager.Manager) error 
 				return []string{val}
 			}
 			return nil
+		},
+	)
+}
+
+// AddBundleDownstreamResourceIndexer indexes Bundles by their DownstreamResources (secrets and configmaps).
+// This allows querying which bundles reference a specific secret or configmap, enabling reconciliation
+// when those resources change.
+func AddBundleDownstreamResourceIndexer(ctx context.Context, mgr manager.Manager) error {
+	return mgr.GetFieldIndexer().IndexField(
+		ctx,
+		&fleet.Bundle{},
+		config.BundleDownstreamResourceIndex,
+		func(obj client.Object) []string {
+			bundle, ok := obj.(*fleet.Bundle)
+			if !ok {
+				return nil
+			}
+
+			// Extract all downstream resource names (secrets and configmaps)
+			var resources []string
+			for _, dr := range bundle.Spec.DownstreamResources {
+				lowerKind := strings.ToLower(dr.Kind)
+				if lowerKind == "secret" || lowerKind == "configmap" {
+					// Index by "Kind/Name" to uniquely identify the resource
+					resources = append(resources, fmt.Sprintf("%s/%s", lowerKind, dr.Name))
+				}
+			}
+			return resources
 		},
 	)
 }
