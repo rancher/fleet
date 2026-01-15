@@ -2333,6 +2333,11 @@ func (in *RolloutStrategy) DeepCopyInto(out *RolloutStrategy) {
 		*out = new(intstr.IntOrString)
 		**out = **in
 	}
+	if in.AutoPartitionThreshold != nil {
+		in, out := &in.AutoPartitionThreshold, &out.AutoPartitionThreshold
+		*out = new(int)
+		**out = **in
+	}
 	if in.Partitions != nil {
 		in, out := &in.Partitions, &out.Partitions
 		*out = make([]Partition, len(*in))

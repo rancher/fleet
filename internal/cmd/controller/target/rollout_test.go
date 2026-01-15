@@ -136,6 +136,11 @@ func partitionsEqual(got, want []partition) error {
 	return nil
 }
 
+// intPtr is a helper function to create an int pointer
+func intPtr(i int) *int {
+	return &i
+}
+
 func Test_autoPartition(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -219,6 +224,41 @@ func Test_autoPartition(t *testing.T) {
 				{Targets: createTargets(115, 171), Status: fleet.PartitionStatus{MaxUnavailable: 57}},
 				{Targets: createTargets(172, 228), Status: fleet.PartitionStatus{MaxUnavailable: 57}},
 				{Targets: createTargets(229, 230), Status: fleet.PartitionStatus{MaxUnavailable: 2}},
+			},
+		},
+		{
+			name: "AutoPartitionThreshold set to 50 should partition with 50 targets",
+			rollout: &fleet.RolloutStrategy{
+				AutoPartitionThreshold: intPtr(50),
+				AutoPartitionSize:      &intstr.IntOrString{Type: intstr.String, StrVal: "50%"},
+			},
+			targets: createTargets(1, 50),
+			want: []partition{
+				{Targets: createTargets(1, 25), Status: fleet.PartitionStatus{MaxUnavailable: 25}},
+				{Targets: createTargets(26, 50), Status: fleet.PartitionStatus{MaxUnavailable: 25}},
+			},
+		},
+		{
+			name: "AutoPartitionThreshold set to 50 should not partition with 49 targets",
+			rollout: &fleet.RolloutStrategy{
+				AutoPartitionThreshold: intPtr(50),
+				AutoPartitionSize:      &intstr.IntOrString{Type: intstr.String, StrVal: "50%"},
+			},
+			targets: createTargets(1, 49),
+			want: []partition{
+				{Targets: createTargets(1, 49), Status: fleet.PartitionStatus{MaxUnavailable: 49}},
+			},
+		},
+
+		{
+			name: "AutoPartitionThreshold disabled with value 0 should put all in one partition",
+			rollout: &fleet.RolloutStrategy{
+				AutoPartitionThreshold: intPtr(0),
+				AutoPartitionSize:      &intstr.IntOrString{Type: intstr.String, StrVal: "25%"},
+			},
+			targets: createTargets(1, 500),
+			want: []partition{
+				{Targets: createTargets(1, 500), Status: fleet.PartitionStatus{MaxUnavailable: 500}},
 			},
 		},
 	}

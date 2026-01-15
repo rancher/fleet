@@ -1958,6 +1958,21 @@ spec:
                         default: 25%'
                       nullable: true
                       x-kubernetes-int-or-string: true
+                    autoPartitionThreshold:
+                      description: 'AutoPartitionThreshold is the minimum number of
+                        clusters that need to be
+
+                        present before auto-partitioning is enabled. If the number
+                        of target
+
+                        clusters is less than this value, all clusters will be placed
+                        in a single
+
+                        partition.
+
+                        default: 200'
+                      nullable: true
+                      type: integer
                     maxUnavailable:
                       anyOf:
                         - type: integer
@@ -7952,6 +7967,21 @@ spec:
                         default: 25%'
                       nullable: true
                       x-kubernetes-int-or-string: true
+                    autoPartitionThreshold:
+                      description: 'AutoPartitionThreshold is the minimum number of
+                        clusters that need to be
+
+                        present before auto-partitioning is enabled. If the number
+                        of target
+
+                        clusters is less than this value, all clusters will be placed
+                        in a single
+
+                        partition.
+
+                        default: 200'
+                      nullable: true
+                      type: integer
                     maxUnavailable:
                       anyOf:
                         - type: integer
