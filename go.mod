@@ -44,7 +44,7 @@ require (
 	github.com/rancher/lasso v0.2.5
 	github.com/rancher/wrangler/v3 v3.3.1
 	github.com/reugn/go-quartz v0.15.2
-	github.com/sirupsen/logrus v1.9.3
+	github.com/sirupsen/logrus v1.9.4
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go v0.38.0
