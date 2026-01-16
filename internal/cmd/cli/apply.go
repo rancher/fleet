@@ -2,10 +2,15 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime/pprof"
 	"strings"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -32,10 +37,94 @@ type readFile func(name string) ([]byte, error)
 
 // NewApply returns a subcommand to create bundles from directories
 func NewApply() *cobra.Command {
-	return command.Command(&Apply{}, cobra.Command{
+	cmd := command.Command(&Apply{}, cobra.Command{
 		Use:   "apply [flags] BUNDLE_NAME PATH...",
 		Short: "Create bundles from directories, and output them or apply them on a cluster",
 	})
+
+	var profilesDir string
+	cmd.Flags().StringVar(&profilesDir, "profiles-dir", "", "write cpu profile to file")
+
+	var cleanup []func()
+	cmd.PersistentPreRunE = func(c *cobra.Command, args []string) error {
+		if profilesDir == "" {
+			return nil
+		}
+		if err := os.MkdirAll(profilesDir, 0755); err != nil {
+			return err
+		}
+
+		// CPU profiling
+		f, err := os.Create(filepath.Join(profilesDir, "cpu-profile.pprof"))
+		if err != nil {
+			return err
+		}
+		if err := pprof.StartCPUProfile(f); err != nil {
+			f.Close()
+			return err
+		}
+		cleanup = append(cleanup, func() {
+			pprof.StopCPUProfile()
+			f.Close()
+		})
+
+		ctx, cancel := context.WithCancel(c.Context())
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+
+			var count int
+
+			for {
+				select {
+				case <-ctx.Done():
+					// not return, let it run one last time
+				case <-time.After(10 * time.Second):
+				}
+
+				memProfile := fmt.Sprintf("heap-profile-%d.pprof", count)
+				if err := func() error {
+					f, err := os.Create(filepath.Join(profilesDir, memProfile))
+					if err != nil {
+						return err
+					}
+					defer f.Close()
+					return pprof.WriteHeapProfile(f)
+				}(); err != nil {
+					log.Printf("error creating memory profile: %v", err)
+				}
+
+				goroutineProfile := fmt.Sprintf("goroutine-profile-%d.pprof", count)
+				if err := func() error {
+					f, err := os.Create(filepath.Join(profilesDir, goroutineProfile))
+					if err != nil {
+						return err
+					}
+					defer f.Close()
+					return pprof.Lookup("goroutine").WriteTo(f, 0)
+				}(); err != nil {
+					log.Printf("error creating goroutine profile: %v", err)
+				}
+
+				if ctx.Err() != nil {
+					return
+				}
+				count++
+			}
+		}()
+		cleanup = append(cleanup, func() {
+			cancel()
+			<-done
+		})
+		return nil
+	}
+	cmd.PersistentPostRun = func(c *cobra.Command, args []string) {
+		for _, f := range cleanup {
+			f()
+		}
+	}
+
+	return cmd
 }
 
 type Apply struct {
