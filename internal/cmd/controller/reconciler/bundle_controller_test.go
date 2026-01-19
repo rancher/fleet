@@ -1124,8 +1124,6 @@ func TestReconcile_DownstreamResourcesGeneration_Increment(t *testing.T) {
 		initialGeneration        int64
 		existingBundleDeployment *fleetv1.BundleDeployment
 		setupResourceMocks       func(*gomock.Controller, *mocks.MockK8sClient)
-		expectGeneration         int64
-		expectPatch              bool
 	}{
 		{
 			name: "Secret created - generation increments from 0 to 1",
@@ -1169,8 +1167,6 @@ func TestReconcile_DownstreamResourcesGeneration_Increment(t *testing.T) {
 						return nil
 					})
 			},
-			expectGeneration: 1,
-			expectPatch:      true,
 		},
 		{
 			name: "ConfigMap updated - generation increments from 5 to 6",
@@ -1219,8 +1215,6 @@ func TestReconcile_DownstreamResourcesGeneration_Increment(t *testing.T) {
 						return nil
 					})
 			},
-			expectGeneration: 6,
-			expectPatch:      true,
 		},
 		{
 			name: "Both Secret and ConfigMap updated - generation increments once",
@@ -1285,8 +1279,6 @@ func TestReconcile_DownstreamResourcesGeneration_Increment(t *testing.T) {
 						return nil
 					})
 			},
-			expectGeneration: 11,
-			expectPatch:      true,
 		},
 		{
 			name: "Resource unchanged - no generation increment",
@@ -1327,8 +1319,6 @@ func TestReconcile_DownstreamResourcesGeneration_Increment(t *testing.T) {
 
 				// No patch expected since nothing changed
 			},
-			expectGeneration: 3,
-			expectPatch:      false,
 		},
 	}
 

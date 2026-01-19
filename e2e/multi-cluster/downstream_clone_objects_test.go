@@ -3,6 +3,7 @@ package multicluster_test
 import (
 	"fmt"
 	"path"
+	"strconv"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -24,11 +25,12 @@ var _ = Describe("Downstream objects cloning", Ordered, func() {
 		k  kubectl.Command
 		kd kubectl.Command
 
-		asset         string
-		name          string
-		keepResources bool
-		valuesFrom    []fleet.ValuesFrom
-		cmName        = "test-simple-chart-config"
+		asset               string
+		name                string
+		keepResources       bool
+		valuesFrom          []fleet.ValuesFrom
+		downstreamResources []DownstreamResource
+		cmName              = "test-simple-chart-config"
 	)
 
 	BeforeEach(func() {
@@ -61,6 +63,24 @@ var _ = Describe("Downstream objects cloning", Ordered, func() {
 		)
 		Expect(err).ToNot(HaveOccurred(), out)
 
+		// Use default downstream resources if not set
+		if downstreamResources == nil {
+			downstreamResources = []DownstreamResource{
+				{
+					Kind: "Secret",
+					Name: "secret-values",
+				},
+				{
+					Kind: "ConfigMap",
+					Name: "config-values",
+				},
+				{
+					Kind: "Secret",
+					Name: "secret-image-pull",
+				},
+			}
+		}
+
 		err = testenv.ApplyTemplate(k.Namespace(env.ClusterRegistrationNamespace), testenv.AssetPath(asset), struct {
 			Name                  string
 			Namespace             string
@@ -82,20 +102,7 @@ var _ = Describe("Downstream objects cloning", Ordered, func() {
 			0,
 			"",
 			false,
-			[]DownstreamResource{
-				{
-					Kind: "Secret",
-					Name: "secret-values",
-				},
-				{
-					Kind: "ConfigMap",
-					Name: "config-values",
-				},
-				{
-					Kind: "Secret",
-					Name: "secret-image-pull",
-				},
-			},
+			downstreamResources,
 			keepResources,
 			valuesFrom,
 		})
@@ -113,6 +120,7 @@ var _ = Describe("Downstream objects cloning", Ordered, func() {
 			asset = "multi-cluster/helmop_downstream_resources.yaml"
 			name = "helmop-downstream-copy"
 			keepResources = false
+			downstreamResources = nil
 			valuesFrom = []fleet.ValuesFrom{
 				{
 					SecretKeyRef: &fleet.SecretKeySelector{
@@ -176,6 +184,7 @@ var _ = Describe("Downstream objects cloning", Ordered, func() {
 			asset = "multi-cluster/helmop_downstream_resources.yaml"
 			name = "helmop-downstream-copy-update"
 			keepResources = false
+			downstreamResources = nil
 			valuesFrom = []fleet.ValuesFrom{
 				{
 					ConfigMapKeyRef: &fleet.ConfigMapKeySelector{
@@ -231,6 +240,7 @@ var _ = Describe("Downstream objects cloning", Ordered, func() {
 			asset = "multi-cluster/helmop_downstream_resources.yaml"
 			name = "helmop-downstream-copy-keepresources"
 			keepResources = true
+			downstreamResources = nil
 			valuesFrom = []fleet.ValuesFrom{
 				{
 					ConfigMapKeyRef: &fleet.ConfigMapKeySelector{
@@ -280,6 +290,239 @@ var _ = Describe("Downstream objects cloning", Ordered, func() {
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(cms).To(ContainSubstring("config-values"))
 			}).Should(Succeed())
+		})
+	})
+
+	Context("watching for changes to downstream resources", func() {
+		BeforeEach(func() {
+			asset = "multi-cluster/helmop_downstream_resources.yaml"
+			name = "helmop-downstream-copy-watch"
+			keepResources = false
+			downstreamResources = nil
+			valuesFrom = []fleet.ValuesFrom{
+				{
+					ConfigMapKeyRef: &fleet.ConfigMapKeySelector{
+						Namespace:            env.ClusterRegistrationNamespace,
+						LocalObjectReference: fleet.LocalObjectReference{Name: "config-values"},
+						Key:                  "values.yaml",
+					},
+				},
+				{
+					SecretKeyRef: &fleet.SecretKeySelector{
+						Namespace:            env.ClusterRegistrationNamespace,
+						LocalObjectReference: fleet.LocalObjectReference{Name: "secret-values"},
+						Key:                  "values.yaml",
+					},
+				},
+			}
+		})
+
+		It("automatically re-deploys when a referenced configmap or secret changes", func() {
+			By("copying resources downstream initially")
+			Eventually(func(g Gomega) {
+				s, err := kd.Get("secrets")
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(s).To(ContainSubstring("secret-values"))
+
+				cms, err := kd.Get("configmaps")
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(cms).To(ContainSubstring("config-values"))
+			}).WithTimeout(testenv.LongTimeout).WithPolling(testenv.LongPollingInterval).Should(Succeed())
+
+			By("verifying initial deployment with original values")
+			Eventually(func(g Gomega) {
+				cms, err := kd.Get("configmaps")
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(cms).To(ContainSubstring(cmName))
+
+				name, err := kd.Get("configmaps", cmName, "-o", "jsonpath={.data.name}")
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(name).To(Equal("name-from-downstream-cluster-secret"))
+			}).WithTimeout(testenv.LongTimeout).WithPolling(testenv.LongPollingInterval).Should(Succeed())
+
+			By("verifying the configmap has the initial value before updating")
+			Eventually(func(g Gomega) {
+				cm, err := kd.Get("configmap", "config-values", "-o", "jsonpath={.data['values\\.yaml']}")
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(cm).To(ContainSubstring("name-from-downstream-cluster-configmap"))
+			}).WithTimeout(testenv.LongTimeout).WithPolling(testenv.LongPollingInterval).Should(Succeed())
+
+			clusterNameSpace := ""
+			clusterName := ""
+			By("getting the downstream cluster name with label env=test")
+			Eventually(func(g Gomega) {
+				out, err := k.Namespace(env.ClusterRegistrationNamespace).Get("clusters", "-l", "env=test", "-o", "jsonpath={.items[0].metadata.name}")
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(out).ToNot(BeEmpty())
+				clusterName = out
+			}).WithTimeout(testenv.LongTimeout).WithPolling(testenv.LongPollingInterval).Should(Succeed())
+
+			By("getting the cluster namespace for the downstream cluster")
+			Eventually(func(g Gomega) {
+				out, err := k.Namespace(env.ClusterRegistrationNamespace).Get("clusters", clusterName, "-o", "jsonpath={.status.namespace}")
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(out).ToNot(BeEmpty())
+				clusterNameSpace = out
+			}).WithTimeout(testenv.LongTimeout).WithPolling(testenv.LongPollingInterval).Should(Succeed())
+
+			By("getting the initial DownstreamResourcesGeneration from the BundleDeployment")
+			var initialGeneration int
+			Eventually(func(g Gomega) {
+				bd, err := k.Namespace(clusterNameSpace).Get("bundledeployment", "helmop-downstream-copy-watch", "-o", "jsonpath={.status.downstreamResourcesGeneration}")
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(bd).NotTo(BeEmpty())
+				gen, err := strconv.Atoi(bd)
+				g.Expect(err).ToNot(HaveOccurred())
+				initialGeneration = gen
+			}).WithTimeout(testenv.LongTimeout).WithPolling(testenv.LongPollingInterval).Should(Succeed())
+
+			By("updating the configmap upstream")
+			out, err := k.Namespace(env.ClusterRegistrationNamespace).Patch("configmap", "config-values", "--type=merge", "-p", `{"data":{"values.yaml":"name: updated-configmap-value"}}`)
+			Expect(err).ToNot(HaveOccurred(), out)
+
+			By("verifying the configmap change propagates to downstream automatically")
+			Eventually(func(g Gomega) {
+				cm, err := kd.Get("configmap", "config-values", "-o", "jsonpath={.data['values\\.yaml']}")
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(cm).To(ContainSubstring("updated-configmap-value"))
+			}).WithTimeout(testenv.LongTimeout).WithPolling(testenv.LongPollingInterval).Should(Succeed())
+
+			By("verifying the DownstreamResourcesGeneration is updated after configmap change")
+			Eventually(func(g Gomega) {
+				bd, err := k.Namespace(clusterNameSpace).Get("bundledeployment", "helmop-downstream-copy-watch", "-o", "jsonpath={.status.downstreamResourcesGeneration}")
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(bd).NotTo(BeEmpty())
+				gen, err := strconv.Atoi(bd)
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(gen).To(Equal(initialGeneration + 1))
+			}).WithTimeout(testenv.LongTimeout).WithPolling(testenv.LongPollingInterval).Should(Succeed())
+
+			By("verifying the secret has the initial value before updating")
+			Eventually(func(g Gomega) {
+				s, err := kd.Get("secret", "secret-values", "-o", "jsonpath={.data['values\\.yaml']}")
+				g.Expect(err).ToNot(HaveOccurred())
+				// The initial value should be base64 encoded "name: name-from-downstream-cluster-secret"
+				g.Expect(s).To(Equal("bmFtZTogbmFtZS1mcm9tLWRvd25zdHJlYW0tY2x1c3Rlci1zZWNyZXQK"))
+			}).WithTimeout(testenv.LongTimeout).WithPolling(testenv.LongPollingInterval).Should(Succeed())
+
+			By("getting the DownstreamResourcesGeneration after configmap update")
+			var generationAfterConfigMapUpdate int
+			Eventually(func(g Gomega) {
+				bd, err := k.Namespace(clusterNameSpace).Get("bundledeployment", "helmop-downstream-copy-watch", "-o", "jsonpath={.status.downstreamResourcesGeneration}")
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(bd).NotTo(BeEmpty())
+				gen, err := strconv.Atoi(bd)
+				g.Expect(err).ToNot(HaveOccurred())
+				generationAfterConfigMapUpdate = gen
+			}).WithTimeout(testenv.LongTimeout).WithPolling(testenv.LongPollingInterval).Should(Succeed())
+
+			By("updating the secret data upstream")
+			out, err = k.Namespace(env.ClusterRegistrationNamespace).Patch("secret", "secret-values", "--type=json", "-p", `[{"op": "replace", "path": "/data/values.yaml", "value": "bmFtZTogdXBkYXRlZC1zZWNyZXQtdmFsdWU="}]`)
+			Expect(err).ToNot(HaveOccurred(), out)
+
+			By("verifying the secret change propagates to downstream automatically")
+			Eventually(func(g Gomega) {
+				s, err := kd.Get("secret", "secret-values", "-o", "jsonpath={.data['values\\.yaml']}")
+				g.Expect(err).ToNot(HaveOccurred())
+				// The value "bmFtZTogdXBkYXRlZC1zZWNyZXQtdmFsdWU=" is base64 encoded "name: updated-secret-value"
+				g.Expect(s).To(Equal("bmFtZTogdXBkYXRlZC1zZWNyZXQtdmFsdWU="))
+			}).WithTimeout(testenv.LongTimeout).WithPolling(testenv.LongPollingInterval).Should(Succeed())
+
+			By("verifying the DownstreamResourcesGeneration is updated after secret change")
+			Eventually(func(g Gomega) {
+				bd, err := k.Namespace(clusterNameSpace).Get("bundledeployment", "helmop-downstream-copy-watch", "-o", "jsonpath={.status.downstreamResourcesGeneration}")
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(bd).NotTo(BeEmpty())
+				gen, err := strconv.Atoi(bd)
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(gen).To(Equal(generationAfterConfigMapUpdate + 1))
+			}).WithTimeout(testenv.LongTimeout).WithPolling(testenv.LongPollingInterval).Should(Succeed())
+
+			By("updating the secret-image-pull data upstream")
+			out, err = k.Namespace(env.ClusterRegistrationNamespace).Patch("secret", "secret-image-pull", "--type=json", "-p", `[{"op": "add", "path": "/data/new-key", "value": "dXBkYXRlZC12YWx1ZQ=="}]`)
+			Expect(err).ToNot(HaveOccurred(), out)
+
+			By("verifying the secret data change propagates to downstream automatically")
+			Eventually(func(g Gomega) {
+				s, err := kd.Get("secret", "secret-image-pull", "-o=jsonpath={.data.new-key}")
+				g.Expect(err).ToNot(HaveOccurred())
+				// The value "dXBkYXRlZC12YWx1ZQ==" is base64 encoded "updated-value"
+				g.Expect(s).To(Equal("dXBkYXRlZC12YWx1ZQ=="))
+			}).WithTimeout(30 * time.Second).WithPolling(testenv.LongPollingInterval).Should(Succeed())
+		})
+
+		AfterEach(func() {
+			_, _ = k.Namespace(env.ClusterRegistrationNamespace).Delete("helmop", name)
+		})
+	})
+
+	Context("deploying with non-existent downstream resources", func() {
+		BeforeEach(func() {
+			asset = "multi-cluster/helmop_downstream_resources.yaml"
+			name = "helmop-downstream-nonexistent"
+			keepResources = false
+			valuesFrom = []fleet.ValuesFrom{}
+			// Reference resources that don't exist yet
+			downstreamResources = []DownstreamResource{
+				{
+					Kind: "Secret",
+					Name: "new-secret",
+				},
+				{
+					Kind: "ConfigMap",
+					Name: "new-configmap",
+				},
+			}
+		})
+
+		It("waits for resources to be created and then propagates them downstream", func() {
+			By("verifying the non-existent resources are not in downstream cluster")
+			Consistently(func(g Gomega) {
+				s, err := kd.Get("secrets")
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(s).NotTo(ContainSubstring("new-secret"))
+
+				cms, err := kd.Get("configmaps")
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(cms).NotTo(ContainSubstring("new-configmap"))
+			}).WithTimeout(10 * time.Second).WithPolling(2 * time.Second).Should(Succeed())
+
+			By("creating the configmap upstream")
+			out, err := k.Namespace(env.ClusterRegistrationNamespace).Create("configmap", "new-configmap", "--from-literal=data=configmap-value")
+			Expect(err).ToNot(HaveOccurred(), out)
+
+			By("creating the secret upstream")
+			out, err = k.Namespace(env.ClusterRegistrationNamespace).Create("secret", "generic", "new-secret", "--from-literal=data=secret-value")
+			Expect(err).ToNot(HaveOccurred(), out)
+
+			By("verifying the newly created resources propagate to downstream")
+			Eventually(func(g Gomega) {
+				s, err := kd.Get("secrets")
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(s).To(ContainSubstring("new-secret"))
+
+				cms, err := kd.Get("configmaps")
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(cms).To(ContainSubstring("new-configmap"))
+			}).WithTimeout(testenv.LongTimeout).WithPolling(testenv.LongPollingInterval).Should(Succeed())
+
+			By("verifying the data is correct in the downstream resources")
+			Eventually(func(g Gomega) {
+				s, err := kd.Get("secret", "new-secret", "-o", "jsonpath={.data.data}")
+				g.Expect(err).ToNot(HaveOccurred())
+				// "c2VjcmV0LXZhbHVl" is base64 encoded "secret-value"
+				g.Expect(s).To(Equal("c2VjcmV0LXZhbHVl"))
+
+				cm, err := kd.Get("configmap", "new-configmap", "-o", "jsonpath={.data.data}")
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(cm).To(Equal("configmap-value"))
+			}).WithTimeout(testenv.LongTimeout).WithPolling(testenv.LongPollingInterval).Should(Succeed())
+		})
+
+		AfterEach(func() {
+			_, _ = k.Namespace(env.ClusterRegistrationNamespace).Delete("helmop", name)
+			_, _ = k.Namespace(env.ClusterRegistrationNamespace).Delete("secret", "new-secret")
+			_, _ = k.Namespace(env.ClusterRegistrationNamespace).Delete("configmap", "new-configmap")
 		})
 	})
 })

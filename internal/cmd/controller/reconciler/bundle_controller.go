@@ -907,6 +907,43 @@ func (r *BundleReconciler) computeResult(
 	return ctrl.Result{}, r.updateErrorStatus(ctx, bundleOrig, bundle, err)
 }
 
+// downstreamResourceMapFunc returns a function that maps a Secret or ConfigMap to Bundles
+// that reference it in their DownstreamResources.
+func (r *BundleReconciler) downstreamResourceMapFunc(kind string) func(ctx context.Context, obj client.Object) []reconcile.Request {
+	kind = strings.ToLower(kind) // the index uses lowercase kind
+
+	return func(ctx context.Context, obj client.Object) []reconcile.Request {
+		// Create the index key for this resource (Kind/Name)
+		indexKey := fmt.Sprintf("%s/%s", kind, obj.GetName())
+
+		// Find all bundles that reference this resource
+		bundleList := &fleet.BundleList{}
+		err := r.List(ctx, bundleList,
+			client.InNamespace(obj.GetNamespace()),
+			client.MatchingFields{config.BundleDownstreamResourceIndex: indexKey},
+		)
+		if err != nil {
+			return nil
+		}
+
+		// Create reconcile requests for each bundle found
+		requests := make([]reconcile.Request, 0, len(bundleList.Items))
+		for _, bundle := range bundleList.Items {
+			if !sharding.ShouldProcess(&bundle, r.ShardID) {
+				continue
+			}
+			requests = append(requests, reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Namespace: bundle.Namespace,
+					Name:      bundle.Name,
+				},
+			})
+		}
+
+		return requests
+	}
+}
+
 func batchDeleteBundleDeployments(ctx context.Context, c client.Client, list []fleet.BundleDeployment) error {
 	var errs []error
 	for _, bd := range list {
@@ -932,7 +969,7 @@ func batchDeleteBundleDeployments(ctx context.Context, c client.Client, list []f
 func dataChangedPredicate() predicate.Funcs {
 	return predicate.Funcs{
 		CreateFunc: func(e event.CreateEvent) bool {
-			return false
+			return true
 		},
 		UpdateFunc: func(e event.UpdateEvent) bool {
 			switch new := e.ObjectNew.(type) {
@@ -1105,41 +1142,5 @@ func BundleDeploymentMapFunc(r *BundleReconciler) func(ctx context.Context, a cl
 		}
 
 		return nil
-	}
-}
-
-// downstreamResourceMapFunc returns a function that maps a Secret or ConfigMap to Bundles
-// that reference it in their DownstreamResources.
-func (r *BundleReconciler) downstreamResourceMapFunc(kind string) func(ctx context.Context, obj client.Object) []reconcile.Request {
-	kind = strings.ToLower(kind) // the index uses lowercase kind
-	return func(ctx context.Context, obj client.Object) []reconcile.Request {
-		// Create the index key for this resource (Kind/Name)
-		indexKey := fmt.Sprintf("%s/%s", kind, obj.GetName())
-
-		// Find all bundles that reference this resource
-		bundleList := &fleet.BundleList{}
-		err := r.List(ctx, bundleList,
-			client.InNamespace(obj.GetNamespace()),
-			client.MatchingFields{config.BundleDownstreamResourceIndex: indexKey},
-		)
-		if err != nil {
-			return nil
-		}
-
-		// Create reconcile requests for each bundle found
-		requests := make([]reconcile.Request, 0, len(bundleList.Items))
-		for _, bundle := range bundleList.Items {
-			if !sharding.ShouldProcess(&bundle, r.ShardID) {
-				continue
-			}
-			requests = append(requests, reconcile.Request{
-				NamespacedName: types.NamespacedName{
-					Namespace: bundle.Namespace,
-					Name:      bundle.Name,
-				},
-			})
-		}
-
-		return requests
 	}
 }
