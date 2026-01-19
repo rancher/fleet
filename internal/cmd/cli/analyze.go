@@ -689,6 +689,12 @@ func (a *Analyze) compareFiles(cmd *cobra.Command, file1, file2 string) error {
 	before := snapshots1[len(snapshots1)-1]
 	after := snapshots2[len(snapshots2)-1]
 
+	if before.Timestamp > after.Timestamp {
+		// Swap files for timestamp consistency
+		file1, file2 = file2, file1
+		before, after = after, before
+	}
+
 	printHeader(w, "COMPARING SNAPSHOTS")
 	fmt.Fprintf(w, "Before: %s (%s)\n", file1, before.Timestamp)
 	fmt.Fprintf(w, "After:  %s (%s)\n", file2, after.Timestamp)
