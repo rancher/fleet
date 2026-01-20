@@ -186,6 +186,13 @@ type RolloutStrategy struct {
 	// default: 25%
 	// +nullable
 	AutoPartitionSize *intstr.IntOrString `json:"autoPartitionSize,omitempty"`
+	// AutoPartitionThreshold is the minimum number of clusters that need to be
+	// present before auto-partitioning is enabled. If the number of target
+	// clusters is less than this value, all clusters will be placed in a single
+	// partition.
+	// default: 200
+	// +nullable
+	AutoPartitionThreshold *int `json:"autoPartitionThreshold,omitempty"`
 	// A list of definitions of partitions.  If any target clusters do not match
 	// the configuration they are added to partitions at the end following the
 	// autoPartitionSize.
