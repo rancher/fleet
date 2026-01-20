@@ -258,20 +258,28 @@ func (a *Apply) run(cmd *cobra.Command, args []string) error {
 	defer restoreEnv() // nolint: errcheck // best-effort
 
 	ctx := cmd.Context()
-	cfg := ctrl.GetConfigOrDie()
-	client, err := client.New(cfg, client.Options{Scheme: scheme})
-	if err != nil {
-		return err
-	}
-	recorder, err := getEventRecorder(cfg, "fleet-apply")
-	if err != nil {
-		return err
+
+	var k8sClient client.Client
+	var eventRecorder record.EventRecorder
+	if opts.Output == nil {
+		k8sConfig, err := ctrl.GetConfig()
+		if err != nil {
+			return fmt.Errorf("getting k8s config: %w", err)
+		}
+		k8sClient, err = client.New(k8sConfig, client.Options{Scheme: scheme})
+		if err != nil {
+			return err
+		}
+		eventRecorder, err = getEventRecorder(k8sConfig, "fleet-apply")
+		if err != nil {
+			return err
+		}
 	}
 
 	if opts.DrivenScan {
-		return apply.CreateBundlesDriven(ctx, client, recorder, name, args, opts)
+		return apply.CreateBundlesDriven(ctx, k8sClient, eventRecorder, name, args, opts)
 	}
-	return apply.CreateBundles(ctx, client, recorder, name, args, opts)
+	return apply.CreateBundles(ctx, k8sClient, eventRecorder, name, args, opts)
 }
 
 // addAuthToOpts adds auth if provided as arguments. It will look first for HelmCredentialsByPathFile. If HelmCredentialsByPathFile
