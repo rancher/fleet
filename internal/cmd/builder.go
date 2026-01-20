@@ -213,7 +213,7 @@ func assignSlices(app *cobra.Command, slices map[string]reflect.Value) error {
 		if err != nil {
 			return err
 		}
-		if s != nil {
+		if v.CanSet() && s != nil {
 			v.Set(reflect.ValueOf(s[:]))
 		}
 	}
