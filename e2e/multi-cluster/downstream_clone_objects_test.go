@@ -449,6 +449,17 @@ var _ = Describe("Downstream objects cloning", Ordered, func() {
 				// The value "dXBkYXRlZC12YWx1ZQ==" is base64 encoded "updated-value"
 				g.Expect(s).To(Equal("dXBkYXRlZC12YWx1ZQ=="))
 			}).WithTimeout(30 * time.Second).WithPolling(testenv.LongPollingInterval).Should(Succeed())
+
+			By("propagating the update to the deployment once the secret is updated")
+			Eventually(func(g Gomega) {
+				cms, err := kd.Get("configmaps")
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(cms).To(ContainSubstring(cmName))
+
+				name, err := kd.Get("configmaps", cmName, "-o", "jsonpath={.data.name}")
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(name).To(Equal("updated-secret-value"))
+			}).Should(Succeed())
 		})
 
 		AfterEach(func() {
