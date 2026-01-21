@@ -39,7 +39,8 @@ func (m BDStatusMatcher) Matches(x interface{}) bool {
 
 	foundReady, foundMonitored := false, false
 	for _, cond := range bdStatus.Conditions {
-		if cond.Type == "Ready" {
+		switch cond.Type {
+		case "Ready":
 			foundReady = true
 
 			if cond.Status != "Unknown" ||
@@ -47,7 +48,7 @@ func (m BDStatusMatcher) Matches(x interface{}) bool {
 				!strings.Contains(cond.Message, "offline") {
 				return false
 			}
-		} else if cond.Type == "Monitored" {
+		case "Monitored":
 			foundMonitored = true
 
 			if cond.Status != "False" ||
@@ -56,7 +57,6 @@ func (m BDStatusMatcher) Matches(x interface{}) bool {
 				return false
 			}
 		}
-
 	}
 
 	return foundReady && foundMonitored
@@ -72,7 +72,7 @@ type clusterWithOfflineMarker struct {
 	isAlreadyMarkedOffline bool
 }
 
-func Test_Run(t *testing.T) { //nolint: funlen // this is a test function, its length should not be an issue
+func Test_Run(t *testing.T) {
 	cases := []struct {
 		name              string
 		clusters          []clusterWithOfflineMarker
