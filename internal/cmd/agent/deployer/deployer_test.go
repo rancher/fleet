@@ -173,7 +173,6 @@ func TestSetNamespaceLabelsAndAnnotationsError(t *testing.T) {
 	}
 }
 
-
 func TestIsStateAccepted(t *testing.T) {
 	tests := []struct {
 		name     string

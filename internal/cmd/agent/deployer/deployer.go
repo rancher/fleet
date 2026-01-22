@@ -9,10 +9,10 @@ import (
 	"strings"
 
 	"github.com/rancher/fleet/internal/bundlereader"
+	"github.com/rancher/fleet/internal/cmd/controller/summary"
 	"github.com/rancher/fleet/internal/helmdeployer"
 	"github.com/rancher/fleet/internal/manifest"
 	"github.com/rancher/fleet/internal/ocistorage"
-	"github.com/rancher/fleet/internal/cmd/controller/summary"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	"github.com/rancher/wrangler/v3/pkg/condition"
@@ -350,9 +350,9 @@ func (d *Deployer) checkDependency(ctx context.Context, bd *fleet.BundleDeployme
 			}
 
 			for _, depBundle := range bds.Items {
-				if !isDependencyReady(depBundle,depend.AcceptedStates) {
+				if !isDependencyReady(depBundle, depend.AcceptedStates) {
 					depBundleList = append(depBundleList, depBundle.Name)
-					}
+				}
 
 			}
 		}
@@ -364,7 +364,6 @@ func (d *Deployer) checkDependency(ctx context.Context, bd *fleet.BundleDeployme
 
 	return nil
 }
-
 
 // isStateAccepted checks if currentState is in acceptedStates.
 // If acceptedStates is empty or nil, only Ready is accepted (default behavior).
