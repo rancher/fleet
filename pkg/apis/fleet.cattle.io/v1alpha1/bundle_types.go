@@ -146,6 +146,14 @@ type BundleRef struct {
 	// Selector matching bundle's labels.
 	// +nullable
 	Selector *metav1.LabelSelector `json:"selector,omitempty"`
+	// AcceptedStates is a list of BundleDeployment state that are considered acceptable for this dependency.
+	// If the dependence is in one of these states, it will not block the deployment of the dependent bundle.
+	// Valid Values should  match the StateRank keys.
+	// If not specified, default to ["Ready"]: only fully ready dependencies are accepted
+	// Example: ["Ready", "Modified"] will accept dependencies that are either ready or
+	// have drifted from their desired state.
+	// +nullable
+	AcceptedStates []BundleState `json:"acceptedStates,omitempty"`
 }
 
 // BundleResource represents the content of a single resource from the bundle, like a YAML manifest.
