@@ -276,86 +276,131 @@ func (r *BundleDeploymentReconciler) copyResourcesFromUpstream(
 	requiresBDUpdate := false
 
 	for _, rsc := range bd.Spec.Options.DownstreamResources {
+		var updated bool
+		var err error
+
 		switch strings.ToLower(rsc.Kind) {
 		case "secret":
-			var s corev1.Secret
-			if err := r.Reader.Get(ctx, client.ObjectKey{Namespace: bd.Namespace, Name: rsc.Name}, &s); err != nil {
-				// The bundle deployment is actually created by the bundle reconciler _before_
-				// these objects are copied to the cluster's namespace, hence retries should happen if
-				// they are not found.
-
-				return false, fmt.Errorf(
-					"could not get secret %s/%s from upstream namespace for copying: %w",
-					bd.Namespace,
-					rsc.Name,
-					err,
-				)
-			}
-
-			s.Namespace = destNS
-			s.ResourceVersion = ""
-			if s.Labels == nil {
-				s.Labels = map[string]string{}
-			}
-			s.Labels[fleetv1.BundleDeploymentOwnershipLabel] = bd.Name
-
-			updated := s.DeepCopy()
-			op, err := controllerutil.CreateOrUpdate(ctx, r.LocalClient, &s, func() error {
-				s.Type = updated.Type // important for e.g. image pull secrets
-				s.Data = updated.Data
-				s.StringData = updated.StringData
-
-				return nil
-			})
-			if err != nil {
-				return false, fmt.Errorf("failed to create or update secret %s/%s downstream: %v", bd.Namespace, rsc.Name, err)
-			}
-
-			if !requiresBDUpdate {
-				requiresBDUpdate = op == controllerutil.OperationResultUpdated
-			}
-
+			updated, err = r.copySecret(ctx, bd, rsc.Name, destNS)
 		case "configmap":
-			var cm corev1.ConfigMap
-			if err := r.Reader.Get(ctx, client.ObjectKey{Namespace: bd.Namespace, Name: rsc.Name}, &cm); err != nil {
-				// The bundle deployment is actually created by the bundle reconciler _before_
-				// these objects are copied to the cluster's namespace, hence retries should happen if
-				// they are not found.
-
-				return false, fmt.Errorf(
-					"could not get config map %s/%s from upstream namespace for copying: %w",
-					bd.Namespace,
-					rsc.Name,
-					err,
-				)
-			}
-			cm.Namespace = destNS
-			cm.ResourceVersion = ""
-			if cm.Labels == nil {
-				cm.Labels = map[string]string{}
-			}
-			cm.Labels[fleetv1.BundleDeploymentOwnershipLabel] = bd.Name
-
-			updated := cm.DeepCopy()
-			op, err := controllerutil.CreateOrUpdate(ctx, r.LocalClient, &cm, func() error {
-				cm.Data = updated.Data
-				cm.BinaryData = updated.BinaryData
-
-				return nil
-			})
-			if err != nil {
-				return false, fmt.Errorf("failed to create or update configmap %s/%s downstream: %v", bd.Namespace, rsc.Name, err)
-			}
-
-			if !requiresBDUpdate {
-				requiresBDUpdate = op == controllerutil.OperationResultUpdated
-			}
+			updated, err = r.copyConfigMap(ctx, bd, rsc.Name, destNS)
 		default:
 			return false, fmt.Errorf("unknown resource type for copy to downstream cluster: %q", rsc.Kind)
+		}
+
+		if err != nil {
+			return false, err
+		}
+
+		if updated {
+			requiresBDUpdate = true
 		}
 	}
 
 	return requiresBDUpdate, nil
+}
+
+// copySecret copies a secret from the bundle deployment's namespace to the destination namespace
+func (r *BundleDeploymentReconciler) copySecret(
+	ctx context.Context,
+	bd *fleetv1.BundleDeployment,
+	name string,
+	destNS string,
+) (bool, error) {
+	var source corev1.Secret
+	if err := r.Reader.Get(ctx, client.ObjectKey{Namespace: bd.Namespace, Name: name}, &source); err != nil {
+		// The bundle deployment is actually created by the bundle reconciler _before_
+		// these objects are copied to the cluster's namespace, hence retries should happen if
+		// they are not found.
+		return false, fmt.Errorf(
+			"could not get secret %s/%s from upstream namespace for copying: %w",
+			bd.Namespace,
+			name,
+			err,
+		)
+	}
+
+	// Create a new Secret for the destination namespace
+	// We're not doing a DeepCopy here to avoid copying ResourceVersion and other metadata
+	// When using a single cluster environment, the downstream cluster is the same
+	// as the management cluster, and copying ResourceVersion or any other metadata would cause conflicts.
+	s := corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: destNS,
+		},
+	}
+
+	op, err := controllerutil.CreateOrUpdate(ctx, r.LocalClient, &s, func() error {
+		s.Type = source.Type // important for e.g. image pull secrets
+		s.Labels = source.Labels
+		s.Annotations = source.Annotations
+		s.Data = source.Data
+		s.StringData = source.StringData
+		// Ensure ownership label is preserved
+		if s.Labels == nil {
+			s.Labels = map[string]string{}
+		}
+		s.Labels[fleetv1.BundleDeploymentOwnershipLabel] = bd.Name
+
+		return nil
+	})
+	if err != nil {
+		return false, fmt.Errorf("failed to create or update secret %s/%s downstream: %w", bd.Namespace, name, err)
+	}
+
+	return op == controllerutil.OperationResultUpdated, nil
+}
+
+// copyConfigMap copies a configmap from the bundle deployment's namespace to the destination namespace
+func (r *BundleDeploymentReconciler) copyConfigMap(
+	ctx context.Context,
+	bd *fleetv1.BundleDeployment,
+	name string,
+	destNS string,
+) (bool, error) {
+	var source corev1.ConfigMap
+	if err := r.Reader.Get(ctx, client.ObjectKey{Namespace: bd.Namespace, Name: name}, &source); err != nil {
+		// The bundle deployment is actually created by the bundle reconciler _before_
+		// these objects are copied to the cluster's namespace, hence retries should happen if
+		// they are not found.
+		return false, fmt.Errorf(
+			"could not get config map %s/%s from upstream namespace for copying: %w",
+			bd.Namespace,
+			name,
+			err,
+		)
+	}
+
+	// Create a new ConfigMap for the destination namespace
+	// We're not doing a DeepCopy here to avoid copying ResourceVersion and other metadata
+	// When using a single cluster environment, the downstream cluster is the same
+	// as the management cluster, and copying ResourceVersion or any other metadata would cause conflicts.
+	cm := corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: destNS,
+		},
+	}
+
+	op, err := controllerutil.CreateOrUpdate(ctx, r.LocalClient, &cm, func() error {
+		cm.Labels = source.Labels
+		cm.Annotations = source.Annotations
+		cm.Data = source.Data
+		cm.BinaryData = source.BinaryData
+		// Ensure ownership label is preserved
+		if cm.Labels == nil {
+			cm.Labels = map[string]string{}
+		}
+		cm.Labels[fleetv1.BundleDeploymentOwnershipLabel] = bd.Name
+
+		return nil
+	})
+	if err != nil {
+		return false, fmt.Errorf("failed to create or update configmap %s/%s downstream: %w", bd.Namespace, name, err)
+	}
+
+	return op == controllerutil.OperationResultUpdated, nil
 }
 
 func (r *BundleDeploymentReconciler) updateStatus(ctx context.Context, orig *fleetv1.BundleDeployment, obj *fleetv1.BundleDeployment) error {
