@@ -32,6 +32,7 @@ func Diff(plan Plan, bd *fleet.BundleDeployment, ns string, objs ...runtime.Obje
 	}
 
 	var errs []error
+	// Exclude ignored objects from set of objects to be created (plan.Create)
 	if bd.Spec.Options.Diff != nil {
 		toIgnore := objectset.ObjectKeyByGVK{}
 		for _, patch := range bd.Spec.Options.Diff.ComparePatches {
@@ -52,18 +53,26 @@ func Diff(plan Plan, bd *fleet.BundleDeployment, ns string, objs ...runtime.Obje
 				}
 			}
 		}
-		for gvk, objs := range plan.Create {
+
+		for gvk := range plan.Create {
 			if _, ok := toIgnore[gvk]; !ok {
 				continue
 			}
-			for _, key := range objs {
-				if idx := slices.Index(toIgnore[gvk], key); idx >= 0 {
-					plan.Create[gvk] = slices.Delete(plan.Create[gvk], idx, idx+1)
-					continue
+
+			plan.Create[gvk] = slices.DeleteFunc(plan.Create[gvk], func(o objectset.ObjectKey) bool {
+				for _, ti := range toIgnore[gvk] {
+					// Match ignored objects by:
+					// * [name + namespace] if both are specified in the patch
+					// * namespace only if the patch provides the namespace alone
+					if ti.Namespace == o.Namespace && (ti.Name == "" || ti.Name == o.Name) {
+						return true
+					}
 				}
-			}
+				return false
+			})
 		}
 	}
+
 	for gvk, objs := range plan.Update {
 		for key := range objs {
 			desiredObj := desired[gvk][key]
