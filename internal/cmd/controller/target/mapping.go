@@ -65,6 +65,7 @@ func (b *BundleMapping) MatchesNamespace(ctx context.Context, c client.Client, n
 	if b.noMatch {
 		return false
 	}
+
 	ns := &corev1.Namespace{}
 	err := c.Get(ctx, types.NamespacedName{Name: namespace}, ns)
 	if err != nil {
@@ -83,11 +84,13 @@ func (b *BundleMapping) Matches(bundle *fleet.Bundle) bool {
 	return b.bundleSelector.Matches(labels.Set(bundle.Labels))
 }
 
-func (b *BundleMapping) Namespaces(ctx context.Context, c client.Client) ([]corev1.Namespace, error) {
+func (b *BundleMapping) Namespaces(ctx context.Context, c client.Client) ([]metav1.PartialObjectMetadata, error) {
 	if b.noMatch {
 		return nil, nil
 	}
-	list := &corev1.NamespaceList{}
+
+	list := &metav1.PartialObjectMetadataList{}
+	list.SetGroupVersionKind(corev1.SchemeGroupVersion.WithKind("Namespace"))
 	err := c.List(ctx, list, client.MatchingLabelsSelector{Selector: b.namespaceSelector})
 	return list.Items, err
 }
