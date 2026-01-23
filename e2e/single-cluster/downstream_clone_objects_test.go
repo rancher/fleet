@@ -14,11 +14,6 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
-type DownstreamResource struct {
-	Kind string
-	Name string
-}
-
 // This test uses a single cluster to demonstrate cloning of configured resources within the same cluster.
 var _ = Describe("Downstream objects cloning", Ordered, func() {
 	var (
@@ -29,7 +24,7 @@ var _ = Describe("Downstream objects cloning", Ordered, func() {
 		deployNamespace     string
 		keepResources       bool
 		valuesFrom          []fleet.ValuesFrom
-		downstreamResources []DownstreamResource
+		downstreamResources []fleet.DownstreamResource
 		cmName              = "test-simple-chart-config"
 	)
 
@@ -41,11 +36,6 @@ var _ = Describe("Downstream objects cloning", Ordered, func() {
 		cmAsset := path.Join(testenv.AssetPath("single-cluster/values-cm.yaml"))
 		out, err := k.Create("configmap", "config-values", fmt.Sprintf("--from-file=values.yaml=%s", cmAsset))
 		Expect(err).ToNot(HaveOccurred(), out)
-
-		DeferCleanup(func() {
-			_, _ = k.Delete("secret", "secret-values")
-			_, _ = k.Delete("configmaps", "config-values")
-		})
 
 		secretAsset := path.Join(testenv.AssetPath("single-cluster/values-secret.yaml"))
 		out, err = k.Create("secret", "generic", "secret-values", fmt.Sprintf("--from-file=values.yaml=%s", secretAsset))
@@ -64,7 +54,7 @@ var _ = Describe("Downstream objects cloning", Ordered, func() {
 
 		// Use default downstream resources if not set
 		if downstreamResources == nil {
-			downstreamResources = []DownstreamResource{
+			downstreamResources = []fleet.DownstreamResource{
 				{
 					Kind: "Secret",
 					Name: "secret-values",
@@ -90,7 +80,7 @@ var _ = Describe("Downstream objects cloning", Ordered, func() {
 			PollingInterval       time.Duration
 			HelmSecretName        string
 			InsecureSkipTLSVerify bool
-			DownstreamResources   []DownstreamResource
+			DownstreamResources   []fleet.DownstreamResource
 			KeepResources         bool
 			ValuesFrom            []fleet.ValuesFrom
 		}{
@@ -137,18 +127,18 @@ var _ = Describe("Downstream objects cloning", Ordered, func() {
 		It("deploys the HelmOp and clones resources", func() {
 			By("copying resources")
 			Eventually(func(g Gomega) {
-				s, err := k.Get("secrets")
+				s, err := k.Namespace(deployNamespace).Get("secrets")
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(s).To(ContainSubstring("secret-values"))
 
-				cms, err := k.Get("configmaps")
+				cms, err := k.Namespace(deployNamespace).Get("configmaps")
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(cms).To(ContainSubstring("config-values"))
 			}).WithTimeout(testenv.LongTimeout).WithPolling(testenv.LongPollingInterval).Should(Succeed())
 
 			By("preserving secret types upon copy")
 			Eventually(func(g Gomega) {
-				s, err := k.Get("secret", "secret-image-pull", "-o=jsonpath='{.type}'")
+				s, err := k.Namespace(deployNamespace).Get("secret", "secret-image-pull", "-o=jsonpath='{.type}'")
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(s).To(ContainSubstring("kubernetes.io/dockerconfigjson"))
 
@@ -173,69 +163,14 @@ var _ = Describe("Downstream objects cloning", Ordered, func() {
 				cms, err := k.Namespace(deployNamespace).Get("configmaps")
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(cms).NotTo(ContainSubstring(cmName))
-			}).WithTimeout(testenv.LongTimeout).WithPolling(testenv.LongPollingInterval).Should(Succeed())
-		})
-	})
 
-	Context("updating a copied resource at its source", func() {
-		BeforeEach(func() {
-			asset = "single-cluster/helmop_downstream_resources.yaml"
-			name = "helmop-downstream-copy-update"
-			deployNamespace = "helmop-downstream-copy-update-ns"
-			keepResources = false
-			downstreamResources = nil
-			valuesFrom = []fleet.ValuesFrom{
-				{
-					ConfigMapKeyRef: &fleet.ConfigMapKeySelector{
-						Namespace:            env.Namespace,
-						LocalObjectReference: fleet.LocalObjectReference{Name: "config-values"},
-						Key:                  "values.yaml",
-					},
-				},
-			}
-		})
-
-		It("updates the deployment when a copied resource is updated at its source and the bundle is next reconciled", func() {
-			By("deploying resources with templated values taken from cloned resources")
-			Eventually(func(g Gomega) {
-				cms, err := k.Namespace(deployNamespace).Get("configmaps")
+				cms, err = k.Namespace(deployNamespace).Get("configmaps")
 				g.Expect(err).ToNot(HaveOccurred())
-				g.Expect(cms).To(ContainSubstring(cmName))
+				g.Expect(cms).NotTo(ContainSubstring("config-values"))
 
-				name, err := k.Namespace(deployNamespace).Get("configmaps", cmName, "-o", "jsonpath={.data.name}")
+				secrets, err := k.Namespace(deployNamespace).Get("secrets")
 				g.Expect(err).ToNot(HaveOccurred())
-				g.Expect(name).To(Equal("name-from-downstream-cluster-configmap"))
-			}).Should(Succeed())
-
-			By("updating a copied resource upstream")
-			out, err := k.Patch("configmap", "config-values", "--type=merge", "-p", `{"data":{"values.yaml":"name: new-name"}}`)
-			Expect(err).ToNot(HaveOccurred(), out)
-
-			By("reconciling the helmop")
-			// remove the secret as downstream resource; does not have any effect on the
-			// bundle deployment itself, but should trigger a new reconcile of the helmop, hence the bundle.
-			out, err = k.Patch("helmop", name, "--type=json", "-p", `[{"op": "remove", "path": "/spec/downstreamResources/0"}]`)
-			Expect(err).ToNot(HaveOccurred(), out)
-
-			By("propagating the update to the deployment once the helmop is reconciled")
-			Eventually(func(g Gomega) {
-				cms, err := k.Namespace(deployNamespace).Get("configmaps")
-				g.Expect(err).ToNot(HaveOccurred())
-				g.Expect(cms).To(ContainSubstring(cmName))
-
-				name, err := k.Namespace(deployNamespace).Get("configmaps", cmName, "-o", "jsonpath={.data.name}")
-				g.Expect(err).ToNot(HaveOccurred())
-				g.Expect(name).To(Equal("new-name"))
-			}).Should(Succeed())
-
-			By("deleting cloned resources when the bundle deployment is deleted")
-			out, err = k.Delete("helmop", name)
-			Expect(err).ToNot(HaveOccurred(), out)
-
-			Eventually(func(g Gomega) {
-				cms, err := k.Namespace(deployNamespace).Get("configmaps")
-				g.Expect(err).ToNot(HaveOccurred())
-				g.Expect(cms).NotTo(ContainSubstring(cmName))
+				g.Expect(secrets).NotTo(ContainSubstring("secret-values"))
 			}).WithTimeout(testenv.LongTimeout).WithPolling(testenv.LongPollingInterval).Should(Succeed())
 		})
 	})
@@ -263,11 +198,11 @@ var _ = Describe("Downstream objects cloning", Ordered, func() {
 
 			By("copying resources")
 			Eventually(func(g Gomega) {
-				s, err := k.Get("secrets")
+				s, err := k.Namespace(deployNamespace).Get("secrets")
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(s).To(ContainSubstring("secret-values"))
 
-				cms, err := k.Get("configmaps")
+				cms, err := k.Namespace(deployNamespace).Get("configmaps")
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(cms).To(ContainSubstring("config-values"))
 			}).Should(Succeed())
@@ -291,6 +226,14 @@ var _ = Describe("Downstream objects cloning", Ordered, func() {
 				cms, err := k.Namespace(deployNamespace).Get("configmaps")
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(cms).To(ContainSubstring(cmName))
+
+				cms, err = k.Namespace(deployNamespace).Get("configmaps")
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(cms).To(ContainSubstring("config-values"))
+
+				secrets, err := k.Namespace(deployNamespace).Get("secrets")
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(secrets).To(ContainSubstring("secret-values"))
 			}).Should(Succeed())
 		})
 	})
@@ -323,11 +266,11 @@ var _ = Describe("Downstream objects cloning", Ordered, func() {
 		It("automatically re-deploys when a referenced configmap or secret changes", func() {
 			By("copying resources initially")
 			Eventually(func(g Gomega) {
-				s, err := k.Get("secrets")
+				s, err := k.Namespace(deployNamespace).Get("secrets")
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(s).To(ContainSubstring("secret-values"))
 
-				cms, err := k.Get("configmaps")
+				cms, err := k.Namespace(deployNamespace).Get("configmaps")
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(cms).To(ContainSubstring("config-values"))
 			}).WithTimeout(testenv.LongTimeout).WithPolling(testenv.LongPollingInterval).Should(Succeed())
@@ -345,7 +288,7 @@ var _ = Describe("Downstream objects cloning", Ordered, func() {
 
 			By("verifying the configmap has the initial value before updating")
 			Eventually(func(g Gomega) {
-				cm, err := k.Get("configmap", "config-values", "-o", "jsonpath={.data['values\\.yaml']}")
+				cm, err := k.Namespace(deployNamespace).Get("configmap", "config-values", "-o", "jsonpath={.data['values\\.yaml']}")
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(cm).To(ContainSubstring("name-from-downstream-cluster-configmap"))
 			}).WithTimeout(testenv.LongTimeout).WithPolling(testenv.LongPollingInterval).Should(Succeed())
@@ -376,7 +319,7 @@ var _ = Describe("Downstream objects cloning", Ordered, func() {
 
 			By("verifying the configmap change propagates automatically")
 			Eventually(func(g Gomega) {
-				cm, err := k.Get("configmap", "config-values", "-o", "jsonpath={.data['values\\.yaml']}")
+				cm, err := k.Namespace(deployNamespace).Get("configmap", "config-values", "-o", "jsonpath={.data['values\\.yaml']}")
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(cm).To(ContainSubstring("updated-configmap-value"))
 			}).WithTimeout(testenv.LongTimeout).WithPolling(testenv.LongPollingInterval).Should(Succeed())
@@ -393,7 +336,7 @@ var _ = Describe("Downstream objects cloning", Ordered, func() {
 
 			By("verifying the secret has the initial value before updating")
 			Eventually(func(g Gomega) {
-				s, err := k.Get("secret", "secret-values", "-o", "jsonpath={.data['values\\.yaml']}")
+				s, err := k.Namespace(deployNamespace).Get("secret", "secret-values", "-o", "jsonpath={.data['values\\.yaml']}")
 				g.Expect(err).ToNot(HaveOccurred())
 				// The initial value should be base64 encoded "name: name-from-downstream-cluster-secret"
 				g.Expect(s).To(Equal("bmFtZTogbmFtZS1mcm9tLWRvd25zdHJlYW0tY2x1c3Rlci1zZWNyZXQK"))
@@ -416,7 +359,7 @@ var _ = Describe("Downstream objects cloning", Ordered, func() {
 
 			By("verifying the secret change propagates automatically")
 			Eventually(func(g Gomega) {
-				s, err := k.Get("secret", "secret-values", "-o", "jsonpath={.data['values\\.yaml']}")
+				s, err := k.Namespace(deployNamespace).Get("secret", "secret-values", "-o", "jsonpath={.data['values\\.yaml']}")
 				g.Expect(err).ToNot(HaveOccurred())
 				// The value "bmFtZTogdXBkYXRlZC1zZWNyZXQtdmFsdWU=" is base64 encoded "name: updated-secret-value"
 				g.Expect(s).To(Equal("bmFtZTogdXBkYXRlZC1zZWNyZXQtdmFsdWU="))
@@ -438,7 +381,7 @@ var _ = Describe("Downstream objects cloning", Ordered, func() {
 
 			By("verifying the secret data change propagates automatically")
 			Eventually(func(g Gomega) {
-				s, err := k.Get("secret", "secret-image-pull", "-o=jsonpath={.data.new-key}")
+				s, err := k.Namespace(deployNamespace).Get("secret", "secret-image-pull", "-o=jsonpath={.data.new-key}")
 				g.Expect(err).ToNot(HaveOccurred())
 				// The value "dXBkYXRlZC12YWx1ZQ==" is base64 encoded "updated-value"
 				g.Expect(s).To(Equal("dXBkYXRlZC12YWx1ZQ=="))
@@ -469,7 +412,7 @@ var _ = Describe("Downstream objects cloning", Ordered, func() {
 			keepResources = false
 			valuesFrom = []fleet.ValuesFrom{}
 			// Reference resources that don't exist yet
-			downstreamResources = []DownstreamResource{
+			downstreamResources = []fleet.DownstreamResource{
 				{
 					Kind: "Secret",
 					Name: "new-secret",
@@ -484,11 +427,11 @@ var _ = Describe("Downstream objects cloning", Ordered, func() {
 		It("waits for resources to be created and then propagates them", func() {
 			By("verifying the non-existent resources are not in the cluster")
 			Consistently(func(g Gomega) {
-				s, err := k.Get("secrets")
+				s, err := k.Namespace(deployNamespace).Get("secrets")
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(s).NotTo(ContainSubstring("new-secret"))
 
-				cms, err := k.Get("configmaps")
+				cms, err := k.Namespace(deployNamespace).Get("configmaps")
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(cms).NotTo(ContainSubstring("new-configmap"))
 			}).WithTimeout(10 * time.Second).WithPolling(2 * time.Second).Should(Succeed())
@@ -503,23 +446,23 @@ var _ = Describe("Downstream objects cloning", Ordered, func() {
 
 			By("verifying the newly created resources are now available")
 			Eventually(func(g Gomega) {
-				s, err := k.Get("secrets")
+				s, err := k.Namespace(deployNamespace).Get("secrets")
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(s).To(ContainSubstring("new-secret"))
 
-				cms, err := k.Get("configmaps")
+				cms, err := k.Namespace(deployNamespace).Get("configmaps")
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(cms).To(ContainSubstring("new-configmap"))
 			}).WithTimeout(testenv.LongTimeout).WithPolling(testenv.LongPollingInterval).Should(Succeed())
 
 			By("verifying the data is correct in the resources")
 			Eventually(func(g Gomega) {
-				s, err := k.Get("secret", "new-secret", "-o", "jsonpath={.data.data}")
+				s, err := k.Namespace(deployNamespace).Get("secret", "new-secret", "-o", "jsonpath={.data.data}")
 				g.Expect(err).ToNot(HaveOccurred())
 				// "c2VjcmV0LXZhbHVl" is base64 encoded "secret-value"
 				g.Expect(s).To(Equal("c2VjcmV0LXZhbHVl"))
 
-				cm, err := k.Get("configmap", "new-configmap", "-o", "jsonpath={.data.data}")
+				cm, err := k.Namespace(deployNamespace).Get("configmap", "new-configmap", "-o", "jsonpath={.data.data}")
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(cm).To(Equal("configmap-value"))
 			}).WithTimeout(testenv.LongTimeout).WithPolling(testenv.LongPollingInterval).Should(Succeed())

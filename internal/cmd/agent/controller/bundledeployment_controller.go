@@ -367,9 +367,6 @@ func (r *BundleDeploymentReconciler) copySecret(
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: destNS,
-			Labels: map[string]string{
-				fleetv1.BundleDeploymentOwnershipLabel: bd.Name,
-			},
 		},
 	}
 
@@ -422,9 +419,6 @@ func (r *BundleDeploymentReconciler) copyConfigMap(
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: destNS,
-			Labels: map[string]string{
-				fleetv1.BundleDeploymentOwnershipLabel: bd.Name,
-			},
 		},
 	}
 

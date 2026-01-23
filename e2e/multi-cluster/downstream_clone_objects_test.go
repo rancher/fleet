@@ -14,11 +14,6 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
-type DownstreamResource struct {
-	Kind string
-	Name string
-}
-
 // This test uses two clusters to demonstrate cloning of configured resources to downstream clusters.
 var _ = Describe("Downstream objects cloning", Ordered, func() {
 	var (
@@ -29,7 +24,7 @@ var _ = Describe("Downstream objects cloning", Ordered, func() {
 		name                string
 		keepResources       bool
 		valuesFrom          []fleet.ValuesFrom
-		downstreamResources []DownstreamResource
+		downstreamResources []fleet.DownstreamResource
 		cmName              = "test-simple-chart-config"
 	)
 
@@ -65,7 +60,7 @@ var _ = Describe("Downstream objects cloning", Ordered, func() {
 
 		// Use default downstream resources if not set
 		if downstreamResources == nil {
-			downstreamResources = []DownstreamResource{
+			downstreamResources = []fleet.DownstreamResource{
 				{
 					Kind: "Secret",
 					Name: "secret-values",
@@ -90,7 +85,7 @@ var _ = Describe("Downstream objects cloning", Ordered, func() {
 			PollingInterval       time.Duration
 			HelmSecretName        string
 			InsecureSkipTLSVerify bool
-			DownstreamResources   []DownstreamResource
+			DownstreamResources   []fleet.DownstreamResource
 			KeepResources         bool
 			ValuesFrom            []fleet.ValuesFrom
 		}{
@@ -474,7 +469,7 @@ var _ = Describe("Downstream objects cloning", Ordered, func() {
 			keepResources = false
 			valuesFrom = []fleet.ValuesFrom{}
 			// Reference resources that don't exist yet
-			downstreamResources = []DownstreamResource{
+			downstreamResources = []fleet.DownstreamResource{
 				{
 					Kind: "Secret",
 					Name: "new-secret",
