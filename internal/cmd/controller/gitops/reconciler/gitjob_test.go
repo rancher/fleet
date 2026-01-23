@@ -36,6 +36,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 )
 
 func getCondition(gitrepo *fleetv1.GitRepo, condType string) (genericcondition.GenericCondition, bool) {
@@ -2527,5 +2528,217 @@ func getFleetControllerDeployment(tolerations []corev1.Toleration) *appsv1.Deplo
 				},
 			},
 		},
+	}
+}
+
+func TestNonSecretAnnotationChangedPredicate_Update(t *testing.T) {
+	predicate := nonSecretAnnotationChangedPredicate()
+
+	tests := []struct {
+		name           string
+		oldAnnotations map[string]string
+		newAnnotations map[string]string
+		expected       bool
+	}{
+		{
+			name:           "no annotations - no change",
+			oldAnnotations: nil,
+			newAnnotations: nil,
+			expected:       false,
+		},
+		{
+			name:           "empty annotations - no change",
+			oldAnnotations: map[string]string{},
+			newAnnotations: map[string]string{},
+			expected:       false,
+		},
+		{
+			name:           "only secret annotation added - no trigger",
+			oldAnnotations: nil,
+			newAnnotations: map[string]string{
+				clientSecretResourceVersionAnnotation: "12345",
+			},
+			expected: false,
+		},
+		{
+			name: "only secret annotation changed - no trigger",
+			oldAnnotations: map[string]string{
+				clientSecretResourceVersionAnnotation: "12345",
+			},
+			newAnnotations: map[string]string{
+				clientSecretResourceVersionAnnotation: "67890",
+			},
+			expected: false,
+		},
+		{
+			name: "only helm secret annotation changed - no trigger",
+			oldAnnotations: map[string]string{
+				helmSecretResourceVersionAnnotation: "12345",
+			},
+			newAnnotations: map[string]string{
+				helmSecretResourceVersionAnnotation: "67890",
+			},
+			expected: false,
+		},
+		{
+			name: "only helm secret for paths annotation changed - no trigger",
+			oldAnnotations: map[string]string{
+				helmSecretForPathsResourceVersionAnnotation: "12345",
+			},
+			newAnnotations: map[string]string{
+				helmSecretForPathsResourceVersionAnnotation: "67890",
+			},
+			expected: false,
+		},
+		{
+			name: "all secret annotations changed - no trigger",
+			oldAnnotations: map[string]string{
+				clientSecretResourceVersionAnnotation:       "1",
+				helmSecretResourceVersionAnnotation:         "2",
+				helmSecretForPathsResourceVersionAnnotation: "3",
+			},
+			newAnnotations: map[string]string{
+				clientSecretResourceVersionAnnotation:       "4",
+				helmSecretResourceVersionAnnotation:         "5",
+				helmSecretForPathsResourceVersionAnnotation: "6",
+			},
+			expected: false,
+		},
+		{
+			name: "secret annotation removed - no trigger",
+			oldAnnotations: map[string]string{
+				clientSecretResourceVersionAnnotation: "12345",
+			},
+			newAnnotations: map[string]string{},
+			expected:       false,
+		},
+		{
+			name:           "non-secret annotation added - should trigger",
+			oldAnnotations: nil,
+			newAnnotations: map[string]string{
+				"some-other-annotation": "value",
+			},
+			expected: true,
+		},
+		{
+			name: "non-secret annotation changed - should trigger",
+			oldAnnotations: map[string]string{
+				"some-other-annotation": "old-value",
+			},
+			newAnnotations: map[string]string{
+				"some-other-annotation": "new-value",
+			},
+			expected: true,
+		},
+		{
+			name: "non-secret annotation removed - should trigger",
+			oldAnnotations: map[string]string{
+				"some-other-annotation": "value",
+			},
+			newAnnotations: map[string]string{},
+			expected:       true,
+		},
+		{
+			name: "mixed: secret and non-secret annotations changed - should trigger",
+			oldAnnotations: map[string]string{
+				clientSecretResourceVersionAnnotation: "12345",
+				"some-other-annotation":               "old-value",
+			},
+			newAnnotations: map[string]string{
+				clientSecretResourceVersionAnnotation: "67890",
+				"some-other-annotation":               "new-value",
+			},
+			expected: true,
+		},
+		{
+			name: "mixed: only secret annotation changed, non-secret unchanged - no trigger",
+			oldAnnotations: map[string]string{
+				clientSecretResourceVersionAnnotation: "12345",
+				"some-other-annotation":               "same-value",
+			},
+			newAnnotations: map[string]string{
+				clientSecretResourceVersionAnnotation: "67890",
+				"some-other-annotation":               "same-value",
+			},
+			expected: false,
+		},
+		{
+			name: "non-secret annotation added while secret unchanged - should trigger",
+			oldAnnotations: map[string]string{
+				clientSecretResourceVersionAnnotation: "12345",
+			},
+			newAnnotations: map[string]string{
+				clientSecretResourceVersionAnnotation: "12345",
+				"new-annotation":                      "value",
+			},
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			oldObj := &fleetv1.GitRepo{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "test-gitrepo",
+					Namespace:   "default",
+					Annotations: tt.oldAnnotations,
+				},
+			}
+			newObj := &fleetv1.GitRepo{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "test-gitrepo",
+					Namespace:   "default",
+					Annotations: tt.newAnnotations,
+				},
+			}
+
+			e := event.UpdateEvent{
+				ObjectOld: oldObj,
+				ObjectNew: newObj,
+			}
+
+			result := predicate.Update(e)
+			if result != tt.expected {
+				t.Errorf("expected %v, got %v", tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestNonSecretAnnotationChangedPredicate_Create(t *testing.T) {
+	predicate := nonSecretAnnotationChangedPredicate()
+
+	obj := &fleetv1.GitRepo{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-gitrepo",
+			Namespace: "default",
+		},
+	}
+
+	e := event.CreateEvent{
+		Object: obj,
+	}
+
+	if predicate.Create(e) != false {
+		t.Error("expected Create to return false")
+	}
+}
+
+func TestNonSecretAnnotationChangedPredicate_Delete(t *testing.T) {
+	predicate := nonSecretAnnotationChangedPredicate()
+
+	obj := &fleetv1.GitRepo{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-gitrepo",
+			Namespace: "default",
+		},
+	}
+
+	e := event.DeleteEvent{
+		Object: obj,
+	}
+
+	if predicate.Delete(e) != false {
+		t.Error("expected Delete to return false")
 	}
 }

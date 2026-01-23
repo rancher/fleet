@@ -61,6 +61,15 @@ const (
 
 	// BundleDownstreamResourceIndex is the name of the index for downstream resources (secrets and configmaps) in bundles
 	BundleDownstreamResourceIndex = "spec.downstreamResources"
+
+	// GitRepoClientSecretNameIndex is the name of the index for the client secret name in gitrepos
+	GitRepoClientSecretNameIndex = "spec.clientSecretName" //nolint:gosec // not a credential
+
+	// GitRepoHelmSecretNameIndex is the name of the index for the helm secret name in gitrepos
+	GitRepoHelmSecretNameIndex = "spec.helmSecretName"
+
+	// GitRepoHelmSecretNameForPathsIndex is the name of the index for the helm secret name for paths in gitrepos
+	GitRepoHelmSecretNameForPathsIndex = "spec.helmSecretNameForPaths"
 )
 
 var (
