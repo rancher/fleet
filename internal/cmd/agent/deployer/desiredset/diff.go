@@ -2,9 +2,11 @@ package desiredset
 
 import (
 	"encoding/json"
+	"regexp"
 	"slices"
 
 	jsonpatch "github.com/evanphx/json-patch"
+	"github.com/go-logr/logr"
 
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/internal/diff"
 	argo "github.com/rancher/fleet/internal/cmd/agent/deployer/internal/normalizers"
@@ -22,7 +24,7 @@ import (
 // Diff factors the bundledeployment's bundle diff patches into the plan from
 // DryRun. This way, the status of the bundledeployment can be updated
 // accurately.
-func Diff(plan Plan, bd *fleet.BundleDeployment, ns string, objs ...runtime.Object) (Plan, error) {
+func Diff(logger logr.Logger, plan Plan, bd *fleet.BundleDeployment, ns string, objs ...runtime.Object) (Plan, error) {
 	desired := objectset.NewObjectSet(objs...).ObjectsByGVK()
 	live := objectset.NewObjectSet(plan.Objects...).ObjectsByGVK()
 
@@ -63,10 +65,28 @@ func Diff(plan Plan, bd *fleet.BundleDeployment, ns string, objs ...runtime.Obje
 				for _, ti := range toIgnore[gvk] {
 					// Match ignored objects by:
 					// * [name + namespace] if both are specified in the patch
+					//	* the match on the name can be exact, or regex-based (e.g. a patch with
+					//	name `.*serv.*` would match `suse-observability`)
 					// * namespace only if the patch provides the namespace alone
-					if ti.Namespace == o.Namespace && (ti.Name == "" || ti.Name == o.Name) {
-						return true
+					switch {
+					case ti.Namespace != o.Namespace:
+						continue
+					case ti.Name == "":
+						fallthrough
+					case ti.Name == o.Name:
+						return true // no need for further checks
+					default:
+						re, err := regexp.Compile(ti.Name)
+						if err != nil {
+							// XXX: enable detection of such issues earlier, for instance through CLI validating
+							// fleet.yaml syntax; see fleet#4533.
+							logger.V(1).Error(err, "Cannot compile bundle diff ignore regex, will discard it", "namespace", ti.Namespace)
+						}
+						if re.MatchString(o.Name) {
+							return true
+						}
 					}
+
 				}
 				return false
 			})
