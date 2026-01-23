@@ -206,6 +206,68 @@ spec:
                   description: Options are the deployment options, that are currently
                     applied.
                   properties:
+                    allowedTargetNamespaceSelector:
+                      description: 'AllowedTargetNamespaceSelector restricts deployments
+                        to namespaces matching this selector.
+
+                        Propagated from GitRepoRestriction and validated by the agent
+                        on the downstream cluster.'
+                      nullable: true
+                      properties:
+                        matchExpressions:
+                          description: matchExpressions is a list of label selector
+                            requirements. The requirements are ANDed.
+                          items:
+                            description: 'A label selector requirement is a selector
+                              that contains values, a key, and an operator that
+
+                              relates the key and values.'
+                            properties:
+                              key:
+                                description: key is the label key that the selector
+                                  applies to.
+                                type: string
+                              operator:
+                                description: 'operator represents a key''s relationship
+                                  to a set of values.
+
+                                  Valid operators are In, NotIn, Exists and DoesNotExist.'
+                                type: string
+                              values:
+                                description: 'values is an array of string values.
+                                  If the operator is In or NotIn,
+
+                                  the values array must be non-empty. If the operator
+                                  is Exists or DoesNotExist,
+
+                                  the values array must be empty. This array is replaced
+                                  during a strategic
+
+                                  merge patch.'
+                                items:
+                                  type: string
+                                type: array
+                                x-kubernetes-list-type: atomic
+                            required:
+                              - key
+                              - operator
+                            type: object
+                          type: array
+                          x-kubernetes-list-type: atomic
+                        matchLabels:
+                          additionalProperties:
+                            type: string
+                          description: 'matchLabels is a map of {key,value} pairs.
+                            A single {key,value} in the matchLabels
+
+                            map is equivalent to an element of matchExpressions, whose
+                            key field is "key", the
+
+                            operator is "In", and the values array contains only "value".
+                            The requirements are ANDed.'
+                          type: object
+                      type: object
+                      x-kubernetes-map-type: atomic
                     correctDrift:
                       description: CorrectDrift specifies how drift correction should
                         work.
@@ -610,6 +672,68 @@ spec:
 
                     the next deployment.'
                   properties:
+                    allowedTargetNamespaceSelector:
+                      description: 'AllowedTargetNamespaceSelector restricts deployments
+                        to namespaces matching this selector.
+
+                        Propagated from GitRepoRestriction and validated by the agent
+                        on the downstream cluster.'
+                      nullable: true
+                      properties:
+                        matchExpressions:
+                          description: matchExpressions is a list of label selector
+                            requirements. The requirements are ANDed.
+                          items:
+                            description: 'A label selector requirement is a selector
+                              that contains values, a key, and an operator that
+
+                              relates the key and values.'
+                            properties:
+                              key:
+                                description: key is the label key that the selector
+                                  applies to.
+                                type: string
+                              operator:
+                                description: 'operator represents a key''s relationship
+                                  to a set of values.
+
+                                  Valid operators are In, NotIn, Exists and DoesNotExist.'
+                                type: string
+                              values:
+                                description: 'values is an array of string values.
+                                  If the operator is In or NotIn,
+
+                                  the values array must be non-empty. If the operator
+                                  is Exists or DoesNotExist,
+
+                                  the values array must be empty. This array is replaced
+                                  during a strategic
+
+                                  merge patch.'
+                                items:
+                                  type: string
+                                type: array
+                                x-kubernetes-list-type: atomic
+                            required:
+                              - key
+                              - operator
+                            type: object
+                          type: array
+                          x-kubernetes-list-type: atomic
+                        matchLabels:
+                          additionalProperties:
+                            type: string
+                          description: 'matchLabels is a map of {key,value} pairs.
+                            A single {key,value} in the matchLabels
+
+                            map is equivalent to an element of matchExpressions, whose
+                            key field is "key", the
+
+                            operator is "In", and the values array contains only "value".
+                            The requirements are ANDed.'
+                          type: object
+                      type: object
+                      x-kubernetes-map-type: atomic
                     correctDrift:
                       description: CorrectDrift specifies how drift correction should
                         work.
@@ -1483,6 +1607,68 @@ spec:
               type: object
             spec:
               properties:
+                allowedTargetNamespaceSelector:
+                  description: 'AllowedTargetNamespaceSelector restricts deployments
+                    to namespaces matching this selector.
+
+                    Propagated from GitRepoRestriction and validated by the agent
+                    on the downstream cluster.'
+                  nullable: true
+                  properties:
+                    matchExpressions:
+                      description: matchExpressions is a list of label selector requirements.
+                        The requirements are ANDed.
+                      items:
+                        description: 'A label selector requirement is a selector that
+                          contains values, a key, and an operator that
+
+                          relates the key and values.'
+                        properties:
+                          key:
+                            description: key is the label key that the selector applies
+                              to.
+                            type: string
+                          operator:
+                            description: 'operator represents a key''s relationship
+                              to a set of values.
+
+                              Valid operators are In, NotIn, Exists and DoesNotExist.'
+                            type: string
+                          values:
+                            description: 'values is an array of string values. If
+                              the operator is In or NotIn,
+
+                              the values array must be non-empty. If the operator
+                              is Exists or DoesNotExist,
+
+                              the values array must be empty. This array is replaced
+                              during a strategic
+
+                              merge patch.'
+                            items:
+                              type: string
+                            type: array
+                            x-kubernetes-list-type: atomic
+                        required:
+                          - key
+                          - operator
+                        type: object
+                      type: array
+                      x-kubernetes-list-type: atomic
+                    matchLabels:
+                      additionalProperties:
+                        type: string
+                      description: 'matchLabels is a map of {key,value} pairs. A single
+                        {key,value} in the matchLabels
+
+                        map is equivalent to an element of matchExpressions, whose
+                        key field is "key", the
+
+                        operator is "In", and the values array contains only "value".
+                        The requirements are ANDed.'
+                      type: object
+                  type: object
+                  x-kubernetes-map-type: atomic
                 contentsId:
                   description: ContentsID stores the contents id when deploying contents
                     using an OCI registry.
@@ -2347,6 +2533,68 @@ spec:
 
                       BundleDeploymentOptions from customizations into this struct.'
                     properties:
+                      allowedTargetNamespaceSelector:
+                        description: 'AllowedTargetNamespaceSelector restricts deployments
+                          to namespaces matching this selector.
+
+                          Propagated from GitRepoRestriction and validated by the
+                          agent on the downstream cluster.'
+                        nullable: true
+                        properties:
+                          matchExpressions:
+                            description: matchExpressions is a list of label selector
+                              requirements. The requirements are ANDed.
+                            items:
+                              description: 'A label selector requirement is a selector
+                                that contains values, a key, and an operator that
+
+                                relates the key and values.'
+                              properties:
+                                key:
+                                  description: key is the label key that the selector
+                                    applies to.
+                                  type: string
+                                operator:
+                                  description: 'operator represents a key''s relationship
+                                    to a set of values.
+
+                                    Valid operators are In, NotIn, Exists and DoesNotExist.'
+                                  type: string
+                                values:
+                                  description: 'values is an array of string values.
+                                    If the operator is In or NotIn,
+
+                                    the values array must be non-empty. If the operator
+                                    is Exists or DoesNotExist,
+
+                                    the values array must be empty. This array is
+                                    replaced during a strategic
+
+                                    merge patch.'
+                                  items:
+                                    type: string
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                              required:
+                                - key
+                                - operator
+                              type: object
+                            type: array
+                            x-kubernetes-list-type: atomic
+                          matchLabels:
+                            additionalProperties:
+                              type: string
+                            description: 'matchLabels is a map of {key,value} pairs.
+                              A single {key,value} in the matchLabels
+
+                              map is equivalent to an element of matchExpressions,
+                              whose key field is "key", the
+
+                              operator is "In", and the values array contains only
+                              "value". The requirements are ANDed.'
+                            type: object
+                        type: object
+                        x-kubernetes-map-type: atomic
                       clusterGroup:
                         description: ClusterGroup to match a specific cluster group
                           by name.
@@ -6487,13 +6735,83 @@ spec:
                 type: string
               nullable: true
               type: array
+            allowedTargetNamespaceSelector:
+              description: 'AllowedTargetNamespaceSelector is a label selector to
+                match labels defined on the downstream
+
+                cluster''s namespaces. When labels defined on the namespace resources
+                match the selector labels,
+
+                the namespace on the downstream cluster will be a target namespace
+                that bundles can be deployed to.
+
+                A namespace is allowed if it either matches this selector or is listed
+                in AllowedTargetNamespaces (OR semantics).'
+              nullable: true
+              properties:
+                matchExpressions:
+                  description: matchExpressions is a list of label selector requirements.
+                    The requirements are ANDed.
+                  items:
+                    description: 'A label selector requirement is a selector that
+                      contains values, a key, and an operator that
+
+                      relates the key and values.'
+                    properties:
+                      key:
+                        description: key is the label key that the selector applies
+                          to.
+                        type: string
+                      operator:
+                        description: 'operator represents a key''s relationship to
+                          a set of values.
+
+                          Valid operators are In, NotIn, Exists and DoesNotExist.'
+                        type: string
+                      values:
+                        description: 'values is an array of string values. If the
+                          operator is In or NotIn,
+
+                          the values array must be non-empty. If the operator is Exists
+                          or DoesNotExist,
+
+                          the values array must be empty. This array is replaced during
+                          a strategic
+
+                          merge patch.'
+                        items:
+                          type: string
+                        type: array
+                        x-kubernetes-list-type: atomic
+                    required:
+                      - key
+                      - operator
+                    type: object
+                  type: array
+                  x-kubernetes-list-type: atomic
+                matchLabels:
+                  additionalProperties:
+                    type: string
+                  description: 'matchLabels is a map of {key,value} pairs. A single
+                    {key,value} in the matchLabels
+
+                    map is equivalent to an element of matchExpressions, whose key
+                    field is "key", the
+
+                    operator is "In", and the values array contains only "value".
+                    The requirements are ANDed.'
+                  type: object
+              type: object
+              x-kubernetes-map-type: atomic
             allowedTargetNamespaces:
               description: 'AllowedTargetNamespaces restricts TargetNamespace to the
                 given
 
                 namespaces. If AllowedTargetNamespaces is set, TargetNamespace must
 
-                be set.'
+                be set. A target namespace is allowed if it is listed here or if it
+
+                matches AllowedTargetNamespaceSelector (OR semantics).'
               items:
                 type: string
               nullable: true
@@ -7468,6 +7786,68 @@ spec:
               type: object
             spec:
               properties:
+                allowedTargetNamespaceSelector:
+                  description: 'AllowedTargetNamespaceSelector restricts deployments
+                    to namespaces matching this selector.
+
+                    Propagated from GitRepoRestriction and validated by the agent
+                    on the downstream cluster.'
+                  nullable: true
+                  properties:
+                    matchExpressions:
+                      description: matchExpressions is a list of label selector requirements.
+                        The requirements are ANDed.
+                      items:
+                        description: 'A label selector requirement is a selector that
+                          contains values, a key, and an operator that
+
+                          relates the key and values.'
+                        properties:
+                          key:
+                            description: key is the label key that the selector applies
+                              to.
+                            type: string
+                          operator:
+                            description: 'operator represents a key''s relationship
+                              to a set of values.
+
+                              Valid operators are In, NotIn, Exists and DoesNotExist.'
+                            type: string
+                          values:
+                            description: 'values is an array of string values. If
+                              the operator is In or NotIn,
+
+                              the values array must be non-empty. If the operator
+                              is Exists or DoesNotExist,
+
+                              the values array must be empty. This array is replaced
+                              during a strategic
+
+                              merge patch.'
+                            items:
+                              type: string
+                            type: array
+                            x-kubernetes-list-type: atomic
+                        required:
+                          - key
+                          - operator
+                        type: object
+                      type: array
+                      x-kubernetes-list-type: atomic
+                    matchLabels:
+                      additionalProperties:
+                        type: string
+                      description: 'matchLabels is a map of {key,value} pairs. A single
+                        {key,value} in the matchLabels
+
+                        map is equivalent to an element of matchExpressions, whose
+                        key field is "key", the
+
+                        operator is "In", and the values array contains only "value".
+                        The requirements are ANDed.'
+                      type: object
+                  type: object
+                  x-kubernetes-map-type: atomic
                 contentsId:
                   description: ContentsID stores the contents id when deploying contents
                     using an OCI registry.
@@ -8356,6 +8736,68 @@ spec:
 
                       BundleDeploymentOptions from customizations into this struct.'
                     properties:
+                      allowedTargetNamespaceSelector:
+                        description: 'AllowedTargetNamespaceSelector restricts deployments
+                          to namespaces matching this selector.
+
+                          Propagated from GitRepoRestriction and validated by the
+                          agent on the downstream cluster.'
+                        nullable: true
+                        properties:
+                          matchExpressions:
+                            description: matchExpressions is a list of label selector
+                              requirements. The requirements are ANDed.
+                            items:
+                              description: 'A label selector requirement is a selector
+                                that contains values, a key, and an operator that
+
+                                relates the key and values.'
+                              properties:
+                                key:
+                                  description: key is the label key that the selector
+                                    applies to.
+                                  type: string
+                                operator:
+                                  description: 'operator represents a key''s relationship
+                                    to a set of values.
+
+                                    Valid operators are In, NotIn, Exists and DoesNotExist.'
+                                  type: string
+                                values:
+                                  description: 'values is an array of string values.
+                                    If the operator is In or NotIn,
+
+                                    the values array must be non-empty. If the operator
+                                    is Exists or DoesNotExist,
+
+                                    the values array must be empty. This array is
+                                    replaced during a strategic
+
+                                    merge patch.'
+                                  items:
+                                    type: string
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                              required:
+                                - key
+                                - operator
+                              type: object
+                            type: array
+                            x-kubernetes-list-type: atomic
+                          matchLabels:
+                            additionalProperties:
+                              type: string
+                            description: 'matchLabels is a map of {key,value} pairs.
+                              A single {key,value} in the matchLabels
+
+                              map is equivalent to an element of matchExpressions,
+                              whose key field is "key", the
+
+                              operator is "In", and the values array contains only
+                              "value". The requirements are ANDed.'
+                            type: object
+                        type: object
+                        x-kubernetes-map-type: atomic
                       clusterGroup:
                         description: ClusterGroup to match a specific cluster group
                           by name.

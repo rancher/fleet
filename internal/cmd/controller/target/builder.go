@@ -13,7 +13,9 @@ import (
 	"github.com/Masterminds/sprig/v3"
 	"github.com/go-logr/logr"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/rancher/fleet/internal/cmd/controller/labelselectors"
 	"github.com/rancher/fleet/internal/cmd/controller/options"
 	"github.com/rancher/fleet/internal/cmd/controller/target/matcher"
 	"github.com/rancher/fleet/internal/helmvalues"
@@ -46,6 +48,11 @@ func New(client client.Client, reader client.Reader) *Manager {
 // Finally all existing bundledeployments are added to the targets.
 func (m *Manager) Targets(ctx context.Context, bundle *fleet.Bundle, manifestID string) ([]*Target, error) {
 	logger := log.FromContext(ctx).WithName("targets")
+
+	namespaceSelector, err := m.getNamespaceSelectorForBundle(ctx, bundle)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get namespace selector: %w", err)
+	}
 
 	bm, err := matcher.New(bundle)
 	if err != nil {
@@ -86,6 +93,10 @@ func (m *Manager) Targets(ctx context.Context, bundle *fleet.Bundle, manifestID 
 			}
 
 			opts := options.Merge(bundle.Spec.BundleDeploymentOptions, targetOpts)
+			if namespaceSelector != nil {
+				opts.AllowedTargetNamespaceSelector = namespaceSelector
+			}
+
 			err = preprocessHelmValues(logger, &opts, &cluster)
 			if err != nil {
 				return nil, fmt.Errorf("cluster %s in namespace %s: %w", cluster.Name, cluster.Namespace, err)
@@ -379,4 +390,24 @@ func processTemplateValues(helmValues map[string]interface{}, templateContext ma
 	}
 
 	return renderedValues, nil
+}
+
+// getNamespaceSelectorForBundle aggregates AllowedTargetNamespaceSelector from all
+// GitRepoRestrictions for bundles originating from a GitRepo.
+func (m *Manager) getNamespaceSelectorForBundle(ctx context.Context, bundle *fleet.Bundle) (*metav1.LabelSelector, error) {
+	if gitRepoLabel := bundle.Labels[fleet.RepoLabel]; gitRepoLabel == "" {
+		return nil, nil
+	}
+
+	restrictions := &fleet.GitRepoRestrictionList{}
+	if err := m.client.List(ctx, restrictions, client.InNamespace(bundle.Namespace)); err != nil {
+		return nil, fmt.Errorf("failed to list GitRepoRestrictions: %w", err)
+	}
+
+	var result *metav1.LabelSelector
+	for _, restriction := range restrictions.Items {
+		result = labelselectors.Merge(result, restriction.AllowedTargetNamespaceSelector)
+	}
+
+	return result, nil
 }
