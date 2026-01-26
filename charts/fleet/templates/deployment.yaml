@@ -131,6 +131,7 @@ spec:
             drop:
             - ALL
         {{- end }}
+        {{- include "fleet.container-resources" (dict "root" $ "containerName" "fleetController") | nindent 8 }}
         volumeMounts:
           - mountPath: /tmp
             name: tmp
@@ -176,6 +177,7 @@ spec:
             drop:
             - ALL
         {{- end }}
+        {{- include "fleet.container-resources" (dict "root" $ "containerName" "fleetCleanup") | nindent 8 }}
       - env:
         - name: NAMESPACE
           valueFrom:
@@ -243,6 +245,7 @@ spec:
             drop:
             - ALL
         {{- end }}
+        {{- include "fleet.container-resources" (dict "root" $ "containerName" "fleetAgentmanagement") | nindent 8 }}
       {{- end }}
       volumes:
         - name: tmp
@@ -264,10 +267,6 @@ spec:
 {{- end }}
       {{- with $.Values.affinity }}
       affinity:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with $.Values.resources }}
-      resources:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       {{- if $.Values.priorityClassName }}
