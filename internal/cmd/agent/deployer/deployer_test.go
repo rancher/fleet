@@ -172,3 +172,30 @@ func TestSetNamespaceLabelsAndAnnotationsError(t *testing.T) {
 		t.Errorf("expected not found error: got %v", err)
 	}
 }
+
+func TestIsStateAccepted(t *testing.T) {
+	tests := []struct {
+		name     string
+		state    fleet.BundleState
+		accepted []fleet.BundleState
+		want     bool
+	}{
+		// Default behavior (nil or empty acceptedStates)
+		{"default accepts Ready", fleet.Ready, nil, true},
+		{"default rejects Modified", fleet.Modified, nil, false},
+		{"default rejects NotReady", fleet.NotReady, nil, false},
+
+		// Explicit acceptedStates
+		{"accepts listed state", fleet.Modified, []fleet.BundleState{fleet.Ready, fleet.Modified}, true},
+		{"rejects unlisted state", fleet.NotReady, []fleet.BundleState{fleet.Ready, fleet.Modified}, false},
+		{"accepts single non-Ready state", fleet.WaitApplied, []fleet.BundleState{fleet.WaitApplied}, true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := isStateAccepted(tc.state, tc.accepted); got != tc.want {
+				t.Errorf("isStateAccepted(%q, %v) = %v, want %v", tc.state, tc.accepted, got, tc.want)
+			}
+		})
+	}
+}

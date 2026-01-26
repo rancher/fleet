@@ -93,6 +93,25 @@ spec:
                     before this bundle can be deployed.
                   items:
                     properties:
+                      acceptedStates:
+                        description: 'AcceptedStates is a list of BundleDeployment
+                          state that are considered acceptable for this dependency.
+
+                          If the dependency is in one of these states, it will not
+                          block the deployment of the dependent bundle.
+
+                          Valid Values should match the StateRank keys.
+
+                          If not specified, default to ["Ready"]: only fully ready
+                          dependencies are accepted
+
+                          Example: ["Ready", "Modified"] will accept dependencies
+                          that are either ready or have drifted from their desired
+                          state.'
+                        items:
+                          type: string
+                        nullable: true
+                        type: array
                       name:
                         description: Name of the bundle.
                         nullable: true
@@ -1528,6 +1547,25 @@ spec:
                     before this bundle can be deployed.
                   items:
                     properties:
+                      acceptedStates:
+                        description: 'AcceptedStates is a list of BundleDeployment
+                          state that are considered acceptable for this dependency.
+
+                          If the dependency is in one of these states, it will not
+                          block the deployment of the dependent bundle.
+
+                          Valid Values should match the StateRank keys.
+
+                          If not specified, default to ["Ready"]: only fully ready
+                          dependencies are accepted
+
+                          Example: ["Ready", "Modified"] will accept dependencies
+                          that are either ready or have drifted from their desired
+                          state.'
+                        items:
+                          type: string
+                        nullable: true
+                        type: array
                       name:
                         description: Name of the bundle.
                         nullable: true
@@ -7513,6 +7551,25 @@ spec:
                     before this bundle can be deployed.
                   items:
                     properties:
+                      acceptedStates:
+                        description: 'AcceptedStates is a list of BundleDeployment
+                          state that are considered acceptable for this dependency.
+
+                          If the dependency is in one of these states, it will not
+                          block the deployment of the dependent bundle.
+
+                          Valid Values should match the StateRank keys.
+
+                          If not specified, default to ["Ready"]: only fully ready
+                          dependencies are accepted
+
+                          Example: ["Ready", "Modified"] will accept dependencies
+                          that are either ready or have drifted from their desired
+                          state.'
+                        items:
+                          type: string
+                        nullable: true
+                        type: array
                       name:
                         description: Name of the bundle.
                         nullable: true

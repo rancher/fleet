@@ -1,0 +1,28 @@
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: Bundle
+metadata:
+  labels:
+    role: leaf-accepted-states
+  name: {{.Name}}
+  namespace: {{.ClusterRegistrationNamespace}}
+spec:
+  defaultNamespace: {{.ProjectNamespace}}
+  dependsOn:
+  - selector:
+      matchLabels:
+        role: root-modified
+    acceptedStates:
+    - Ready
+    - Modified
+  resources:
+  - content: |
+      kind: ConfigMap
+      apiVersion: v1
+      metadata:
+        name: dependent-node
+      data:
+        value: dependent-node
+    name: cm.yaml
+  targets:
+  - clusterSelector: {}
