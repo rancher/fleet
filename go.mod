@@ -40,7 +40,7 @@ require (
 	github.com/prometheus/client_golang v1.23.0
 	github.com/prometheus/client_model v0.6.2
 	github.com/prometheus/common v0.67.5
-	github.com/rancher/fleet/pkg/apis v0.14.0
+	github.com/rancher/fleet/pkg/apis v0.14.2
 	github.com/rancher/lasso v0.2.5
 	github.com/rancher/wrangler/v3 v3.3.1
 	github.com/reugn/go-quartz v0.15.2
