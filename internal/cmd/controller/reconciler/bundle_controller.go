@@ -92,6 +92,7 @@ func (r *BundleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 					predicate.AnnotationChangedPredicate{},
 					predicate.LabelChangedPredicate{},
 				),
+				sharding.FilterByShardID(r.ShardID),
 			),
 		).
 		// Note: Maybe improve with WatchesMetadata, does it have access to labels?
@@ -99,7 +100,10 @@ func (r *BundleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			// Fan out from bundledeployment to bundle, this is useful to update the
 			// bundle's status fields.
 			&fleet.BundleDeployment{}, handler.EnqueueRequestsFromMapFunc(BundleDeploymentMapFunc(r)),
-			builder.WithPredicates(bundleDeploymentStatusChangedPredicate()),
+			builder.WithPredicates(
+				bundleDeploymentStatusChangedPredicate(),
+				sharding.FilterByShardID(r.ShardID),
+			),
 		).
 		Watches(
 			// Fan out from cluster to bundle, this is useful for targeting and templating.
@@ -132,16 +136,21 @@ func (r *BundleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			// referenced in DownstreamResources changes.
 			&corev1.Secret{},
 			handler.EnqueueRequestsFromMapFunc(r.downstreamResourceMapFunc("Secret")),
-			builder.WithPredicates(dataChangedPredicate()),
+			builder.WithPredicates(
+				dataChangedPredicate(),
+				sharding.FilterByShardID(r.ShardID),
+			),
 		).
 		Watches(
 			// Fan out from configmap to bundle, reconcile bundles when a configmap
 			// referenced in DownstreamResources changes.
 			&corev1.ConfigMap{},
 			handler.EnqueueRequestsFromMapFunc(r.downstreamResourceMapFunc("ConfigMap")),
-			builder.WithPredicates(dataChangedPredicate()),
+			builder.WithPredicates(
+				dataChangedPredicate(),
+				sharding.FilterByShardID(r.ShardID),
+			),
 		).
-		WithEventFilter(sharding.FilterByShardID(r.ShardID)).
 		WithOptions(controller.Options{MaxConcurrentReconciles: r.Workers}).
 		Complete(r)
 }
