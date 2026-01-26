@@ -78,14 +78,29 @@ tolerations: []
 ## Pod affinity for the controllers.
 affinity: {}
 
-# Pod resource limits and requests for the controllers
+# Container resource limits and requests for the controllers
 resources: {}
+  ## Limits and requests for all fleet containers.
   # limits:
   #   cpu: 8000m
   #   memory: 8Gi
   # requests:
   #   cpu: 250m
   #   memory: 768Mi
+  #
+  ## Set per-component overrides here.
+  ## Set to empty object {} to use none rather than the default from above.
+  # fleetController:
+  #   limits:
+  #     cpu: 8000m
+  #     memory: 8Gi
+  #   requests:
+  #     cpu: 250m
+  #     memory: 768Mi
+  # fleetCleanup: {}  # none rather than default
+  # fleetAgentmanagement: {}  # none rather than default
+  # gitjob: {}  # none rather than default
+  # helmops: {}  # none rather than default
 
 ## PriorityClassName assigned to deployment.
 priorityClassName: ""
