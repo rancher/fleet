@@ -94,6 +94,11 @@ priorityClassName: ""
 ## host verification fails. Insecure when set to true. Default: false.
 insecureSkipHostKeyChecks: false
 
+## Adds hosts to the known_hosts configmap if using a custom git provider for gitrepos
+# additionalKnownHosts: 
+#   - '[gitlab.internal.co]:2222 ecdsa-sha2-nistp256 AAANhLXNoYTItbmlzdHAyNTdHAyNTYAAABBBJ6cPcyaL4gbQHb1+3EFuDhT1yqmH/IWid60KddIcPLKG6QRnU0UVCZb/SqvM7YqrAMWTJU3382yUbIcvhkZZnU='
+#   - 'github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl'
+
 gitops:
   enabled: true
   # syncPeriod is used to pick up polling for lost gitrepo events.
