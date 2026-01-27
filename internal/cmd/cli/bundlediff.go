@@ -36,23 +36,27 @@ field, which contains JSON patches indicating what has been changed on deployed 
 For Bundles, the command aggregates diff information from all associated BundleDeployments
 across target clusters.
 
+By default, the command searches for BundleDeployments across all namespaces. You can
+restrict to a specific namespace using the -n flag, which is useful when querying a
+specific BundleDeployment by name.
+
 The output format can be either human-readable text (default) or JSON.
 
 Examples:
-  # Show diffs for all Bundles (grouped by bundle)
+  # Show diffs for all Bundles (grouped by bundle) across all namespaces
   fleet bundlediff
 
   # Show all BundleDeployments for a specific Bundle
   fleet bundlediff --bundle my-bundle
 
-  # Show a specific BundleDeployment
-  fleet bundlediff --bundle-deployment my-bundle-deployment
+  # Show a specific BundleDeployment in a cluster namespace
+  fleet bundlediff --bundle-deployment my-bundle-deployment -n cluster-fleet-local-local-abc123
 
   # Output in JSON format
   fleet bundlediff --json
 
-  # Show diffs in a different namespace
-  fleet bundlediff -n fleet-default`,
+  # Show diffs only in a specific namespace
+  fleet bundlediff -n cluster-fleet-local-local-abc123`,
 	})
 	cmd.SetOut(os.Stdout)
 
@@ -194,7 +198,14 @@ func (d *BundleDiff) getAllBundleDiffs(ctx context.Context, k8sClient client.Cli
 
 func (d *BundleDiff) listBundleDeploymentDiffs(ctx context.Context, k8sClient client.Client, namespace string, opts ...client.ListOption) ([]DiffOutput, error) {
 	var bdList fleet.BundleDeploymentList
-	opts = append([]client.ListOption{client.InNamespace(namespace)}, opts...)
+	// Search across all namespaces by default (when using the default fleet-local namespace)
+	// Only restrict to a specific namespace when explicitly provided and different from default,
+	// or when querying a specific BundleDeployment by name
+	if (namespace != "" && namespace != "fleet-local") || d.BundleDeployment != "" {
+		opts = append([]client.ListOption{client.InNamespace(namespace)}, opts...)
+	}
+	// Otherwise search across all namespaces to find BundleDeployments (which live in cluster namespaces)
+
 	if err := k8sClient.List(ctx, &bdList, opts...); err != nil {
 		return nil, fmt.Errorf("failed to list BundleDeployments: %w", err)
 	}

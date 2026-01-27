@@ -3,6 +3,7 @@ package bundlediff
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -12,6 +13,7 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1/summary"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -24,7 +26,11 @@ var _ = Describe("Fleet bundlediff", func() {
 	act := func(args []string, ns string) (*gbytes.Buffer, *gbytes.Buffer, error) {
 		cmd := cli.NewBundleDiff()
 		fmt.Printf("Using kubeconfig: %s\n", kubeconfigPath)
-		args = append([]string{"--kubeconfig", kubeconfigPath, "-n", ns}, args...)
+		if ns != "" {
+			args = append([]string{"--kubeconfig", kubeconfigPath, "-n", ns}, args...)
+		} else {
+			args = append([]string{"--kubeconfig", kubeconfigPath}, args...)
+		}
 		cmd.SetArgs(args)
 
 		buf := gbytes.NewBuffer()
@@ -261,7 +267,6 @@ var _ = Describe("Fleet bundlediff", func() {
 		BeforeEach(func() {
 			bundleName = "test-bundle"
 
-			// Create first BundleDeployment with modified resources
 			bd1 := &fleet.BundleDeployment{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-bd-1",
@@ -287,7 +292,6 @@ var _ = Describe("Fleet bundlediff", func() {
 			}
 			Expect(k8sClient.Status().Update(ctx, bd1)).ToNot(HaveOccurred())
 
-			// Create second BundleDeployment with modified resources
 			bd2 := &fleet.BundleDeployment{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-bd-2",
@@ -623,6 +627,144 @@ var _ = Describe("Fleet bundlediff", func() {
 			output := string(buf.Contents())
 			Expect(output).To(ContainSubstring("BundleDeployment: default/test-bd-unlabeled"))
 			Expect(output).To(ContainSubstring("Secret.v1 test-ns/unlabeled-secret"))
+		})
+	})
+
+	When("BundleDeployments exist in multiple namespaces", func() {
+		var namespace2 string
+		var bd1, bd2 *fleet.BundleDeployment
+		var ns1, ns2 *corev1.Namespace
+
+		BeforeEach(func() {
+			namespace = fmt.Sprintf("namespace-1-%d", time.Now().UnixNano())
+			namespace2 = fmt.Sprintf("namespace-2-%d", time.Now().UnixNano())
+			bundleName = "cross-namespace-bundle"
+
+			ns1 = &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: namespace,
+				},
+			}
+			Expect(k8sClient.Create(ctx, ns1)).ToNot(HaveOccurred())
+
+			ns2 = &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: namespace2,
+				},
+			}
+			Expect(k8sClient.Create(ctx, ns2)).ToNot(HaveOccurred())
+
+			bd1 = &fleet.BundleDeployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "bd-in-ns1",
+					Namespace: namespace,
+					Labels: map[string]string{
+						"fleet.cattle.io/bundle-name": bundleName,
+					},
+				},
+				Spec: fleet.BundleDeploymentSpec{
+					DeploymentID: "s-content:options",
+				},
+			}
+			Expect(k8sClient.Create(ctx, bd1)).ToNot(HaveOccurred())
+
+			bd1.Status.ModifiedStatus = []fleet.ModifiedStatus{
+				{
+					Kind:       "ConfigMap",
+					APIVersion: "v1",
+					Namespace:  "test-ns",
+					Name:       "config-ns1",
+					Patch:      `{"data":{"key":"value1"}}`,
+				},
+			}
+			Expect(k8sClient.Status().Update(ctx, bd1)).ToNot(HaveOccurred())
+
+			bd2 = &fleet.BundleDeployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "bd-in-ns2",
+					Namespace: namespace2,
+					Labels: map[string]string{
+						"fleet.cattle.io/bundle-name": bundleName,
+					},
+				},
+				Spec: fleet.BundleDeploymentSpec{
+					DeploymentID: "s-content:options",
+				},
+			}
+			Expect(k8sClient.Create(ctx, bd2)).ToNot(HaveOccurred())
+
+			bd2.Status.ModifiedStatus = []fleet.ModifiedStatus{
+				{
+					Kind:       "ConfigMap",
+					APIVersion: "v1",
+					Namespace:  "test-ns",
+					Name:       "config-ns2",
+					Patch:      `{"data":{"key":"value2"}}`,
+				},
+			}
+			Expect(k8sClient.Status().Update(ctx, bd2)).ToNot(HaveOccurred())
+
+			DeferCleanup(func() {
+				_ = k8sClient.Delete(ctx, bd1)
+				_ = k8sClient.Delete(ctx, bd2)
+				_ = k8sClient.Delete(ctx, ns1)
+				_ = k8sClient.Delete(ctx, ns2)
+			})
+		})
+
+		It("should find BundleDeployments across all namespaces when no namespace specified", func() {
+			fmt.Println("\n=== TEST: Cross-Namespace Search (No -n flag) ===")
+			buf, _, err := act([]string{}, "")
+			Expect(err).NotTo(HaveOccurred())
+
+			output := string(buf.Contents())
+			Expect(output).To(ContainSubstring("bd-in-ns1"))
+			Expect(output).To(ContainSubstring("bd-in-ns2"))
+			Expect(output).To(ContainSubstring("config-ns1"))
+			Expect(output).To(ContainSubstring("config-ns2"))
+		})
+
+		It("should only find BundleDeployments in specified namespace", func() {
+			fmt.Println("\n=== TEST: Namespace-Restricted Search ===")
+			buf, _, err := act([]string{}, namespace)
+			Expect(err).NotTo(HaveOccurred())
+
+			output := string(buf.Contents())
+			Expect(output).To(ContainSubstring("bd-in-ns1"))
+			Expect(output).To(ContainSubstring("config-ns1"))
+			Expect(output).NotTo(ContainSubstring("bd-in-ns2"))
+			Expect(output).NotTo(ContainSubstring("config-ns2"))
+		})
+
+		It("should find BundleDeployments from both namespaces in JSON format", func() {
+			fmt.Println("\n=== TEST: Cross-Namespace JSON Output ===")
+			buf, _, err := act([]string{"--json"}, "")
+			Expect(err).NotTo(HaveOccurred())
+
+			var output cli.BundleDiffOutput
+			err = json.Unmarshal(buf.Contents(), &output)
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(output.BundleDeploymentDiffs).To(HaveLen(2))
+
+			namespaces := make(map[string]bool)
+			for _, diff := range output.BundleDeploymentDiffs {
+				namespaces[diff.Namespace] = true
+			}
+			Expect(namespaces[namespace]).To(BeTrue())
+			Expect(namespaces[namespace2]).To(BeTrue())
+		})
+
+		It("should find all BundleDeployments for a bundle across namespaces", func() {
+			fmt.Println("\n=== TEST: Bundle Filter Across Namespaces ===")
+			buf, _, err := act([]string{"--bundle", bundleName}, "")
+			Expect(err).NotTo(HaveOccurred())
+
+			output := string(buf.Contents())
+			Expect(output).To(ContainSubstring("Bundle: " + bundleName))
+			Expect(output).To(ContainSubstring("BundleDeployments with diffs: 2"))
+			Expect(output).To(ContainSubstring("bd-in-ns1"))
+			Expect(output).To(ContainSubstring("bd-in-ns2"))
 		})
 	})
 })
