@@ -1,8 +1,11 @@
 package dump
 
 import (
+	"archive/tar"
+	"bytes"
 	"context"
 	"errors"
+	"io"
 	"strings"
 	"testing"
 
@@ -15,6 +18,7 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/yaml"
 
 	"github.com/rancher/fleet/internal/mocks"
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -265,6 +269,197 @@ func Test_addMetrics(t *testing.T) {
 				t.Fatalf("expected error containing %q, got %q", c.expErrStr, err)
 			}
 
+		})
+	}
+}
+
+func Test_addSecretsToArchive(t *testing.T) {
+	cases := []struct {
+		name         string
+		secrets      []corev1.Secret
+		clusters     []v1alpha1.Cluster
+		secretErr    error
+		metadataOnly bool
+		expErrStr    string
+	}{
+		{
+			name: "no secrets found",
+		},
+		{
+			name:      "error fetching secrets",
+			secretErr: errors.New("something went wrong"),
+			expErrStr: "failed to list secrets for namespace",
+		},
+		{
+			name: "secrets with full data",
+			secrets: []corev1.Secret{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "my-secret",
+						Namespace: "default",
+					},
+					Data: map[string][]byte{
+						"key": []byte("value"),
+					},
+				},
+			},
+			metadataOnly: false,
+		},
+		{
+			name: "secrets with metadata only",
+			secrets: []corev1.Secret{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "my-secret",
+						Namespace: "default",
+					},
+					Data: map[string][]byte{
+						"key": []byte("value"),
+					},
+				},
+			},
+			metadataOnly: true,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			mockCtrl := gomock.NewController(t)
+			defer mockCtrl.Finish()
+
+			mockClient := mocks.NewMockK8sClient(mockCtrl)
+			ctx := context.Background()
+
+			objs := []runtime.Object{}
+			for _, cluster := range c.clusters {
+				objs = append(objs, &cluster)
+			}
+
+			scheme := runtime.NewScheme()
+			utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+			utilruntime.Must(v1alpha1.AddToScheme(scheme))
+			fakeDynClient := fake.NewSimpleDynamicClient(scheme, objs...)
+
+			mockClient.EXPECT().List(
+				ctx,
+				gomock.AssignableToTypeOf(&corev1.SecretList{}),
+				gomock.Any()).
+				DoAndReturn(
+					func(_ context.Context, sl *corev1.SecretList, _ ...client.ListOption) error {
+						sl.Items = c.secrets
+						return c.secretErr
+					},
+				).
+				AnyTimes()
+
+			logger := log.FromContext(ctx).WithName("test-fleet-dump")
+
+			var buf bytes.Buffer
+			tw := tar.NewWriter(&buf)
+
+			err := addSecretsToArchive(ctx, fakeDynClient, mockClient, logger, tw, c.metadataOnly)
+
+			if (err == nil) != (c.expErrStr == "") {
+				t.Fatalf("expected err %s, \n\tgot %s", c.expErrStr, err)
+			}
+
+			if err != nil && !strings.Contains(err.Error(), c.expErrStr) {
+				t.Fatalf("expected error containing %q, got %q", c.expErrStr, err)
+			}
+		})
+	}
+}
+
+func Test_addContentsToArchive(t *testing.T) {
+	cases := []struct {
+		name         string
+		contents     []runtime.Object
+		metadataOnly bool
+		expErrStr    string
+	}{
+		{
+			name: "no contents found",
+		},
+		{
+			name: "contents with full data",
+			contents: []runtime.Object{
+				&v1alpha1.Content{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "my-content",
+						Namespace: "default",
+					},
+				},
+			},
+			metadataOnly: false,
+		},
+		{
+			name: "contents with metadata only",
+			contents: []runtime.Object{
+				&v1alpha1.Content{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "my-content",
+						Namespace: "default",
+					},
+					Content:   []byte("test-content-data"),
+					SHA256Sum: "abc123def456",
+				},
+			},
+			metadataOnly: true,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			ctx := context.Background()
+
+			scheme := runtime.NewScheme()
+			utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+			utilruntime.Must(v1alpha1.AddToScheme(scheme))
+			fakeDynClient := fake.NewSimpleDynamicClient(scheme, c.contents...)
+
+			logger := log.FromContext(ctx).WithName("test-fleet-dump")
+
+			var buf bytes.Buffer
+			tw := tar.NewWriter(&buf)
+
+			err := addContentsToArchive(ctx, fakeDynClient, logger, tw, c.metadataOnly)
+
+			if (err == nil) != (c.expErrStr == "") {
+				t.Fatalf("expected err %s, \n\tgot %s", c.expErrStr, err)
+			}
+
+			if err != nil && !strings.Contains(err.Error(), c.expErrStr) {
+				t.Fatalf("expected error containing %q, got %q", c.expErrStr, err)
+			}
+
+			// For metadata-only test, verify sensitive fields are stripped
+			if c.metadataOnly && len(c.contents) > 0 {
+				tw.Close()
+				tr := tar.NewReader(&buf)
+				header, err := tr.Next()
+				if err != nil {
+					t.Fatalf("failed to read tar header: %v", err)
+				}
+				data, err := io.ReadAll(tr)
+				if err != nil {
+					t.Fatalf("failed to read tar content: %v", err)
+				}
+
+				var content v1alpha1.Content
+				if err := yaml.Unmarshal(data, &content); err != nil {
+					t.Fatalf("failed to unmarshal content: %v", err)
+				}
+
+				if content.Content != nil {
+					t.Errorf("expected content field to be nil in metadata-only mode, got %v", content.Content)
+				}
+
+				if content.SHA256Sum != "abc123def456" {
+					t.Errorf("expected sha256sum to be preserved in metadata-only mode, got %v", content.SHA256Sum)
+				}
+
+				t.Logf("header: %v", header)
+			}
 		})
 	}
 }

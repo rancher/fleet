@@ -17,13 +17,12 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
+	dumppkg "github.com/rancher/fleet/internal/cmd/cli/dump"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
@@ -336,6 +335,302 @@ var _ = Describe("Fleet dump", func() {
 		})
 	})
 	// Metrics are covered in end-to-end tests, as port forwarding is easier to set up in an actual cluster.
+
+	When("the cluster contains secrets and the dump is requested with secrets", func() {
+		It("includes secrets in the archive with full data", func() {
+			tgzPath := "test_secrets.tgz"
+			ns := "default"
+			mustCreateNS(ns)
+
+			secret := corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "my-secret",
+					Namespace: ns,
+				},
+				Data: map[string][]byte{
+					"key": []byte("value"),
+				},
+			}
+
+			Expect(k8sClient.Create(ctx, &secret)).NotTo(HaveOccurred())
+			defer func() {
+				Expect(k8sClient.Delete(ctx, &secret)).NotTo(HaveOccurred())
+			}()
+
+			opts := dumppkg.Options{WithSecrets: true}
+			Expect(fleetDumpWithOptions(tgzPath, opts)).ToNot(HaveOccurred())
+			defer func() {
+				Expect(os.RemoveAll(tgzPath)).ToNot(HaveOccurred())
+			}()
+
+			found, content, err := findFileInArchive(tgzPath, "secrets_")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(found).To(BeTrue())
+
+			var s corev1.Secret
+			Expect(yaml.Unmarshal(content, &s)).ToNot(HaveOccurred())
+			Expect(s.Name).To(Equal("my-secret"))
+			Expect(s.Data).NotTo(BeEmpty())
+			Expect(s.Data["key"]).To(Equal([]byte("value")))
+		})
+	})
+
+	When("the cluster contains secrets and the dump is requested with secrets metadata only", func() {
+		It("includes secrets in the archive without data", func() {
+			tgzPath := "test_secrets_metadata.tgz"
+			ns := "default"
+			mustCreateNS(ns)
+
+			secret := corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "my-secret",
+					Namespace: ns,
+				},
+				Data: map[string][]byte{
+					"key": []byte("value"),
+				},
+			}
+
+			Expect(k8sClient.Create(ctx, &secret)).NotTo(HaveOccurred())
+			defer func() {
+				Expect(k8sClient.Delete(ctx, &secret)).NotTo(HaveOccurred())
+			}()
+
+			opts := dumppkg.Options{WithSecretsMetadata: true}
+			Expect(fleetDumpWithOptions(tgzPath, opts)).ToNot(HaveOccurred())
+			defer func() {
+				Expect(os.RemoveAll(tgzPath)).ToNot(HaveOccurred())
+			}()
+
+			found, content, err := findFileInArchive(tgzPath, "secrets_")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(found).To(BeTrue())
+
+			var s corev1.Secret
+			Expect(yaml.Unmarshal(content, &s)).ToNot(HaveOccurred())
+			Expect(s.Name).To(Equal("my-secret"))
+			Expect(s.Data).To(BeEmpty())
+			Expect(s.StringData).To(BeEmpty())
+		})
+	})
+
+	When("the cluster contains content and the dump is requested with content", func() {
+		It("includes content in the archive with full data", func() {
+			tgzPath := "test_contents.tgz"
+			ns := "default"
+			mustCreateNS(ns)
+
+			content := fleet.Content{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "my-content",
+					Namespace: ns,
+				},
+				Content:   []byte("test-content-data"),
+				SHA256Sum: "abc123def456",
+			}
+
+			Expect(k8sClient.Create(ctx, &content)).NotTo(HaveOccurred())
+			defer func() {
+				Expect(k8sClient.Delete(ctx, &content)).NotTo(HaveOccurred())
+			}()
+
+			opts := dumppkg.Options{WithContent: true}
+			Expect(fleetDumpWithOptions(tgzPath, opts)).ToNot(HaveOccurred())
+			defer func() {
+				Expect(os.RemoveAll(tgzPath)).ToNot(HaveOccurred())
+			}()
+
+			found, fileContent, err := findFileInArchive(tgzPath, "contents_")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(found).To(BeTrue())
+
+			var c fleet.Content
+			Expect(yaml.Unmarshal(fileContent, &c)).ToNot(HaveOccurred())
+			Expect(c.Name).To(Equal("my-content"))
+			Expect(c.Content).To(Equal([]byte("test-content-data")))
+			Expect(c.SHA256Sum).To(Equal("abc123def456"))
+		})
+	})
+
+	When("the cluster contains content and the dump is requested with content metadata only", func() {
+		It("includes content in the archive without sensitive data", func() {
+			tgzPath := "test_contents_metadata.tgz"
+			ns := "default"
+			mustCreateNS(ns)
+
+			content := fleet.Content{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "my-content",
+					Namespace: ns,
+				},
+				Content:   []byte("test-content-data"),
+				SHA256Sum: "abc123def456",
+			}
+
+			Expect(k8sClient.Create(ctx, &content)).NotTo(HaveOccurred())
+			defer func() {
+				Expect(k8sClient.Delete(ctx, &content)).NotTo(HaveOccurred())
+			}()
+
+			opts := dumppkg.Options{WithContentMetadata: true}
+			Expect(fleetDumpWithOptions(tgzPath, opts)).ToNot(HaveOccurred())
+			defer func() {
+				Expect(os.RemoveAll(tgzPath)).ToNot(HaveOccurred())
+			}()
+
+			found, fileContent, err := findFileInArchive(tgzPath, "contents_")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(found).To(BeTrue())
+
+			var c fleet.Content
+			Expect(yaml.Unmarshal(fileContent, &c)).ToNot(HaveOccurred())
+			Expect(c.Name).To(Equal("my-content"))
+			// Content field should be stripped in metadata-only mode
+			Expect(c.Content).To(BeNil())
+			// SHA256Sum and Status are metadata, should be preserved
+			Expect(c.SHA256Sum).To(Equal("abc123def456"))
+		})
+	})
+
+	When("the cluster contains secrets but no --with-secrets flag is provided", func() {
+		It("excludes secrets from the archive", func() {
+			tgzPath := "test_no_secrets.tgz"
+			ns := "default"
+			mustCreateNS(ns)
+
+			secret := corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "my-secret",
+					Namespace: ns,
+				},
+				Data: map[string][]byte{
+					"key": []byte("value"),
+				},
+			}
+
+			Expect(k8sClient.Create(ctx, &secret)).NotTo(HaveOccurred())
+			defer func() {
+				Expect(k8sClient.Delete(ctx, &secret)).NotTo(HaveOccurred())
+			}()
+
+			opts := dumppkg.Options{}
+			Expect(fleetDumpWithOptions(tgzPath, opts)).ToNot(HaveOccurred())
+			defer func() {
+				Expect(os.RemoveAll(tgzPath)).ToNot(HaveOccurred())
+			}()
+
+			found, _, err := findFileInArchive(tgzPath, "secrets_")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(found).To(BeFalse())
+		})
+	})
+
+	When("both --with-secrets and --with-secrets-metadata are set", func() {
+		It("prefers full data over metadata-only", func() {
+			tgzPath := "test_both_secrets.tgz"
+			ns := "default"
+			mustCreateNS(ns)
+
+			secret := corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "my-secret",
+					Namespace: ns,
+				},
+				Data: map[string][]byte{
+					"key": []byte("value"),
+				},
+			}
+
+			Expect(k8sClient.Create(ctx, &secret)).NotTo(HaveOccurred())
+			defer func() {
+				Expect(k8sClient.Delete(ctx, &secret)).NotTo(HaveOccurred())
+			}()
+
+			opts := dumppkg.Options{WithSecrets: true, WithSecretsMetadata: true}
+			Expect(fleetDumpWithOptions(tgzPath, opts)).ToNot(HaveOccurred())
+			defer func() {
+				Expect(os.RemoveAll(tgzPath)).ToNot(HaveOccurred())
+			}()
+
+			found, content, err := findFileInArchive(tgzPath, "secrets_")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(found).To(BeTrue())
+
+			var s corev1.Secret
+			Expect(yaml.Unmarshal(content, &s)).ToNot(HaveOccurred())
+			Expect(s.Name).To(Equal("my-secret"))
+			Expect(s.Data).NotTo(BeEmpty())
+			Expect(s.Data["key"]).To(Equal([]byte("value")))
+		})
+	})
+
+	When("the cluster contains content but no --with-content flag is provided", func() {
+		It("excludes content from the archive", func() {
+			tgzPath := "test_no_contents.tgz"
+			ns := "default"
+			mustCreateNS(ns)
+
+			content := fleet.Content{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "my-content",
+					Namespace: ns,
+				},
+			}
+
+			Expect(k8sClient.Create(ctx, &content)).NotTo(HaveOccurred())
+			defer func() {
+				Expect(k8sClient.Delete(ctx, &content)).NotTo(HaveOccurred())
+			}()
+
+			opts := dumppkg.Options{}
+			Expect(fleetDumpWithOptions(tgzPath, opts)).ToNot(HaveOccurred())
+			defer func() {
+				Expect(os.RemoveAll(tgzPath)).ToNot(HaveOccurred())
+			}()
+
+			found, _, err := findFileInArchive(tgzPath, "contents_")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(found).To(BeFalse())
+		})
+	})
+
+	When("both --with-content and --with-content-metadata are set", func() {
+		It("prefers full data over metadata-only", func() {
+			tgzPath := "test_both_contents.tgz"
+			ns := "default"
+			mustCreateNS(ns)
+
+			content := fleet.Content{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "my-content",
+					Namespace: ns,
+				},
+				Content:   []byte("test-content-data"),
+				SHA256Sum: "abc123def456",
+			}
+
+			Expect(k8sClient.Create(ctx, &content)).NotTo(HaveOccurred())
+			defer func() {
+				Expect(k8sClient.Delete(ctx, &content)).NotTo(HaveOccurred())
+			}()
+
+			opts := dumppkg.Options{WithContent: true, WithContentMetadata: true}
+			Expect(fleetDumpWithOptions(tgzPath, opts)).ToNot(HaveOccurred())
+			defer func() {
+				Expect(os.RemoveAll(tgzPath)).ToNot(HaveOccurred())
+			}()
+
+			found, fileContent, err := findFileInArchive(tgzPath, "contents_")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(found).To(BeTrue())
+
+			var c fleet.Content
+			Expect(yaml.Unmarshal(fileContent, &c)).ToNot(HaveOccurred())
+			Expect(c.Name).To(Equal("my-content"))
+			Expect(c.Content).To(Equal([]byte("test-content-data")))
+			Expect(c.SHA256Sum).To(Equal("abc123def456"))
+		})
+	})
 })
 
 // areEqual checks if objects a and e are equal, by namespace, name, metadata (labels and annotations) and Spec or
@@ -396,4 +691,41 @@ func mustCreateNS(ns string) {
 		},
 	}
 	Expect(client.IgnoreAlreadyExists(k8sClient.Create(ctx, &toCreate))).NotTo(HaveOccurred())
+}
+
+// findFileInArchive searches for a file with the given prefix in the tar archive
+// and returns true along with the file contents if found
+func findFileInArchive(archivePath, filePrefix string) (bool, []byte, error) {
+	f, err := os.OpenFile(archivePath, os.O_RDONLY, 0)
+	if err != nil {
+		return false, nil, err
+	}
+	defer f.Close()
+
+	gzr, err := gzip.NewReader(f)
+	if err != nil {
+		return false, nil, err
+	}
+
+	tr := tar.NewReader(gzr)
+
+	for {
+		header, err := tr.Next()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return false, nil, err
+		}
+
+		if strings.HasPrefix(header.Name, filePrefix) {
+			content, err := io.ReadAll(tr)
+			if err != nil {
+				return false, nil, err
+			}
+			return true, content, nil
+		}
+	}
+
+	return false, nil, nil
 }

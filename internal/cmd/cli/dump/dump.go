@@ -37,7 +37,14 @@ import (
 	"github.com/rancher/fleet/pkg/sharding"
 )
 
-func Create(ctx context.Context, cfg *rest.Config, path string) error {
+type Options struct {
+	WithSecrets         bool
+	WithSecretsMetadata bool
+	WithContent         bool
+	WithContentMetadata bool
+}
+
+func Create(ctx context.Context, cfg *rest.Config, path string, opts ...Options) error {
 	c, err := createClient(cfg)
 	if err != nil {
 		return fmt.Errorf("failed to create Kubernetes client: %w", err)
@@ -48,12 +55,20 @@ func Create(ctx context.Context, cfg *rest.Config, path string) error {
 		return fmt.Errorf("failed to create dynamic Kubernetes client: %w", err)
 	}
 
-	return CreateWithClients(ctx, cfg, d, c, path)
+	var opt Options
+	if len(opts) > 0 {
+		opt = opts[0]
+	}
+	return CreateWithClients(ctx, cfg, d, c, path, opt)
 }
 
-func CreateWithClients(ctx context.Context, cfg *rest.Config, d dynamic.Interface, c client.Client, path string) error {
+func CreateWithClients(ctx context.Context, cfg *rest.Config, d dynamic.Interface, c client.Client, path string, opts ...Options) error {
+	var opt Options
+	if len(opts) > 0 {
+		opt = opts[0]
+	}
+
 	logger := log.FromContext(ctx).WithName("fleet-dump")
-	// XXX: be smart about memory management, progressively write data to disk instead of keeping everything in memory?
 
 	tgz, err := os.Create(path)
 	if err != nil {
@@ -72,12 +87,27 @@ func CreateWithClients(ctx context.Context, cfg *rest.Config, d dynamic.Interfac
 		"gitrepos",
 		"gitreporestrictions",
 		"helmops",
-		// "contents",
 	}
 
 	for _, t := range types {
 		if err := addObjectsToArchive(ctx, d, logger, "fleet.cattle.io", "v1alpha1", t, w); err != nil {
 			return fmt.Errorf("failed to add %s to archive: %w", t, err)
+		}
+	}
+
+	if opt.WithContent || opt.WithContentMetadata {
+		// If both full content and metadata-only are requested, prefer full content
+		contentMetadataOnly := opt.WithContentMetadata && !opt.WithContent
+		if err := addContentsToArchive(ctx, d, logger, w, contentMetadataOnly); err != nil {
+			return fmt.Errorf("failed to add contents to archive: %w", err)
+		}
+	}
+
+	if opt.WithSecrets || opt.WithSecretsMetadata {
+		// If both full secrets and metadata-only are requested, prefer full secrets
+		secretsMetadataOnly := opt.WithSecretsMetadata && !opt.WithSecrets
+		if err := addSecretsToArchive(ctx, d, c, logger, w, secretsMetadataOnly); err != nil {
+			return fmt.Errorf("failed to add secrets to archive: %w", err)
 		}
 	}
 
@@ -148,6 +178,90 @@ func addFileToArchive(data []byte, name string, w *tar.Writer) error {
 	_, err := w.Write(data)
 
 	return err
+}
+
+func addContentsToArchive(
+	ctx context.Context,
+	dynamic dynamic.Interface,
+	logger logr.Logger,
+	w *tar.Writer,
+	metadataOnly bool,
+) error {
+	rID := schema.GroupVersionResource{
+		Group:    "fleet.cattle.io",
+		Version:  "v1alpha1",
+		Resource: "contents",
+	}
+
+	logger.V(1).Info("Fetching ...", "resource", rID.String())
+
+	list, err := dynamic.Resource(rID).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to list contents: %w", err)
+	}
+
+	for _, i := range list.Items {
+		if metadataOnly {
+			// Only strip the actual content (manifests), keep sha256sum and status as metadata
+			i.Object["content"] = nil
+		}
+
+		g, err := yaml.Marshal(&i)
+		if err != nil {
+			return fmt.Errorf("failed to marshal content: %w", err)
+		}
+
+		fileName := fmt.Sprintf("contents_%s_%s", i.GetNamespace(), i.GetName())
+		if err := addFileToArchive(g, fileName, w); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func addSecretsToArchive(
+	ctx context.Context,
+	dynamic dynamic.Interface,
+	c client.Client,
+	logger logr.Logger,
+	w *tar.Writer,
+	metadataOnly bool,
+) error {
+	nss, err := getNamespaces(ctx, dynamic, logger)
+	if err != nil {
+		return fmt.Errorf("failed to get relevant namespaces for secrets: %w", err)
+	}
+
+	var merr []error
+
+	for _, ns := range nss {
+		var secrets corev1.SecretList
+		if err := c.List(ctx, &secrets, client.InNamespace(ns)); err != nil {
+			merr = append(merr, fmt.Errorf("failed to list secrets for namespace %q: %w", ns, err))
+			continue
+		}
+
+		for _, secret := range secrets.Items {
+			if metadataOnly {
+				secret.Data = nil
+				secret.StringData = nil
+			}
+
+			data, err := yaml.Marshal(&secret)
+			if err != nil {
+				merr = append(merr, fmt.Errorf("failed to marshal secret: %w", err))
+				continue
+			}
+
+			fileName := fmt.Sprintf("secrets_%s_%s", secret.Namespace, secret.Name)
+			if err := addFileToArchive(data, fileName, w); err != nil {
+				merr = append(merr, fmt.Errorf("failed to add secret to archive: %w", err))
+			}
+		}
+	}
+
+	return errutil.NewAggregate(merr)
 }
 
 // getNamespaces returns a list of namespaces relevant to the current context, containing:
