@@ -2556,58 +2556,58 @@ func TestNonSecretAnnotationChangedPredicate_Update(t *testing.T) {
 			name:           "only secret annotation added - no trigger",
 			oldAnnotations: nil,
 			newAnnotations: map[string]string{
-				clientSecretResourceVersionAnnotation: "12345",
+				clientSecretHashAnnotation: "12345",
 			},
 			expected: false,
 		},
 		{
 			name: "only secret annotation changed - no trigger",
 			oldAnnotations: map[string]string{
-				clientSecretResourceVersionAnnotation: "12345",
+				clientSecretHashAnnotation: "12345",
 			},
 			newAnnotations: map[string]string{
-				clientSecretResourceVersionAnnotation: "67890",
+				clientSecretHashAnnotation: "67890",
 			},
 			expected: false,
 		},
 		{
 			name: "only helm secret annotation changed - no trigger",
 			oldAnnotations: map[string]string{
-				helmSecretResourceVersionAnnotation: "12345",
+				helmSecretHashAnnotation: "12345",
 			},
 			newAnnotations: map[string]string{
-				helmSecretResourceVersionAnnotation: "67890",
+				helmSecretHashAnnotation: "67890",
 			},
 			expected: false,
 		},
 		{
 			name: "only helm secret for paths annotation changed - no trigger",
 			oldAnnotations: map[string]string{
-				helmSecretForPathsResourceVersionAnnotation: "12345",
+				helmSecretForPathsHashAnnotation: "12345",
 			},
 			newAnnotations: map[string]string{
-				helmSecretForPathsResourceVersionAnnotation: "67890",
+				helmSecretForPathsHashAnnotation: "67890",
 			},
 			expected: false,
 		},
 		{
 			name: "all secret annotations changed - no trigger",
 			oldAnnotations: map[string]string{
-				clientSecretResourceVersionAnnotation:       "1",
-				helmSecretResourceVersionAnnotation:         "2",
-				helmSecretForPathsResourceVersionAnnotation: "3",
+				clientSecretHashAnnotation:       "1",
+				helmSecretHashAnnotation:         "2",
+				helmSecretForPathsHashAnnotation: "3",
 			},
 			newAnnotations: map[string]string{
-				clientSecretResourceVersionAnnotation:       "4",
-				helmSecretResourceVersionAnnotation:         "5",
-				helmSecretForPathsResourceVersionAnnotation: "6",
+				clientSecretHashAnnotation:       "4",
+				helmSecretHashAnnotation:         "5",
+				helmSecretForPathsHashAnnotation: "6",
 			},
 			expected: false,
 		},
 		{
 			name: "secret annotation removed - no trigger",
 			oldAnnotations: map[string]string{
-				clientSecretResourceVersionAnnotation: "12345",
+				clientSecretHashAnnotation: "12345",
 			},
 			newAnnotations: map[string]string{},
 			expected:       false,
@@ -2641,35 +2641,35 @@ func TestNonSecretAnnotationChangedPredicate_Update(t *testing.T) {
 		{
 			name: "mixed: secret and non-secret annotations changed - should trigger",
 			oldAnnotations: map[string]string{
-				clientSecretResourceVersionAnnotation: "12345",
-				"some-other-annotation":               "old-value",
+				clientSecretHashAnnotation: "12345",
+				"some-other-annotation":    "old-value",
 			},
 			newAnnotations: map[string]string{
-				clientSecretResourceVersionAnnotation: "67890",
-				"some-other-annotation":               "new-value",
+				clientSecretHashAnnotation: "67890",
+				"some-other-annotation":    "new-value",
 			},
 			expected: true,
 		},
 		{
 			name: "mixed: only secret annotation changed, non-secret unchanged - no trigger",
 			oldAnnotations: map[string]string{
-				clientSecretResourceVersionAnnotation: "12345",
-				"some-other-annotation":               "same-value",
+				clientSecretHashAnnotation: "12345",
+				"some-other-annotation":    "same-value",
 			},
 			newAnnotations: map[string]string{
-				clientSecretResourceVersionAnnotation: "67890",
-				"some-other-annotation":               "same-value",
+				clientSecretHashAnnotation: "67890",
+				"some-other-annotation":    "same-value",
 			},
 			expected: false,
 		},
 		{
 			name: "non-secret annotation added while secret unchanged - should trigger",
 			oldAnnotations: map[string]string{
-				clientSecretResourceVersionAnnotation: "12345",
+				clientSecretHashAnnotation: "12345",
 			},
 			newAnnotations: map[string]string{
-				clientSecretResourceVersionAnnotation: "12345",
-				"new-annotation":                      "value",
+				clientSecretHashAnnotation: "12345",
+				"new-annotation":           "value",
 			},
 			expected: true,
 		},

@@ -26,11 +26,14 @@ import (
 )
 
 const (
-	gitRepoNamespace   = "default"
-	repo               = "https://www.github.com/rancher/fleet"
-	commit             = "9ca3a0ad308ed8bffa6602572e2a1343af9c3d2e"
-	stableCommitBranch = "release/v0.6"
-	stableCommit       = "26bdd9326b0238bb2fb743f863d9380c3c5d43e0"
+	gitRepoNamespace                 = "default"
+	repo                             = "https://www.github.com/rancher/fleet"
+	commit                           = "9ca3a0ad308ed8bffa6602572e2a1343af9c3d2e"
+	stableCommitBranch               = "release/v0.6"
+	stableCommit                     = "26bdd9326b0238bb2fb743f863d9380c3c5d43e0"
+	clientSecretHashAnnotation       = "fleet.cattle.io/client-secret-hash"
+	helmSecretHashAnnotation         = "fleet.cattle.io/helm-secret-hash"
+	helmSecretForPathsHashAnnotation = "fleet.cattle.io/helm-secret-for-paths-hash"
 )
 
 func getCondition(gitrepo *v1alpha1.GitRepo, condType string) (genericcondition.GenericCondition, bool) {
@@ -1370,10 +1373,10 @@ var _ = Describe("GitJob controller", func() {
 					err := k8sClient.Get(ctx, types.NamespacedName{Name: gitRepoName, Namespace: gitRepoNamespace}, &gitRepo)
 					g.Expect(err).ToNot(HaveOccurred())
 					g.Expect(gitRepo.Annotations).ToNot(BeNil())
-					g.Expect(gitRepo.Annotations["fleet.cattle.io/client-secret-resourceversion"]).ToNot(BeEmpty())
+					g.Expect(gitRepo.Annotations[clientSecretHashAnnotation]).ToNot(BeEmpty())
 				}).Should(Succeed())
 
-				initialAnnotation := gitRepo.Annotations["fleet.cattle.io/client-secret-resourceversion"]
+				initialAnnotation := gitRepo.Annotations[clientSecretHashAnnotation]
 
 				By("Updating the secret data")
 				Expect(retry.RetryOnConflict(retry.DefaultRetry, func() error {
@@ -1398,7 +1401,7 @@ var _ = Describe("GitJob controller", func() {
 				Eventually(func(g Gomega) {
 					err := k8sClient.Get(ctx, types.NamespacedName{Name: gitRepoName, Namespace: gitRepoNamespace}, &gitRepo)
 					g.Expect(err).ToNot(HaveOccurred())
-					currentAnnotation := gitRepo.Annotations["fleet.cattle.io/client-secret-resourceversion"]
+					currentAnnotation := gitRepo.Annotations[clientSecretHashAnnotation]
 					g.Expect(currentAnnotation).ToNot(Equal(initialAnnotation))
 					g.Expect(currentAnnotation).ToNot(BeEmpty())
 				}).Should(Succeed())
@@ -1417,7 +1420,7 @@ var _ = Describe("GitJob controller", func() {
 				Eventually(func(g Gomega) {
 					err := k8sClient.Get(ctx, types.NamespacedName{Name: gitRepoName, Namespace: gitRepoNamespace}, &gitRepo)
 					g.Expect(err).ToNot(HaveOccurred())
-					g.Expect(gitRepo.Annotations["fleet.cattle.io/client-secret-resourceversion"]).ToNot(BeEmpty())
+					g.Expect(gitRepo.Annotations[clientSecretHashAnnotation]).ToNot(BeEmpty())
 				}).Should(Succeed())
 
 				By("Clearing ClientSecretName")
@@ -1434,7 +1437,7 @@ var _ = Describe("GitJob controller", func() {
 				Eventually(func(g Gomega) {
 					err := k8sClient.Get(ctx, types.NamespacedName{Name: gitRepoName, Namespace: gitRepoNamespace}, &gitRepo)
 					g.Expect(err).ToNot(HaveOccurred())
-					_, exists := gitRepo.Annotations["fleet.cattle.io/client-secret-resourceversion"]
+					_, exists := gitRepo.Annotations[clientSecretHashAnnotation]
 					g.Expect(exists).To(BeFalse())
 				}).Should(Succeed())
 			})
@@ -1463,10 +1466,10 @@ var _ = Describe("GitJob controller", func() {
 					err := k8sClient.Get(ctx, types.NamespacedName{Name: gitRepoName, Namespace: gitRepoNamespace}, &gitRepo)
 					g.Expect(err).ToNot(HaveOccurred())
 					g.Expect(gitRepo.Annotations).ToNot(BeNil())
-					g.Expect(gitRepo.Annotations["fleet.cattle.io/helm-secret-resourceversion"]).ToNot(BeEmpty())
+					g.Expect(gitRepo.Annotations[helmSecretHashAnnotation]).ToNot(BeEmpty())
 				}).Should(Succeed())
 
-				initialAnnotation := gitRepo.Annotations["fleet.cattle.io/helm-secret-resourceversion"]
+				initialAnnotation := gitRepo.Annotations[helmSecretHashAnnotation]
 
 				By("Updating the secret data")
 				Expect(retry.RetryOnConflict(retry.DefaultRetry, func() error {
@@ -1483,7 +1486,7 @@ var _ = Describe("GitJob controller", func() {
 				Eventually(func(g Gomega) {
 					err := k8sClient.Get(ctx, types.NamespacedName{Name: gitRepoName, Namespace: gitRepoNamespace}, &gitRepo)
 					g.Expect(err).ToNot(HaveOccurred())
-					currentAnnotation := gitRepo.Annotations["fleet.cattle.io/helm-secret-resourceversion"]
+					currentAnnotation := gitRepo.Annotations[helmSecretHashAnnotation]
 					g.Expect(currentAnnotation).ToNot(Equal(initialAnnotation))
 					g.Expect(currentAnnotation).ToNot(BeEmpty())
 				}).Should(Succeed())
@@ -1519,10 +1522,10 @@ var _ = Describe("GitJob controller", func() {
 					err := k8sClient.Get(ctx, types.NamespacedName{Name: gitRepoName, Namespace: gitRepoNamespace}, &gitRepo)
 					g.Expect(err).ToNot(HaveOccurred())
 					g.Expect(gitRepo.Annotations).ToNot(BeNil())
-					g.Expect(gitRepo.Annotations["fleet.cattle.io/helm-secret-for-paths-resourceversion"]).ToNot(BeEmpty())
+					g.Expect(gitRepo.Annotations[helmSecretForPathsHashAnnotation]).ToNot(BeEmpty())
 				}).Should(Succeed())
 
-				initialAnnotation := gitRepo.Annotations["fleet.cattle.io/helm-secret-for-paths-resourceversion"]
+				initialAnnotation := gitRepo.Annotations[helmSecretForPathsHashAnnotation]
 
 				By("Updating the secret data")
 				Expect(retry.RetryOnConflict(retry.DefaultRetry, func() error {
@@ -1539,7 +1542,7 @@ var _ = Describe("GitJob controller", func() {
 				Eventually(func(g Gomega) {
 					err := k8sClient.Get(ctx, types.NamespacedName{Name: gitRepoName, Namespace: gitRepoNamespace}, &gitRepo)
 					g.Expect(err).ToNot(HaveOccurred())
-					currentAnnotation := gitRepo.Annotations["fleet.cattle.io/helm-secret-for-paths-resourceversion"]
+					currentAnnotation := gitRepo.Annotations[helmSecretForPathsHashAnnotation]
 					g.Expect(currentAnnotation).ToNot(Equal(initialAnnotation))
 					g.Expect(currentAnnotation).ToNot(BeEmpty())
 				}).Should(Succeed())
@@ -1549,6 +1552,124 @@ var _ = Describe("GitJob controller", func() {
 					newJob := &batchv1.Job{}
 					return k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, newJob)
 				}).Should(Succeed(), "A new job should be created when helm secret for paths changes")
+			})
+		})
+
+		Context("HelmSecretName metadata-only update does not trigger job", func() {
+			BeforeEach(func() {
+				gitRepoName = "helm-secret-metadata-only"
+				secret = corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "helm-metadata-secret",
+						Namespace: gitRepoNamespace,
+					},
+					Type: corev1.SecretTypeBasicAuth,
+					Data: map[string][]byte{
+						corev1.BasicAuthUsernameKey: []byte("helmuser"),
+						corev1.BasicAuthPasswordKey: []byte("helmpass"),
+					},
+				}
+				helmSecretName = secret.Name
+			})
+
+			It("does not create a job when only HelmSecretName metadata changes", func() {
+				By("Verifying initial annotation is set")
+				Eventually(func(g Gomega) {
+					err := k8sClient.Get(ctx, types.NamespacedName{Name: gitRepoName, Namespace: gitRepoNamespace}, &gitRepo)
+					g.Expect(err).ToNot(HaveOccurred())
+					g.Expect(gitRepo.Annotations).ToNot(BeNil())
+					g.Expect(gitRepo.Annotations[helmSecretHashAnnotation]).ToNot(BeEmpty())
+				}).Should(Succeed())
+
+				initialAnnotation := gitRepo.Annotations[helmSecretHashAnnotation]
+
+				By("Updating only secret metadata (labels) - not Data")
+				Expect(retry.RetryOnConflict(retry.DefaultRetry, func() error {
+					var updatedSecret corev1.Secret
+					err := k8sClient.Get(ctx, types.NamespacedName{Name: secret.Name, Namespace: secret.Namespace}, &updatedSecret)
+					if err != nil {
+						return err
+					}
+					if updatedSecret.Labels == nil {
+						updatedSecret.Labels = make(map[string]string)
+					}
+					updatedSecret.Labels["test-label"] = "test-value"
+					return k8sClient.Update(ctx, &updatedSecret)
+				})).ToNot(HaveOccurred())
+
+				By("Verifying annotation remains unchanged (data hash unchanged)")
+				Consistently(func(g Gomega) {
+					err := k8sClient.Get(ctx, types.NamespacedName{Name: gitRepoName, Namespace: gitRepoNamespace}, &gitRepo)
+					g.Expect(err).ToNot(HaveOccurred())
+					currentAnnotation := gitRepo.Annotations[helmSecretHashAnnotation]
+					g.Expect(currentAnnotation).To(Equal(initialAnnotation))
+				}, time.Second*5, time.Second*1).Should(Succeed())
+
+				By("Verifying NO job is created (metadata-only change should not trigger job)")
+				Consistently(func() bool {
+					newJob := &batchv1.Job{}
+					err := k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, newJob)
+					return errors.IsNotFound(err)
+				}, time.Second*5, time.Second*1).Should(BeTrue(), "No job should be created when only helm secret metadata changes")
+			})
+		})
+
+		Context("HelmSecretNameForPaths metadata-only update does not trigger job", func() {
+			BeforeEach(func() {
+				gitRepoName = "helm-paths-metadata-only"
+				secret = corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "helm-paths-metadata-secret",
+						Namespace: gitRepoNamespace,
+					},
+					Type: corev1.SecretTypeBasicAuth,
+					Data: map[string][]byte{
+						corev1.BasicAuthUsernameKey: []byte("pathuser"),
+						corev1.BasicAuthPasswordKey: []byte("pathpass"),
+					},
+				}
+				helmSecretNameForPaths = secret.Name
+			})
+
+			It("does not create a job when only HelmSecretNameForPaths metadata changes", func() {
+				By("Verifying initial annotation is set")
+				Eventually(func(g Gomega) {
+					err := k8sClient.Get(ctx, types.NamespacedName{Name: gitRepoName, Namespace: gitRepoNamespace}, &gitRepo)
+					g.Expect(err).ToNot(HaveOccurred())
+					g.Expect(gitRepo.Annotations).ToNot(BeNil())
+					g.Expect(gitRepo.Annotations[helmSecretForPathsHashAnnotation]).ToNot(BeEmpty())
+				}).Should(Succeed())
+
+				initialAnnotation := gitRepo.Annotations[helmSecretForPathsHashAnnotation]
+
+				By("Updating only secret metadata (annotations) - not Data")
+				Expect(retry.RetryOnConflict(retry.DefaultRetry, func() error {
+					var updatedSecret corev1.Secret
+					err := k8sClient.Get(ctx, types.NamespacedName{Name: secret.Name, Namespace: secret.Namespace}, &updatedSecret)
+					if err != nil {
+						return err
+					}
+					if updatedSecret.Annotations == nil {
+						updatedSecret.Annotations = make(map[string]string)
+					}
+					updatedSecret.Annotations["test-annotation"] = "test-value"
+					return k8sClient.Update(ctx, &updatedSecret)
+				})).ToNot(HaveOccurred())
+
+				By("Verifying annotation remains unchanged (data hash unchanged)")
+				Consistently(func(g Gomega) {
+					err := k8sClient.Get(ctx, types.NamespacedName{Name: gitRepoName, Namespace: gitRepoNamespace}, &gitRepo)
+					g.Expect(err).ToNot(HaveOccurred())
+					currentAnnotation := gitRepo.Annotations[helmSecretForPathsHashAnnotation]
+					g.Expect(currentAnnotation).To(Equal(initialAnnotation))
+				}, time.Second*5, time.Second*1).Should(Succeed())
+
+				By("Verifying NO job is created (metadata-only change should not trigger job)")
+				Consistently(func() bool {
+					newJob := &batchv1.Job{}
+					err := k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, newJob)
+					return errors.IsNotFound(err)
+				}, time.Second*5, time.Second*1).Should(BeTrue(), "No job should be created when only helm secret for paths metadata changes")
 			})
 		})
 
@@ -1574,10 +1695,10 @@ var _ = Describe("GitJob controller", func() {
 				Eventually(func(g Gomega) {
 					err := k8sClient.Get(ctx, types.NamespacedName{Name: gitRepoName, Namespace: gitRepoNamespace}, &gitRepo)
 					g.Expect(err).ToNot(HaveOccurred())
-					g.Expect(gitRepo.Annotations["fleet.cattle.io/client-secret-resourceversion"]).ToNot(BeEmpty())
+					g.Expect(gitRepo.Annotations[clientSecretHashAnnotation]).ToNot(BeEmpty())
 				}).Should(Succeed())
 
-				initialAnnotation := gitRepo.Annotations["fleet.cattle.io/client-secret-resourceversion"]
+				initialAnnotation := gitRepo.Annotations[clientSecretHashAnnotation]
 
 				By("Deleting the secret")
 				Expect(k8sClient.Delete(ctx, &secret)).ToNot(HaveOccurred())
@@ -1602,7 +1723,7 @@ var _ = Describe("GitJob controller", func() {
 				Eventually(func(g Gomega) {
 					err := k8sClient.Get(ctx, types.NamespacedName{Name: gitRepoName, Namespace: gitRepoNamespace}, &gitRepo)
 					g.Expect(err).ToNot(HaveOccurred())
-					currentAnnotation := gitRepo.Annotations["fleet.cattle.io/client-secret-resourceversion"]
+					currentAnnotation := gitRepo.Annotations[clientSecretHashAnnotation]
 					g.Expect(currentAnnotation).ToNot(Equal(initialAnnotation))
 					g.Expect(currentAnnotation).ToNot(BeEmpty())
 				}).Should(Succeed())
@@ -1651,12 +1772,12 @@ var _ = Describe("GitJob controller", func() {
 				Eventually(func(g Gomega) {
 					err := k8sClient.Get(ctx, types.NamespacedName{Name: gitRepoName, Namespace: gitRepoNamespace}, &gitRepo)
 					g.Expect(err).ToNot(HaveOccurred())
-					g.Expect(gitRepo.Annotations["fleet.cattle.io/client-secret-resourceversion"]).ToNot(BeEmpty())
-					g.Expect(gitRepo.Annotations["fleet.cattle.io/helm-secret-resourceversion"]).ToNot(BeEmpty())
+					g.Expect(gitRepo.Annotations[clientSecretHashAnnotation]).ToNot(BeEmpty())
+					g.Expect(gitRepo.Annotations[helmSecretHashAnnotation]).ToNot(BeEmpty())
 				}).Should(Succeed())
 
-				clientAnnotation := gitRepo.Annotations["fleet.cattle.io/client-secret-resourceversion"]
-				helmAnnotation := gitRepo.Annotations["fleet.cattle.io/helm-secret-resourceversion"]
+				clientAnnotation := gitRepo.Annotations[clientSecretHashAnnotation]
+				helmAnnotation := gitRepo.Annotations[helmSecretHashAnnotation]
 
 				By("Updating only the client secret")
 				Expect(retry.RetryOnConflict(retry.DefaultRetry, func() error {
@@ -1673,8 +1794,8 @@ var _ = Describe("GitJob controller", func() {
 				Eventually(func(g Gomega) {
 					err := k8sClient.Get(ctx, types.NamespacedName{Name: gitRepoName, Namespace: gitRepoNamespace}, &gitRepo)
 					g.Expect(err).ToNot(HaveOccurred())
-					newClientAnnotation := gitRepo.Annotations["fleet.cattle.io/client-secret-resourceversion"]
-					newHelmAnnotation := gitRepo.Annotations["fleet.cattle.io/helm-secret-resourceversion"]
+					newClientAnnotation := gitRepo.Annotations[clientSecretHashAnnotation]
+					newHelmAnnotation := gitRepo.Annotations[helmSecretHashAnnotation]
 					g.Expect(newClientAnnotation).ToNot(Equal(clientAnnotation))
 					g.Expect(newHelmAnnotation).To(Equal(helmAnnotation)) // Helm annotation unchanged
 				}).Should(Succeed())
@@ -1685,8 +1806,8 @@ var _ = Describe("GitJob controller", func() {
 				Eventually(func(g Gomega) {
 					err := k8sClient.Get(ctx, types.NamespacedName{Name: gitRepoName, Namespace: gitRepoNamespace}, &gitRepo)
 					g.Expect(err).ToNot(HaveOccurred())
-					g.Expect(gitRepo.Annotations["fleet.cattle.io/client-secret-resourceversion"]).ToNot(BeEmpty())
-					g.Expect(gitRepo.Annotations["fleet.cattle.io/helm-secret-resourceversion"]).ToNot(BeEmpty())
+					g.Expect(gitRepo.Annotations[clientSecretHashAnnotation]).ToNot(BeEmpty())
+					g.Expect(gitRepo.Annotations[helmSecretHashAnnotation]).ToNot(BeEmpty())
 				}).Should(Succeed())
 
 				By("Updating only the client secret - should NOT create job")
@@ -1748,10 +1869,10 @@ var _ = Describe("GitJob controller", func() {
 				Eventually(func(g Gomega) {
 					err := k8sClient.Get(ctx, types.NamespacedName{Name: gitRepoName, Namespace: gitRepoNamespace}, &gitRepo)
 					g.Expect(err).ToNot(HaveOccurred())
-					g.Expect(gitRepo.Annotations["fleet.cattle.io/client-secret-resourceversion"]).ToNot(BeEmpty())
+					g.Expect(gitRepo.Annotations[clientSecretHashAnnotation]).ToNot(BeEmpty())
 				}).Should(Succeed())
 
-				initialAnnotation := gitRepo.Annotations["fleet.cattle.io/client-secret-resourceversion"]
+				initialAnnotation := gitRepo.Annotations[clientSecretHashAnnotation]
 
 				By("Updating only secret metadata (labels)")
 				Expect(retry.RetryOnConflict(retry.DefaultRetry, func() error {
@@ -1771,7 +1892,7 @@ var _ = Describe("GitJob controller", func() {
 				Consistently(func(g Gomega) {
 					err := k8sClient.Get(ctx, types.NamespacedName{Name: gitRepoName, Namespace: gitRepoNamespace}, &gitRepo)
 					g.Expect(err).ToNot(HaveOccurred())
-					currentAnnotation := gitRepo.Annotations["fleet.cattle.io/client-secret-resourceversion"]
+					currentAnnotation := gitRepo.Annotations[clientSecretHashAnnotation]
 					g.Expect(currentAnnotation).To(Equal(initialAnnotation))
 				}, time.Second*5, time.Second*1).Should(Succeed())
 			})
@@ -1843,7 +1964,7 @@ var _ = Describe("GitJob controller", func() {
 				Eventually(func(g Gomega) {
 					err := k8sClient.Get(ctx, types.NamespacedName{Name: gitRepoName, Namespace: gitRepoNamespace}, &gitRepo)
 					g.Expect(err).ToNot(HaveOccurred())
-					g.Expect(gitRepo.Annotations["fleet.cattle.io/client-secret-resourceversion"]).ToNot(BeEmpty())
+					g.Expect(gitRepo.Annotations[clientSecretHashAnnotation]).ToNot(BeEmpty())
 				}).Should(Succeed())
 			})
 		})

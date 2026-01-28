@@ -2,6 +2,8 @@ package reconciler
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -67,10 +69,10 @@ const (
 	// in order to wait for the dependent resources cleanup to finish
 	requeueAfterResourceCleanup = 2 * time.Second
 
-	// Annotation keys for tracking secret ResourceVersions
-	clientSecretResourceVersionAnnotation       = "fleet.cattle.io/client-secret-resourceversion"         //nolint:gosec // not a credential
-	helmSecretResourceVersionAnnotation         = "fleet.cattle.io/helm-secret-resourceversion"           //nolint:gosec // not a credential
-	helmSecretForPathsResourceVersionAnnotation = "fleet.cattle.io/helm-secret-for-paths-resourceversion" //nolint:gosec // not a credential
+	// Annotation keys for tracking secret data hashes
+	clientSecretHashAnnotation       = "fleet.cattle.io/client-secret-hash"         //nolint:gosec // not a credential
+	helmSecretHashAnnotation         = "fleet.cattle.io/helm-secret-hash"           //nolint:gosec // not a credential
+	helmSecretForPathsHashAnnotation = "fleet.cattle.io/helm-secret-for-paths-hash" //nolint:gosec // not a credential
 )
 
 var (
@@ -153,7 +155,7 @@ func (r *GitJobReconciler) SetupWithManager(mgr ctrl.Manager) error {
 					predicate.GenerationChangedPredicate{},
 					// Use nonSecretAnnotationChangedPredicate instead of predicate.AnnotationChangedPredicate
 					// to avoid redundant reconciles when the controller updates secret ResourceVersion
-					// tracking annotations (e.g., fleet.cattle.io/client-secret-resourceversion).
+					// tracking annotations (e.g., fleet.cattle.io/client-secret-hash).
 					nonSecretAnnotationChangedPredicate(),
 					predicate.LabelChangedPredicate{},
 					commitChangedPredicate(),
@@ -1046,19 +1048,19 @@ func (r *GitJobReconciler) secretMapFunc() func(ctx context.Context, obj client.
 // - The secret was deleted but we had a previous version recorded - secret was removed
 func (r *GitJobReconciler) hasReferencedSecretChanged(ctx context.Context, gitrepo *v1alpha1.GitRepo) (bool, bool, error) {
 	// Check ClientSecretName
-	clientSecretChanged, err := r.hasSecretChanged(ctx, gitrepo, gitrepo.Spec.ClientSecretName, clientSecretResourceVersionAnnotation, "ClientSecretName")
+	clientSecretChanged, err := r.hasSecretChanged(ctx, gitrepo, gitrepo.Spec.ClientSecretName, clientSecretHashAnnotation, "ClientSecretName")
 	if err != nil {
 		return false, false, err
 	}
 
 	// Check HelmSecretName
-	helmSecretChanged, err := r.hasSecretChanged(ctx, gitrepo, gitrepo.Spec.HelmSecretName, helmSecretResourceVersionAnnotation, "helmSecretName")
+	helmSecretChanged, err := r.hasSecretChanged(ctx, gitrepo, gitrepo.Spec.HelmSecretName, helmSecretHashAnnotation, "helmSecretName")
 	if err != nil {
 		return false, false, err
 	}
 
 	// Check HelmSecretNameForPaths
-	helmSecretForPathsChanged, err := r.hasSecretChanged(ctx, gitrepo, gitrepo.Spec.HelmSecretNameForPaths, helmSecretForPathsResourceVersionAnnotation, "HelmSecretNameForPaths")
+	helmSecretForPathsChanged, err := r.hasSecretChanged(ctx, gitrepo, gitrepo.Spec.HelmSecretNameForPaths, helmSecretForPathsHashAnnotation, "HelmSecretNameForPaths")
 	if err != nil {
 		return false, false, err
 	}
@@ -1066,7 +1068,7 @@ func (r *GitJobReconciler) hasReferencedSecretChanged(ctx context.Context, gitre
 	return clientSecretChanged, helmSecretChanged || helmSecretForPathsChanged, nil
 }
 
-// hasSecretChanged checks if a single secret has changed by comparing its current ResourceVersion
+// hasSecretChanged checks if a single secret has changed by comparing a hash of its current Data
 // with the one stored in the GitRepo's annotations.
 func (r *GitJobReconciler) hasSecretChanged(ctx context.Context, gitrepo *v1alpha1.GitRepo, secretName, annotationKey, fieldName string) (bool, error) {
 	if secretName == "" {
@@ -1091,26 +1093,29 @@ func (r *GitJobReconciler) hasSecretChanged(ctx context.Context, gitrepo *v1alph
 		return false, fmt.Errorf("failed to look up %s, error: %w", fieldName, err)
 	}
 
-	// Check if ResourceVersion has changed or if this is a new secret (no previous annotation)
-	previousVersion := ""
+	// Compute hash of current secret data
+	currentHash := hashSecretData(secret.Data)
+
+	// Check if data hash has changed or if this is a new secret (no previous annotation)
+	previousHash := ""
 	if gitrepo.Annotations != nil {
-		previousVersion = gitrepo.Annotations[annotationKey]
+		previousHash = gitrepo.Annotations[annotationKey]
 	}
 
 	// If there was no previous annotation, the secret is newly available - treat as changed
-	if previousVersion == "" {
+	if previousHash == "" {
 		return true, nil
 	}
 
-	// If there was a previous version and it differs, the secret changed
-	if previousVersion != secret.ResourceVersion {
+	// If there was a previous hash and it differs, the secret data changed
+	if previousHash != currentHash {
 		return true, nil
 	}
 
 	return false, nil
 }
 
-// updateSecretResourceVersions updates the GitRepo's annotations with the current ResourceVersion
+// updateSecretResourceVersions updates the GitRepo's annotations with a hash of the current Data
 // of each referenced secret. This allows hasReferencedSecretChanged to detect changes.
 func (r *GitJobReconciler) updateSecretResourceVersions(ctx context.Context, gitrepo *v1alpha1.GitRepo) error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
@@ -1127,9 +1132,9 @@ func (r *GitJobReconciler) updateSecretResourceVersions(ctx context.Context, git
 			name          string
 			annotationKey string
 		}{
-			{current.Spec.ClientSecretName, clientSecretResourceVersionAnnotation},
-			{current.Spec.HelmSecretName, helmSecretResourceVersionAnnotation},
-			{current.Spec.HelmSecretNameForPaths, helmSecretForPathsResourceVersionAnnotation},
+			{current.Spec.ClientSecretName, clientSecretHashAnnotation},
+			{current.Spec.HelmSecretName, helmSecretHashAnnotation},
+			{current.Spec.HelmSecretNameForPaths, helmSecretForPathsHashAnnotation},
 		}
 
 		annotations := make(map[string]string)
@@ -1163,9 +1168,12 @@ func (r *GitJobReconciler) updateSecretResourceVersions(ctx context.Context, git
 				return fmt.Errorf("failed to get secret %s: %w", secretRef.name, err)
 			}
 
+			// Compute hash of secret data
+			dataHash := hashSecretData(secret.Data)
+
 			// Check if the annotation needs to be updated
-			if current.Annotations == nil || current.Annotations[secretRef.annotationKey] != secret.ResourceVersion {
-				annotations[secretRef.annotationKey] = secret.ResourceVersion
+			if current.Annotations == nil || current.Annotations[secretRef.annotationKey] != dataHash {
+				annotations[secretRef.annotationKey] = dataHash
 				hasChanges = true
 			}
 		}
@@ -1189,6 +1197,31 @@ func (r *GitJobReconciler) updateSecretResourceVersions(ctx context.Context, git
 
 		return r.Patch(ctx, current, patch)
 	})
+}
+
+// hashSecretData computes a SHA256 hash of the secret's Data field.
+// This provides a stable identifier for the secret's content that doesn't change
+// when only metadata is modified.
+func hashSecretData(data map[string][]byte) string {
+	if len(data) == 0 {
+		return ""
+	}
+
+	// Sort keys for deterministic ordering
+	keys := make([]string, 0, len(data))
+	for k := range data {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	// Create a hash of all key-value pairs
+	h := sha256.New()
+	for _, k := range keys {
+		h.Write([]byte(k))
+		h.Write(data[k])
+	}
+
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 // secretDataChangedPredicate filters Secret events to only trigger reconciliation
@@ -1219,9 +1252,9 @@ func secretDataChangedPredicate() predicate.Funcs {
 // annotations after processing a secret change.
 func nonSecretAnnotationChangedPredicate() predicate.Funcs {
 	secretAnnotationKeys := map[string]struct{}{
-		clientSecretResourceVersionAnnotation:       {},
-		helmSecretResourceVersionAnnotation:         {},
-		helmSecretForPathsResourceVersionAnnotation: {},
+		clientSecretHashAnnotation:       {},
+		helmSecretHashAnnotation:         {},
+		helmSecretForPathsHashAnnotation: {},
 	}
 
 	annotationsChangedExcludingSecrets := func(oldAnnotations, newAnnotations map[string]string) bool {
