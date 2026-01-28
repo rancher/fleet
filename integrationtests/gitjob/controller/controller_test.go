@@ -1368,7 +1368,7 @@ var _ = Describe("GitJob controller", func() {
 			})
 
 			It("does not create a job when secret changes but commit stays the same", func() {
-				By("Verifying initial secret resource version annotation is set")
+				By("Verifying initial secret data hash annotation is set")
 				Eventually(func(g Gomega) {
 					err := k8sClient.Get(ctx, types.NamespacedName{Name: gitRepoName, Namespace: gitRepoNamespace}, &gitRepo)
 					g.Expect(err).ToNot(HaveOccurred())
@@ -1397,7 +1397,7 @@ var _ = Describe("GitJob controller", func() {
 					g.Expect(string(verifySecret.Data[corev1.BasicAuthPasswordKey])).To(Equal("supernewpass"))
 				}).Should(Succeed())
 
-				By("Verifying GitRepo annotation is updated with new ResourceVersion")
+				By("Verifying GitRepo annotation is updated with new data hash")
 				Eventually(func(g Gomega) {
 					err := k8sClient.Get(ctx, types.NamespacedName{Name: gitRepoName, Namespace: gitRepoNamespace}, &gitRepo)
 					g.Expect(err).ToNot(HaveOccurred())
@@ -1461,7 +1461,7 @@ var _ = Describe("GitJob controller", func() {
 			})
 
 			It("always creates a job when HelmSecretName secret data changes", func() {
-				By("Verifying initial secret resource version annotation is set")
+				By("Verifying initial secret data hash annotation is set")
 				Eventually(func(g Gomega) {
 					err := k8sClient.Get(ctx, types.NamespacedName{Name: gitRepoName, Namespace: gitRepoNamespace}, &gitRepo)
 					g.Expect(err).ToNot(HaveOccurred())
@@ -1482,7 +1482,7 @@ var _ = Describe("GitJob controller", func() {
 					return k8sClient.Update(ctx, &updatedSecret)
 				})).ToNot(HaveOccurred())
 
-				By("Verifying GitRepo annotation is updated with new ResourceVersion")
+				By("Verifying GitRepo annotation is updated with new data hash")
 				Eventually(func(g Gomega) {
 					err := k8sClient.Get(ctx, types.NamespacedName{Name: gitRepoName, Namespace: gitRepoNamespace}, &gitRepo)
 					g.Expect(err).ToNot(HaveOccurred())
@@ -1517,7 +1517,7 @@ var _ = Describe("GitJob controller", func() {
 			})
 
 			It("always creates a job when HelmSecretNameForPaths secret data changes", func() {
-				By("Verifying initial secret resource version annotation is set")
+				By("Verifying initial secret data hash annotation is set")
 				Eventually(func(g Gomega) {
 					err := k8sClient.Get(ctx, types.NamespacedName{Name: gitRepoName, Namespace: gitRepoNamespace}, &gitRepo)
 					g.Expect(err).ToNot(HaveOccurred())
@@ -1538,7 +1538,7 @@ var _ = Describe("GitJob controller", func() {
 					return k8sClient.Update(ctx, &updatedSecret)
 				})).ToNot(HaveOccurred())
 
-				By("Verifying GitRepo annotation is updated with new ResourceVersion")
+				By("Verifying GitRepo annotation is updated with new data hash")
 				Eventually(func(g Gomega) {
 					err := k8sClient.Get(ctx, types.NamespacedName{Name: gitRepoName, Namespace: gitRepoNamespace}, &gitRepo)
 					g.Expect(err).ToNot(HaveOccurred())
@@ -1719,7 +1719,7 @@ var _ = Describe("GitJob controller", func() {
 					return k8sClient.Create(ctx, &newSecret)
 				}).Should(Succeed())
 
-				By("Verifying annotation is updated with new secret's ResourceVersion")
+				By("Verifying annotation is updated with new secret's data hash")
 				Eventually(func(g Gomega) {
 					err := k8sClient.Get(ctx, types.NamespacedName{Name: gitRepoName, Namespace: gitRepoNamespace}, &gitRepo)
 					g.Expect(err).ToNot(HaveOccurred())

@@ -154,7 +154,7 @@ func (r *GitJobReconciler) SetupWithManager(mgr ctrl.Manager) error {
 					reconciler.TypedResourceVersionUnchangedPredicate[client.Object]{},
 					predicate.GenerationChangedPredicate{},
 					// Use nonSecretAnnotationChangedPredicate instead of predicate.AnnotationChangedPredicate
-					// to avoid redundant reconciles when the controller updates secret ResourceVersion
+					// to avoid redundant reconciles when the controller updates secret data hash
 					// tracking annotations (e.g., fleet.cattle.io/client-secret-hash).
 					nonSecretAnnotationChangedPredicate(),
 					predicate.LabelChangedPredicate{},
@@ -261,9 +261,9 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return res, updateErrorStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status, err)
 	}
 
-	// Update secret ResourceVersion annotations after successful job management
-	if err := r.updateSecretResourceVersions(ctx, gitrepo); err != nil {
-		logger.V(1).Error(err, "Failed to update secret resource version annotations")
+	// Update secret data hash annotations after successful job management
+	if err := r.updateSecretDataHashes(ctx, gitrepo); err != nil {
+		logger.V(1).Error(err, "Failed to update secret data hash annotations")
 		// Don't fail the reconciliation for this, just log it
 	}
 
@@ -1038,13 +1038,13 @@ func (r *GitJobReconciler) secretMapFunc() func(ctx context.Context, obj client.
 
 // hasReferencedSecretChanged checks if any of the secrets referenced by the GitRepo
 // (ClientSecretName, HelmSecretName, or HelmSecretNameForPaths) has been modified.
-// It compares the current secret ResourceVersion with the one stored in the GitRepo's annotations.
+// It compares a hash of the current secret Data with the one stored in the GitRepo's annotations.
 // Returns two booleans: clientSecretChanged (true if ClientSecretName changed) and
 // helmSecretChanged (true if HelmSecretName or HelmSecretNameForPaths changed).
 //
 // This function returns true in the following cases:
 // - The secret exists and was not previously tracked (no annotation) - newly available secret
-// - The secret's ResourceVersion differs from the stored annotation - secret was updated
+// - The secret's data hash differs from the stored annotation - secret data was updated
 // - The secret was deleted but we had a previous version recorded - secret was removed
 func (r *GitJobReconciler) hasReferencedSecretChanged(ctx context.Context, gitrepo *v1alpha1.GitRepo) (bool, bool, error) {
 	// Check ClientSecretName
@@ -1115,9 +1115,9 @@ func (r *GitJobReconciler) hasSecretChanged(ctx context.Context, gitrepo *v1alph
 	return false, nil
 }
 
-// updateSecretResourceVersions updates the GitRepo's annotations with a hash of the current Data
+// updateSecretDataHashes updates the GitRepo's annotations with a hash of the current Data
 // of each referenced secret. This allows hasReferencedSecretChanged to detect changes.
-func (r *GitJobReconciler) updateSecretResourceVersions(ctx context.Context, gitrepo *v1alpha1.GitRepo) error {
+func (r *GitJobReconciler) updateSecretDataHashes(ctx context.Context, gitrepo *v1alpha1.GitRepo) error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		// Fetch the latest version of the GitRepo
 		current := &v1alpha1.GitRepo{}
@@ -1202,10 +1202,10 @@ func (r *GitJobReconciler) updateSecretResourceVersions(ctx context.Context, git
 // hashSecretData computes a SHA256 hash of the secret's Data field.
 // This provides a stable identifier for the secret's content that doesn't change
 // when only metadata is modified.
+// Always returns a non-empty hash, even for empty Data, to avoid collision with
+// the empty string sentinel used for annotation deletion.
 func hashSecretData(data map[string][]byte) string {
-	if len(data) == 0 {
-		return ""
-	}
+	h := sha256.New()
 
 	// Sort keys for deterministic ordering
 	keys := make([]string, 0, len(data))
@@ -1215,7 +1215,6 @@ func hashSecretData(data map[string][]byte) string {
 	sort.Strings(keys)
 
 	// Create a hash of all key-value pairs
-	h := sha256.New()
 	for _, k := range keys {
 		h.Write([]byte(k))
 		h.Write(data[k])
@@ -1247,7 +1246,7 @@ func secretDataChangedPredicate() predicate.Funcs {
 }
 
 // nonSecretAnnotationChangedPredicate returns true if annotations changed,
-// excluding changes to only the secret resource version tracking annotations.
+// excluding changes to only the secret data hash tracking annotations.
 // This prevents redundant reconciliations when the controller updates these
 // annotations after processing a secret change.
 func nonSecretAnnotationChangedPredicate() predicate.Funcs {
