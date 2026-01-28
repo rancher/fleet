@@ -59,3 +59,7 @@ var _ = AfterSuite(func() {
 func fleetDump(path string) error {
 	return dump.Create(context.Background(), cfg, path)
 }
+
+func fleetDumpWithOptions(path string, opts dump.Options) error {
+	return dump.Create(context.Background(), cfg, path, opts)
+}

@@ -33,7 +33,11 @@ func NewDump() *cobra.Command {
 
 type Dump struct {
 	FleetClient
-	DumpPath string `usage:"Destination path for the dump" short:"p"`
+	DumpPath            string `usage:"Destination path for the dump" short:"p"`
+	WithSecrets         bool   `usage:"Include secrets with full data"`
+	WithSecretsMetadata bool   `usage:"Include secrets with metadata only"`
+	WithContent         bool   `usage:"Include Content resources with full data"`
+	WithContentMetadata bool   `usage:"Include Content resources with metadata only"`
 }
 
 func (d *Dump) PersistentPre(_ *cobra.Command, _ []string) error {
@@ -45,6 +49,13 @@ func (d *Dump) PersistentPre(_ *cobra.Command, _ []string) error {
 }
 
 func (d *Dump) Run(cmd *cobra.Command, args []string) error {
+	if d.WithSecrets && d.WithSecretsMetadata {
+		return fmt.Errorf("--with-secrets and --with-secrets-metadata are mutually exclusive")
+	}
+	if d.WithContent && d.WithContentMetadata {
+		return fmt.Errorf("--with-content and --with-content-metadata are mutually exclusive")
+	}
+
 	cfg, err := ctrl.GetConfig()
 	if err != nil {
 		return fmt.Errorf("failed to get k8s config: %w", err)
@@ -60,5 +71,12 @@ func (d *Dump) Run(cmd *cobra.Command, args []string) error {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zopts)))
 	ctx := log.IntoContext(cmd.Context(), ctrl.Log)
 
-	return dump.Create(ctx, cfg, d.DumpPath)
+	opts := dump.Options{
+		WithSecrets:         d.WithSecrets,
+		WithSecretsMetadata: d.WithSecretsMetadata,
+		WithContent:         d.WithContent,
+		WithContentMetadata: d.WithContentMetadata,
+	}
+
+	return dump.Create(ctx, cfg, d.DumpPath, opts)
 }
