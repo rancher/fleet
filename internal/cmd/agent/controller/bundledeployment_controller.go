@@ -21,6 +21,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	errutil "k8s.io/apimachinery/pkg/util/errors"
@@ -160,6 +161,52 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		if err := helmvalues.SetOptions(bd, secret.Data); err != nil {
 			return ctrl.Result{}, err
 		}
+	}
+
+	if bd.Spec.Options.AllowedTargetNamespaceSelector != nil {
+		targetNamespace := bd.Spec.Options.DefaultNamespace
+		if targetNamespace == "" {
+			targetNamespace = r.DefaultNamespace
+		}
+
+		ns := &corev1.Namespace{}
+		if err := r.LocalClient.Get(ctx, types.NamespacedName{Name: targetNamespace}, ns); err != nil {
+			if apierrors.IsNotFound(err) {
+				err = fmt.Errorf("target namespace %s does not exist on downstream cluster", targetNamespace)
+			} else {
+				err = fmt.Errorf("failed to get target namespace %s: %w", targetNamespace, err)
+			}
+			bd.Status = setCondition(bd.Status, err, monitor.Cond(fleetv1.BundleDeploymentConditionDeployed))
+			if statusErr := r.updateStatus(ctx, orig, bd); statusErr != nil {
+				return ctrl.Result{}, fmt.Errorf("%w; failed to update status: %w", err, statusErr)
+			}
+			return ctrl.Result{}, err
+		}
+
+		selector, err := metav1.LabelSelectorAsSelector(bd.Spec.Options.AllowedTargetNamespaceSelector)
+		if err != nil {
+			err = fmt.Errorf("invalid AllowedTargetNamespaceSelector: %w", err)
+			bd.Status = setCondition(bd.Status, err, monitor.Cond(fleetv1.BundleDeploymentConditionDeployed))
+			if statusErr := r.updateStatus(ctx, orig, bd); statusErr != nil {
+				return ctrl.Result{}, fmt.Errorf("%w; failed to update status: %w", err, statusErr)
+			}
+			return ctrl.Result{}, err
+		}
+
+		if !selector.Matches(labels.Set(ns.Labels)) {
+			err = fmt.Errorf("target namespace %s does not match AllowedTargetNamespaceSelector: required labels %v, namespace has %v",
+				targetNamespace, bd.Spec.Options.AllowedTargetNamespaceSelector, ns.Labels)
+			bd.Status = setCondition(bd.Status, err, monitor.Cond(fleetv1.BundleDeploymentConditionDeployed))
+			if statusErr := r.updateStatus(ctx, orig, bd); statusErr != nil {
+				return ctrl.Result{}, fmt.Errorf("%w; failed to update status: %w", err, statusErr)
+			}
+			return ctrl.Result{}, err
+		}
+
+		logger.V(1).Info("Target namespace labels validated",
+			"namespace", targetNamespace,
+			"selector", bd.Spec.Options.AllowedTargetNamespaceSelector,
+			"labels", ns.Labels)
 	}
 
 	forceDeploy, err := r.copyResourcesFromUpstream(ctx, bd, logger)
