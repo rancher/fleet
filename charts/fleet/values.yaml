@@ -1,11 +1,11 @@
 image:
   repository: rancher/fleet
-  tag: v0.15.0-alpha.4
+  tag: v0.15.0-alpha.5
   imagePullPolicy: IfNotPresent
 
 agentImage:
   repository: rancher/fleet-agent
-  tag: v0.15.0-alpha.4
+  tag: v0.15.0-alpha.5
   imagePullPolicy: IfNotPresent
 
 # For cluster registration the public URL of the Kubernetes API server must be set here
@@ -53,6 +53,8 @@ bootstrap:
   # The namespace where the fleet agent for the local cluster will be ran, if empty
   # this will default to cattle-fleet-system
   agentNamespace: ""
+  # Apply extra clusterLabels to the local cluster bootstrapped by fleet-controller
+  clusterLabels: {}
   # A repo to add at install time that will deploy to the local cluster. This allows
   # one to fully bootstrap fleet, its configuration and all its downstream clusters
   # in one shot.

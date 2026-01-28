@@ -93,6 +93,25 @@ spec:
                     before this bundle can be deployed.
                   items:
                     properties:
+                      acceptedStates:
+                        description: 'AcceptedStates is a list of BundleDeployment
+                          state that are considered acceptable for this dependency.
+
+                          If the dependency is in one of these states, it will not
+                          block the deployment of the dependent bundle.
+
+                          Valid Values should match the StateRank keys.
+
+                          If not specified, default to ["Ready"]: only fully ready
+                          dependencies are accepted
+
+                          Example: ["Ready", "Modified"] will accept dependencies
+                          that are either ready or have drifted from their desired
+                          state.'
+                        items:
+                          type: string
+                        nullable: true
+                        type: array
                       name:
                         description: Name of the bundle.
                         nullable: true
@@ -162,6 +181,13 @@ spec:
                   description: DeploymentID is the ID of the currently applied deployment.
                   nullable: true
                   type: string
+                downstreamResourcesGeneration:
+                  description: 'DownstreamResourcesGeneration is used to track changes
+                    to DownstreamResources.
+
+                    It is incremented every time DownstreamResources are modified.'
+                  format: int64
+                  type: integer
                 helmChartOptions:
                   description: 'HelmChartOptions is not nil and has the helm chart
                     config details when contents
@@ -1043,6 +1069,16 @@ spec:
                       nullable: true
                       type: string
                   type: object
+                downstreamResourcesGeneration:
+                  description: 'DownstreamResourcesGeneration is used to track changes
+                    to DownstreamResources.
+
+                    It is incremented every time DownstreamResources are modified
+                    and reflects the value in the spec
+
+                    after it has been processed.'
+                  format: int64
+                  type: integer
                 incompleteState:
                   description: IncompleteState is true if there are more than 10 non-ready
                     or modified resources, meaning that the lists in those fields
@@ -1511,6 +1547,25 @@ spec:
                     before this bundle can be deployed.
                   items:
                     properties:
+                      acceptedStates:
+                        description: 'AcceptedStates is a list of BundleDeployment
+                          state that are considered acceptable for this dependency.
+
+                          If the dependency is in one of these states, it will not
+                          block the deployment of the dependent bundle.
+
+                          Valid Values should match the StateRank keys.
+
+                          If not specified, default to ["Ready"]: only fully ready
+                          dependencies are accepted
+
+                          Example: ["Ready", "Modified"] will accept dependencies
+                          that are either ready or have drifted from their desired
+                          state.'
+                        items:
+                          type: string
+                        nullable: true
+                        type: array
                       name:
                         description: Name of the bundle.
                         nullable: true
@@ -1958,6 +2013,21 @@ spec:
                         default: 25%'
                       nullable: true
                       x-kubernetes-int-or-string: true
+                    autoPartitionThreshold:
+                      description: 'AutoPartitionThreshold is the minimum number of
+                        clusters that need to be
+
+                        present before auto-partitioning is enabled. If the number
+                        of target
+
+                        clusters is less than this value, all clusters will be placed
+                        in a single
+
+                        partition.
+
+                        default: 200'
+                      nullable: true
+                      type: integer
                     maxUnavailable:
                       anyOf:
                         - type: integer
@@ -7481,6 +7551,25 @@ spec:
                     before this bundle can be deployed.
                   items:
                     properties:
+                      acceptedStates:
+                        description: 'AcceptedStates is a list of BundleDeployment
+                          state that are considered acceptable for this dependency.
+
+                          If the dependency is in one of these states, it will not
+                          block the deployment of the dependent bundle.
+
+                          Valid Values should match the StateRank keys.
+
+                          If not specified, default to ["Ready"]: only fully ready
+                          dependencies are accepted
+
+                          Example: ["Ready", "Modified"] will accept dependencies
+                          that are either ready or have drifted from their desired
+                          state.'
+                        items:
+                          type: string
+                        nullable: true
+                        type: array
                       name:
                         description: Name of the bundle.
                         nullable: true
@@ -7952,6 +8041,21 @@ spec:
                         default: 25%'
                       nullable: true
                       x-kubernetes-int-or-string: true
+                    autoPartitionThreshold:
+                      description: 'AutoPartitionThreshold is the minimum number of
+                        clusters that need to be
+
+                        present before auto-partitioning is enabled. If the number
+                        of target
+
+                        clusters is less than this value, all clusters will be placed
+                        in a single
+
+                        partition.
+
+                        default: 200'
+                      nullable: true
+                      type: integer
                     maxUnavailable:
                       anyOf:
                         - type: integer
