@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/rancher/fleet/integrationtests/utils"
-	dumppkg "github.com/rancher/fleet/internal/cmd/cli/dump"
+	"github.com/rancher/fleet/internal/cmd/cli/dump"
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -57,9 +57,9 @@ var _ = AfterSuite(func() {
 
 // fleetDump simulates fleet dump CLI online execution
 func fleetDump(path string) error {
-	return dumppkg.Create(context.Background(), cfg, path)
+	return dump.Create(context.Background(), cfg, path)
 }
 
-func fleetDumpWithOptions(path string, opts dumppkg.Options) error {
-	return dumppkg.Create(context.Background(), cfg, path, opts)
+func fleetDumpWithOptions(path string, opts dump.Options) error {
+	return dump.Create(context.Background(), cfg, path, opts)
 }

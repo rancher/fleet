@@ -22,7 +22,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
-	dumppkg "github.com/rancher/fleet/internal/cmd/cli/dump"
+	"github.com/rancher/fleet/internal/cmd/cli/dump"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
@@ -357,7 +357,7 @@ var _ = Describe("Fleet dump", func() {
 				Expect(k8sClient.Delete(ctx, &secret)).NotTo(HaveOccurred())
 			}()
 
-			opts := dumppkg.Options{WithSecrets: true}
+			opts := dump.Options{WithSecrets: true}
 			Expect(fleetDumpWithOptions(tgzPath, opts)).ToNot(HaveOccurred())
 			defer func() {
 				Expect(os.RemoveAll(tgzPath)).ToNot(HaveOccurred())
@@ -396,7 +396,7 @@ var _ = Describe("Fleet dump", func() {
 				Expect(k8sClient.Delete(ctx, &secret)).NotTo(HaveOccurred())
 			}()
 
-			opts := dumppkg.Options{WithSecretsMetadata: true}
+			opts := dump.Options{WithSecretsMetadata: true}
 			Expect(fleetDumpWithOptions(tgzPath, opts)).ToNot(HaveOccurred())
 			defer func() {
 				Expect(os.RemoveAll(tgzPath)).ToNot(HaveOccurred())
@@ -434,7 +434,7 @@ var _ = Describe("Fleet dump", func() {
 				Expect(k8sClient.Delete(ctx, &content)).NotTo(HaveOccurred())
 			}()
 
-			opts := dumppkg.Options{WithContent: true}
+			opts := dump.Options{WithContent: true}
 			Expect(fleetDumpWithOptions(tgzPath, opts)).ToNot(HaveOccurred())
 			defer func() {
 				Expect(os.RemoveAll(tgzPath)).ToNot(HaveOccurred())
@@ -472,7 +472,7 @@ var _ = Describe("Fleet dump", func() {
 				Expect(k8sClient.Delete(ctx, &content)).NotTo(HaveOccurred())
 			}()
 
-			opts := dumppkg.Options{WithContentMetadata: true}
+			opts := dump.Options{WithContentMetadata: true}
 			Expect(fleetDumpWithOptions(tgzPath, opts)).ToNot(HaveOccurred())
 			defer func() {
 				Expect(os.RemoveAll(tgzPath)).ToNot(HaveOccurred())
@@ -489,6 +489,8 @@ var _ = Describe("Fleet dump", func() {
 			Expect(c.Content).To(BeNil())
 			// SHA256Sum and Status are metadata, should be preserved
 			Expect(c.SHA256Sum).To(Equal("abc123def456"))
+			// Verify Status field structure is present (even if zero-valued)
+			Expect(c.Status.ReferenceCount).To(Equal(0))
 		})
 	})
 
@@ -513,7 +515,7 @@ var _ = Describe("Fleet dump", func() {
 				Expect(k8sClient.Delete(ctx, &secret)).NotTo(HaveOccurred())
 			}()
 
-			opts := dumppkg.Options{}
+			opts := dump.Options{}
 			Expect(fleetDumpWithOptions(tgzPath, opts)).ToNot(HaveOccurred())
 			defer func() {
 				Expect(os.RemoveAll(tgzPath)).ToNot(HaveOccurred())
@@ -546,7 +548,7 @@ var _ = Describe("Fleet dump", func() {
 				Expect(k8sClient.Delete(ctx, &secret)).NotTo(HaveOccurred())
 			}()
 
-			opts := dumppkg.Options{WithSecrets: true, WithSecretsMetadata: true}
+			opts := dump.Options{WithSecrets: true, WithSecretsMetadata: true}
 			Expect(fleetDumpWithOptions(tgzPath, opts)).ToNot(HaveOccurred())
 			defer func() {
 				Expect(os.RemoveAll(tgzPath)).ToNot(HaveOccurred())
@@ -582,7 +584,7 @@ var _ = Describe("Fleet dump", func() {
 				Expect(k8sClient.Delete(ctx, &content)).NotTo(HaveOccurred())
 			}()
 
-			opts := dumppkg.Options{}
+			opts := dump.Options{}
 			Expect(fleetDumpWithOptions(tgzPath, opts)).ToNot(HaveOccurred())
 			defer func() {
 				Expect(os.RemoveAll(tgzPath)).ToNot(HaveOccurred())
@@ -614,7 +616,7 @@ var _ = Describe("Fleet dump", func() {
 				Expect(k8sClient.Delete(ctx, &content)).NotTo(HaveOccurred())
 			}()
 
-			opts := dumppkg.Options{WithContent: true, WithContentMetadata: true}
+			opts := dump.Options{WithContent: true, WithContentMetadata: true}
 			Expect(fleetDumpWithOptions(tgzPath, opts)).ToNot(HaveOccurred())
 			defer func() {
 				Expect(os.RemoveAll(tgzPath)).ToNot(HaveOccurred())
@@ -694,7 +696,7 @@ func mustCreateNS(ns string) {
 }
 
 // findFileInArchive searches for a file with the given prefix in the tar archive
-// and returns true along with the file contents if found
+// and returns true along with the first file matching the prefix, if found, and its content
 func findFileInArchive(archivePath, filePrefix string) (bool, []byte, error) {
 	f, err := os.OpenFile(archivePath, os.O_RDONLY, 0)
 	if err != nil {

@@ -62,12 +62,7 @@ func Create(ctx context.Context, cfg *rest.Config, path string, opts ...Options)
 	return CreateWithClients(ctx, cfg, d, c, path, opt)
 }
 
-func CreateWithClients(ctx context.Context, cfg *rest.Config, d dynamic.Interface, c client.Client, path string, opts ...Options) error {
-	var opt Options
-	if len(opts) > 0 {
-		opt = opts[0]
-	}
-
+func CreateWithClients(ctx context.Context, cfg *rest.Config, d dynamic.Interface, c client.Client, path string, opt Options) error {
 	logger := log.FromContext(ctx).WithName("fleet-dump")
 
 	tgz, err := os.Create(path)
@@ -211,7 +206,7 @@ func addContentsToArchive(
 			return fmt.Errorf("failed to marshal content: %w", err)
 		}
 
-		fileName := fmt.Sprintf("contents_%s_%s", i.GetNamespace(), i.GetName())
+		fileName := fmt.Sprintf("contents_%s", i.GetName())
 		if err := addFileToArchive(g, fileName, w); err != nil {
 			return err
 		}
@@ -245,7 +240,6 @@ func addSecretsToArchive(
 		for _, secret := range secrets.Items {
 			if metadataOnly {
 				secret.Data = nil
-				secret.StringData = nil
 			}
 
 			data, err := yaml.Marshal(&secret)

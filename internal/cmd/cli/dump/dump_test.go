@@ -277,7 +277,6 @@ func Test_addSecretsToArchive(t *testing.T) {
 	cases := []struct {
 		name         string
 		secrets      []corev1.Secret
-		clusters     []v1alpha1.Cluster
 		secretErr    error
 		metadataOnly bool
 		expErrStr    string
@@ -330,15 +329,10 @@ func Test_addSecretsToArchive(t *testing.T) {
 			mockClient := mocks.NewMockK8sClient(mockCtrl)
 			ctx := context.Background()
 
-			objs := []runtime.Object{}
-			for _, cluster := range c.clusters {
-				objs = append(objs, &cluster)
-			}
-
 			scheme := runtime.NewScheme()
 			utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 			utilruntime.Must(v1alpha1.AddToScheme(scheme))
-			fakeDynClient := fake.NewSimpleDynamicClient(scheme, objs...)
+			fakeDynClient := fake.NewSimpleDynamicClient(scheme)
 
 			mockClient.EXPECT().List(
 				ctx,
@@ -366,6 +360,37 @@ func Test_addSecretsToArchive(t *testing.T) {
 			if err != nil && !strings.Contains(err.Error(), c.expErrStr) {
 				t.Fatalf("expected error containing %q, got %q", c.expErrStr, err)
 			}
+
+			// For metadata-only test, verify sensitive fields are stripped
+			if c.metadataOnly && len(c.secrets) > 0 {
+				tw.Close()
+				tr := tar.NewReader(&buf)
+				_, err := tr.Next()
+				if err != nil {
+					t.Fatalf("failed to read tar header: %v", err)
+				}
+				data, err := io.ReadAll(tr)
+				if err != nil {
+					t.Fatalf("failed to read tar content: %v", err)
+				}
+
+				var secret corev1.Secret
+				if err := yaml.Unmarshal(data, &secret); err != nil {
+					t.Fatalf("failed to unmarshal secret: %v", err)
+				}
+
+				if secret.Data != nil {
+					t.Errorf("expected Data field to be nil in metadata-only mode, got %v", secret.Data)
+				}
+
+				// Verify metadata is preserved
+				if secret.Name != c.secrets[0].Name {
+					t.Errorf("expected Name to be preserved in metadata-only mode, got %v", secret.Name)
+				}
+				if secret.Namespace != c.secrets[0].Namespace {
+					t.Errorf("expected Namespace to be preserved in metadata-only mode, got %v", secret.Namespace)
+				}
+			}
 		})
 	}
 }
@@ -388,6 +413,8 @@ func Test_addContentsToArchive(t *testing.T) {
 						Name:      "my-content",
 						Namespace: "default",
 					},
+					Content:   []byte("test-content-data"),
+					SHA256Sum: "abc123def456",
 				},
 			},
 			metadataOnly: false,
