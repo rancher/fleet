@@ -3,6 +3,7 @@ package reconciler
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -1204,6 +1205,10 @@ func (r *GitJobReconciler) updateSecretDataHashes(ctx context.Context, gitrepo *
 // when only metadata is modified.
 // Always returns a non-empty hash, even for empty Data, to avoid collision with
 // the empty string sentinel used for annotation deletion.
+//
+// The encoding uses length prefixes to avoid collisions from different key/value
+// combinations (e.g., key="a", val="bc" vs key="ab", val="c" would otherwise
+// both produce the same concatenated bytes "abc").
 func hashSecretData(data map[string][]byte) string {
 	h := sha256.New()
 
@@ -1214,9 +1219,18 @@ func hashSecretData(data map[string][]byte) string {
 	}
 	sort.Strings(keys)
 
-	// Create a hash of all key-value pairs
+	// Create a hash of all key-value pairs using length-prefixed encoding
+	// to avoid collisions from ambiguous concatenation
+	buf := make([]byte, 8) // buffer for encoding lengths as uint64
 	for _, k := range keys {
-		h.Write([]byte(k))
+		keyBytes := []byte(k)
+		// Write key length, then key bytes
+		binary.BigEndian.PutUint64(buf, uint64(len(keyBytes)))
+		h.Write(buf)
+		h.Write(keyBytes)
+		// Write value length, then value bytes
+		binary.BigEndian.PutUint64(buf, uint64(len(data[k])))
+		h.Write(buf)
 		h.Write(data[k])
 	}
 
