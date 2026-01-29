@@ -1,0 +1,36 @@
+apiVersion: fleet.cattle.io/v1alpha1
+kind: HelmOp
+metadata:
+  name: {{.Name}}
+  namespace: {{.Namespace}}
+spec:
+  helm:
+    releaseName: testhelm-single-cluster
+    repo: {{.Repo}}
+    chart: {{.Chart}}
+    version: '{{.Version}}'
+    valuesFrom:
+    {{- range $vf := .ValuesFrom}}
+      {{- if $vf.ConfigMapKeyRef }}
+      - configMapKeyRef:
+          namespace: {{$vf.ConfigMapKeyRef.Namespace}}
+          name: {{$vf.ConfigMapKeyRef.Name}}
+          key: {{$vf.ConfigMapKeyRef.Key}}
+      {{- end }}
+      {{- if $vf.SecretKeyRef }}
+      - secretKeyRef:
+          namespace: {{$vf.SecretKeyRef.Namespace}}
+          name: {{$vf.SecretKeyRef.Name}}
+          key: {{$vf.SecretKeyRef.Key}}
+      {{- end }}
+    {{- end}}
+  downstreamResources:
+    {{- range $dr := .DownstreamResources}}
+    - kind: {{$dr.Kind}}
+      name: {{$dr.Name}}
+    {{- end}}
+  keepResources: {{.KeepResources}}
+  pollingInterval: {{.PollingInterval}}
+  namespace: {{.DeployNamespace}}
+  helmSecretName: {{.HelmSecretName}}
+  insecureSkipTLSVerify: {{.InsecureSkipTLSVerify}}

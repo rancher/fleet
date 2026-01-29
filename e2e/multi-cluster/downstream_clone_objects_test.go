@@ -13,22 +13,18 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
-type DownstreamResource struct {
-	Kind string
-	Name string
-}
-
 // This test uses two clusters to demonstrate cloning of configured resources to downstream clusters.
 var _ = Describe("Downstream objects cloning", Ordered, func() {
 	var (
 		k  kubectl.Command
 		kd kubectl.Command
 
-		asset         string
-		name          string
-		keepResources bool
-		valuesFrom    []fleet.ValuesFrom
-		cmName        = "test-simple-chart-config"
+		asset               string
+		name                string
+		keepResources       bool
+		valuesFrom          []fleet.ValuesFrom
+		downstreamResources []fleet.DownstreamResource
+		cmName              = "test-simple-chart-config"
 	)
 
 	BeforeEach(func() {
@@ -61,6 +57,24 @@ var _ = Describe("Downstream objects cloning", Ordered, func() {
 		)
 		Expect(err).ToNot(HaveOccurred(), out)
 
+		// Use default downstream resources if not set
+		if downstreamResources == nil {
+			downstreamResources = []fleet.DownstreamResource{
+				{
+					Kind: "Secret",
+					Name: "secret-values",
+				},
+				{
+					Kind: "ConfigMap",
+					Name: "config-values",
+				},
+				{
+					Kind: "Secret",
+					Name: "secret-image-pull",
+				},
+			}
+		}
+
 		err = testenv.ApplyTemplate(k.Namespace(env.ClusterRegistrationNamespace), testenv.AssetPath(asset), struct {
 			Name                  string
 			Namespace             string
@@ -70,7 +84,7 @@ var _ = Describe("Downstream objects cloning", Ordered, func() {
 			PollingInterval       time.Duration
 			HelmSecretName        string
 			InsecureSkipTLSVerify bool
-			DownstreamResources   []DownstreamResource
+			DownstreamResources   []fleet.DownstreamResource
 			KeepResources         bool
 			ValuesFrom            []fleet.ValuesFrom
 		}{
@@ -82,7 +96,7 @@ var _ = Describe("Downstream objects cloning", Ordered, func() {
 			0,
 			"",
 			false,
-			[]DownstreamResource{
+			[]fleet.DownstreamResource{
 				{
 					Kind: "Secret",
 					Name: "secret-values",
