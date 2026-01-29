@@ -154,6 +154,19 @@ func (g *GitOperator) Run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	// Add indexers for GitRepo secret fields
+	if err := AddGitRepoClientSecretNameIndexer(ctx, mgr); err != nil {
+		return err
+	}
+
+	if err := AddGitRepoHelmSecretNameIndexer(ctx, mgr); err != nil {
+		return err
+	}
+
+	if err := AddGitRepoHelmSecretNameForPathsIndexer(ctx, mgr); err != nil {
+		return err
+	}
+
 	gitJobReconciler := &reconciler.GitJobReconciler{
 		Client:          mgr.GetClient(),
 		Scheme:          mgr.GetScheme(),
@@ -293,6 +306,60 @@ func AddImageScanGitRepoIndexer(ctx context.Context, mgr manager.Manager) error 
 				return nil
 			}
 			return []string{content.Spec.GitRepoName}
+		},
+	)
+}
+
+func AddGitRepoClientSecretNameIndexer(ctx context.Context, mgr manager.Manager) error {
+	return mgr.GetFieldIndexer().IndexField(
+		ctx,
+		&fleet.GitRepo{},
+		config.GitRepoClientSecretNameIndex,
+		func(obj client.Object) []string {
+			gitRepo, ok := obj.(*fleet.GitRepo)
+			if !ok {
+				return nil
+			}
+			if gitRepo.Spec.ClientSecretName == "" {
+				return nil
+			}
+			return []string{gitRepo.Spec.ClientSecretName}
+		},
+	)
+}
+
+func AddGitRepoHelmSecretNameIndexer(ctx context.Context, mgr manager.Manager) error {
+	return mgr.GetFieldIndexer().IndexField(
+		ctx,
+		&fleet.GitRepo{},
+		config.GitRepoHelmSecretNameIndex,
+		func(obj client.Object) []string {
+			gitRepo, ok := obj.(*fleet.GitRepo)
+			if !ok {
+				return nil
+			}
+			if gitRepo.Spec.HelmSecretName == "" {
+				return nil
+			}
+			return []string{gitRepo.Spec.HelmSecretName}
+		},
+	)
+}
+
+func AddGitRepoHelmSecretNameForPathsIndexer(ctx context.Context, mgr manager.Manager) error {
+	return mgr.GetFieldIndexer().IndexField(
+		ctx,
+		&fleet.GitRepo{},
+		config.GitRepoHelmSecretNameForPathsIndex,
+		func(obj client.Object) []string {
+			gitRepo, ok := obj.(*fleet.GitRepo)
+			if !ok {
+				return nil
+			}
+			if gitRepo.Spec.HelmSecretNameForPaths == "" {
+				return nil
+			}
+			return []string{gitRepo.Spec.HelmSecretNameForPaths}
 		},
 	)
 }
