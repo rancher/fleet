@@ -12,10 +12,12 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
+
 	"github.com/rancher/fleet/internal/config"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -38,6 +40,7 @@ import (
 )
 
 type Options struct {
+	FetchLimit          int64
 	WithSecrets         bool
 	WithSecretsMetadata bool
 	WithContent         bool
@@ -81,7 +84,7 @@ func CreateWithClients(ctx context.Context, cfg *rest.Config, d dynamic.Interfac
 	}
 
 	for _, t := range types {
-		if err := addObjectsToArchive(ctx, d, logger, "fleet.cattle.io", "v1alpha1", t, w); err != nil {
+		if err := addObjectsToArchive(ctx, d, logger, "fleet.cattle.io", "v1alpha1", t, w, opt.FetchLimit); err != nil {
 			return fmt.Errorf("failed to add %s to archive: %w", t, err)
 		}
 	}
@@ -89,7 +92,7 @@ func CreateWithClients(ctx context.Context, cfg *rest.Config, d dynamic.Interfac
 	if opt.WithContent || opt.WithContentMetadata {
 		// If both full content and metadata-only are requested, prefer full content
 		contentMetadataOnly := opt.WithContentMetadata && !opt.WithContent
-		if err := addContentsToArchive(ctx, d, logger, w, contentMetadataOnly); err != nil {
+		if err := addContentsToArchive(ctx, d, logger, w, contentMetadataOnly, opt.FetchLimit); err != nil {
 			return fmt.Errorf("failed to add contents to archive: %w", err)
 		}
 	}
@@ -97,16 +100,16 @@ func CreateWithClients(ctx context.Context, cfg *rest.Config, d dynamic.Interfac
 	if opt.WithSecrets || opt.WithSecretsMetadata {
 		// If both full secrets and metadata-only are requested, prefer full secrets
 		secretsMetadataOnly := opt.WithSecretsMetadata && !opt.WithSecrets
-		if err := addSecretsToArchive(ctx, d, c, logger, w, secretsMetadataOnly); err != nil {
+		if err := addSecretsToArchive(ctx, d, c, logger, w, secretsMetadataOnly, opt.FetchLimit); err != nil {
 			return fmt.Errorf("failed to add secrets to archive: %w", err)
 		}
 	}
 
-	if err := addEventsToArchive(ctx, d, c, logger, w); err != nil {
+	if err := addEventsToArchive(ctx, d, c, logger, w, opt.FetchLimit); err != nil {
 		return fmt.Errorf("failed to add events to archive: %w", err)
 	}
 
-	if err := addMetricsToArchive(ctx, c, logger, cfg, w); err != nil {
+	if err := addMetricsToArchive(ctx, c, logger, cfg, w, opt.FetchLimit); err != nil {
 		return fmt.Errorf("failed to add metrics to archive: %w", err)
 	}
 
@@ -127,6 +130,7 @@ func addObjectsToArchive(
 	logger logr.Logger,
 	g, v, r string,
 	w *tar.Writer,
+	fetchLimit int64,
 ) error {
 	rID := schema.GroupVersionResource{
 		Group:    g,
@@ -136,21 +140,30 @@ func addObjectsToArchive(
 
 	logger.V(1).Info("Fetching ...", "resource", rID.String())
 
-	list, err := dynamic.Resource(rID).List(ctx, metav1.ListOptions{})
-	if err != nil {
-		return fmt.Errorf("failed to list %s: %w", r, err)
-	}
-
-	for _, i := range list.Items {
-		g, err := yaml.Marshal(&i)
+	lo := metav1.ListOptions{Limit: fetchLimit}
+	for {
+		list, err := dynamic.Resource(rID).List(ctx, lo)
 		if err != nil {
-			return fmt.Errorf("failed to marshal %s: %w", r, err)
+			return fmt.Errorf("failed to list %s: %w", r, err)
 		}
 
-		fileName := fmt.Sprintf("%s_%s_%s", r, i.GetNamespace(), i.GetName())
-		if err := addFileToArchive(g, fileName, w); err != nil {
-			return err
+		for _, i := range list.Items {
+			g, err := yaml.Marshal(&i)
+			if err != nil {
+				return fmt.Errorf("failed to marshal %s: %w", r, err)
+			}
+
+			fileName := fmt.Sprintf("%s_%s_%s", r, i.GetNamespace(), i.GetName())
+			if err := addFileToArchive(g, fileName, w); err != nil {
+				return err
+			}
 		}
+
+		c := list.GetContinue()
+		if c == "" {
+			break
+		}
+		lo.Continue = c
 	}
 
 	return nil
@@ -177,6 +190,7 @@ func addContentsToArchive(
 	logger logr.Logger,
 	w *tar.Writer,
 	metadataOnly bool,
+	fetchLimit int64,
 ) error {
 	rID := schema.GroupVersionResource{
 		Group:    "fleet.cattle.io",
@@ -186,26 +200,35 @@ func addContentsToArchive(
 
 	logger.V(1).Info("Fetching ...", "resource", rID.String())
 
-	list, err := dynamic.Resource(rID).List(ctx, metav1.ListOptions{})
-	if err != nil {
-		return fmt.Errorf("failed to list contents: %w", err)
-	}
-
-	for _, i := range list.Items {
-		if metadataOnly {
-			// Only strip the actual content (manifests), keep sha256sum and status as metadata
-			i.Object["content"] = nil
-		}
-
-		g, err := yaml.Marshal(&i)
+	lo := metav1.ListOptions{Limit: fetchLimit}
+	for {
+		list, err := dynamic.Resource(rID).List(ctx, lo)
 		if err != nil {
-			return fmt.Errorf("failed to marshal content: %w", err)
+			return fmt.Errorf("failed to list contents: %w", err)
 		}
 
-		fileName := fmt.Sprintf("contents_%s", i.GetName())
-		if err := addFileToArchive(g, fileName, w); err != nil {
-			return err
+		for _, i := range list.Items {
+			if metadataOnly {
+				// Only strip the actual content (manifests), keep sha256sum and status as metadata
+				i.Object["content"] = nil
+			}
+
+			g, err := yaml.Marshal(&i)
+			if err != nil {
+				return fmt.Errorf("failed to marshal content: %w", err)
+			}
+
+			fileName := fmt.Sprintf("contents_%s", i.GetName())
+			if err := addFileToArchive(g, fileName, w); err != nil {
+				return err
+			}
 		}
+
+		c := list.GetContinue()
+		if c == "" {
+			break
+		}
+		lo.Continue = c
 	}
 
 	return nil
@@ -218,35 +241,43 @@ func addSecretsToArchive(
 	logger logr.Logger,
 	w *tar.Writer,
 	metadataOnly bool,
+	fetchLimit int64,
 ) error {
-	nss, err := getNamespaces(ctx, dynamic, logger)
+	nss, err := getNamespaces(ctx, dynamic, logger, fetchLimit)
 	if err != nil {
 		return fmt.Errorf("failed to get relevant namespaces for secrets: %w", err)
 	}
 
 	var merr []error
 
+nss:
 	for _, ns := range nss {
 		var secrets corev1.SecretList
-		if err := c.List(ctx, &secrets, client.InNamespace(ns)); err != nil {
-			merr = append(merr, fmt.Errorf("failed to list secrets for namespace %q: %w", ns, err))
-			continue
-		}
-
-		for _, secret := range secrets.Items {
-			if metadataOnly {
-				secret.Data = nil
+		for {
+			if err := c.List(ctx, &secrets, client.InNamespace(ns), client.Limit(fetchLimit), client.Continue(secrets.Continue)); err != nil {
+				merr = append(merr, fmt.Errorf("failed to list secrets for namespace %q: %w", ns, err))
+				continue nss
 			}
 
-			data, err := yaml.Marshal(&secret)
-			if err != nil {
-				merr = append(merr, fmt.Errorf("failed to marshal secret: %w", err))
-				continue
+			for _, secret := range secrets.Items {
+				if metadataOnly {
+					secret.Data = nil
+				}
+
+				data, err := yaml.Marshal(&secret)
+				if err != nil {
+					merr = append(merr, fmt.Errorf("failed to marshal secret: %w", err))
+					continue
+				}
+
+				fileName := fmt.Sprintf("secrets_%s_%s", secret.Namespace, secret.Name)
+				if err := addFileToArchive(data, fileName, w); err != nil {
+					merr = append(merr, fmt.Errorf("failed to add secret to archive: %w", err))
+				}
 			}
 
-			fileName := fmt.Sprintf("secrets_%s_%s", secret.Namespace, secret.Name)
-			if err := addFileToArchive(data, fileName, w); err != nil {
-				merr = append(merr, fmt.Errorf("failed to add secret to archive: %w", err))
+			if secrets.Continue == "" {
+				break
 			}
 		}
 	}
@@ -260,12 +291,13 @@ func addSecretsToArchive(
 // - cattle-fleet-system
 // - cattle-fleet-local-system
 // - each cluster's namespace
-func getNamespaces(ctx context.Context, dynamic dynamic.Interface, logger logr.Logger) ([]string, error) {
-	res := []string{
-		"default",
-		"kube-system",
-		config.DefaultNamespace,
-		"cattle-fleet-local-system",
+func getNamespaces(ctx context.Context, dynamic dynamic.Interface, logger logr.Logger, fetchLimit int64) ([]string, error) {
+	// Use a map to deduplicate namespaces
+	nsMap := map[string]struct{}{
+		"default":                   {},
+		"kube-system":               {},
+		config.DefaultNamespace:     {},
+		"cattle-fleet-local-system": {},
 	}
 
 	clusRscID := schema.GroupVersionResource{
@@ -274,31 +306,47 @@ func getNamespaces(ctx context.Context, dynamic dynamic.Interface, logger logr.L
 		Resource: "clusters",
 	}
 
-	clusters, err := dynamic.Resource(clusRscID).List(ctx, metav1.ListOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to list clusters: %w", err)
-	}
-
-	for _, i := range clusters.Items {
-		var c fleet.Cluster
-		un, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&i)
+	lo := metav1.ListOptions{Limit: fetchLimit}
+	for {
+		clusters, err := dynamic.Resource(clusRscID).List(ctx, lo)
 		if err != nil {
-			logger.Error(
-				fmt.Errorf("resource %v", i),
-				"Skipping resource listed as cluster but with incompatible format; this should not happen",
-			)
-			continue
-		}
-		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(un, &c); err != nil {
-			logger.Error(
-				fmt.Errorf("resource %v", i),
-				"Skipping resource listed as cluster but with incompatible format; this should not happen",
-			)
-			continue
+			return nil, fmt.Errorf("failed to list clusters: %w", err)
 		}
 
-		res = append(res, c.Namespace)
+		for _, i := range clusters.Items {
+			var c fleet.Cluster
+			un, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&i)
+			if err != nil {
+				logger.Error(
+					fmt.Errorf("resource %v", i),
+					"Skipping resource listed as cluster but with incompatible format; this should not happen",
+				)
+				continue
+			}
+			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(un, &c); err != nil {
+				logger.Error(
+					fmt.Errorf("resource %v", i),
+					"Skipping resource listed as cluster but with incompatible format; this should not happen",
+				)
+				continue
+			}
+
+			nsMap[c.Namespace] = struct{}{}
+		}
+
+		c := clusters.GetContinue()
+		if c == "" {
+			break
+		}
+		lo.Continue = c
 	}
+
+	// Convert map to slice
+	res := make([]string, 0, len(nsMap))
+	for ns := range nsMap {
+		res = append(res, ns)
+	}
+	slices.Sort(res)
 
 	return res, nil
 }
@@ -311,8 +359,9 @@ func addEventsToArchive(
 	c client.Client,
 	logger logr.Logger,
 	w *tar.Writer,
+	fetchLimit int64,
 ) error {
-	nss, err := getNamespaces(ctx, d, logger)
+	nss, err := getNamespaces(ctx, d, logger, fetchLimit)
 	if err != nil {
 		return fmt.Errorf("failed to get relevant namespaces for events: %w", err)
 	}
@@ -320,51 +369,126 @@ func addEventsToArchive(
 	var merr []error
 
 	for _, ns := range nss {
-		var NSevts corev1.EventList
-		if err := c.List(ctx, &NSevts, client.InNamespace(ns)); err != nil {
-			return fmt.Errorf("failed to list events for namespace %q: %w", ns, err)
-		}
-
-		var data []byte
-
-		for i, e := range NSevts.Items {
-			je, err := json.Marshal(e)
+		err := func() error {
+			// Create a temporary file to accumulate events. We need to do this because we need to know
+			// the total size of the events for the tar header, but we want to fetch and write events
+			// page by page to avoid keeping them all in memory.
+			tmpFile, err := os.CreateTemp("", fmt.Sprintf("events_%s_*.json", ns))
 			if err != nil {
-				merr = append(merr, fmt.Errorf("failed to encode event into JSON: %w", err))
+				return fmt.Errorf("failed to create temp file for events in namespace %q: %w", ns, err)
+			}
+			defer os.Remove(tmpFile.Name()) // Clean up temp file
+			defer tmpFile.Close()           // Close file handle
+
+			var NSevts corev1.EventList
+			foundEvents := false
+
+			// Write events page by page to temp file
+			writeErr := false
+			for {
+				if err := c.List(ctx, &NSevts, client.InNamespace(ns), client.Limit(fetchLimit), client.Continue(NSevts.Continue)); err != nil {
+					merr = append(merr, fmt.Errorf("failed to list events for namespace %q: %w", ns, err))
+					writeErr = true
+					break
+				}
+
+				for _, e := range NSevts.Items {
+					je, err := json.Marshal(e)
+					if err != nil {
+						merr = append(merr, fmt.Errorf("failed to encode event into JSON: %w", err))
+						continue
+					}
+
+					if foundEvents {
+						if _, err := tmpFile.Write([]byte("\n")); err != nil {
+							merr = append(merr, fmt.Errorf("failed to write newline to temp file: %w", err))
+							writeErr = true
+							break
+						}
+					}
+
+					if _, err := tmpFile.Write(je); err != nil {
+						merr = append(merr, fmt.Errorf("failed to write event to temp file: %w", err))
+						writeErr = true
+						break
+					}
+					foundEvents = true
+				}
+
+				if writeErr || NSevts.Continue == "" {
+					break
+				}
 			}
 
-			data = append(data, je...)
-
-			if i < len(NSevts.Items)-1 {
-				data = append(data, []byte("\n")...)
+			if writeErr {
+				return nil
 			}
-		}
 
-		if len(NSevts.Items) > 0 {
-			if err := addFileToArchive(data, fmt.Sprintf("events_%s", ns), w); err != nil {
-				merr = append(merr, fmt.Errorf("failed to add events to archive for namespace %q: %w", ns, err))
+			if !foundEvents {
+				return nil
 			}
+
+			// Get file size
+			fileInfo, err := tmpFile.Stat()
+			if err != nil {
+				return fmt.Errorf("failed to stat temp file for namespace %q: %w", ns, err)
+			}
+
+			// Seek back to beginning to read
+			if _, err := tmpFile.Seek(0, 0); err != nil {
+				return fmt.Errorf("failed to seek temp file for namespace %q: %w", ns, err)
+			}
+
+			// Write tar header
+			if err := w.WriteHeader(&tar.Header{
+				Name:     fmt.Sprintf("events_%s", ns),
+				Mode:     0644,
+				Typeflag: tar.TypeReg,
+				ModTime:  time.Unix(0, 0),
+				Size:     fileInfo.Size(),
+			}); err != nil {
+				return fmt.Errorf("failed to write tar header for events in namespace %q: %w", ns, err)
+			}
+
+			// Copy temp file to tar
+			if _, err := io.Copy(w, tmpFile); err != nil {
+				return fmt.Errorf("failed to copy events to archive for namespace %q: %w", ns, err)
+			}
+
+			return nil
+		}()
+
+		if err != nil {
+			merr = append(merr, err)
 		}
 	}
 
 	return errutil.NewAggregate(merr)
 }
 
-func addMetricsToArchive(ctx context.Context, c client.Client, logger logr.Logger, cfg *rest.Config, w *tar.Writer) error {
+func addMetricsToArchive(ctx context.Context, c client.Client, logger logr.Logger, cfg *rest.Config, w *tar.Writer, fetchLimit int64) error {
 	ns := config.DefaultNamespace // XXX: support installation in non-default namespace, and check for services across all namespaces, by label?
 
-	var svcs corev1.ServiceList
-	if err := c.List(ctx, &svcs, client.InNamespace(ns)); err != nil {
-		return fmt.Errorf("failed to list services for extracting metrics: %w", err)
-	}
-
 	var monitoringSvcs []corev1.Service
-	for _, svc := range svcs.Items {
-		if !strings.HasPrefix(svc.Name, "monitoring-") {
-			continue
+	var svcs corev1.ServiceList
+	for {
+		opts := []client.ListOption{client.InNamespace(ns), client.Limit(fetchLimit), client.Continue(svcs.Continue)}
+
+		if err := c.List(ctx, &svcs, opts...); err != nil {
+			return fmt.Errorf("failed to list services for extracting metrics: %w", err)
 		}
 
-		monitoringSvcs = append(monitoringSvcs, svc)
+		for _, svc := range svcs.Items {
+			if !strings.HasPrefix(svc.Name, "monitoring-") {
+				continue
+			}
+
+			monitoringSvcs = append(monitoringSvcs, svc)
+		}
+
+		if svcs.Continue == "" {
+			break
+		}
 	}
 
 	if len(monitoringSvcs) == 0 {
@@ -375,7 +499,7 @@ func addMetricsToArchive(ctx context.Context, c client.Client, logger logr.Logge
 
 	// XXX: how about HelmOps? report missing svc?
 	for _, svc := range monitoringSvcs {
-		closeFn, port, httpCli, err := forwardPorts(ctx, cfg, logger, c, &svc)
+		closeFn, port, httpCli, err := forwardPorts(ctx, cfg, logger, c, &svc, fetchLimit)
 		if err != nil {
 			return fmt.Errorf("failed to forward ports: %w", err)
 		}
@@ -442,7 +566,7 @@ func createDynamicClient(cfg *rest.Config) (dynamic.Interface, error) {
 // createDialer creates a dialer needed to build a port forwarder from the service svc.
 // It involves identifying the pod exposed by svc, since building a port forwarder using the service's K8s API URL
 // directly does not work.
-func createDialer(ctx context.Context, cfg *rest.Config, c client.Client, svc *corev1.Service) (httpstream.Dialer, *http.Client, error) {
+func createDialer(ctx context.Context, cfg *rest.Config, c client.Client, svc *corev1.Service, fetchLimit int64) (httpstream.Dialer, *http.Client, error) {
 	var (
 		appLabel   string
 		shardKey   string
@@ -464,26 +588,44 @@ func createDialer(ctx context.Context, cfg *rest.Config, c client.Client, svc *c
 		return nil, nil, fmt.Errorf("no app label found on service %s/%s", svc.Namespace, svc.Name)
 	}
 
-	var pods corev1.PodList
+	var selectedPod *corev1.Pod
 
 	matchingLabels := client.MatchingLabels{
 		"app":    appLabel,
 		shardKey: shardValue,
 	}
+	var pods corev1.PodList
+	for {
+		opts := []client.ListOption{
+			client.InNamespace(svc.Namespace),
+			matchingLabels,
+			client.Limit(fetchLimit),
+			client.Continue(pods.Continue),
+		}
 
-	if err := c.List(ctx, &pods, client.InNamespace(svc.Namespace), matchingLabels); err != nil {
-		return nil, nil, fmt.Errorf("failed to get pod behind service %s/%s: %w", svc.Namespace, svc.Name, err)
+		if err := c.List(ctx, &pods, opts...); err != nil {
+			return nil, nil, fmt.Errorf("failed to get pod behind service %s/%s: %w", svc.Namespace, svc.Name, err)
+		}
+
+		for _, p := range pods.Items {
+			if selectedPod == nil {
+				podCopy := p
+				selectedPod = &podCopy
+			} else {
+				return nil, nil, fmt.Errorf("found more than one pod behind service %s/%s", svc.Namespace, svc.Name)
+			}
+		}
+
+		if pods.Continue == "" {
+			break
+		}
 	}
 
-	if len(pods.Items) == 0 {
+	if selectedPod == nil {
 		return nil, nil, fmt.Errorf("no pod found behind service %s/%s", svc.Namespace, svc.Name)
 	}
 
-	if len(pods.Items) > 1 {
-		return nil, nil, fmt.Errorf("found more than one pod behind service %s/%s", svc.Namespace, svc.Name)
-	}
-
-	pod := pods.Items[0]
+	pod := *selectedPod
 
 	rt, up, err := spdy.RoundTripperFor(cfg)
 	if err != nil {
@@ -515,6 +657,7 @@ func forwardPorts(
 	logger logr.Logger,
 	c client.Client,
 	svc *corev1.Service,
+	fetchLimit int64,
 ) (func(), int, *http.Client, error) {
 	fail := func(fmtStr string, args ...any) (func(), int, *http.Client, error) {
 		return func() {}, 0, nil, fmt.Errorf(fmtStr, args...)
@@ -526,7 +669,7 @@ func forwardPorts(
 
 	svcPort := svc.Spec.Ports[0].Port
 
-	dl, httpCli, err := createDialer(ctx, cfg, c, svc)
+	dl, httpCli, err := createDialer(ctx, cfg, c, svc, fetchLimit)
 	if err != nil {
 		return fail("failed to create dialer for port forwarding for service %s/%s: %w", svc.Namespace, svc.Name, err)
 	}

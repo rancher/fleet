@@ -108,6 +108,8 @@ func Command(obj Runnable, cmd cobra.Command) *cobra.Command {
 
 		flags := c.PersistentFlags()
 		switch fieldType.Type.Kind() {
+		case reflect.Int64:
+			flags.Int64VarP((*int64)(unsafe.Pointer(v.Addr().Pointer())), name, alias, int64(defInt), usage)
 		case reflect.Int:
 			flags.IntVarP((*int)(unsafe.Pointer(v.Addr().Pointer())), name, alias, defInt, usage)
 		case reflect.String:
@@ -149,6 +151,11 @@ func Command(obj Runnable, cmd cobra.Command) *cobra.Command {
 				case reflect.Int:
 					fv, err := flags.GetInt(name)
 					if err == nil && fv == defInt {
+						_ = flags.Set(name, v)
+					}
+				case reflect.Int64:
+					fv, err := flags.GetInt64(name)
+					if err == nil && fv == int64(defInt) {
 						_ = flags.Set(name, v)
 					}
 				default:
