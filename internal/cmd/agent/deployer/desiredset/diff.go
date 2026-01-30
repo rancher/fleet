@@ -65,8 +65,8 @@ func Diff(logger logr.Logger, plan Plan, bd *fleet.BundleDeployment, ns string, 
 				for _, ti := range toIgnore[gvk] {
 					// Match ignored objects by:
 					// * [name + namespace] if both are specified in the patch
-					//	* the match on the name can be exact, or regex-based (e.g. a patch with
-					//	name `.*serv.*` would match `suse-observability`)
+					//     * the match on the name can be exact, or regex-based (e.g. a patch with
+					//       name `.*serv.*` would match `suse-observability`)
 					// * namespace only if the patch provides the namespace alone
 					switch {
 					case ti.Namespace != o.Namespace:
