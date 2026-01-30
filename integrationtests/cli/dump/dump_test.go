@@ -487,10 +487,8 @@ var _ = Describe("Fleet dump", func() {
 			Expect(c.Name).To(Equal("my-content"))
 			// Content field should be stripped in metadata-only mode
 			Expect(c.Content).To(BeNil())
-			// SHA256Sum and Status are metadata, should be preserved
+			// SHA256Sum is metadata and should be preserved
 			Expect(c.SHA256Sum).To(Equal("abc123def456"))
-			// Verify Status field structure is present (even if zero-valued)
-			Expect(c.Status.ReferenceCount).To(Equal(0))
 		})
 	})
 

@@ -365,30 +365,34 @@ func Test_addSecretsToArchive(t *testing.T) {
 			if c.metadataOnly && len(c.secrets) > 0 {
 				tw.Close()
 				tr := tar.NewReader(&buf)
-				_, err := tr.Next()
-				if err != nil {
-					t.Fatalf("failed to read tar header: %v", err)
-				}
-				data, err := io.ReadAll(tr)
-				if err != nil {
-					t.Fatalf("failed to read tar content: %v", err)
-				}
 
-				var secret corev1.Secret
-				if err := yaml.Unmarshal(data, &secret); err != nil {
-					t.Fatalf("failed to unmarshal secret: %v", err)
-				}
+				// Validate all secrets in the archive
+				for i := 0; i < len(c.secrets); i++ {
+					_, err := tr.Next()
+					if err != nil {
+						t.Fatalf("failed to read tar header for secret %d: %v", i, err)
+					}
+					data, err := io.ReadAll(tr)
+					if err != nil {
+						t.Fatalf("failed to read tar content for secret %d: %v", i, err)
+					}
 
-				if secret.Data != nil {
-					t.Errorf("expected Data field to be nil in metadata-only mode, got %v", secret.Data)
-				}
+					var secret corev1.Secret
+					if err := yaml.Unmarshal(data, &secret); err != nil {
+						t.Fatalf("failed to unmarshal secret %d: %v", i, err)
+					}
 
-				// Verify metadata is preserved
-				if secret.Name != c.secrets[0].Name {
-					t.Errorf("expected Name to be preserved in metadata-only mode, got %v", secret.Name)
-				}
-				if secret.Namespace != c.secrets[0].Namespace {
-					t.Errorf("expected Namespace to be preserved in metadata-only mode, got %v", secret.Namespace)
+					if secret.Data != nil {
+						t.Errorf("expected Data field to be nil in metadata-only mode for secret %d, got %v", i, secret.Data)
+					}
+
+					// Verify metadata is preserved
+					if secret.Name != c.secrets[i].Name {
+						t.Errorf("expected Name %q to be preserved in metadata-only mode for secret %d, got %v", c.secrets[i].Name, i, secret.Name)
+					}
+					if secret.Namespace != c.secrets[i].Namespace {
+						t.Errorf("expected Namespace %q to be preserved in metadata-only mode for secret %d, got %v", c.secrets[i].Namespace, i, secret.Namespace)
+					}
 				}
 			}
 		})

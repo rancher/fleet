@@ -44,7 +44,7 @@ type Options struct {
 	WithContentMetadata bool
 }
 
-func Create(ctx context.Context, cfg *rest.Config, path string, opts ...Options) error {
+func Create(ctx context.Context, cfg *rest.Config, path string, opt Options) error {
 	c, err := createClient(cfg)
 	if err != nil {
 		return fmt.Errorf("failed to create Kubernetes client: %w", err)
@@ -55,10 +55,6 @@ func Create(ctx context.Context, cfg *rest.Config, path string, opts ...Options)
 		return fmt.Errorf("failed to create dynamic Kubernetes client: %w", err)
 	}
 
-	var opt Options
-	if len(opts) > 0 {
-		opt = opts[0]
-	}
 	return CreateWithClients(ctx, cfg, d, c, path, opt)
 }
 
