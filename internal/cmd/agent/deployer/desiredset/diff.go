@@ -36,7 +36,8 @@ func Diff(logger logr.Logger, plan Plan, bd *fleet.BundleDeployment, ns string, 
 	var errs []error
 	// Exclude ignored objects from set of objects to be created (plan.Create)
 	if bd.Spec.Options.Diff != nil {
-		toIgnore := objectset.ObjectKeyByGVK{}
+		toIgnore := map[schema.GroupVersionKind]map[objectset.ObjectKey]*regexp.Regexp{}
+
 		for _, patch := range bd.Spec.Options.Diff.ComparePatches {
 			for _, op := range patch.Operations {
 				gvk := schema.FromAPIVersionAndKind(patch.APIVersion, patch.Kind)
@@ -48,10 +49,24 @@ func Diff(logger logr.Logger, plan Plan, bd *fleet.BundleDeployment, ns string, 
 					}
 
 					if _, ok := toIgnore[gvk]; !ok {
-						toIgnore[gvk] = []objectset.ObjectKey{}
+						toIgnore[gvk] = map[objectset.ObjectKey]*regexp.Regexp{}
 					}
 
-					toIgnore[gvk] = append(toIgnore[gvk], key)
+					re, err := regexp.Compile(key.Name)
+					if err != nil {
+						// XXX: enable detection of such issues earlier, for instance through CLI validating
+						// fleet.yaml syntax; see fleet#4533.
+						logger.V(1).Error(
+							err,
+							"Cannot compile bundle diff ignore regex, will discard it",
+							"namespace", key.Namespace,
+							"name pattern", key.Name,
+							"gvk", gvk.String(),
+						)
+						continue // this patch cannot be used
+					}
+
+					toIgnore[gvk][key] = re
 				}
 			}
 		}
@@ -62,32 +77,21 @@ func Diff(logger logr.Logger, plan Plan, bd *fleet.BundleDeployment, ns string, 
 			}
 
 			plan.Create[gvk] = slices.DeleteFunc(plan.Create[gvk], func(o objectset.ObjectKey) bool {
-				for _, ti := range toIgnore[gvk] {
+				for k, re := range toIgnore[gvk] {
 					// Match ignored objects by:
 					// * [name + namespace] if both are specified in the patch
 					//     * the match on the name can be exact, or regex-based (e.g. a patch with
 					//       name `.*serv.*` would match `suse-observability`)
 					// * namespace only if the patch provides the namespace alone
 					switch {
-					case ti.Namespace != o.Namespace:
+					case k.Namespace != o.Namespace:
 						continue
-					case ti.Name == "":
+					case k.Name == "":
 						fallthrough
-					case ti.Name == o.Name:
+					case k.Name == o.Name:
 						return true // no need for further checks
 					default:
-						re, err := regexp.Compile(ti.Name)
-						if err != nil {
-							// XXX: enable detection of such issues earlier, for instance through CLI validating
-							// fleet.yaml syntax; see fleet#4533.
-							logger.V(1).Error(
-								err,
-								"Cannot compile bundle diff ignore regex, will discard it",
-								"namespace", ti.Namespace,
-								"name pattern", ti.Name,
-								"gvk", gvk.String(),
-							)
-						} else if re.MatchString(o.Name) {
+						if re != nil && re.MatchString(o.Name) {
 							return true
 						}
 					}
