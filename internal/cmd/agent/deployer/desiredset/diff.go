@@ -80,14 +80,20 @@ func Diff(logger logr.Logger, plan Plan, bd *fleet.BundleDeployment, ns string, 
 						if err != nil {
 							// XXX: enable detection of such issues earlier, for instance through CLI validating
 							// fleet.yaml syntax; see fleet#4533.
-							logger.V(1).Error(err, "Cannot compile bundle diff ignore regex, will discard it", "namespace", ti.Namespace)
-						}
-						if re.MatchString(o.Name) {
+							logger.V(1).Error(
+								err,
+								"Cannot compile bundle diff ignore regex, will discard it",
+								"namespace", ti.Namespace,
+								"name pattern", ti.Name,
+								"gvk", gvk.String(),
+							)
+						} else if re.MatchString(o.Name) {
 							return true
 						}
 					}
 
 				}
+
 				return false
 			})
 		}

@@ -81,7 +81,7 @@ func Test_Diff_IgnoreResources(t *testing.T) {
 							Kind:       "foo",
 							APIVersion: "bar",
 							Namespace:  ns3,
-							Name:       ".*obs.*",
+							Name:       "*obs*", // invalid regex; should not break anything
 							Operations: []v1alpha1.Operation{
 								{
 									Op: "ignore",
@@ -92,7 +92,7 @@ func Test_Diff_IgnoreResources(t *testing.T) {
 							Kind:       "foo",
 							APIVersion: "bar",
 							Namespace:  ns3,
-							Name:       "*obs*", // invalid regex; should not break anything
+							Name:       ".*obs.*",
 							Operations: []v1alpha1.Operation{
 								{
 									Op: "ignore",
@@ -113,6 +113,7 @@ func Test_Diff_IgnoreResources(t *testing.T) {
 	mockLogSink := mocks.NewMockLogSink(ctrl)
 	mockLogSink.EXPECT().Init(gomock.Any())
 	mockLogSink.EXPECT().Enabled(gomock.Any()).Return(true).AnyTimes()
+	mockLogSink.EXPECT().Error(gomock.Any(), gomock.Any(), gomock.Any()).Times(1) // caused by invalid regex
 
 	logger := logr.New(mockLogSink)
 
@@ -125,5 +126,6 @@ func Test_Diff_IgnoreResources(t *testing.T) {
 
 	if len(plan.Create[gvk]) != lenBefore-shouldBeIgnored {
 		t.Errorf("unexpected plan.Create length: expected %d, got %d", lenBefore-shouldBeIgnored, len(plan.Create[gvk]))
+		t.Errorf("got elements %v", plan.Create[gvk])
 	}
 }
