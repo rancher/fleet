@@ -1,4 +1,4 @@
-//go:generate mockgen --build_flags=--mod=mod -destination=../mocks/oci_client_mock.go -package=mocks oras.land/oras-go/v2/registry/remote Client
+//go:generate mockgen --build_flags=--mod=mod -destination=../mocks/oci_client_mock.go -package=mocks -mock_names=Client=MockOCIClient oras.land/oras-go/v2/registry/remote Client
 package bundlereader_test
 
 import (
