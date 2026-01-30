@@ -703,7 +703,7 @@ func TestGitHubSecretAndCommitUpdated(t *testing.T) {
 				func(ctx context.Context, name types.NamespacedName, gitrepo *v1alpha1.GitRepo, _ ...interface{}) error {
 					return nil
 				})
-			statusClient := mocks.NewMockSubResourceWriter(ctlr)
+			statusClient := mocks.NewMockStatusWriter(ctlr)
 
 			mockClient.EXPECT().Status().Return(statusClient).Times(1)
 			statusClient.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any()).Do(

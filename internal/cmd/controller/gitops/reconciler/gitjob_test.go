@@ -1,4 +1,4 @@
-//go:generate mockgen --build_flags=--mod=mod -destination=../../../../mocks/client_mock.go -package=mocks sigs.k8s.io/controller-runtime/pkg/client Client,SubResourceWriter
+//go:generate mockgen --build_flags=--mod=mod -destination=../../../../mocks/client_mock.go -package=mocks -mock_names=Client=MockK8sClient,SubResourceWriter=MockStatusWriter sigs.k8s.io/controller-runtime/pkg/client Client,SubResourceWriter
 
 package reconciler
 
@@ -114,7 +114,7 @@ func TestReconcile_Error_WhenGitrepoRestrictionsAreNotMet(t *testing.T) {
 			return nil
 		},
 	)
-	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
+	statusClient := mocks.NewMockStatusWriter(mockCtrl)
 	mockClient.EXPECT().Status().Times(1).Return(statusClient)
 	statusClient.EXPECT().Update(gomock.Any(), gomock.Any(), gomock.Any()).Do(
 		func(ctx context.Context, repo *fleetv1.GitRepo, opts ...interface{}) {
@@ -187,7 +187,7 @@ func TestReconcile_Error_WhenGetGitJobErrors(t *testing.T) {
 		},
 	)
 
-	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
+	statusClient := mocks.NewMockStatusWriter(mockCtrl)
 	mockClient.EXPECT().Status().Times(1).Return(statusClient)
 	statusClient.EXPECT().Update(gomock.Any(), gomock.Any(), gomock.Any()).Do(
 		func(ctx context.Context, repo *fleetv1.GitRepo, opts ...interface{}) {
@@ -281,7 +281,7 @@ func TestReconcile_Error_WhenSecretDoesNotExist(t *testing.T) {
 		"failed to look up HelmSecretNameForPaths, error: SECRET ERROR",
 	)
 
-	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
+	statusClient := mocks.NewMockStatusWriter(mockCtrl)
 	mockClient.EXPECT().Status().Times(1).Return(statusClient)
 	statusClient.EXPECT().Update(gomock.Any(), gomock.Any(), gomock.Any()).Do(
 		func(ctx context.Context, repo *fleetv1.GitRepo, opts ...interface{}) {
