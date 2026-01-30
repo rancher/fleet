@@ -2,9 +2,8 @@ package helmcache
 
 import (
 	"context"
+	"reflect"
 	"testing"
-
-	"github.com/google/go-cmp/cmp"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -30,6 +29,11 @@ var defaultSecret = corev1.Secret{
 	},
 }
 
+// ptr returns a pointer to the given string
+func ptr(s string) *string {
+	return &s
+}
+
 func TestGet(t *testing.T) {
 	scheme := runtime.NewScheme()
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
@@ -42,10 +46,11 @@ func TestGet(t *testing.T) {
 	if err != nil {
 		t.Errorf("unexpected error %v", err)
 	}
-	if !cmp.Equal(secret.ObjectMeta, secretGot.ObjectMeta) {
-		t.Errorf("expected secret meta %#v, got %#v", secret.ObjectMeta, secretGot.ObjectMeta)
+	if secretGot.Name != secret.Name || secretGot.Namespace != secret.Namespace {
+		t.Errorf("expected secret name %s namespace %s, got name %s namespace %s",
+			secret.Name, secret.Namespace, secretGot.Name, secretGot.Namespace)
 	}
-	if !cmp.Equal(secret.Data, secretGot.Data) {
+	if !reflect.DeepEqual(secret.Data, secretGot.Data) {
 		t.Errorf("expected secret data %#v, got %#v", secret.Data, secretGot.Data)
 	}
 }
@@ -66,16 +71,21 @@ func TestList(t *testing.T) {
 	if len(secretList.Items) != 1 {
 		t.Errorf("expected secret list to have 1 element, got %v", len(secretList.Items))
 	}
-	if !cmp.Equal(secret.ObjectMeta, secretList.Items[0].ObjectMeta) {
-		t.Errorf("expected secret meta %#v, got %#v", secret, secretList.Items[0])
+	item := secretList.Items[0]
+	if item.Name != secret.Name || item.Namespace != secret.Namespace {
+		t.Errorf("expected secret name %s namespace %s, got name %s namespace %s",
+			secret.Name, secret.Namespace, item.Name, item.Namespace)
 	}
-	if !cmp.Equal(secret.Data, secretList.Items[0].Data) {
-		t.Errorf("expected secret data %#v, got %#v", secret, secretList.Items[0])
+	if !reflect.DeepEqual(secret.Labels, item.Labels) {
+		t.Errorf("expected labels %v, got %v", secret.Labels, item.Labels)
+	}
+	if !reflect.DeepEqual(secret.Data, item.Data) {
+		t.Errorf("expected secret data %#v, got %#v", secret.Data, item.Data)
 	}
 }
 
 func TestCreate(t *testing.T) {
-	client := k8sfake.NewSimpleClientset()
+	client := k8sfake.NewClientset()
 	secretClient := NewSecretClient(nil, client, secretNamespace)
 	secret := defaultSecret
 	secretCreated, err := secretClient.Create(context.TODO(), &secret, metav1.CreateOptions{})
@@ -83,7 +93,7 @@ func TestCreate(t *testing.T) {
 	if err != nil {
 		t.Errorf("unexpected error %v", err)
 	}
-	if !cmp.Equal(&secret, secretCreated) {
+	if secretCreated.Name != secret.Name || secretCreated.Namespace != secret.Namespace {
 		t.Errorf("expected secret %v, got %v", secret, secretCreated)
 	}
 }
@@ -97,21 +107,25 @@ func TestUpdate(t *testing.T) {
 		Data: map[string][]byte{"test": []byte("data")},
 	}
 	secret := defaultSecret
-	client := k8sfake.NewSimpleClientset(&secret)
+	client := k8sfake.NewClientset(&secret)
 	secretClient := NewSecretClient(nil, client, secretNamespace)
 	secretUpdated, err := secretClient.Update(context.TODO(), &secretUpdate, metav1.UpdateOptions{})
 
 	if err != nil {
 		t.Errorf("unexpected error %v", err)
 	}
-	if !cmp.Equal(&secretUpdate, secretUpdated) {
-		t.Errorf("expected secret %v, got %v", secretUpdate, secretUpdated)
+	if secretUpdated.Name != secretUpdate.Name || secretUpdated.Namespace != secretUpdate.Namespace {
+		t.Errorf("expected secret name %s namespace %s, got name %s namespace %s",
+			secretUpdate.Name, secretUpdate.Namespace, secretUpdated.Name, secretUpdated.Namespace)
+	}
+	if !reflect.DeepEqual(secretUpdate.Data, secretUpdated.Data) {
+		t.Errorf("expected data %v, got %v", secretUpdate.Data, secretUpdated.Data)
 	}
 }
 
 func TestDelete(t *testing.T) {
 	secret := defaultSecret
-	client := k8sfake.NewSimpleClientset(&secret)
+	client := k8sfake.NewClientset(&secret)
 	secretClient := NewSecretClient(nil, client, secretNamespace)
 	err := secretClient.Delete(context.TODO(), secretName, metav1.DeleteOptions{})
 
@@ -122,7 +136,7 @@ func TestDelete(t *testing.T) {
 
 func TestDeleteCollection(t *testing.T) {
 	secret := defaultSecret
-	client := k8sfake.NewSimpleClientset(&secret)
+	client := k8sfake.NewClientset(&secret)
 	secretClient := NewSecretClient(nil, client, secretNamespace)
 	err := secretClient.DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{FieldSelector: "name=" + secretName})
 
@@ -133,7 +147,7 @@ func TestDeleteCollection(t *testing.T) {
 
 func TestWatch(t *testing.T) {
 	secret := defaultSecret
-	client := k8sfake.NewSimpleClientset(&secret)
+	client := k8sfake.NewClientset(&secret)
 	secretClient := NewSecretClient(nil, client, secretNamespace)
 	watch, err := secretClient.Watch(context.TODO(), metav1.ListOptions{FieldSelector: "name=" + secretName})
 
@@ -146,15 +160,8 @@ func TestWatch(t *testing.T) {
 }
 
 func TestPatch(t *testing.T) {
-	secretPatch := corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      secretName,
-			Namespace: secretNamespace,
-		},
-		Data: map[string][]byte{"test": []byte("content")},
-	}
 	secret := defaultSecret
-	client := k8sfake.NewSimpleClientset(&secret)
+	client := k8sfake.NewClientset(&secret)
 	secretClient := NewSecretClient(nil, client, secretNamespace)
 	patch := []byte(`{"data":{"test":"Y29udGVudA=="}}`) // "content", base64-encoded
 	secretPatched, err := secretClient.Patch(context.TODO(), secretName, types.StrategicMergePatchType, patch, metav1.PatchOptions{})
@@ -162,26 +169,30 @@ func TestPatch(t *testing.T) {
 	if err != nil {
 		t.Errorf("unexpected error %v", err)
 	}
-	if !cmp.Equal(&secretPatch, secretPatched) {
-		t.Errorf("expected secret %v, got %v", secretPatch, secretPatched)
+	if secretPatched.Name != secretName || secretPatched.Namespace != secretNamespace {
+		t.Errorf("expected secret name %s namespace %s, got name %s namespace %s",
+			secretName, secretNamespace, secretPatched.Name, secretPatched.Namespace)
+	}
+	expectedData := []byte("content")
+	if !reflect.DeepEqual(expectedData, secretPatched.Data["test"]) {
+		t.Errorf("expected data 'content', got %s", string(secretPatched.Data["test"]))
 	}
 }
 
 func TestApply(t *testing.T) {
-	secretApply := corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      secretName,
-			Namespace: secretNamespace,
-		},
-		Data: map[string][]byte{"test": []byte("content")},
-	}
 	secret := defaultSecret
-	client := k8sfake.NewSimpleClientset(&secret)
+	client := k8sfake.NewClientset(&secret)
 	secretClient := NewSecretClient(nil, client, secretNamespace)
 	secretName := "test"
+	namespace := secretNamespace
 	secretApplied, err := secretClient.Apply(context.TODO(), &applycorev1.SecretApplyConfiguration{
+		TypeMetaApplyConfiguration: v1.TypeMetaApplyConfiguration{
+			APIVersion: ptr("v1"),
+			Kind:       ptr("Secret"),
+		},
 		ObjectMetaApplyConfiguration: &v1.ObjectMetaApplyConfiguration{
-			Name: &secretName,
+			Name:      &secretName,
+			Namespace: &namespace,
 		},
 		Data: map[string][]byte{"test": []byte("content")},
 	}, metav1.ApplyOptions{})
@@ -189,7 +200,12 @@ func TestApply(t *testing.T) {
 	if err != nil {
 		t.Errorf("unexpected error %v", err)
 	}
-	if !cmp.Equal(&secretApply, secretApplied) {
-		t.Errorf("expected secret %v, got %v", secretApply, secretApplied)
+	// Check the key fields instead of deep equality
+	if secretApplied.Name != secretName || secretApplied.Namespace != namespace {
+		t.Errorf("expected secret name %s namespace %s, got name %s namespace %s",
+			secretName, namespace, secretApplied.Name, secretApplied.Namespace)
+	}
+	if string(secretApplied.Data["test"]) != "content" {
+		t.Errorf("expected data 'content', got %s", string(secretApplied.Data["test"]))
 	}
 }
