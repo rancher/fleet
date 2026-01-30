@@ -1,0 +1,9 @@
+diff:
+  comparePatches:
+  - apiVersion: v1
+    kind: ConfigMap
+    name: app-config
+    namespace: bundle-diffs-example
+    operations:
+    - op: remove
+      path: /data

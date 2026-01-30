@@ -14,6 +14,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/yaml"
 
 	command "github.com/rancher/fleet/internal/cmd"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -55,6 +56,9 @@ Examples:
   # Output in JSON format
   fleet bundlediff --json
 
+  # Output in fleet.yaml format (comparePatches)
+  fleet bundlediff --fleet-yaml
+
   # Show diffs only in a specific namespace
   fleet bundlediff -n cluster-fleet-local-local-abc123`,
 	})
@@ -72,6 +76,7 @@ type BundleDiff struct {
 	BundleDeployment string `usage:"Name of the BundleDeployment to show diffs for" short:""`
 	Bundle           string `usage:"Name of the Bundle to show diffs for all its BundleDeployments" short:"b"`
 	JSON             bool   `usage:"Output in JSON format"`
+	FleetYAML        bool   `usage:"Output in fleet.yaml format (comparePatches)"`
 }
 
 type DiffOutput struct {
@@ -134,15 +139,25 @@ func (d *BundleDiff) Run(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(diffs) == 0 {
-		if !d.JSON {
+		if !d.JSON && !d.FleetYAML {
 			fmt.Fprintln(cmd.OutOrStdout(), "No modified resources found.")
 			return nil
 		}
-		return d.encodeJSON(cmd.OutOrStdout(), diffs)
+		if d.JSON {
+			return d.encodeJSON(cmd.OutOrStdout(), diffs)
+		}
+		if d.FleetYAML {
+			return d.printFleetYAML(cmd.OutOrStdout(), diffs)
+		}
+		return nil
 	}
 
 	if d.JSON {
 		return d.encodeJSON(cmd.OutOrStdout(), diffs)
+	}
+
+	if d.FleetYAML {
+		return d.printFleetYAML(cmd.OutOrStdout(), diffs)
 	}
 
 	return d.printTextOutput(cmd.OutOrStdout(), diffs)
@@ -159,6 +174,66 @@ func (d *BundleDiff) encodeJSON(out io.Writer, diffs []DiffOutput) error {
 	enc := json.NewEncoder(out)
 	enc.SetIndent("", "  ")
 	return enc.Encode(output)
+}
+
+func (d *BundleDiff) printFleetYAML(out io.Writer, diffs []DiffOutput) error {
+	comparePatches := []fleet.ComparePatch{}
+
+	for _, diff := range diffs {
+		for _, mod := range diff.ModifiedResources {
+			if mod.Patch == "" {
+				continue
+			}
+
+			var patchOps []struct {
+				Op   string `json:"op"`
+				Path string `json:"path"`
+			}
+			if err := json.Unmarshal([]byte(mod.Patch), &patchOps); err != nil {
+				continue
+			}
+
+			operations := make([]fleet.Operation, 0, len(patchOps))
+			for _, p := range patchOps {
+				if p.Op != "" {
+					operations = append(operations, fleet.Operation{
+						Op:   p.Op,
+						Path: p.Path,
+					})
+				}
+			}
+
+			if len(operations) > 0 {
+				comparePatches = append(comparePatches, fleet.ComparePatch{
+					APIVersion: mod.APIVersion,
+					Kind:       mod.Kind,
+					Name:       mod.Name,
+					Namespace:  mod.Namespace,
+					Operations: operations,
+				})
+			}
+		}
+	}
+
+	if len(comparePatches) == 0 {
+		return nil
+	}
+
+	output := struct {
+		Diff fleet.DiffOptions `json:"diff"`
+	}{
+		Diff: fleet.DiffOptions{
+			ComparePatches: comparePatches,
+		},
+	}
+
+	yamlOutput, err := yaml.Marshal(output)
+	if err != nil {
+		return fmt.Errorf("failed to marshal fleet.yaml format: %w", err)
+	}
+
+	fmt.Fprint(out, string(yamlOutput))
+	return nil
 }
 
 func (d *BundleDiff) getBundleDeploymentDiff(ctx context.Context, k8sClient client.Client, namespace, name string) (*DiffOutput, error) {

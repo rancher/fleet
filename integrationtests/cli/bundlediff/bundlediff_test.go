@@ -3,11 +3,15 @@ package bundlediff
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/rancher/fleet/internal/cmd/cli"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -765,6 +769,126 @@ var _ = Describe("Fleet bundlediff", func() {
 			Expect(output).To(ContainSubstring("BundleDeployments with diffs: 2"))
 			Expect(output).To(ContainSubstring("bd-in-ns1"))
 			Expect(output).To(ContainSubstring("bd-in-ns2"))
+		})
+	})
+
+	When("using fleet-yaml output format", func() {
+		BeforeEach(func() {
+			bundleDeploymentName = "test-bd-fleet-yaml"
+			bundleName = "test-bundle-fleet-yaml"
+			bd := &fleet.BundleDeployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      bundleDeploymentName,
+					Namespace: namespace,
+					Labels: map[string]string{
+						"fleet.cattle.io/bundle-name": bundleName,
+					},
+				},
+				Spec: fleet.BundleDeploymentSpec{
+					DeploymentID: "s-content:options",
+				},
+			}
+			Expect(k8sClient.Create(ctx, bd)).ToNot(HaveOccurred())
+
+			bd.Status.ModifiedStatus = []fleet.ModifiedStatus{
+				{
+					Kind:       "ConfigMap",
+					APIVersion: "v1",
+					Namespace:  "bundle-diffs-example",
+					Name:       "app-config",
+					Patch:      `[{"op":"remove","path":"/data"}]`,
+				},
+			}
+			Expect(k8sClient.Status().Update(ctx, bd)).ToNot(HaveOccurred())
+
+			DeferCleanup(func() {
+				_ = k8sClient.Delete(ctx, bd)
+			})
+		})
+
+		It("should output in fleet.yaml format", func() {
+			buf, _, err := act([]string{"--bundle-deployment", bundleDeploymentName, "--fleet-yaml"}, namespace)
+			Expect(err).NotTo(HaveOccurred())
+
+			expected, err := os.ReadFile(filepath.Join("testdata", "fleet-yaml-single.yaml"))
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(strings.TrimSpace(string(buf.Contents()))).To(Equal(strings.TrimSpace(string(expected))))
+		})
+
+		It("should handle multiple operations in fleet.yaml format", func() {
+			bd := &fleet.BundleDeployment{}
+			Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: bundleDeploymentName}, bd)).ToNot(HaveOccurred())
+
+			bd.Status.ModifiedStatus = []fleet.ModifiedStatus{
+				{
+					Kind:       "Deployment",
+					APIVersion: "apps/v1",
+					Namespace:  "test-ns",
+					Name:       "my-deployment",
+					Patch:      `[{"op":"replace","path":"/spec/replicas","value":3},{"op":"remove","path":"/spec/template/metadata/labels/old-label"}]`,
+				},
+			}
+			Expect(k8sClient.Status().Update(ctx, bd)).ToNot(HaveOccurred())
+
+			buf, _, err := act([]string{"--bundle-deployment", bundleDeploymentName, "--fleet-yaml"}, namespace)
+			Expect(err).NotTo(HaveOccurred())
+
+			expected, err := os.ReadFile(filepath.Join("testdata", "fleet-yaml-multiple-ops.yaml"))
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(strings.TrimSpace(string(buf.Contents()))).To(Equal(strings.TrimSpace(string(expected))))
+		})
+
+		It("should output multiple resources in fleet.yaml format", func() {
+			bd := &fleet.BundleDeployment{}
+			Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: bundleDeploymentName}, bd)).ToNot(HaveOccurred())
+
+			bd.Status.ModifiedStatus = []fleet.ModifiedStatus{
+				{
+					Kind:       "ConfigMap",
+					APIVersion: "v1",
+					Namespace:  "ns1",
+					Name:       "cm1",
+					Patch:      `[{"op":"add","path":"/data/key1","value":"val1"}]`,
+				},
+				{
+					Kind:       "Secret",
+					APIVersion: "v1",
+					Namespace:  "ns2",
+					Name:       "secret1",
+					Patch:      `[{"op":"remove","path":"/data/password"}]`,
+				},
+			}
+			Expect(k8sClient.Status().Update(ctx, bd)).ToNot(HaveOccurred())
+
+			buf, _, err := act([]string{"--bundle-deployment", bundleDeploymentName, "--fleet-yaml"}, namespace)
+			Expect(err).NotTo(HaveOccurred())
+
+			expected, err := os.ReadFile(filepath.Join("testdata", "fleet-yaml-multiple-resources.yaml"))
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(strings.TrimSpace(string(buf.Contents()))).To(Equal(strings.TrimSpace(string(expected))))
+		})
+
+		It("should output empty when no modified resources with patches", func() {
+			bd := &fleet.BundleDeployment{}
+			Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: bundleDeploymentName}, bd)).ToNot(HaveOccurred())
+
+			bd.Status.ModifiedStatus = []fleet.ModifiedStatus{
+				{
+					Kind:       "ConfigMap",
+					APIVersion: "v1",
+					Namespace:  "test-ns",
+					Name:       "missing-cm",
+					Create:     true,
+				},
+			}
+			Expect(k8sClient.Status().Update(ctx, bd)).ToNot(HaveOccurred())
+
+			buf, _, err := act([]string{"--bundle-deployment", bundleDeploymentName, "--fleet-yaml"}, namespace)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(buf.Contents()).To(BeEmpty())
 		})
 	})
 })
