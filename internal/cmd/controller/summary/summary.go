@@ -114,6 +114,11 @@ func SetReadyConditions(obj interface{}, referencedKind string, summary fleet.Bu
 	msg := ReadyMessage(summary, referencedKind)
 	c.SetStatusBool(obj, len(msg) == 0)
 	c.Message(obj, msg)
+	// Clear reason when status is True to avoid inconsistent state
+	// where reason="Error" persists from previous error state
+	if len(msg) == 0 {
+		c.Reason(obj, "")
+	}
 }
 
 func MessageFromCondition(conditionType string, conds []genericcondition.GenericCondition) string {
