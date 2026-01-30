@@ -102,6 +102,10 @@ func (d *BundleDiff) PersistentPre(_ *cobra.Command, _ []string) error {
 }
 
 func (d *BundleDiff) Run(cmd *cobra.Command, args []string) error {
+	if d.JSON && d.FleetYAML {
+		return fmt.Errorf("cannot specify both --json and --fleet-yaml")
+	}
+
 	cfg, err := ctrl.GetConfig()
 	if err != nil {
 		return fmt.Errorf("failed to get k8s config: %w", err)
@@ -186,21 +190,39 @@ func (d *BundleDiff) printFleetYAML(out io.Writer, diffs []DiffOutput) error {
 			}
 
 			var patchOps []struct {
-				Op   string `json:"op"`
-				Path string `json:"path"`
+				Op    string      `json:"op"`
+				Path  string      `json:"path"`
+				Value interface{} `json:"value,omitempty"`
 			}
 			if err := json.Unmarshal([]byte(mod.Patch), &patchOps); err != nil {
+				ctrl.Log.Error(err, "failed to parse patch JSON, skipping resource",
+					"resource", fmt.Sprintf("%s.%s %s/%s", mod.Kind, mod.APIVersion, mod.Namespace, mod.Name))
 				continue
 			}
 
 			operations := make([]fleet.Operation, 0, len(patchOps))
 			for _, p := range patchOps {
-				if p.Op != "" {
-					operations = append(operations, fleet.Operation{
-						Op:   p.Op,
-						Path: p.Path,
-					})
+				if p.Op == "" {
+					continue
 				}
+
+				var valueStr string
+				if p.Value != nil {
+					if valueBytes, err := json.Marshal(p.Value); err != nil {
+						ctrl.Log.Error(err, "failed to marshal operation value, omitting value field",
+							"op", p.Op,
+							"path", p.Path,
+							"resource", fmt.Sprintf("%s.%s %s/%s", mod.Kind, mod.APIVersion, mod.Namespace, mod.Name))
+					} else {
+						valueStr = string(valueBytes)
+					}
+				}
+
+				operations = append(operations, fleet.Operation{
+					Op:    p.Op,
+					Path:  p.Path,
+					Value: valueStr,
+				})
 			}
 
 			if len(operations) > 0 {

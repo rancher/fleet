@@ -890,5 +890,31 @@ var _ = Describe("Fleet bundlediff", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(buf.Contents()).To(BeEmpty())
 		})
+
+		It("should skip operations with empty op field", func() {
+			bd := &fleet.BundleDeployment{}
+			Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: bundleDeploymentName}, bd)).ToNot(HaveOccurred())
+
+			bd.Status.ModifiedStatus = []fleet.ModifiedStatus{
+				{
+					Kind:       "ConfigMap",
+					APIVersion: "v1",
+					Namespace:  "test-ns",
+					Name:       "empty-op-cm",
+					Patch:      `[{"op":"","path":"/data/key"},{"op":"remove","path":"/data/valid"}]`,
+				},
+			}
+			Expect(k8sClient.Status().Update(ctx, bd)).ToNot(HaveOccurred())
+
+			buf, _, err := act([]string{"--bundle-deployment", bundleDeploymentName, "--fleet-yaml"}, namespace)
+			Expect(err).NotTo(HaveOccurred())
+
+			output := string(buf.Contents())
+			// Should contain only the valid remove operation
+			Expect(output).To(ContainSubstring("op: remove"))
+			Expect(output).To(ContainSubstring("/data/valid"))
+			// Should have only one operation
+			Expect(strings.Count(output, "op:")).To(Equal(1))
+		})
 	})
 })

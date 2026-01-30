@@ -7,5 +7,6 @@ diff:
     operations:
     - op: replace
       path: /spec/replicas
+      value: "3"
     - op: remove
       path: /spec/template/metadata/labels/old-label
