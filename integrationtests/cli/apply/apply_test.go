@@ -815,3 +815,151 @@ func getBundleNamed(name string, bundles []*v1alpha1.Bundle) *v1alpha1.Bundle {
 	})
 	return res
 }
+
+var _ = Describe("Fleet apply with dependsOn and acceptedStates", func() {
+	var (
+		dirs    []string
+		name    string
+		options apply.Options
+	)
+
+	When("fleet.yaml contains valid dependsOn with acceptedStates", func() {
+		BeforeEach(func() {
+			name = "dependson_valid"
+			dirs = []string{cli.AssetsPath + "dependson_valid"}
+		})
+
+		It("creates a Bundle with the correct dependsOn configuration", func() {
+			err := fleetApply(name, dirs, options)
+			Expect(err).NotTo(HaveOccurred())
+
+			bundle, err := cli.GetBundleFromOutput(buf)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(bundle.Spec.DependsOn).To(HaveLen(1))
+			Expect(bundle.Spec.DependsOn[0].Name).To(Equal("my-dependency"))
+			Expect(bundle.Spec.DependsOn[0].AcceptedStates).To(ConsistOf(
+				v1alpha1.Ready,
+				v1alpha1.Modified,
+			))
+		})
+	})
+
+	When("fleet.yaml contains dependsOn with all valid states", func() {
+		BeforeEach(func() {
+			name = "dependson_all_states"
+			dirs = []string{cli.AssetsPath + "dependson_all_states"}
+		})
+
+		It("creates a Bundle with all acceptedStates", func() {
+			err := fleetApply(name, dirs, options)
+			Expect(err).NotTo(HaveOccurred())
+
+			bundle, err := cli.GetBundleFromOutput(buf)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(bundle.Spec.DependsOn).To(HaveLen(1))
+			Expect(bundle.Spec.DependsOn[0].AcceptedStates).To(ConsistOf(
+				v1alpha1.Ready,
+				v1alpha1.NotReady,
+				v1alpha1.WaitApplied,
+				v1alpha1.ErrApplied,
+				v1alpha1.OutOfSync,
+				v1alpha1.Pending,
+				v1alpha1.Modified,
+			))
+		})
+	})
+
+	When("fleet.yaml contains dependsOn without acceptedStates", func() {
+		BeforeEach(func() {
+			name = "dependson_no_acceptedstates"
+			dirs = []string{cli.AssetsPath + "dependson_no_acceptedstates"}
+		})
+
+		It("creates a Bundle with empty acceptedStates (defaults to Ready at runtime)", func() {
+			err := fleetApply(name, dirs, options)
+			Expect(err).NotTo(HaveOccurred())
+
+			bundle, err := cli.GetBundleFromOutput(buf)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(bundle.Spec.DependsOn).To(HaveLen(1))
+			Expect(bundle.Spec.DependsOn[0].Name).To(Equal("my-dependency"))
+			Expect(bundle.Spec.DependsOn[0].AcceptedStates).To(BeEmpty())
+		})
+	})
+
+	When("fleet.yaml contains dependsOn with selector instead of name", func() {
+		BeforeEach(func() {
+			name = "dependson-with-selector"
+			dirs = []string{cli.AssetsPath + "dependson_with_selector"}
+		})
+
+		It("creates a Bundle with selector-based dependsOn", func() {
+			err := fleetApply(name, dirs, options)
+			Expect(err).NotTo(HaveOccurred())
+
+			bundle, err := cli.GetBundleFromOutput(buf)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(bundle.Spec.DependsOn).To(HaveLen(1))
+			Expect(bundle.Spec.DependsOn[0].Name).To(BeEmpty())
+			Expect(bundle.Spec.DependsOn[0].Selector).NotTo(BeNil())
+			Expect(bundle.Spec.DependsOn[0].Selector.MatchLabels).To(HaveKeyWithValue("app", "database"))
+			Expect(bundle.Spec.DependsOn[0].Selector.MatchLabels).To(HaveKeyWithValue("tier", "backend"))
+		})
+	})
+
+	When("fleet.yaml contains multiple dependsOn entries", func() {
+		BeforeEach(func() {
+			name = "dependson_multiple"
+			dirs = []string{cli.AssetsPath + "dependson_multiple"}
+		})
+
+		It("creates a Bundle with all dependsOn entries preserved", func() {
+			err := fleetApply(name, dirs, options)
+			Expect(err).NotTo(HaveOccurred())
+
+			bundle, err := cli.GetBundleFromOutput(buf)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(bundle.Spec.DependsOn).To(HaveLen(3))
+
+			// First dependency: by name with Ready only
+			Expect(bundle.Spec.DependsOn[0].Name).To(Equal("first-dependency"))
+			Expect(bundle.Spec.DependsOn[0].AcceptedStates).To(ConsistOf(v1alpha1.Ready))
+
+			// Second dependency: by name with Ready and Modified
+			Expect(bundle.Spec.DependsOn[1].Name).To(Equal("second-dependency"))
+			Expect(bundle.Spec.DependsOn[1].AcceptedStates).To(ConsistOf(v1alpha1.Ready, v1alpha1.Modified))
+
+			// Third dependency: by selector with Ready and NotReady
+			Expect(bundle.Spec.DependsOn[2].Selector).NotTo(BeNil())
+			Expect(bundle.Spec.DependsOn[2].Selector.MatchLabels).To(HaveKeyWithValue("app", "third"))
+			Expect(bundle.Spec.DependsOn[2].AcceptedStates).To(ConsistOf(v1alpha1.Ready, v1alpha1.NotReady))
+		})
+	})
+
+	When("fleet.yaml contains invalid acceptedStates", func() {
+		BeforeEach(func() {
+			name = "dependson-invalid"
+			dirs = []string{cli.AssetsPath + "dependson_invalid"}
+		})
+
+		It("returns an error indicating the invalid state", func() {
+			err := fleetApply(name, dirs, options)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("invalid state"))
+			Expect(err.Error()).To(ContainSubstring("InvalidState"))
+		})
+	})
+
+	When("fleet.yaml contains dependsOn without name or selector", func() {
+		BeforeEach(func() {
+			name = "dependson_missing_name_selector"
+			dirs = []string{cli.AssetsPath + "dependson_missing_name_selector"}
+		})
+
+		It("returns an error indicating name or selector is required", func() {
+			err := fleetApply(name, dirs, options)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("must specify either 'name' or 'selector'"))
+		})
+	})
+})
