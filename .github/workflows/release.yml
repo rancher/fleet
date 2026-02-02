@@ -163,66 +163,89 @@ jobs:
           STAGE_REGISTRY: ${{ env.STAGE_REGISTRY }}
           PRIME_REGISTRY: ${{ env.PRIME_REGISTRY }}
 
-      # Workaround until `docker manifest create` supports provenance meta data
-      # Background: https://stackoverflow.com/questions/75521775/buildx-docker-image-claims-to-be-a-manifest-list
-      # Released images will eventually be moved into the Prime registry, hence their signatures must match that registry.
-      - name: Create Docker manifest for Staging and sign it for the Prime registry
+      - name: Create platform-specific tags for images
         shell: bash
         env:
           STAGE_REGISTRY: ${{ env.STAGE_REGISTRY }}
-          PRIME_REGISTRY: ${{ env.PRIME_REGISTRY }}
         run: |
-          for IMAGE in fleet fleet-agent; do
-            URL="${{ env.STAGE_REGISTRY }}/rancher/${IMAGE}:${{ github.ref_name }}"
-            docker buildx imagetools create -t "${URL}" \
-              "${URL}-linux-amd64" \
-              "${URL}-linux-arm64"
+          set -euo pipefail
 
-            cosign sign \
-              --oidc-provider=github-actions \
-              --yes \
-              --sign-container-identity="${{ env.PRIME_REGISTRY }}/rancher/${IMAGE}" \
-              "${URL}"
+          > platform_digests.txt
 
-            # Pull the manifest locally to make it available for inspection
-            docker pull "${URL}"
+          if [[ ! -f dist/digests.txt ]] || [[ ! -s dist/digests.txt ]]; then
+            echo "ERROR: dist/digests.txt not found or empty"
+            exit 1
+          fi
+
+          staging_images=$(grep -F "${STAGE_REGISTRY}" dist/digests.txt || true)
+          if [[ -z "${staging_images}" ]]; then
+            echo "ERROR: No staging images found in dist/digests.txt"
+            exit 1
+          fi
+
+          echo "${staging_images}" | while read -r image_with_digest; do
+            image_url="${image_with_digest%@*}"
+            manifest_digest="${image_with_digest#*@}"
+            image_name="${image_url##*/}"
+
+            [[ "${image_name}" =~ -linux- ]] && continue
+
+            echo "Creating platform tags for ${image_url} (${manifest_digest})"
+
+            docker buildx imagetools inspect "${image_url}@${manifest_digest}" --raw | \
+              jq -r '.manifests[] | select(.platform.os=="linux" and .platform.architecture!="unknown") | "\(.digest)|\(.platform.architecture)"' | \
+              while IFS='|' read -r platform_digest arch; do
+                platform_tag="${image_url}-linux-${arch}"
+                echo "  Tagging ${platform_tag}"
+                docker buildx imagetools create -t "${platform_tag}" "${image_url}@${platform_digest}"
+                echo "${platform_tag}@${platform_digest}" >> platform_digests.txt
+              done
           done
+
+          if [[ ! -s platform_digests.txt ]]; then
+            echo "ERROR: No platform tags were created (platform_digests.txt is empty)"
+            exit 1
+          fi
+
+          echo "Successfully created $(wc -l < platform_digests.txt) platform tag entries"
 
       - name: Attest provenance
         shell: bash
         run: |
-          IMAGES=$(yq e '.dockers[].image_templates[0]' .goreleaser.yaml | grep STAGE_REGISTRY | sed "s/{{ .Env.STAGE_REGISTRY }}/${{ env.STAGE_REGISTRY }}/g" | sed "s/{{ .Tag }}/${{ github.ref_name }}/g")
+          set -euo pipefail
+          max_retries=3
+          retry_delay=5
 
-          for IMG_NAME in $IMAGES; do
-            DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "${IMG_NAME}" | cut -d'@' -f2)
-            # Construct fully qualified image name with both tag and digest
-            URL="${IMG_NAME}@${DIGEST}"
+          while read -r image_with_digest; do
+            img_tag="${image_with_digest%@*}"
+            img_digest="${image_with_digest#*@}"
 
-            max_retries=3
-            retry_delay=5
+            if [[ "${img_tag}" =~ -linux-([^:]+)$ ]]; then
+              platform="linux/${BASH_REMATCH[1]}"
+            else
+              echo "WARNING: Could not extract platform from ${img_tag}, skipping"
+              continue
+            fi
 
-            for ((i=0; i<max_retries; i++)); do
-              if [[ "${IMG_NAME}" =~ -linux-([^-]+)$ ]]; then
-                PLATFORM="linux/${BASH_REMATCH[1]}"
-              else
-                PLATFORM="linux/amd64"
+            echo "Attesting ${image_with_digest} for ${platform}"
+
+            for ((i=1; i<=max_retries; i++)); do
+              if slsactl download provenance --format=slsav1 --platform="${platform}" "${image_with_digest}" > provenance.json; then
+                cat provenance.json
+                if cosign attest --yes --predicate provenance.json --type slsaprovenance1 "${image_with_digest}"; then
+                  rm -f provenance.json
+                  break
+                fi
               fi
-
-              if slsactl download provenance --format=slsav1 --platform="${PLATFORM}" "${URL}" > provenance-slsav1.json; then
-                break
-              fi
-              if [ "${i}" -eq "$(( max_retries - 1 ))" ]; then
-                echo "ERROR: Failed to generate slsav1 provenance. Check whether the image is present in the Staging registry."
-                cat provenance-slsav1.json 2>/dev/null || echo "No provenance file generated"
+              if [ "${i}" -eq "${max_retries}" ]; then
+                echo "ERROR: Failed to attest ${image_with_digest} after ${max_retries} attempts"
+                rm -f provenance.json
                 exit 1
               fi
+              echo "Retry ${i}/${max_retries} failed, waiting ${retry_delay}s..."
               sleep "${retry_delay}"
             done
-
-            cat provenance-slsav1.json
-            cosign attest --yes --predicate provenance-slsav1.json --type slsaprovenance1 "${URL}"
-            rm -f provenance-slsav1.json
-          done
+          done < platform_digests.txt
 
       - name: Upload charts to release
         if: ${{ env.IS_HOTFIX == 'false' }}
