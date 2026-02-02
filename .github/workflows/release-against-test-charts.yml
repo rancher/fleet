@@ -64,12 +64,12 @@ jobs:
           echo "charts_repo=$charts_repo" >> "$GITHUB_OUTPUT"
 
       - name: Checkout rancher/fleet
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           fetch-depth: 0
           path: fleet
 
-      - uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6
+      - uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
         with:
           go-version-file: 'fleet/go.mod'
           check-latest: true
@@ -86,14 +86,14 @@ jobs:
 
       - name: Extract metadata for Fleet controller image
         id: meta-fleet
-        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
         with:
           images: |
             ttl.sh/rancher-fleet-${{ steps.uuid.outputs.uuid }}
           tags: type=raw,value=1h
 
       - name: Build and push Fleet controller image
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           context: ./fleet
           file: ./fleet/package/Dockerfile
@@ -105,14 +105,14 @@ jobs:
 
       - name: Extract metadata for Fleet agent image
         id: meta-fleet-agent
-        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
         with:
           images: |
             ttl.sh/rancher-fleet-agent-${{ steps.uuid.outputs.uuid }}
           tags: type=raw,value=1h
 
       - name: Build and push Fleet agent image
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           context: ./fleet
           file: ./fleet/package/Dockerfile.agent
@@ -123,7 +123,7 @@ jobs:
           labels: ${{ steps.meta-fleet-agent.outputs.labels }}
 
       - name: Checkout test charts repo
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           fetch-depth: 0
           token: ${{secrets.CI_PUSH_TO_FLEETREPOCI}}

@@ -46,11 +46,11 @@ jobs:
           - test_type: ''
     steps:
       -
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           fetch-depth: 0
       -
-        uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6
+        uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
         with:
           go-version-file: 'go.mod'
           check-latest: true
@@ -64,7 +64,7 @@ jobs:
       -
         name: Cache crust-gather CLI
         id: cache-crust
-        uses: actions/cache@8b402f58fbc84540c8b491a91e594a4576fec3d7 # v5
+        uses: actions/cache@8b402f58fbc84540c8b491a91e594a4576fec3d7 # v5.0.2
         with:
           path: ~/.local/bin/crust-gather
           key: ${{ runner.os }}-crust-gather-${{ steps.cache-key.outputs.value }}
@@ -200,7 +200,7 @@ jobs:
           ginkgo --github-output --trace e2e/require-secrets
       -
         name: Upload Logs
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         if: failure()
         with:
           name: gha-nightly-e2e-logs-${{ github.sha }}-${{ matrix.k3s_version }}-${{ matrix.test_type }}-${{ github.run_id }}
