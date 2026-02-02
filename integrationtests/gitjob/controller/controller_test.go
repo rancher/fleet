@@ -1299,17 +1299,6 @@ var _ = Describe("GitJob controller", func() {
 
 			// Ensure the secret doesn't already exist from a previous test
 			if secret.Name != "" {
-				Eventually(func() bool {
-					var existingSecret corev1.Secret
-					err := k8sClient.Get(ctx, types.NamespacedName{Name: secret.Name, Namespace: secret.Namespace}, &existingSecret)
-					if err == nil {
-						// Secret still exists from previous test, delete it
-						_ = k8sClient.Delete(ctx, &existingSecret)
-						return false
-					}
-					return errors.IsNotFound(err)
-				}, "5s", "100ms").Should(BeTrue(), "Old secret should be cleaned up before test starts")
-
 				// Create secret before GitRepo
 				Expect(k8sClient.Create(ctx, &secret)).ToNot(HaveOccurred())
 			}
@@ -1350,7 +1339,7 @@ var _ = Describe("GitJob controller", func() {
 			}).Should(BeTrue())
 		})
 
-		Context("ClientSecretName is updated with existing commit", func() {
+		Context("ClientSecretName is updated and commit does not change", func() {
 			BeforeEach(func() {
 				gitRepoName = "client-secret-watch"
 				secret = corev1.Secret{
@@ -1799,9 +1788,7 @@ var _ = Describe("GitJob controller", func() {
 					g.Expect(newClientAnnotation).ToNot(Equal(clientAnnotation))
 					g.Expect(newHelmAnnotation).To(Equal(helmAnnotation)) // Helm annotation unchanged
 				}).Should(Succeed())
-			})
 
-			It("creates job only when helm secret changes (not client)", func() {
 				By("Verifying both annotations are set")
 				Eventually(func(g Gomega) {
 					err := k8sClient.Get(ctx, types.NamespacedName{Name: gitRepoName, Namespace: gitRepoNamespace}, &gitRepo)
@@ -1847,7 +1834,7 @@ var _ = Describe("GitJob controller", func() {
 			})
 		})
 
-		Context("secret metadata changes but not data", func() {
+		Context("client secret metadata changes but not data", func() {
 			BeforeEach(func() {
 				gitRepoName = "secret-metadata-only"
 				secret = corev1.Secret{

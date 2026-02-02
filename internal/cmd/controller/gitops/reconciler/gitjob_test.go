@@ -2719,7 +2719,7 @@ func TestNonSecretAnnotationChangedPredicate_Create(t *testing.T) {
 		Object: obj,
 	}
 
-	if predicate.Create(e) != false {
+	if predicate.Create(e) {
 		t.Error("expected Create to return false")
 	}
 }
@@ -2738,7 +2738,86 @@ func TestNonSecretAnnotationChangedPredicate_Delete(t *testing.T) {
 		Object: obj,
 	}
 
-	if predicate.Delete(e) != false {
+	if predicate.Delete(e) {
 		t.Error("expected Delete to return false")
+	}
+}
+
+func TestUpdateSecretDataHashes_AggregatesNonNotFoundErrors(t *testing.T) {
+	// This test uses a mock client to simulate non-NotFound errors
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+
+	scheme := runtime.NewScheme()
+	utilruntime.Must(fleetv1.AddToScheme(scheme))
+	utilruntime.Must(corev1.AddToScheme(scheme))
+
+	gitRepo := &fleetv1.GitRepo{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-gitrepo",
+			Namespace: "default",
+		},
+		Spec: fleetv1.GitRepoSpec{
+			ClientSecretName:       "client-secret",
+			HelmSecretName:         "helm-secret",
+			HelmSecretNameForPaths: "helm-paths-secret",
+		},
+	}
+
+	mockClient := mocks.NewMockK8sClient(mockCtrl)
+
+	// First call to Get returns the GitRepo
+	mockClient.EXPECT().Get(gomock.Any(), types.NamespacedName{
+		Name:      "test-gitrepo",
+		Namespace: "default",
+	}, gomock.Any()).DoAndReturn(
+		func(ctx context.Context, key types.NamespacedName, obj client.Object, opts ...client.GetOption) error {
+			gr := obj.(*fleetv1.GitRepo)
+			gr.Name = gitRepo.Name
+			gr.Namespace = gitRepo.Namespace
+			gr.Spec = gitRepo.Spec
+			return nil
+		},
+	)
+
+	// Return a non-NotFound error for client secret
+	mockClient.EXPECT().Get(gomock.Any(), types.NamespacedName{
+		Name:      "client-secret",
+		Namespace: "default",
+	}, gomock.Any()).Return(fmt.Errorf("connection refused for client-secret"))
+
+	// Return a non-NotFound error for helm secret
+	mockClient.EXPECT().Get(gomock.Any(), types.NamespacedName{
+		Name:      "helm-secret",
+		Namespace: "default",
+	}, gomock.Any()).Return(fmt.Errorf("connection refused for helm-secret"))
+
+	// Return a non-NotFound error for helm paths secret
+	mockClient.EXPECT().Get(gomock.Any(), types.NamespacedName{
+		Name:      "helm-paths-secret",
+		Namespace: "default",
+	}, gomock.Any()).Return(fmt.Errorf("connection refused for helm-paths-secret"))
+
+	r := &GitJobReconciler{
+		Client: mockClient,
+		Scheme: scheme,
+	}
+
+	err := r.updateSecretDataHashes(context.Background(), gitRepo)
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	// Verify all three errors are present in the aggregated error
+	errStr := err.Error()
+	if !strings.Contains(errStr, "client-secret") {
+		t.Errorf("expected error to contain 'client-secret', got: %v", err)
+	}
+	if !strings.Contains(errStr, "helm-secret") {
+		t.Errorf("expected error to contain 'helm-secret', got: %v", err)
+	}
+	if !strings.Contains(errStr, "helm-paths-secret") {
+		t.Errorf("expected error to contain 'helm-paths-secret', got: %v", err)
 	}
 }
