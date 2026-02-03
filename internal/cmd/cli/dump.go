@@ -36,6 +36,7 @@ type Dump struct {
 	FleetClient
 	DumpPath            string `usage:"Destination path for the dump" short:"p"`
 	FetchLimit          int64  `usage:"Limit number of items per resource that are fetched at once (0 means no limit)" short:"l" default:"500"`
+	AllNamespaces       bool   `usage:"Dump resources from all namespaces" short:"A"`
 	WithSecrets         bool   `usage:"Include secrets with full data"`
 	WithSecretsMetadata bool   `usage:"Include secrets with metadata only"`
 	WithContent         bool   `usage:"Include Content resources with full data"`
@@ -57,6 +58,12 @@ func (d *Dump) Run(cmd *cobra.Command, args []string) error {
 	if d.WithContent && d.WithContentMetadata {
 		return fmt.Errorf("--with-content and --with-content-metadata are mutually exclusive")
 	}
+	if d.AllNamespaces && d.Namespace != "fleet-local" {
+		// Check if namespace was explicitly set to something other than default
+		if cmd.Flags().Changed("namespace") {
+			return fmt.Errorf("--namespace and --all-namespaces are mutually exclusive")
+		}
+	}
 
 	cfg, err := ctrl.GetConfig()
 	if err != nil {
@@ -77,8 +84,16 @@ func (d *Dump) Run(cmd *cobra.Command, args []string) error {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zopts)))
 	ctx := log.IntoContext(cmd.Context(), ctrl.Log)
 
+	// Determine namespace filtering
+	namespace := ""
+	if !d.AllNamespaces {
+		namespace = d.Namespace
+	}
+
 	opts := dump.Options{
 		FetchLimit:          d.FetchLimit,
+		Namespace:           namespace,
+		AllNamespaces:       d.AllNamespaces,
 		WithSecrets:         d.WithSecrets,
 		WithSecretsMetadata: d.WithSecretsMetadata,
 		WithContent:         d.WithContent,

@@ -65,7 +65,7 @@ func Test_getNamespaces(t *testing.T) {
 	ctx := context.Background()
 	logger := log.FromContext(ctx).WithName("test-fleet-dump")
 
-	namespaces, err := getNamespaces(ctx, fakeDynClient, logger, 0)
+	namespaces, err := getNamespaces(ctx, fakeDynClient, logger, Options{FetchLimit: 0})
 
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -180,7 +180,7 @@ func Test_getNamespaces_pagination(t *testing.T) {
 	})
 
 	// Test with fetchLimit = 2 (should trigger pagination)
-	namespaces, err := getNamespaces(ctx, fakeDynClient, logger, 2)
+	namespaces, err := getNamespaces(ctx, fakeDynClient, logger, Options{FetchLimit: 2})
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -297,7 +297,7 @@ func Test_addObjectsToArchive_pagination(t *testing.T) {
 	})
 
 	// Test with fetchLimit = 2 (should trigger pagination)
-	err := addObjectsToArchive(ctx, fakeDynClient, logger, "fleet.cattle.io", "v1alpha1", "clusters", w, 2)
+	err := addObjectsToArchive(ctx, fakeDynClient, logger, "fleet.cattle.io", "v1alpha1", "clusters", w, Options{FetchLimit: 2})
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -533,7 +533,7 @@ func Test_addMetrics(t *testing.T) {
 
 			logger := log.FromContext(ctx).WithName("test-fleet-dump")
 
-			err := addMetricsToArchive(ctx, mockClient, logger, nil, nil, c.fetchLimit) // cfg and tar writer not needed for basic failure cases
+			err := addMetricsToArchive(ctx, mockClient, logger, nil, nil, Options{FetchLimit: c.fetchLimit}) // cfg and tar writer not needed for basic failure cases
 
 			if (err == nil) != (c.expErrStr == "") {
 				t.Fatalf("expected err %s, \n\tgot %s", c.expErrStr, err)
@@ -625,7 +625,7 @@ func Test_addSecretsToArchive(t *testing.T) {
 			var buf bytes.Buffer
 			tw := tar.NewWriter(&buf)
 
-			err := addSecretsToArchive(ctx, fakeDynClient, mockClient, logger, tw, c.metadataOnly, 0)
+			err := addSecretsToArchive(ctx, fakeDynClient, mockClient, logger, tw, c.metadataOnly, Options{FetchLimit: 0})
 
 			if (err == nil) != (c.expErrStr == "") {
 				t.Fatalf("expected err %s, \n\tgot %s", c.expErrStr, err)
@@ -727,7 +727,7 @@ func Test_addContentsToArchive(t *testing.T) {
 			var buf bytes.Buffer
 			tw := tar.NewWriter(&buf)
 
-			err := addContentsToArchive(ctx, fakeDynClient, logger, tw, c.metadataOnly, 0)
+			err := addContentsToArchive(ctx, fakeDynClient, logger, tw, c.metadataOnly, nil, Options{FetchLimit: 0})
 
 			if (err == nil) != (c.expErrStr == "") {
 				t.Fatalf("expected err %s, \n\tgot %s", c.expErrStr, err)

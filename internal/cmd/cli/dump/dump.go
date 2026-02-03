@@ -26,6 +26,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	errutil "k8s.io/apimachinery/pkg/util/errors"
@@ -41,6 +42,8 @@ import (
 
 type Options struct {
 	FetchLimit          int64
+	Namespace           string
+	AllNamespaces       bool
 	WithSecrets         bool
 	WithSecretsMetadata bool
 	WithContent         bool
@@ -56,6 +59,11 @@ func Create(ctx context.Context, cfg *rest.Config, path string, opt Options) err
 	d, err := createDynamicClient(cfg)
 	if err != nil {
 		return fmt.Errorf("failed to create dynamic Kubernetes client: %w", err)
+	}
+
+	// Use filtered version when namespace filtering is active
+	if !opt.AllNamespaces && opt.Namespace != "" {
+		return CreateWithClientsFiltered(ctx, cfg, d, c, path, opt)
 	}
 
 	return CreateWithClients(ctx, cfg, d, c, path, opt)
@@ -84,7 +92,7 @@ func CreateWithClients(ctx context.Context, cfg *rest.Config, d dynamic.Interfac
 	}
 
 	for _, t := range types {
-		if err := addObjectsToArchive(ctx, d, logger, "fleet.cattle.io", "v1alpha1", t, w, opt.FetchLimit); err != nil {
+		if err := addObjectsToArchive(ctx, d, logger, "fleet.cattle.io", "v1alpha1", t, w, opt); err != nil {
 			return fmt.Errorf("failed to add %s to archive: %w", t, err)
 		}
 	}
@@ -92,7 +100,7 @@ func CreateWithClients(ctx context.Context, cfg *rest.Config, d dynamic.Interfac
 	if opt.WithContent || opt.WithContentMetadata {
 		// If both full content and metadata-only are requested, prefer full content
 		contentMetadataOnly := opt.WithContentMetadata && !opt.WithContent
-		if err := addContentsToArchive(ctx, d, logger, w, contentMetadataOnly, opt.FetchLimit); err != nil {
+		if err := addContentsToArchive(ctx, d, logger, w, contentMetadataOnly, nil, opt); err != nil {
 			return fmt.Errorf("failed to add contents to archive: %w", err)
 		}
 	}
@@ -100,16 +108,16 @@ func CreateWithClients(ctx context.Context, cfg *rest.Config, d dynamic.Interfac
 	if opt.WithSecrets || opt.WithSecretsMetadata {
 		// If both full secrets and metadata-only are requested, prefer full secrets
 		secretsMetadataOnly := opt.WithSecretsMetadata && !opt.WithSecrets
-		if err := addSecretsToArchive(ctx, d, c, logger, w, secretsMetadataOnly, opt.FetchLimit); err != nil {
+		if err := addSecretsToArchive(ctx, d, c, logger, w, secretsMetadataOnly, opt); err != nil {
 			return fmt.Errorf("failed to add secrets to archive: %w", err)
 		}
 	}
 
-	if err := addEventsToArchive(ctx, d, c, logger, w, opt.FetchLimit); err != nil {
+	if err := addEventsToArchive(ctx, d, c, logger, w, opt); err != nil {
 		return fmt.Errorf("failed to add events to archive: %w", err)
 	}
 
-	if err := addMetricsToArchive(ctx, c, logger, cfg, w, opt.FetchLimit); err != nil {
+	if err := addMetricsToArchive(ctx, c, logger, cfg, w, opt); err != nil {
 		return fmt.Errorf("failed to add metrics to archive: %w", err)
 	}
 
@@ -130,7 +138,7 @@ func addObjectsToArchive(
 	logger logr.Logger,
 	g, v, r string,
 	w *tar.Writer,
-	fetchLimit int64,
+	opt Options,
 ) error {
 	rID := schema.GroupVersionResource{
 		Group:    g,
@@ -140,9 +148,18 @@ func addObjectsToArchive(
 
 	logger.V(1).Info("Fetching ...", "resource", rID.String())
 
-	lo := metav1.ListOptions{Limit: fetchLimit}
+	lo := metav1.ListOptions{Limit: opt.FetchLimit}
 	for {
-		list, err := dynamic.Resource(rID).List(ctx, lo)
+		var list *unstructured.UnstructuredList
+		var err error
+
+		// Apply namespace filtering when opt.Namespace is set and not in all-namespaces mode
+		if opt.Namespace != "" && !opt.AllNamespaces {
+			list, err = dynamic.Resource(rID).Namespace(opt.Namespace).List(ctx, lo)
+		} else {
+			list, err = dynamic.Resource(rID).List(ctx, lo)
+		}
+
 		if err != nil {
 			return fmt.Errorf("failed to list %s: %w", r, err)
 		}
@@ -190,8 +207,19 @@ func addContentsToArchive(
 	logger logr.Logger,
 	w *tar.Writer,
 	metadataOnly bool,
-	fetchLimit int64,
+	contentIDs []string, // nil means fetch all
+	opt Options,
 ) error {
+	// Convert to map for faster lookups
+	var contentIDMap map[string]bool
+	if contentIDs != nil {
+		contentIDMap = make(map[string]bool, len(contentIDs))
+		for _, id := range contentIDs {
+			contentIDMap[id] = true
+		}
+		logger.Info("Filtering content resources", "contentIDs", len(contentIDs))
+	}
+
 	rID := schema.GroupVersionResource{
 		Group:    "fleet.cattle.io",
 		Version:  "v1alpha1",
@@ -200,7 +228,7 @@ func addContentsToArchive(
 
 	logger.V(1).Info("Fetching ...", "resource", rID.String())
 
-	lo := metav1.ListOptions{Limit: fetchLimit}
+	lo := metav1.ListOptions{Limit: opt.FetchLimit}
 	for {
 		list, err := dynamic.Resource(rID).List(ctx, lo)
 		if err != nil {
@@ -208,6 +236,11 @@ func addContentsToArchive(
 		}
 
 		for _, i := range list.Items {
+			// Skip if filtering and this content ID is not in our filter set
+			if contentIDMap != nil && !contentIDMap[i.GetName()] {
+				continue
+			}
+
 			if metadataOnly {
 				// Only strip the actual content (manifests), keep sha256sum and status as metadata
 				i.Object["content"] = nil
@@ -241,9 +274,9 @@ func addSecretsToArchive(
 	logger logr.Logger,
 	w *tar.Writer,
 	metadataOnly bool,
-	fetchLimit int64,
+	opt Options,
 ) error {
-	nss, err := getNamespaces(ctx, dynamic, logger, fetchLimit)
+	nss, err := getNamespaces(ctx, dynamic, logger, opt)
 	if err != nil {
 		return fmt.Errorf("failed to get relevant namespaces for secrets: %w", err)
 	}
@@ -254,7 +287,7 @@ nss:
 	for _, ns := range nss {
 		var secrets corev1.SecretList
 		for {
-			if err := c.List(ctx, &secrets, client.InNamespace(ns), client.Limit(fetchLimit), client.Continue(secrets.Continue)); err != nil {
+			if err := c.List(ctx, &secrets, client.InNamespace(ns), client.Limit(opt.FetchLimit), client.Continue(secrets.Continue)); err != nil {
 				merr = append(merr, fmt.Errorf("failed to list secrets for namespace %q: %w", ns, err))
 				continue nss
 			}
@@ -290,8 +323,12 @@ nss:
 // - default
 // - cattle-fleet-system
 // - cattle-fleet-local-system
-// - each cluster's namespace
-func getNamespaces(ctx context.Context, dynamic dynamic.Interface, logger logr.Logger, fetchLimit int64) ([]string, error) {
+// - each cluster's namespace (only when not filtering by namespace)
+// When namespace filtering is active (opt.Namespace is set and not AllNamespaces),
+// returns only the filtered namespace plus system namespaces.
+//
+// TODO getNamespaces is called twice (for events and for secrets); consider caching the result.
+func getNamespaces(ctx context.Context, dynamic dynamic.Interface, logger logr.Logger, opt Options) ([]string, error) {
 	// Use a map to deduplicate namespaces
 	nsMap := map[string]struct{}{
 		"default":                   {},
@@ -300,13 +337,26 @@ func getNamespaces(ctx context.Context, dynamic dynamic.Interface, logger logr.L
 		"cattle-fleet-local-system": {},
 	}
 
+	// When filtering by namespace, just return the filtered namespace plus system namespaces
+	if opt.Namespace != "" && !opt.AllNamespaces {
+		nsMap[opt.Namespace] = struct{}{}
+
+		// Convert map to slice and return early
+		res := make([]string, 0, len(nsMap))
+		for ns := range nsMap {
+			res = append(res, ns)
+		}
+		return res, nil
+	}
+
+	// When not filtering, discover all cluster namespaces
 	clusRscID := schema.GroupVersionResource{
 		Group:    "fleet.cattle.io",
 		Version:  "v1alpha1",
 		Resource: "clusters",
 	}
 
-	lo := metav1.ListOptions{Limit: fetchLimit}
+	lo := metav1.ListOptions{Limit: opt.FetchLimit}
 	for {
 		clusters, err := dynamic.Resource(clusRscID).List(ctx, lo)
 		if err != nil {
@@ -359,9 +409,9 @@ func addEventsToArchive(
 	c client.Client,
 	logger logr.Logger,
 	w *tar.Writer,
-	fetchLimit int64,
+	opt Options,
 ) error {
-	nss, err := getNamespaces(ctx, d, logger, fetchLimit)
+	nss, err := getNamespaces(ctx, d, logger, opt)
 	if err != nil {
 		return fmt.Errorf("failed to get relevant namespaces for events: %w", err)
 	}
@@ -386,7 +436,7 @@ func addEventsToArchive(
 			// Write events page by page to temp file
 			writeErr := false
 			for {
-				if err := c.List(ctx, &NSevts, client.InNamespace(ns), client.Limit(fetchLimit), client.Continue(NSevts.Continue)); err != nil {
+				if err := c.List(ctx, &NSevts, client.InNamespace(ns), client.Limit(opt.FetchLimit), client.Continue(NSevts.Continue)); err != nil {
 					merr = append(merr, fmt.Errorf("failed to list events for namespace %q: %w", ns, err))
 					writeErr = true
 					break
@@ -466,13 +516,13 @@ func addEventsToArchive(
 	return errutil.NewAggregate(merr)
 }
 
-func addMetricsToArchive(ctx context.Context, c client.Client, logger logr.Logger, cfg *rest.Config, w *tar.Writer, fetchLimit int64) error {
+func addMetricsToArchive(ctx context.Context, c client.Client, logger logr.Logger, cfg *rest.Config, w *tar.Writer, opt Options) error {
 	ns := config.DefaultNamespace // XXX: support installation in non-default namespace, and check for services across all namespaces, by label?
 
 	var monitoringSvcs []corev1.Service
 	var svcs corev1.ServiceList
 	for {
-		opts := []client.ListOption{client.InNamespace(ns), client.Limit(fetchLimit), client.Continue(svcs.Continue)}
+		opts := []client.ListOption{client.InNamespace(ns), client.Limit(opt.FetchLimit), client.Continue(svcs.Continue)}
 
 		if err := c.List(ctx, &svcs, opts...); err != nil {
 			return fmt.Errorf("failed to list services for extracting metrics: %w", err)
@@ -499,7 +549,7 @@ func addMetricsToArchive(ctx context.Context, c client.Client, logger logr.Logge
 
 	// XXX: how about HelmOps? report missing svc?
 	for _, svc := range monitoringSvcs {
-		closeFn, port, httpCli, err := forwardPorts(ctx, cfg, logger, c, &svc, fetchLimit)
+		closeFn, port, httpCli, err := forwardPorts(ctx, cfg, logger, c, &svc, opt)
 		if err != nil {
 			return fmt.Errorf("failed to forward ports: %w", err)
 		}
@@ -566,7 +616,7 @@ func createDynamicClient(cfg *rest.Config) (dynamic.Interface, error) {
 // createDialer creates a dialer needed to build a port forwarder from the service svc.
 // It involves identifying the pod exposed by svc, since building a port forwarder using the service's K8s API URL
 // directly does not work.
-func createDialer(ctx context.Context, cfg *rest.Config, c client.Client, svc *corev1.Service, fetchLimit int64) (httpstream.Dialer, *http.Client, error) {
+func createDialer(ctx context.Context, cfg *rest.Config, c client.Client, svc *corev1.Service, opt Options) (httpstream.Dialer, *http.Client, error) {
 	var (
 		appLabel   string
 		shardKey   string
@@ -599,7 +649,7 @@ func createDialer(ctx context.Context, cfg *rest.Config, c client.Client, svc *c
 		opts := []client.ListOption{
 			client.InNamespace(svc.Namespace),
 			matchingLabels,
-			client.Limit(fetchLimit),
+			client.Limit(opt.FetchLimit),
 			client.Continue(pods.Continue),
 		}
 
@@ -657,7 +707,7 @@ func forwardPorts(
 	logger logr.Logger,
 	c client.Client,
 	svc *corev1.Service,
-	fetchLimit int64,
+	opt Options,
 ) (func(), int, *http.Client, error) {
 	fail := func(fmtStr string, args ...any) (func(), int, *http.Client, error) {
 		return func() {}, 0, nil, fmt.Errorf(fmtStr, args...)
@@ -669,7 +719,7 @@ func forwardPorts(
 
 	svcPort := svc.Spec.Ports[0].Port
 
-	dl, httpCli, err := createDialer(ctx, cfg, c, svc, fetchLimit)
+	dl, httpCli, err := createDialer(ctx, cfg, c, svc, opt)
 	if err != nil {
 		return fail("failed to create dialer for port forwarding for service %s/%s: %w", svc.Namespace, svc.Name, err)
 	}
@@ -735,4 +785,242 @@ func forwardPorts(
 	}
 
 	return closeFn, port, httpCli, nil
+}
+
+// CreateWithClientsFiltered creates a dump with namespace filtering support.
+// When opt.Namespace is set and opt.AllNamespaces is false, it filters resources
+// intelligently based on their relationships:
+// - GitRepos, Bundles, ClusterGroups, etc. are filtered by namespace
+// - BundleDeployments are filtered by bundle-namespace label
+// - Clusters may be in the bundle namespace or other namespaces
+func CreateWithClientsFiltered(ctx context.Context, cfg *rest.Config, d dynamic.Interface, c client.Client, path string, opt Options) error {
+	logger := log.FromContext(ctx).WithName("fleet-dump")
+
+	tgz, err := os.Create(path)
+	if err != nil {
+		return fmt.Errorf("failed to create %s: %w", path, err)
+	}
+
+	gz := gzip.NewWriter(tgz)
+	w := tar.NewWriter(gz)
+
+	// Collect bundle metadata if filtering by namespace
+	var bundleNames []string
+	if !opt.AllNamespaces && opt.Namespace != "" {
+		bundleNames, err = collectBundleNames(ctx, d, opt.Namespace, opt.FetchLimit)
+		if err != nil {
+			return fmt.Errorf("failed to collect bundle names: %w", err)
+		}
+		logger.Info("Filtering by namespace", "namespace", opt.Namespace, "bundles", len(bundleNames))
+	}
+
+	// Resources in the same namespace as GitRepos/Bundles
+	sameNamespaceTypes := []string{
+		"gitrepos",
+		"bundles",
+		"clusters",
+		"clustergroups",
+		"bundlenamespacemappings",
+		"gitreporestrictions",
+	}
+
+	for _, t := range sameNamespaceTypes {
+		if err := addObjectsToArchive(ctx, d, logger, "fleet.cattle.io", "v1alpha1", t, w, opt); err != nil {
+			return fmt.Errorf("failed to add %s to archive: %w", t, err)
+		}
+	}
+
+	// BundleDeployments: filter by bundle-namespace label when filtering
+	if err := addBundleDeployments(ctx, d, logger, w, opt); err != nil {
+		return fmt.Errorf("failed to add bundledeployments to archive: %w", err)
+	}
+
+	// HelmOps: filter by bundle-namespace label like BundleDeployments
+	if err := addHelmOps(ctx, d, logger, w, opt); err != nil {
+		return fmt.Errorf("failed to add helmops to archive: %w", err)
+	}
+
+	if opt.WithContent || opt.WithContentMetadata {
+		contentMetadataOnly := opt.WithContentMetadata && !opt.WithContent
+
+		var contentIDs []string
+		if !opt.AllNamespaces && opt.Namespace != "" {
+			var err error
+			contentIDs, err = collectContentIDs(ctx, d, opt.Namespace, opt.FetchLimit)
+			if err != nil {
+				return fmt.Errorf("failed to collect content IDs from bundles: %w", err)
+			}
+			logger.Info("Collected content IDs from bundles", "count", len(contentIDs))
+		}
+
+		if err := addContentsToArchive(ctx, d, logger, w, contentMetadataOnly, contentIDs, opt); err != nil {
+			return fmt.Errorf("failed to add contents to archive: %w", err)
+		}
+	}
+
+	if opt.WithSecrets || opt.WithSecretsMetadata {
+		secretsMetadataOnly := opt.WithSecretsMetadata && !opt.WithSecrets
+		if err := addSecretsToArchive(ctx, d, c, logger, w, secretsMetadataOnly, opt); err != nil {
+			return fmt.Errorf("failed to add secrets to archive: %w", err)
+		}
+	}
+
+	if err := addEventsToArchive(ctx, d, c, logger, w, opt); err != nil {
+		return fmt.Errorf("failed to add events to archive: %w", err)
+	}
+
+	if err := addMetricsToArchive(ctx, c, logger, cfg, w, opt); err != nil {
+		return fmt.Errorf("failed to add metrics to archive: %w", err)
+	}
+
+	if err := w.Close(); err != nil {
+		return fmt.Errorf("failed to close tar writer: %w", err)
+	}
+
+	if err := gz.Close(); err != nil {
+		return fmt.Errorf("failed to close gzip writer: %w", err)
+	}
+
+	return nil
+}
+
+// collectBundleNames fetches bundle names from the given namespace for filtering
+func collectBundleNames(ctx context.Context, d dynamic.Interface, namespace string, fetchLimit int64) ([]string, error) {
+	rID := schema.GroupVersionResource{
+		Group:    "fleet.cattle.io",
+		Version:  "v1alpha1",
+		Resource: "bundles",
+	}
+
+	var names []string
+	lo := metav1.ListOptions{Limit: fetchLimit}
+
+	for {
+		list, err := d.Resource(rID).Namespace(namespace).List(ctx, lo)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list bundles: %w", err)
+		}
+
+		for _, item := range list.Items {
+			names = append(names, item.GetName())
+		}
+
+		if list.GetContinue() == "" {
+			break
+		}
+		lo.Continue = list.GetContinue()
+	}
+
+	return names, nil
+}
+
+// collectContentIDs fetches content IDs referenced by BundleDeployments associated with bundles in the given namespace.
+// It queries BundleDeployments across all namespaces using the fleet.cattle.io/bundle-namespace label selector,
+// then extracts content names from the fleet.cattle.io/content-name label.
+func collectContentIDs(ctx context.Context, d dynamic.Interface, namespace string, fetchLimit int64) ([]string, error) {
+	rID := schema.GroupVersionResource{
+		Group:    "fleet.cattle.io",
+		Version:  "v1alpha1",
+		Resource: "bundledeployments",
+	}
+
+	contentIDMap := make(map[string]bool)
+	lo := metav1.ListOptions{
+		Limit:         fetchLimit,
+		LabelSelector: fmt.Sprintf("fleet.cattle.io/bundle-namespace=%s", namespace),
+	}
+
+	for {
+		// List BundleDeployments across all namespaces with the bundle-namespace label
+		list, err := d.Resource(rID).List(ctx, lo)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list bundledeployments: %w", err)
+		}
+
+		for _, item := range list.Items {
+			// Extract the content-name label
+			labels := item.GetLabels()
+			if contentName, ok := labels["fleet.cattle.io/content-name"]; ok && contentName != "" {
+				contentIDMap[contentName] = true
+			}
+		}
+
+		if list.GetContinue() == "" {
+			break
+		}
+		lo.Continue = list.GetContinue()
+	}
+
+	// Convert map to slice
+	ids := make([]string, 0, len(contentIDMap))
+	for id := range contentIDMap {
+		ids = append(ids, id)
+	}
+
+	return ids, nil
+}
+
+// addBundleDeployments adds bundledeployment resources to the archive.
+// When filtering by namespace, uses label selector for bundle-namespace.
+func addBundleDeployments(ctx context.Context, d dynamic.Interface, logger logr.Logger, w *tar.Writer, opt Options) error {
+	// When filtering by namespace, use label selector for bundle-namespace
+	if !opt.AllNamespaces && opt.Namespace != "" {
+		return addObjectsWithLabelSelector(ctx, d, logger, "fleet.cattle.io", "v1alpha1", "bundledeployments", w,
+			fmt.Sprintf("fleet.cattle.io/bundle-namespace=%s", opt.Namespace), opt.FetchLimit)
+	}
+	return addObjectsToArchive(ctx, d, logger, "fleet.cattle.io", "v1alpha1", "bundledeployments", w, opt)
+}
+
+// addHelmOps adds helmop resources to the archive.
+// When filtering by namespace, uses label selector for bundle-namespace like BundleDeployments.
+func addHelmOps(ctx context.Context, d dynamic.Interface, logger logr.Logger, w *tar.Writer, opt Options) error {
+	// Filter by bundle-namespace label like BundleDeployments
+	if !opt.AllNamespaces && opt.Namespace != "" {
+		return addObjectsWithLabelSelector(ctx, d, logger, "fleet.cattle.io", "v1alpha1", "helmops", w,
+			fmt.Sprintf("fleet.cattle.io/bundle-namespace=%s", opt.Namespace), opt.FetchLimit)
+	}
+	return addObjectsToArchive(ctx, d, logger, "fleet.cattle.io", "v1alpha1", "helmops", w, opt)
+}
+
+// addObjectsWithLabelSelector fetches resources using a label selector (across all namespaces)
+func addObjectsWithLabelSelector(ctx context.Context, d dynamic.Interface, logger logr.Logger, g, v, r string, w *tar.Writer, labelSelector string, fetchLimit int64) error {
+	rID := schema.GroupVersionResource{
+		Group:    g,
+		Version:  v,
+		Resource: r,
+	}
+
+	logger.V(1).Info("Fetching with label selector...", "resource", rID.String(), "labelSelector", labelSelector)
+
+	lo := metav1.ListOptions{
+		Limit:         fetchLimit,
+		LabelSelector: labelSelector,
+	}
+
+	for {
+		list, err := d.Resource(rID).List(ctx, lo)
+		if err != nil {
+			return fmt.Errorf("failed to list %s: %w", r, err)
+		}
+
+		for _, i := range list.Items {
+			g, err := yaml.Marshal(&i)
+			if err != nil {
+				return fmt.Errorf("failed to marshal %s: %w", r, err)
+			}
+
+			fileName := fmt.Sprintf("%s_%s_%s", r, i.GetNamespace(), i.GetName())
+			if err := addFileToArchive(g, fileName, w); err != nil {
+				return err
+			}
+		}
+
+		c := list.GetContinue()
+		if c == "" {
+			break
+		}
+		lo.Continue = c
+	}
+
+	return nil
 }
