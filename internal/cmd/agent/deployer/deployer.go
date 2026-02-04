@@ -16,7 +16,6 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	"github.com/rancher/wrangler/v3/pkg/condition"
-	"github.com/rancher/wrangler/v3/pkg/kv"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
@@ -125,7 +124,14 @@ func (d *Deployer) helmdeploy(ctx context.Context, logger logr.Logger, bd *fleet
 			return bd.Status.Release, nil
 		}
 	}
-	manifestID, _ := kv.Split(bd.Spec.DeploymentID, ":")
+
+	// manifestID is used for manifest/OCI lookups
+	// DeploymentID format is "manifestID:optionsHash"
+	manifestID := bd.Spec.DeploymentID
+	if specManifestID, _, found := strings.Cut(bd.Spec.DeploymentID, ":"); found {
+		manifestID = specManifestID
+	}
+
 	var (
 		m   *manifest.Manifest
 		err error

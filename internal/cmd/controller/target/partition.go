@@ -1,6 +1,8 @@
 package target
 
 import (
+	"reflect"
+
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -77,6 +79,15 @@ func maxUnavailablePartitions(partitions []partition, targets []*Target) (int, e
 // updateDeploymentFromStaged will update DeploymentID and Options for the target to the
 // staging values, if it's in a deployable state
 func updateDeploymentFromStaged(t *Target, bundleStatus *fleet.BundleStatus, partitionStatus *fleet.PartitionStatus) {
+	if t.Deployment != nil &&
+		!t.IsPaused() &&
+		t.Deployment.Spec.StagedDeploymentID != "" &&
+		t.Deployment.Spec.DeploymentID == t.Deployment.Spec.StagedDeploymentID &&
+		!reflect.DeepEqual(t.Deployment.Spec.Options.Diff, t.Deployment.Spec.StagedOptions.Diff) {
+		// Keep diff options in sync even when the DeploymentID is unchanged.
+		t.Deployment.Spec.Options.Diff = t.Deployment.Spec.StagedOptions.Diff
+	}
+
 	if t.Deployment != nil &&
 		// Not Paused
 		!t.IsPaused() &&

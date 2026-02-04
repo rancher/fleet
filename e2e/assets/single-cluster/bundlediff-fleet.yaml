@@ -1,0 +1,10 @@
+defaultNamespace: {{.TargetNamespace}}
+resources:
+- content: |
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: bundlediff-gitops-cm
+    data:
+      key: original-value
+  name: cm.yaml

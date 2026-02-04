@@ -771,12 +771,32 @@ var _ = Describe("Fleet bundlediff", func() {
 		BeforeEach(func() {
 			bundleDeploymentName = "test-bd-fleet-yaml"
 			bundleName = "test-bundle-fleet-yaml"
+
+			// Create Bundle first
+			bundle := &fleet.Bundle{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      bundleName,
+					Namespace: namespace,
+				},
+				Spec: fleet.BundleSpec{
+					Resources: []fleet.BundleResource{
+						{
+							Name:    "simple-chart",
+							Content: "H4sIFAAAAAAA/ydIzEsBAAAAAP//AQAA//8BAAABAAAAAA==",
+						},
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, bundle)).ToNot(HaveOccurred())
+
+			// Create BundleDeployment with bundle-namespace label
 			bd := &fleet.BundleDeployment{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      bundleDeploymentName,
 					Namespace: namespace,
 					Labels: map[string]string{
-						"fleet.cattle.io/bundle-name": bundleName,
+						"fleet.cattle.io/bundle-name":      bundleName,
+						"fleet.cattle.io/bundle-namespace": namespace,
 					},
 				},
 				Spec: fleet.BundleDeploymentSpec{
@@ -791,17 +811,18 @@ var _ = Describe("Fleet bundlediff", func() {
 					APIVersion: "v1",
 					Namespace:  "bundle-diffs-example",
 					Name:       "app-config",
-					Patch:      `[{"op":"remove","path":"/data"}]`,
+					Patch:      `{"data":null}`,
 				},
 			}
 			Expect(k8sClient.Status().Update(ctx, bd)).ToNot(HaveOccurred())
 
 			DeferCleanup(func() {
 				_ = k8sClient.Delete(ctx, bd)
+				_ = k8sClient.Delete(ctx, bundle)
 			})
 		})
 
-		It("should output in fleet.yaml format", func() {
+		It("should output single resource in fleet.yaml format", func() {
 			buf, _, err := act([]string{"--bundle-deployment", bundleDeploymentName, "--fleet-yaml"}, namespace)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -821,7 +842,7 @@ var _ = Describe("Fleet bundlediff", func() {
 					APIVersion: "apps/v1",
 					Namespace:  "test-ns",
 					Name:       "my-deployment",
-					Patch:      `[{"op":"replace","path":"/spec/replicas","value":3},{"op":"remove","path":"/spec/template/metadata/labels/old-label"}]`,
+					Patch:      `{"spec":{"replicas":3,"template":{"metadata":{"labels":{"old-label":null}}}}}`,
 				},
 			}
 			Expect(k8sClient.Status().Update(ctx, bd)).ToNot(HaveOccurred())
@@ -845,14 +866,14 @@ var _ = Describe("Fleet bundlediff", func() {
 					APIVersion: "v1",
 					Namespace:  "ns1",
 					Name:       "cm1",
-					Patch:      `[{"op":"add","path":"/data/key1","value":"val1"}]`,
+					Patch:      `{"data":{"key1":"val1"}}`,
 				},
 				{
 					Kind:       "Secret",
 					APIVersion: "v1",
 					Namespace:  "ns2",
 					Name:       "secret1",
-					Patch:      `[{"op":"remove","path":"/data/password"}]`,
+					Patch:      `{"data":{"password":null}}`,
 				},
 			}
 			Expect(k8sClient.Status().Update(ctx, bd)).ToNot(HaveOccurred())
@@ -886,7 +907,7 @@ var _ = Describe("Fleet bundlediff", func() {
 			Expect(buf.Contents()).To(BeEmpty())
 		})
 
-		It("should skip operations with empty op field", func() {
+		It("should convert null values to remove operations", func() {
 			bd := &fleet.BundleDeployment{}
 			Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: bundleDeploymentName}, bd)).ToNot(HaveOccurred())
 
@@ -896,7 +917,65 @@ var _ = Describe("Fleet bundlediff", func() {
 					APIVersion: "v1",
 					Namespace:  "test-ns",
 					Name:       "empty-op-cm",
-					Patch:      `[{"op":"","path":"/data/key"},{"op":"remove","path":"/data/valid"}]`,
+					Patch:      `{"data":{"key":null,"valid":null}}`,
+				},
+			}
+			Expect(k8sClient.Status().Update(ctx, bd)).ToNot(HaveOccurred())
+
+			buf, _, err := act([]string{"--bundle-deployment", bundleDeploymentName, "--fleet-yaml"}, namespace)
+			Expect(err).NotTo(HaveOccurred())
+
+			expected, err := os.ReadFile(filepath.Join("testdata", "fleet-yaml-empty-op.yaml"))
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(strings.TrimSpace(string(buf.Contents()))).To(Equal(strings.TrimSpace(string(expected))))
+		})
+
+		It("should convert patch format to remove operations", func() {
+			bd := &fleet.BundleDeployment{}
+			Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: bundleDeploymentName}, bd)).ToNot(HaveOccurred())
+
+			bd.Status.ModifiedStatus = []fleet.ModifiedStatus{
+				{
+					Kind:       "Deployment",
+					APIVersion: "apps/v1",
+					Namespace:  "test-ns",
+					Name:       "nginx-deploy",
+					Patch:      `{"spec":{"replicas":3}}`,
+				},
+				{
+					Kind:       "ConfigMap",
+					APIVersion: "v1",
+					Namespace:  "test-ns",
+					Name:       "config-map",
+					Patch:      `{"data":{"key":"value"}}`,
+				},
+			}
+			Expect(k8sClient.Status().Update(ctx, bd)).ToNot(HaveOccurred())
+
+			buf, _, err := act([]string{"--bundle-deployment", bundleDeploymentName, "--fleet-yaml"}, namespace)
+			Expect(err).NotTo(HaveOccurred())
+
+			expected, err := os.ReadFile(filepath.Join("testdata", "fleet-yaml-merge-patch.yaml"))
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(strings.TrimSpace(string(buf.Contents()))).To(Equal(strings.TrimSpace(string(expected))))
+		})
+
+		It("should properly escape JSON Pointer tokens in annotation keys", func() {
+			bd := &fleet.BundleDeployment{}
+			Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: bundleDeploymentName}, bd)).ToNot(HaveOccurred())
+
+			// Test with annotation key containing '/', which must be escaped as ~1 in JSON Pointer
+			bd.Status.ModifiedStatus = []fleet.ModifiedStatus{
+				{
+					Kind:       "ConfigMap",
+					APIVersion: "v1",
+					Namespace:  "test-ns",
+					Name:       "annotation-test-cm",
+					// metadata.annotations with key "kubectl.kubernetes.io/lastAppliedConfiguration"
+					// should have the '/' characters properly escaped in the path
+					Patch: `{"metadata":{"annotations":{"kubectl.kubernetes.io/lastAppliedConfiguration":null}}}`,
 				},
 			}
 			Expect(k8sClient.Status().Update(ctx, bd)).ToNot(HaveOccurred())
@@ -905,11 +984,20 @@ var _ = Describe("Fleet bundlediff", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			output := string(buf.Contents())
-			// Should contain only the valid remove operation
-			Expect(output).To(ContainSubstring("op: remove"))
-			Expect(output).To(ContainSubstring("/data/valid"))
-			// Should have only one operation
-			Expect(strings.Count(output, "op:")).To(Equal(1))
+			// The path should have '/' escaped as '~1': /metadata/annotations/kubectl.kubernetes.io~1lastAppliedConfiguration
+			Expect(output).To(ContainSubstring("kubectl.kubernetes.io~1lastAppliedConfiguration"))
+		})
+
+		It("should require --bundle-deployment when using --fleet-yaml", func() {
+			_, errBuf, err := act([]string{"--fleet-yaml"}, namespace)
+			Expect(err).To(HaveOccurred())
+			Expect(string(errBuf.Contents())).To(ContainSubstring("--fleet-yaml requires --bundle-deployment to be specified"))
+		})
+
+		It("should require --bundle-deployment when using --fleet-yaml with --bundle", func() {
+			_, errBuf, err := act([]string{"--bundle", bundleName, "--fleet-yaml"}, namespace)
+			Expect(err).To(HaveOccurred())
+			Expect(string(errBuf.Contents())).To(ContainSubstring("--fleet-yaml requires --bundle-deployment to be specified"))
 		})
 	})
 })
