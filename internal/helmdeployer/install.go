@@ -120,8 +120,8 @@ func (h *Helm) install(ctx context.Context, bundleID string, manifest *manifest.
 		return h.runInstall(ctx, cfg, chart, values, releaseName, defaultNamespace, timeout, options, pr, dryRunCfg)
 	}
 
-	// Before running upgrade, check if we're upgrading from a pending-install with no previous version
-	// In this case, enable Force to handle the potentially corrupted state
+	// Before running upgrade, check if we're upgrading from a pending-install with no previous version.
+	// IIn this case, ensure any orphaned pending-install release is marked as failed so the upgrade can proceed cleanly.
 	if err := h.ensureForceOnOrphanedPendingInstall(ctx, cfg, releaseName); err != nil {
 		return nil, err
 	}

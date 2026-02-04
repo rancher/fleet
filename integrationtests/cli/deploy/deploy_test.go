@@ -283,7 +283,7 @@ var _ = Describe("Fleet CLI Deploy", func() {
 			})
 		})
 
-		It("installs the release successfully", func() {
+		It("upgrades an orphaned pending-install release while preserving history", func() {
 			buf, err := act(args)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -420,7 +420,7 @@ var _ = Describe("Fleet CLI Deploy", func() {
 			})
 		})
 
-		It("upgrades using Force to handle the missing history", func() {
+		It("upgrades an orphaned pending-install release while preserving history", func() {
 			buf, err := act(args)
 			Expect(err).NotTo(HaveOccurred())
 
