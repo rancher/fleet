@@ -104,293 +104,143 @@ builds:
 snapshot:
   version_template: "{{ .Tag }}-next"
 
-dockers:
-  # fleet-controller images
+dockers_v2:
+  # Public fleet-controller images
   -
-    use: buildx
-    id: fleet-amd64-public
-    skip_push: "{{ .Env.IS_HOTFIX }}"
-
-    # GOOS of the built binaries/packages that should be used.
-    goos: linux
-
-    # GOARCH of the built binaries/packages that should be used.
-    goarch: amd64
-
-    # IDs to filter the binaries/packages.
+    id: fleet-public
+    disable: "{{ .Env.IS_HOTFIX }}"
     ids:
     - fleet-controller
     - fleet-cli
-
-    # Templates of the Docker image names.
-    image_templates:
-    - "docker.io/rancher/fleet:{{ .Tag }}-linux-amd64"
-
-    # Path to the Dockerfile (from the project root).
+    images:
+    - "docker.io/rancher/fleet"
+    tags:
+    - "{{ .Tag }}"
     dockerfile: package/Dockerfile
+    labels:
+      "org.opencontainers.image.created": "{{.Date}}"
+      "org.opencontainers.image.title": "{{.ProjectName}}"
+      "org.opencontainers.image.revision": "{{.FullCommit}}"
+      "org.opencontainers.image.version": "{{.Version}}"
+      "org.opencontainers.image.source": "https://github.com/rancher/fleet"
+    build_args:
+      ARCH: "{{ .Arch }}"
+      BUILD_ENV: "goreleaser"
+    flags:
+    - "--pull"
+    extra_files: [ "package/log.sh" ]
+    platforms:
+    - linux/amd64
+    - linux/arm64/v8
 
-    # Template of the docker build flags.
-    build_flag_templates:
-    - "--pull"
-    - "--label=org.opencontainers.image.created={{.Date}}"
-    - "--label=org.opencontainers.image.title={{.ProjectName}}"
-    - "--label=org.opencontainers.image.revision={{.FullCommit}}"
-    - "--label=org.opencontainers.image.version={{.Version}}"
-    - "--label=org.opencontainers.image.source=https://github.com/rancher/fleet"
-    - "--build-arg=ARCH=amd64"
-    - "--build-arg=BUILD_ENV=goreleaser"
-    - "--platform=linux/amd64"
-    extra_files: [ "package/log.sh" ]
+  # Public fleet-agent images
   -
-    use: buildx
-    id: fleet-arm64-public
-    skip_push: "{{ .Env.IS_HOTFIX }}"
-    goos: linux
-    goarch: arm64
-    ids:
-    - fleet-controller
-    - fleet-cli
-    image_templates:
-    - "docker.io/rancher/fleet:{{ .Tag }}-linux-arm64"
-    dockerfile: package/Dockerfile
-    build_flag_templates:
-    - "--pull"
-    - "--label=org.opencontainers.image.created={{.Date}}"
-    - "--label=org.opencontainers.image.title={{.ProjectName}}"
-    - "--label=org.opencontainers.image.revision={{.FullCommit}}"
-    - "--label=org.opencontainers.image.version={{.Version}}"
-    - "--label=org.opencontainers.image.source=https://github.com/rancher/fleet"
-    - "--build-arg=ARCH=arm64"
-    - "--build-arg=BUILD_ENV=goreleaser"
-    - "--platform=linux/arm64/v8"
-    extra_files: [ "package/log.sh" ]
-  # fleet-agent images
-  -
-    use: buildx
-    id: fleet-agent-amd64-public
-    skip_push: "{{ .Env.IS_HOTFIX }}"
-    goos: linux
-    goarch: amd64
+    id: fleet-agent-public
+    disable: "{{ .Env.IS_HOTFIX }}"
     ids:
     - fleet-agent
-    image_templates:
-    - "docker.io/rancher/fleet-agent:{{ .Tag }}-linux-amd64"
+    images:
+    - "docker.io/rancher/fleet-agent"
+    tags:
+    - "{{ .Tag }}"
     dockerfile: package/Dockerfile.agent
-    build_flag_templates:
+    labels:
+      "org.opencontainers.image.created": "{{.Date}}"
+      "org.opencontainers.image.title": "{{.ProjectName}}"
+      "org.opencontainers.image.revision": "{{.FullCommit}}"
+      "org.opencontainers.image.version": "{{.Version}}"
+      "org.opencontainers.image.source": "https://github.com/rancher/fleet"
+    build_args:
+      ARCH: "{{ .Arch }}"
+      BUILD_ENV: "goreleaser"
+    flags:
     - "--pull"
-    - "--label=org.opencontainers.image.created={{.Date}}"
-    - "--label=org.opencontainers.image.title={{.ProjectName}}"
-    - "--label=org.opencontainers.image.revision={{.FullCommit}}"
-    - "--label=org.opencontainers.image.version={{.Version}}"
-    - "--label=org.opencontainers.image.source=https://github.com/rancher/fleet"
-    - "--build-arg=ARCH=amd64"
-    - "--build-arg=BUILD_ENV=goreleaser"
-    - "--platform=linux/amd64"
+    platforms:
+    - linux/amd64
+    - linux/arm64/v8
+
+  # Staging fleet-controller images with provenance
   -
-    use: buildx
-    id: fleet-agent-arm64-public
-    skip_push: "{{ .Env.IS_HOTFIX }}"
-    goos: linux
-    goarch: arm64
-    ids:
-    - fleet-agent
-    image_templates:
-    - "docker.io/rancher/fleet-agent:{{ .Tag }}-linux-arm64"
-    dockerfile: package/Dockerfile.agent
-    build_flag_templates:
-    - "--pull"
-    - "--label=org.opencontainers.image.created={{.Date}}"
-    - "--label=org.opencontainers.image.title={{.ProjectName}}"
-    - "--label=org.opencontainers.image.revision={{.FullCommit}}"
-    - "--label=org.opencontainers.image.version={{.Version}}"
-    - "--label=org.opencontainers.image.source=https://github.com/rancher/fleet"
-    - "--build-arg=ARCH=arm64"
-    - "--build-arg=BUILD_ENV=goreleaser"
-    - "--platform=linux/arm64/v8"
-
-  # Staging fleet-controller images
-  -
-    use: buildx
-    id: fleet-amd64-private
-
-    # GOOS of the built binaries/packages that should be used.
-    goos: linux
-
-    # GOARCH of the built binaries/packages that should be used.
-    goarch: amd64
-
-    # IDs to filter the binaries/packages.
+    id: fleet-private
     ids:
     - fleet-controller
     - fleet-cli
-
-    # Templates of the Docker image names.
-    image_templates:
-    - "{{ .Env.STAGE_REGISTRY }}/rancher/fleet:{{ .Tag }}-linux-amd64"
-
-    # Path to the Dockerfile (from the project root).
+    images:
+    - "{{ .Env.STAGE_REGISTRY }}/rancher/fleet"
+    tags:
+    - "{{ .Tag }}"
     dockerfile: package/Dockerfile
-
-    # Template of the docker build flags.
-    build_flag_templates:
+    labels:
+      "org.opencontainers.image.created": "{{.Date}}"
+      "org.opencontainers.image.title": "{{.ProjectName}}"
+      "org.opencontainers.image.revision": "{{.FullCommit}}"
+      "org.opencontainers.image.version": "{{.Version}}"
+      "org.opencontainers.image.source": "https://github.com/rancher/fleet"
+    build_args:
+      ARCH: "{{ .Arch }}"
+      BUILD_ENV: "goreleaser"
+    flags:
     - "--pull"
-    - "--label=org.opencontainers.image.created={{.Date}}"
-    - "--label=org.opencontainers.image.title={{.ProjectName}}"
-    - "--label=org.opencontainers.image.revision={{.FullCommit}}"
-    - "--label=org.opencontainers.image.version={{.Version}}"
-    - "--label=org.opencontainers.image.source=https://github.com/rancher/fleet"
-    - "--build-arg=ARCH=amd64"
-    - "--build-arg=BUILD_ENV=goreleaser"
-    - "--platform=linux/amd64"
     - "--sbom=true"
     - "--provenance=true"
     - "--provenance=mode=max"
     extra_files: [ "package/log.sh" ]
+    platforms:
+    - linux/amd64
+    - linux/arm64/v8
+
+  # Staging fleet-agent images with provenance
   -
-    use: buildx
-    id: fleet-arm64-private
-    goos: linux
-    goarch: arm64
-    ids:
-    - fleet-controller
-    - fleet-cli
-    image_templates:
-    - "{{ .Env.STAGE_REGISTRY }}/rancher/fleet:{{ .Tag }}-linux-arm64"
-    dockerfile: package/Dockerfile
-    build_flag_templates:
-    - "--pull"
-    - "--label=org.opencontainers.image.created={{.Date}}"
-    - "--label=org.opencontainers.image.title={{.ProjectName}}"
-    - "--label=org.opencontainers.image.revision={{.FullCommit}}"
-    - "--label=org.opencontainers.image.version={{.Version}}"
-    - "--label=org.opencontainers.image.source=https://github.com/rancher/fleet"
-    - "--build-arg=ARCH=arm64"
-    - "--build-arg=BUILD_ENV=goreleaser"
-    - "--platform=linux/arm64/v8"
-    - "--sbom=true"
-    - "--provenance=true"
-    - "--provenance=mode=max"
-    extra_files: [ "package/log.sh" ]
-  # fleet-agent images
-  -
-    use: buildx
-    id: fleet-agent-amd64-private
-    goos: linux
-    goarch: amd64
+    id: fleet-agent-private
     ids:
     - fleet-agent
-    image_templates:
-    - "{{ .Env.STAGE_REGISTRY }}/rancher/fleet-agent:{{ .Tag }}-linux-amd64"
+    images:
+    - "{{ .Env.STAGE_REGISTRY }}/rancher/fleet-agent"
+    tags:
+    - "{{ .Tag }}"
     dockerfile: package/Dockerfile.agent
-    build_flag_templates:
+    labels:
+      "org.opencontainers.image.created": "{{.Date}}"
+      "org.opencontainers.image.title": "{{.ProjectName}}"
+      "org.opencontainers.image.revision": "{{.FullCommit}}"
+      "org.opencontainers.image.version": "{{.Version}}"
+      "org.opencontainers.image.source": "https://github.com/rancher/fleet"
+    build_args:
+      ARCH: "{{ .Arch }}"
+      BUILD_ENV: "goreleaser"
+    flags:
     - "--pull"
-    - "--label=org.opencontainers.image.created={{.Date}}"
-    - "--label=org.opencontainers.image.title={{.ProjectName}}"
-    - "--label=org.opencontainers.image.revision={{.FullCommit}}"
-    - "--label=org.opencontainers.image.version={{.Version}}"
-    - "--label=org.opencontainers.image.source=https://github.com/rancher/fleet"
-    - "--build-arg=ARCH=amd64"
-    - "--build-arg=BUILD_ENV=goreleaser"
-    - "--platform=linux/amd64"
     - "--sbom=true"
     - "--provenance=true"
     - "--provenance=mode=max"
-  -
-    use: buildx
-    id: fleet-agent-arm64-private
-    goos: linux
-    goarch: arm64
-    ids:
-    - fleet-agent
-    image_templates:
-    - "{{ .Env.STAGE_REGISTRY }}/rancher/fleet-agent:{{ .Tag }}-linux-arm64"
-    dockerfile: package/Dockerfile.agent
-    build_flag_templates:
-    - "--pull"
-    - "--label=org.opencontainers.image.created={{.Date}}"
-    - "--label=org.opencontainers.image.title={{.ProjectName}}"
-    - "--label=org.opencontainers.image.revision={{.FullCommit}}"
-    - "--label=org.opencontainers.image.version={{.Version}}"
-    - "--label=org.opencontainers.image.source=https://github.com/rancher/fleet"
-    - "--build-arg=ARCH=arm64"
-    - "--build-arg=BUILD_ENV=goreleaser"
-    - "--platform=linux/arm64/v8"
-    - "--sbom=true"
-    - "--provenance=true"
-    - "--provenance=mode=max"
+    platforms:
+    - linux/amd64
+    - linux/arm64/v8
 
-
-docker_manifests:
-  # https://goreleaser.com/customization/docker_manifest/
-  - name_template: "docker.io/rancher/fleet:{{ .Tag }}"
-    id: fleet-manifest-public
-    skip_push: "{{ .Env.IS_HOTFIX }}"
-    image_templates:
-    - "docker.io/rancher/fleet:{{ .Tag }}-linux-amd64"
-    - "docker.io/rancher/fleet:{{ .Tag }}-linux-arm64"
-
-  - name_template: "docker.io/rancher/fleet-agent:{{ .Tag }}"
-    id: fleet-agent-manifest-public
-    skip_push: "{{ .Env.IS_HOTFIX }}"
-    image_templates:
-    - "docker.io/rancher/fleet-agent:{{ .Tag }}-linux-amd64"
-    - "docker.io/rancher/fleet-agent:{{ .Tag }}-linux-arm64"
-
-    # Disabled until `docker manifest create` supports provenance meta data
-    # https://github.com/goreleaser/goreleaser/issues/5597
-    # - name_template: "{{ .Env.STAGE_REGISTRY }}/rancher/fleet:{{ .Tag }}"
-    #   id: fleet-manifest-private
-    #   image_templates:
-    #   - "{{ .Env.STAGE_REGISTRY }}/rancher/fleet:{{ .Tag }}-linux-amd64"
-    #   - "{{ .Env.STAGE_REGISTRY }}/rancher/fleet:{{ .Tag }}-linux-arm64"
-    #
-    #  - name_template: "{{ .Env.STAGE_REGISTRY }}/rancher/fleet-agent:{{ .Tag }}"
-    #    id: fleet-agent-manifest-private
-    #    image_templates:
-    #    - "{{ .Env.STAGE_REGISTRY }}/rancher/fleet-agent:{{ .Tag }}-linux-amd64"
-    #    - "{{ .Env.STAGE_REGISTRY }}/rancher/fleet-agent:{{ .Tag }}-linux-arm64"
+docker_digest:
+  name_template: "digests.txt"
 
 docker_signs:
-  - # ID of the sign config, must be unique.
-    # Only relevant if you want to produce some sort of signature file.
-    #
-    # Default: 'default'.
-    id: prime
-
-    # Path to the signature command.
-    #
-    # Default: 'cosign'.
+  - id: prime-fleet
     cmd: cosign
-
-    # Command line arguments for the command.
-    #
-    # Default: ["sign", "--key=cosign.key", "${artifact}", "--yes"].
-    # Templates: allowed.
     args:
       - "sign"
       - "--oidc-provider=github-actions"
-      - "--yes" # needed on cosign 2.0.0+
-      - "--sign-container-identity={{ .Env.PRIME_REGISTRY }}/rancher/fleet{{ if contains \"agent\" \"${artifact}\" }}-agent{{ end }}"
+      - "--yes"
+      - "--sign-container-identity={{ .Env.PRIME_REGISTRY }}/rancher/fleet"
       - "${artifact}@${digest}"
-
-    # Which artifacts to sign.
-    #
-    #   all:       all artifacts
-    #   none:      no signing
-    #   images:    only docker images
-    #   manifests: only docker manifests
-    #
-    # Default: 'none'.
     artifacts: all
-
-    # IDs of the artifacts to sign.
     ids:
-      - fleet-amd64-private
-      - fleet-arm64-private
-      - fleet-agent-amd64-private
-      - fleet-agent-arm64-private
-      # Disabled until `docker manifest create` supports provenance meta data
-      # https://github.com/goreleaser/goreleaser/issues/5597
-      # Make sure to remove the workaround in release.yaml before activating it
-      #  - fleet-manifest-private
-      #  - fleet-agent-manifest-private
+      - fleet-private
+
+  - id: prime-fleet-agent
+    cmd: cosign
+    args:
+      - "sign"
+      - "--oidc-provider=github-actions"
+      - "--yes"
+      - "--sign-container-identity={{ .Env.PRIME_REGISTRY }}/rancher/fleet-agent"
+      - "${artifact}@${digest}"
+    artifacts: all
+    ids:
+      - fleet-agent-private
