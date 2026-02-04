@@ -904,6 +904,7 @@ var _ = Describe("Fleet apply with dependsOn and acceptedStates", func() {
 			Expect(bundle.Spec.DependsOn[0].Selector).NotTo(BeNil())
 			Expect(bundle.Spec.DependsOn[0].Selector.MatchLabels).To(HaveKeyWithValue("app", "database"))
 			Expect(bundle.Spec.DependsOn[0].Selector.MatchLabels).To(HaveKeyWithValue("tier", "backend"))
+			Expect(bundle.Spec.DependsOn[0].AcceptedStates).To(ConsistOf(v1alpha1.Ready, v1alpha1.Modified))
 		})
 	})
 
