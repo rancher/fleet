@@ -25,7 +25,7 @@ env:
   GOARCH: amd64
   CGO_ENABLED: 0
   SETUP_K3D_VERSION: "v5.8.3"
-  SETUP_K3S_VERSION: "v1.34.1-k3s1"
+  SETUP_K3S_VERSION: "v1.35.0-k3s1"
   # Defaults for both manual and scheduled runs
   BENCH_TIMEOUT: ${{ github.event.inputs.timeout || '2m' }}
   BENCH_NAMESPACE: ${{ github.event.inputs.namespace || 'fleet-local' }}
@@ -37,12 +37,12 @@ jobs:
     timeout-minutes: 90
     steps:
       - name: Checkout
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
 
       - name: Setup Go
-        uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6
+        uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
         with:
           go-version-file: "go.mod"
           check-latest: true
@@ -108,7 +108,7 @@ jobs:
           echo "Found report: $safe_file"
 
       - name: Upload benchmark JSON
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: benchmark-report
           path: ${{ steps.report.outputs.report }}

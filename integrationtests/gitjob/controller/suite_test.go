@@ -92,6 +92,9 @@ var _ = BeforeSuite(func() {
 
 	Expect(gitops.AddRepoNameLabelIndexer(ctx, mgr)).ToNot(HaveOccurred())
 	Expect(gitops.AddImageScanGitRepoIndexer(ctx, mgr)).ToNot(HaveOccurred())
+	Expect(gitops.AddGitRepoClientSecretNameIndexer(ctx, mgr)).ToNot(HaveOccurred())
+	Expect(gitops.AddGitRepoHelmSecretNameIndexer(ctx, mgr)).ToNot(HaveOccurred())
+	Expect(gitops.AddGitRepoHelmSecretNameForPathsIndexer(ctx, mgr)).ToNot(HaveOccurred())
 
 	ctlr := gomock.NewController(GinkgoT())
 
@@ -99,10 +102,21 @@ var _ = BeforeSuite(func() {
 	GinkgoWriter.TeeTo(&logsBuffer)
 	ctrl.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 
-	// return whatever commit the test is expecting
+	// return whatever commit the test is expecting, but simulate failure if secret is missing
 	fetcherMock := mocks.NewMockGitFetcher(ctlr)
 	fetcherMock.EXPECT().LatestCommit(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(
-		func(ctx context.Context, gitrepo *v1alpha1.GitRepo, client client.Client) (string, error) {
+		func(ctx context.Context, gitrepo *v1alpha1.GitRepo, c client.Client) (string, error) {
+			// Check if the referenced client secret exists (simulating real git auth behavior)
+			if gitrepo.Spec.ClientSecretName != "" {
+				secret := &corev1.Secret{}
+				err := c.Get(ctx, types.NamespacedName{
+					Name:      gitrepo.Spec.ClientSecretName,
+					Namespace: gitrepo.Namespace,
+				}, secret)
+				if err != nil {
+					return "", fmt.Errorf("failed to get client secret: %w", err)
+				}
+			}
 			return expectedCommit, nil
 		},
 	)
