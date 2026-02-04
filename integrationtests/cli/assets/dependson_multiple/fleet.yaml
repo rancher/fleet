@@ -1,0 +1,17 @@
+defaultNamespace: test-dependson
+dependsOn:
+- name: first-dependency
+  acceptedStates:
+  - Ready
+- name: second-dependency
+  acceptedStates:
+  - Ready
+  - Modified
+- selector:
+    matchLabels:
+      app: third
+  acceptedStates:
+  - Ready
+  - NotReady
+targets:
+- clusterSelector: {}

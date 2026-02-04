@@ -1,0 +1,11 @@
+defaultNamespace: test-dependson
+dependsOn:
+- selector:
+    matchLabels:
+      app: database
+      tier: backend
+  acceptedStates:
+  - Ready
+  - Modified
+targets:
+- clusterSelector: {}
