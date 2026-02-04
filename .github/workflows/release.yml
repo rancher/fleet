@@ -218,7 +218,6 @@ jobs:
 
           while read -r image_with_digest; do
             img_tag="${image_with_digest%@*}"
-            img_digest="${image_with_digest#*@}"
 
             if [[ "${img_tag}" =~ -linux-([^:]+)$ ]]; then
               platform="linux/${BASH_REMATCH[1]}"
