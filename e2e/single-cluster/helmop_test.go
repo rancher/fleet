@@ -204,6 +204,12 @@ var _ = Describe("HelmOp resource with polling of OCI registry", Label("infra-se
 	BeforeEach(func() {
 		helmOpsSecretName = testenv.AddRandomSuffix(helmOpsSecretNameBase, rand.New(rand.NewSource(time.Now().UnixNano())))
 		k = env.Kubectl.Namespace(env.Namespace)
+		out, err := k.Create(
+			"secret", "generic", helmOpsSecretName,
+			"--from-literal=username="+os.Getenv("CI_OCI_USERNAME"),
+			"--from-literal=password="+os.Getenv("CI_OCI_PASSWORD"),
+		)
+		Expect(err).ToNot(HaveOccurred(), out)
 	})
 
 	JustBeforeEach(func() {
@@ -212,14 +218,7 @@ var _ = Describe("HelmOp resource with polling of OCI registry", Label("infra-se
 			rand.New(rand.NewSource(time.Now().UnixNano())),
 		)
 
-		out, err := k.Create(
-			"secret", "generic", helmOpsSecretName,
-			"--from-literal=username="+os.Getenv("CI_OCI_USERNAME"),
-			"--from-literal=password="+os.Getenv("CI_OCI_PASSWORD"),
-		)
-		Expect(err).ToNot(HaveOccurred(), out)
-
-		err = testenv.ApplyTemplate(k, testenv.AssetPath("helmop/helmop.yaml"), struct {
+		err := testenv.ApplyTemplate(k, testenv.AssetPath("helmop/helmop.yaml"), struct {
 			Name                  string
 			Namespace             string
 			Repo                  string
@@ -238,7 +237,7 @@ var _ = Describe("HelmOp resource with polling of OCI registry", Label("infra-se
 			insecure,
 			chartVersion,
 		})
-		Expect(err).ToNot(HaveOccurred(), out)
+		Expect(err).ToNot(HaveOccurred())
 	})
 
 	AfterEach(func() {
@@ -447,6 +446,12 @@ var _ = Describe("HelmOp resource tests with tarball source", Label("infra-setup
 	BeforeEach(func() {
 		helmOpsSecretName = testenv.AddRandomSuffix(helmOpsSecretNameBase, rand.New(rand.NewSource(time.Now().UnixNano())))
 		k = env.Kubectl.Namespace(env.Namespace)
+		out, err := k.Create(
+			"secret", "generic", helmOpsSecretName,
+			"--from-literal=username="+os.Getenv("CI_OCI_USERNAME"),
+			"--from-literal=password="+os.Getenv("CI_OCI_PASSWORD"),
+		)
+		Expect(err).ToNot(HaveOccurred(), out)
 	})
 
 	JustBeforeEach(func() {
@@ -455,14 +460,7 @@ var _ = Describe("HelmOp resource tests with tarball source", Label("infra-setup
 			rand.New(rand.NewSource(time.Now().UnixNano())),
 		)
 
-		out, err := k.Create(
-			"secret", "generic", helmOpsSecretName,
-			"--from-literal=username="+os.Getenv("CI_OCI_USERNAME"),
-			"--from-literal=password="+os.Getenv("CI_OCI_PASSWORD"),
-		)
-		Expect(err).ToNot(HaveOccurred(), out)
-
-		err = testenv.ApplyTemplate(k, testenv.AssetPath("helmop/helmop.yaml"), struct {
+		err := testenv.ApplyTemplate(k, testenv.AssetPath("helmop/helmop.yaml"), struct {
 			Name                  string
 			Namespace             string
 			Repo                  string
@@ -481,7 +479,7 @@ var _ = Describe("HelmOp resource tests with tarball source", Label("infra-setup
 			insecure,
 			version,
 		})
-		Expect(err).ToNot(HaveOccurred(), out)
+		Expect(err).ToNot(HaveOccurred())
 	})
 
 	AfterEach(func() {
