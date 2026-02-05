@@ -22,7 +22,7 @@ type fakeGetter struct {
 	err  error
 }
 
-func (f fakeGetter) Get(appID, instID int64, pem []byte) (*httpgit.BasicAuth, error) {
+func (f fakeGetter) Get(_ string, appID, instID int64, pem []byte) (*httpgit.BasicAuth, error) {
 	return f.auth, f.err
 }
 
