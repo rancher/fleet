@@ -50,8 +50,6 @@ builds:
     main: ./cmd/fleetcontroller
     binary: fleetcontroller-{{ .Os }}-{{ .Arch }}{{ if .Arm }}64{{ end }}
     no_unique_dist_dir: true
-    # gcflags:
-    #   - all="-N -l"
     ldflags:
       - -w -s
       - -X github.com/rancher/fleet/pkg/version.GitCommit={{ .Commit }}
@@ -101,9 +99,6 @@ builds:
     - linux_arm64
     - windows_amd64
 
-snapshot:
-  version_template: "{{ .Tag }}-next"
-
 dockers_v2:
   # Public fleet-controller images
   -
@@ -124,14 +119,13 @@ dockers_v2:
       "org.opencontainers.image.version": "{{.Version}}"
       "org.opencontainers.image.source": "https://github.com/rancher/fleet"
     build_args:
-      ARCH: "{{ .Arch }}"
       BUILD_ENV: "goreleaser"
     flags:
     - "--pull"
     extra_files: [ "package/log.sh" ]
     platforms:
     - linux/amd64
-    - linux/arm64/v8
+    - linux/arm64
 
   # Public fleet-agent images
   -
@@ -151,13 +145,12 @@ dockers_v2:
       "org.opencontainers.image.version": "{{.Version}}"
       "org.opencontainers.image.source": "https://github.com/rancher/fleet"
     build_args:
-      ARCH: "{{ .Arch }}"
       BUILD_ENV: "goreleaser"
     flags:
     - "--pull"
     platforms:
     - linux/amd64
-    - linux/arm64/v8
+    - linux/arm64
 
   # Staging fleet-controller images with provenance
   -
@@ -177,7 +170,6 @@ dockers_v2:
       "org.opencontainers.image.version": "{{.Version}}"
       "org.opencontainers.image.source": "https://github.com/rancher/fleet"
     build_args:
-      ARCH: "{{ .Arch }}"
       BUILD_ENV: "goreleaser"
     flags:
     - "--pull"
@@ -187,7 +179,7 @@ dockers_v2:
     extra_files: [ "package/log.sh" ]
     platforms:
     - linux/amd64
-    - linux/arm64/v8
+    - linux/arm64
 
   # Staging fleet-agent images with provenance
   -
@@ -206,7 +198,6 @@ dockers_v2:
       "org.opencontainers.image.version": "{{.Version}}"
       "org.opencontainers.image.source": "https://github.com/rancher/fleet"
     build_args:
-      ARCH: "{{ .Arch }}"
       BUILD_ENV: "goreleaser"
     flags:
     - "--pull"
@@ -215,7 +206,7 @@ dockers_v2:
     - "--provenance=mode=max"
     platforms:
     - linux/amd64
-    - linux/arm64/v8
+    - linux/arm64
 
 docker_digest:
   name_template: "digests.txt"
@@ -227,9 +218,8 @@ docker_signs:
       - "sign"
       - "--oidc-provider=github-actions"
       - "--yes"
-      - "--sign-container-identity={{ .Env.PRIME_REGISTRY }}/rancher/fleet"
+      - "--sign-container-identity={{ .Env.PRIME_REGISTRY }}/rancher/fleet:{{ .Tag }}"
       - "${artifact}@${digest}"
-    artifacts: all
     ids:
       - fleet-private
 
@@ -239,8 +229,7 @@ docker_signs:
       - "sign"
       - "--oidc-provider=github-actions"
       - "--yes"
-      - "--sign-container-identity={{ .Env.PRIME_REGISTRY }}/rancher/fleet-agent"
+      - "--sign-container-identity={{ .Env.PRIME_REGISTRY }}/rancher/fleet-agent:{{ .Tag }}"
       - "${artifact}@${digest}"
-    artifacts: all
     ids:
       - fleet-agent-private
