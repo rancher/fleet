@@ -6,6 +6,16 @@ on:
     tags:
       - v**
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g., v0.15.0-alpha.7)'
+        required: true
+        type: string
+      skip_tests:
+        description: 'Skip tests (for faster testing of release process)'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -15,6 +25,7 @@ permissions:
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
+  RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
 
 jobs:
   build-fleet:
@@ -33,7 +44,7 @@ jobs:
       - name: Verify Rancher is not in code freeze (alpha/beta only)
         run: |
           set -x
-          FLEET_VERSION="${GITHUB_REF_NAME#v}"
+          FLEET_VERSION="${RELEASE_TAG#v}"
 
           if [[ ! "${FLEET_VERSION}" =~ (alpha|beta) ]]; then
             echo "Skipping code freeze check for non-alpha/beta release"
@@ -78,30 +89,36 @@ jobs:
             secret/data/github/repo/${{ github.repository }}/fossa/credential token | FOSSA_API_KEY
 
       - name: Run FOSSA scan
+        if: ${{ !inputs.skip_tests }}
         uses: fossas/fossa-action@3ebcea1862c6ffbd5cf1b4d0bd6b3fe7bd6f2cac # v1.7.0
         with:
           api-key: ${{ env.FOSSA_API_KEY }}
 
       - name: Run FOSSA tests
+        if: ${{ !inputs.skip_tests }}
         uses: fossas/fossa-action@3ebcea1862c6ffbd5cf1b4d0bd6b3fe7bd6f2cac # v1.7.0
         with:
           api-key: ${{ env.FOSSA_API_KEY }}
           run-tests: false
 
       - name: Install Ginkgo CLI
+        if: ${{ !inputs.skip_tests }}
         run: go install github.com/onsi/ginkgo/v2/ginkgo
 
       - name: Check for code changes
+        if: ${{ !inputs.skip_tests }}
         continue-on-error: ${{ contains(github.ref, 'rc') }}
         run: |
           ./.github/scripts/check-for-auto-generated-changes.sh
           go mod verify
 
       - name: Run unit tests
+        if: ${{ !inputs.skip_tests }}
         continue-on-error: ${{ contains(github.ref, 'rc') }}
         run: go test -cover -tags=test $(go list ./... | grep -v -e /e2e -e /integrationtests -e /benchmarks)
 
       - name: Run integration tests
+        if: ${{ !inputs.skip_tests }}
         continue-on-error: ${{ contains(github.ref, 'rc') }}
         env:
           SETUP_ENVTEST_VER: v0.0.0-20250218120612-6f6111124902
@@ -159,92 +176,149 @@ jobs:
           args: release --clean --verbose
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GORELEASER_CURRENT_TAG: ${{ github.ref_name }}
+          GORELEASER_CURRENT_TAG: ${{ env.RELEASE_TAG }}
           STAGE_REGISTRY: ${{ env.STAGE_REGISTRY }}
           PRIME_REGISTRY: ${{ env.PRIME_REGISTRY }}
 
-      - name: Create platform-specific tags for images
+      - name: Parse image digests
+        id: digests
         shell: bash
         env:
           STAGE_REGISTRY: ${{ env.STAGE_REGISTRY }}
         run: |
           set -euo pipefail
 
-          > platform_digests.txt
-
           if [[ ! -f dist/digests.txt ]] || [[ ! -s dist/digests.txt ]]; then
             echo "ERROR: dist/digests.txt not found or empty"
             exit 1
           fi
 
-          staging_images=$(grep -F "${STAGE_REGISTRY}" dist/digests.txt || true)
-          if [[ -z "${staging_images}" ]]; then
-            echo "ERROR: No staging images found in dist/digests.txt"
+          echo "=== All images in digests.txt ==="
+          cat dist/digests.txt
+          echo ""
+
+          # Extract all manifest images (exclude already-tagged platform-specific images)
+          # Format: <digest>  <image:tag> → sha256:<digest> <image:tag>
+          echo "=== All manifest images ==="
+          all_images=$(grep -v -- '-linux-' dist/digests.txt | \
+          awk '{print "sha256:" $1, $NF}')
+
+          echo "$all_images"
+
+          if [[ -z "$all_images" ]]; then
+            echo "ERROR: No manifest images found"
             exit 1
           fi
 
-          echo "${staging_images}" | while read -r image_with_digest; do
-            image_url="${image_with_digest%@*}"
-            manifest_digest="${image_with_digest#*@}"
-            image_name="${image_url##*/}"
+          echo "=== Staging images for attestation ==="
+          staging_images=$(echo "$all_images" | grep "${STAGE_REGISTRY}" || true)
 
-            [[ "${image_name}" =~ -linux- ]] && continue
+          if [[ -z "$staging_images" ]]; then
+            echo "ERROR: No staging images found"
+            exit 1
+          fi
 
-            echo "Creating platform tags for ${image_url} (${manifest_digest})"
+          echo "$staging_images"
 
-            docker buildx imagetools inspect "${image_url}@${manifest_digest}" --raw | \
+          {
+            echo 'all_images<<EOF'
+            echo "$all_images"
+            echo 'EOF'
+            echo 'staging_images<<EOF'
+            echo "$staging_images"
+            echo 'EOF'
+          } >> $GITHUB_OUTPUT
+
+      - name: Create platform-specific tags and sign staging images
+        shell: bash
+        env:
+          PRIME_REGISTRY: ${{ env.PRIME_REGISTRY }}
+          STAGE_REGISTRY: ${{ env.STAGE_REGISTRY }}
+        run: |
+          set -euo pipefail
+
+          while read -r digest image_ref; do
+            echo "Processing: ${image_ref}"
+
+            # Get platform-specific digests from manifest
+            docker buildx imagetools inspect "${image_ref}@${digest}" --raw | \
               jq -r '.manifests[] | select(.platform.os=="linux" and .platform.architecture!="unknown") | "\(.digest)|\(.platform.architecture)"' | \
               while IFS='|' read -r platform_digest arch; do
-                platform_tag="${image_url}-linux-${arch}"
-                echo "  Tagging ${platform_tag}"
-                docker buildx imagetools create -t "${platform_tag}" "${image_url}@${platform_digest}"
-                echo "${platform_tag}@${platform_digest}" >> platform_digests.txt
+                platform_tag="${image_ref}-linux-${arch}"
+                echo "  Creating: ${platform_tag}"
+                docker buildx imagetools create -t "${platform_tag}" "${image_ref}@${platform_digest}"
+
+                # Sign staging platform-specific tags
+                if [[ "${image_ref}" == *"${STAGE_REGISTRY}"* ]]; then
+                  image_and_tag=$(basename "${platform_tag}")
+                  echo "    Signing: ${platform_tag}@${platform_digest}"
+                  cosign sign \
+                    --oidc-provider=github-actions \
+                    --yes \
+                    --sign-container-identity="${PRIME_REGISTRY}/rancher/${image_and_tag}" \
+                    "${platform_tag}@${platform_digest}"
+                  echo "      ✓ Signed"
+                fi
               done
-          done
+          done <<< '${{ steps.digests.outputs.all_images }}'
 
-          if [[ ! -s platform_digests.txt ]]; then
-            echo "ERROR: No platform tags were created (platform_digests.txt is empty)"
-            exit 1
-          fi
-
-          echo "Successfully created $(wc -l < platform_digests.txt) platform tag entries"
+          echo ""
+          echo "✓ Platform tags created and staging images signed"
 
       - name: Attest provenance
         shell: bash
         run: |
           set -euo pipefail
+
+          staging_images='${{ steps.digests.outputs.staging_images }}'
+          if [[ -z "$staging_images" ]]; then
+            echo "ERROR: No staging images to attest"
+            exit 1
+          fi
+
           max_retries=3
-          retry_delay=5
 
-          while read -r image_with_digest; do
-            img_tag="${image_with_digest%@*}"
+          while read -r digest image_ref; do
+            echo ""
+            echo "Attesting: ${image_ref}"
+            echo "  Digest: ${digest}"
 
-            if [[ "${img_tag}" =~ -linux-([^:]+)$ ]]; then
-              platform="linux/${BASH_REMATCH[1]}"
-            else
-              echo "WARNING: Could not extract platform from ${img_tag}, skipping"
-              continue
-            fi
+            for platform in "linux/amd64" "linux/arm64"; do
+              echo "  Platform ${platform}..."
+              prov_file="provenance_${platform/\//_}.json"
 
-            echo "Attesting ${image_with_digest} for ${platform}"
+              # Retry download
+              for ((i=1; i<=max_retries; i++)); do
+                echo "    Attempt ${i}/${max_retries}..."
 
-            for ((i=1; i<=max_retries; i++)); do
-              if slsactl download provenance --format=slsav1 --platform="${platform}" "${image_with_digest}" > provenance.json; then
-                cat provenance.json
-                if cosign attest --yes --predicate provenance.json --type slsaprovenance1 "${image_with_digest}"; then
-                  rm -f provenance.json
+                if slsactl download provenance --format=slsav1 --platform="${platform}" "${image_ref}@${digest}" > "${prov_file}"; then
+                  echo "      ✓ Downloaded provenance"
                   break
                 fi
-              fi
-              if [ "${i}" -eq "${max_retries}" ]; then
-                echo "ERROR: Failed to attest ${image_with_digest} after ${max_retries} attempts"
-                rm -f provenance.json
+
+                if [ "${i}" -eq "${max_retries}" ]; then
+                  echo "ERROR: Failed to download provenance for ${platform} of ${image_ref} after ${max_retries} attempts"
+                  exit 1
+                fi
+
+                echo "      Waiting before retry..."
+                sleep 5
+              done
+
+              # Attest (must succeed)
+              if ! cosign attest --yes --predicate "${prov_file}" --type slsaprovenance1 "${image_ref}@${digest}" 2>&1; then
+                echo "ERROR: cosign attest failed for ${platform} of ${image_ref}"
+                rm -f "${prov_file}"
                 exit 1
               fi
-              echo "Retry ${i}/${max_retries} failed, waiting ${retry_delay}s..."
-              sleep "${retry_delay}"
+
+              echo "      ✓ Attested"
+              rm -f "${prov_file}"
             done
-          done < platform_digests.txt
+          done <<< "$staging_images"
+
+          echo ""
+          echo "✓ Provenance attestation completed for all images"
 
       - name: Upload charts to release
         if: ${{ env.IS_HOTFIX == 'false' }}
