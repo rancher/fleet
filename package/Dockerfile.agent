@@ -1,9 +1,10 @@
-ARG BUILD_ENV=dapper
+ARG BUILD_ENV=docker
+ARG TARGETPLATFORM
 ARG ARCH
 
-FROM --platform=linux/$ARCH registry.suse.com/bci/bci-busybox:15.7 AS base
+FROM registry.suse.com/bci/bci-busybox:15.7 AS base
 
-FROM base AS copy_dapper
+FROM base AS copy_docker
 ONBUILD ARG ARCH
 ONBUILD COPY bin/fleetagent-linux-$ARCH /usr/bin/fleetagent
 
@@ -12,8 +13,8 @@ ONBUILD ARG TARGETARCH
 ONBUILD COPY bin/fleetagent-linux-$TARGETARCH /usr/bin/fleetagent
 
 FROM base AS copy_goreleaser
-ONBUILD ARG ARCH
-ONBUILD COPY fleetagent-linux-$ARCH /usr/bin/fleetagent
+ARG TARGETPLATFORM
+COPY ${TARGETPLATFORM}/fleetagent-linux-* /usr/bin/fleetagent
 
 FROM copy_${BUILD_ENV}
 USER 1000
