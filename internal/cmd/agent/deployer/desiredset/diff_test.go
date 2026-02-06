@@ -503,7 +503,7 @@ func Test_Diff_HPA(t *testing.T) {
 				},
 				Objects: []runtime.Object{
 					hpa("my-other-ns", "my-hpa", ptr.To(int32(2)), 5, "apps/v1", "Deployment", "nginx"),
-					deployment("my-ns", "nginx", 6),
+					deployment("my-ns", "nginx", 4),
 				},
 			},
 			expectedPlan: desiredset.Plan{

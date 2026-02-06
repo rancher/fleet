@@ -300,6 +300,10 @@ func normalizeReplicasPatch(
 		}
 
 		for k, o := range live[gvk] {
+			if k.Namespace != key.Namespace {
+				continue
+			}
+
 			un, ok := o.(*unstructured.Unstructured)
 			if !ok {
 				continue
