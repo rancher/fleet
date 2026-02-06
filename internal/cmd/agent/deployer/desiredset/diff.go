@@ -265,6 +265,17 @@ func normalizeReplicasPatch(
 		return false, nil
 	}
 
+	var patchData map[string]any
+	if err := json.Unmarshal(*patch, &patchData); err != nil {
+		return false, fmt.Errorf("failed to unmarshal patch for %s/%s: %v: %w", key.Namespace, key.Name, *patch, err)
+	}
+
+	patchSpec, patchHasSpec := patchData["spec"]
+	if !patchHasSpec {
+		// No need to even check HPAs for replicas
+		return false, nil
+	}
+
 	// What differs between v1 and v2 is the set of supported metrics for scaling (with memory and custom metrics
 	// included in v2); this is irrelevant to the logic at play here: we are only interested in values of replica
 	// counts, not in what triggers their updates.
@@ -354,13 +365,8 @@ func normalizeReplicasPatch(
 				return false, nil
 			}
 
-			var patchData map[string]any
-			if err := json.Unmarshal(*patch, &patchData); err != nil {
-				return false, fmt.Errorf("failed to unmarshal patch for %s/%s: %v: %w", k.Namespace, k.Name, *patch, err)
-			}
-
 			// No need to check if the field actually exists, as we've been through that above.
-			spec, ok := patchData["spec"].(map[string]any)
+			spec, ok := patchSpec.(map[string]any)
 			if !ok {
 				return false, fmt.Errorf("malformed spec for %s %s/%s", refKind, k.Namespace, k.Name)
 			}

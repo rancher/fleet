@@ -518,6 +518,43 @@ func Test_Diff_HPA(t *testing.T) {
 			},
 		},
 		{
+			name: "deployment with diff has replicas within HPA's interval and diff does not affect spec",
+			releaseObj: []runtime.Object{
+				hpa("my-ns", "my-hpa", ptr.To(int32(2)), 5, "apps/v1", "Deployment", "nginx"),
+				deployment("my-ns", "nginx", 3, func(d *appsv1.Deployment) {
+					d.Labels = make(map[string]string)
+					d.Labels["foo"] = "bar"
+				}),
+			},
+			plan: desiredset.Plan{
+				Update: desiredset.PatchByGVK{
+					gvkDeploy: map[objectset.ObjectKey]string{
+						{
+							Name:      "nginx",
+							Namespace: "my-ns",
+						}: `{"metadata":{"labels":{"foo":"bar"}}}`,
+					},
+				},
+				Objects: []runtime.Object{
+					hpa("my-other-ns", "my-hpa", ptr.To(int32(2)), 5, "apps/v1", "Deployment", "nginx"),
+					deployment("my-ns", "nginx", 3, func(d *appsv1.Deployment) {
+						d.Labels = make(map[string]string)
+						d.Labels["foo"] = "new-value"
+					}),
+				},
+			},
+			expectedPlan: desiredset.Plan{
+				Update: desiredset.PatchByGVK{
+					gvkDeploy: map[objectset.ObjectKey]string{
+						{
+							Name:      "nginx",
+							Namespace: "my-ns",
+						}: `{"metadata":{"labels":{"foo":"bar"}}}`,
+					},
+				},
+			},
+		},
+		{
 			name: "deployment has diff and no HPAs exist",
 			releaseObj: []runtime.Object{
 				deployment("my-ns", "nginx", 3),
