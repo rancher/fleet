@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/bradleyfalzon/ghinstallation/v2"
 )
@@ -86,18 +87,16 @@ func newGithubApp(
 }
 
 // getBaseURL extracts the host from repoURL, and returns the corresponding base URL for Github App auth:
-// `https://api.github.com` for `github.com` repositories, or `https://<repo_host>` otherwise.
+// `https://api.<repo_host>`.
 func getBaseURL(repoURL string) (string, error) {
 	url, err := url.Parse(repoURL)
 	if err != nil {
 		return "", err
 	}
 
-	switch url.Host {
-	case "github.com":
-		return "https://api.github.com", nil
-	default:
-		// e.g. `*.ghe.com`
+	if strings.HasPrefix(url.Host, "api.") {
 		return fmt.Sprintf("https://%s", url.Host), nil
 	}
+
+	return fmt.Sprintf("https://api.%s", url.Host), nil
 }

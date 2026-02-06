@@ -85,12 +85,17 @@ func TestGitHubApp_GetToken_NonGithubDotCom(t *testing.T) {
 		{
 			name:     "default base URL",
 			repoURL:  "https://github.com/foo/bar",
-			errRegex: "received non 2xx response status.*when fetching https://api.github.com/app/installations/.*/access_tokens",
+			errRegex: `received non 2xx response status.*when fetching https://api\.github\.com/app/installations/.*/access_tokens`,
 		},
 		{
 			name:     "non-github.com base URL",
 			repoURL:  "https://fleetverse.ghe.com/foo/bar",
-			errRegex: "could not refresh installation id.* lookup fleetverse.ghe.com.* no such host",
+			errRegex: `could not refresh installation id.* lookup api\.fleetverse\.ghe\.com.* no such host`,
+		},
+		{
+			name:     "non-github.com base URL with API prefix",
+			repoURL:  "https://api.fleetverse.ghe.com/foo/bar",
+			errRegex: `could not refresh installation id.* lookup api\.fleetverse\.ghe\.com.* no such host`,
 		},
 		{
 			name:     "invalid URL",
