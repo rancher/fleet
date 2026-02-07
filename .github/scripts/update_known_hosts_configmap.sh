@@ -11,8 +11,7 @@ providers=(
     "vs-ssh.visualstudio.com"
 )
 
-#dst=charts/fleet/templates/configmap_known_hosts.yaml
-dst=resultat.yaml
+dst=charts/fleet/templates/configmap_known_hosts.yaml
 echo "apiVersion: v1" > "$dst"
 echo "kind: ConfigMap" >> "$dst"
 echo "metadata:" >> "$dst"
