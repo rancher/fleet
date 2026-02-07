@@ -1,0 +1,6 @@
+defaultNamespace: test-dependson
+dependsOn:
+- acceptedStates:
+  - Ready
+targets:
+- clusterSelector: {}

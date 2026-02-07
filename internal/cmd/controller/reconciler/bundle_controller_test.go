@@ -1,4 +1,4 @@
-//go:generate mockgen --build_flags=--mod=mod -destination=../../../mocks/target_builder_mock.go -package=mocks github.com/rancher/fleet/internal/cmd/controller/reconciler TargetBuilder,Store
+//go:generate mockgen --build_flags=--mod=mod -destination=../../../mocks/reconciler_mock.go -package=mocks github.com/rancher/fleet/internal/cmd/controller/reconciler TargetBuilder,Store
 package reconciler_test
 
 import (
@@ -124,7 +124,7 @@ func TestReconcile_HelmValuesLoadError(t *testing.T) {
 
 	expectedErrorMsg := "failed to load values secret for bundle:"
 
-	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
+	statusClient := mocks.NewMockStatusWriter(mockCtrl)
 	mockClient.EXPECT().Status().Return(statusClient).Times(1)
 
 	expectStatusPatch(t, statusClient, expectedErrorMsg)
@@ -177,7 +177,7 @@ func TestReconcile_HelmVersionResolutionError(t *testing.T) {
 
 	expectedErrorMsg := "chart version cannot be deployed; check HelmOp status for more details:"
 
-	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
+	statusClient := mocks.NewMockStatusWriter(mockCtrl)
 	mockClient.EXPECT().Status().Return(statusClient).Times(1)
 
 	expectStatusPatch(t, statusClient, expectedErrorMsg)
@@ -221,7 +221,7 @@ func TestReconcile_TargetsBuildingError(t *testing.T) {
 
 	expectedErrorMsg := "targeting error: something went wrong"
 
-	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
+	statusClient := mocks.NewMockStatusWriter(mockCtrl)
 	mockClient.EXPECT().Status().Return(statusClient).Times(1)
 
 	expectStatusPatch(t, statusClient, expectedErrorMsg)
@@ -274,7 +274,7 @@ func TestReconcile_StatusResetFromTargetsError(t *testing.T) {
 
 	expectedErrorMsg := "failed to reset bundle status from targets: invalid maxUnavailable"
 
-	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
+	statusClient := mocks.NewMockStatusWriter(mockCtrl)
 	mockClient.EXPECT().Status().Return(statusClient).Times(1)
 
 	expectStatusPatch(t, statusClient, expectedErrorMsg)
@@ -361,7 +361,7 @@ func TestReconcile_ManifestStorageError(t *testing.T) {
 			expectGetWithFinalizer(mockClient, bundle)
 
 			if c.expectedStatusPatchErrMsg != "" {
-				statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
+				statusClient := mocks.NewMockStatusWriter(mockCtrl)
 				mockClient.EXPECT().Status().Return(statusClient).Times(1)
 
 				expectStatusPatch(t, statusClient, c.expectedStatusPatchErrMsg)
@@ -633,7 +633,7 @@ func TestReconcile_OCIReferenceSecretResolutionError(t *testing.T) {
 				DoAndReturn(c.secretGet)
 
 			if c.expectStatusUpdate {
-				statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
+				statusClient := mocks.NewMockStatusWriter(mockCtrl)
 				mockClient.EXPECT().Status().Return(statusClient).Times(1)
 
 				expectStatusPatch(t, statusClient, c.expectedErrMsg)
@@ -800,7 +800,7 @@ func TestReconcile_DownstreamObjectsHandlingError(t *testing.T) {
 			c.downstreamResourcesGetCalls(mockClient)
 
 			if !c.expectRetries {
-				statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
+				statusClient := mocks.NewMockStatusWriter(mockCtrl)
 				mockClient.EXPECT().Status().Return(statusClient).Times(1)
 
 				expectStatusPatch(t, statusClient, c.expectedErrorMsg)
@@ -950,7 +950,7 @@ func TestReconcile_AccessSecretsHandlingError(t *testing.T) {
 	}
 }
 
-func expectStatusPatch(t *testing.T, sClient *mocks.MockSubResourceWriter, errMsg string) {
+func expectStatusPatch(t *testing.T, sClient *mocks.MockStatusWriter, errMsg string) {
 	t.Helper()
 	sClient.EXPECT().Patch(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Bundle{}), gomock.Any()).Do(
 		func(ctx context.Context, b *fleetv1.Bundle, p client.Patch, opts ...interface{}) {
@@ -1398,7 +1398,7 @@ func TestReconcile_DownstreamResourcesGeneration_Increment(t *testing.T) {
 			tc.setupResourceMocks(mockCtrl, mockClient)
 
 			// Status update
-			statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
+			statusClient := mocks.NewMockStatusWriter(mockCtrl)
 			mockClient.EXPECT().Status().Return(statusClient).Times(1)
 			statusClient.EXPECT().Patch(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Bundle{}), gomock.Any()).
 				Return(nil)
@@ -1529,7 +1529,7 @@ func TestReconcile_DownstreamResources_FeatureDisabled(t *testing.T) {
 	// No resource cloning calls expected since feature is disabled
 
 	// Status update
-	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
+	statusClient := mocks.NewMockStatusWriter(mockCtrl)
 	mockClient.EXPECT().Status().Return(statusClient).Times(1)
 	statusClient.EXPECT().Patch(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Bundle{}), gomock.Any()).
 		Return(nil)

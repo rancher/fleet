@@ -157,6 +157,11 @@ func bundleFromDir(ctx context.Context, name, baseDir string, bundleData []byte,
 		return nil, nil, fmt.Errorf("reading fleet.yaml: %w", err)
 	}
 
+	// Validate fleet.yaml semantic content before creating the Bundle
+	if err := validateFleetYAML(fy); err != nil {
+		return nil, nil, fmt.Errorf("validating fleet.yaml: %w", err)
+	}
+
 	var scans []*fleet.ImageScan
 	for i, scan := range fy.ImageScans {
 		if scan.Image == "" {

@@ -30,20 +30,23 @@ on:
 jobs:
   create-rancher-charts-pr:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
 
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
           path: fleet
       - name: Checkout rancher/charts
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
           repository: rancher/charts
           ref: ${{github.event.inputs.charts_ref}}
           path: charts
-      - uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6
+      - uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
         with:
           go-version: '1.25.*'
       - name: Install dependencies
@@ -51,13 +54,25 @@ jobs:
           sudo apt-get update
           sudo apt install -y --allow-change-held-packages snapd
           sudo snap install yq --channel=v4/stable
+      - name: Read App Secrets
+        uses: rancher-eio/read-vault-secrets@main
+        with:
+          secrets: |
+            secret/data/github/repo/${{ github.repository }}/github/pr-actions-write-app/credentials appId | APP_ID ;
+            secret/data/github/repo/${{ github.repository }}/github/pr-actions-write-app/credentials privateKey | PRIVATE_KEY
+      - name: Create App Token
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
+        id: app-token
+        with:
+          app-id: ${{ env.APP_ID }}
+          private-key: ${{ env.PRIVATE_KEY }}
       - name: Run release script
         run: |
           export CHARTS_DIR="${GITHUB_WORKSPACE}/charts"
           ./fleet/.github/scripts/release-against-charts.sh ${{github.event.inputs.prev_fleet}} ${{github.event.inputs.new_fleet}} ${{github.event.inputs.prev_chart}} ${{github.event.inputs.new_chart}} ${{github.event.inputs.should_replace}}
       - name: Create Pull Request
         env:
-          GITHUB_TOKEN: ${{ secrets.PUSH_TO_FORKS_SUBMIT_PRS }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         working-directory: ./charts/
         run: |
           ../fleet/.github/scripts/create-pr.sh ${{github.event.inputs.charts_ref}} ${{github.event.inputs.new_fleet}} ${{github.event.inputs.new_chart}} charts

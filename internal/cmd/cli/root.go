@@ -33,6 +33,7 @@ func App() *cobra.Command {
 		NewMonitor(),
 		NewAnalyze(),
 		NewDump(),
+		NewBundleDiff(),
 	)
 
 	return root

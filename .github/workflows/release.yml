@@ -6,6 +6,16 @@ on:
     tags:
       - v**
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g., v0.15.0-alpha.7)'
+        required: true
+        type: string
+      skip_tests:
+        description: 'Skip tests (for faster testing of release process)'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -15,6 +25,7 @@ permissions:
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
+  RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
 
 jobs:
   build-fleet:
@@ -26,14 +37,14 @@ jobs:
     if: github.repository == 'rancher/fleet'
     steps:
       - name: Check out Fleet
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
 
       - name: Verify Rancher is not in code freeze (alpha/beta only)
         run: |
           set -x
-          FLEET_VERSION="${GITHUB_REF_NAME#v}"
+          FLEET_VERSION="${RELEASE_TAG#v}"
 
           if [[ ! "${FLEET_VERSION}" =~ (alpha|beta) ]]; then
             echo "Skipping code freeze check for non-alpha/beta release"
@@ -66,7 +77,7 @@ jobs:
           fi
 
       - name: Set up Go
-        uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6
+        uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
         with:
           go-version-file: 'go.mod'
           check-latest: true
@@ -78,41 +89,47 @@ jobs:
             secret/data/github/repo/${{ github.repository }}/fossa/credential token | FOSSA_API_KEY
 
       - name: Run FOSSA scan
+        if: ${{ !inputs.skip_tests }}
         uses: fossas/fossa-action@3ebcea1862c6ffbd5cf1b4d0bd6b3fe7bd6f2cac # v1.7.0
         with:
           api-key: ${{ env.FOSSA_API_KEY }}
 
       - name: Run FOSSA tests
+        if: ${{ !inputs.skip_tests }}
         uses: fossas/fossa-action@3ebcea1862c6ffbd5cf1b4d0bd6b3fe7bd6f2cac # v1.7.0
         with:
           api-key: ${{ env.FOSSA_API_KEY }}
           run-tests: false
 
       - name: Install Ginkgo CLI
+        if: ${{ !inputs.skip_tests }}
         run: go install github.com/onsi/ginkgo/v2/ginkgo
 
       - name: Check for code changes
+        if: ${{ !inputs.skip_tests }}
         continue-on-error: ${{ contains(github.ref, 'rc') }}
         run: |
           ./.github/scripts/check-for-auto-generated-changes.sh
           go mod verify
 
       - name: Run unit tests
+        if: ${{ !inputs.skip_tests }}
         continue-on-error: ${{ contains(github.ref, 'rc') }}
         run: go test -cover -tags=test $(go list ./... | grep -v -e /e2e -e /integrationtests -e /benchmarks)
 
       - name: Run integration tests
+        if: ${{ !inputs.skip_tests }}
         continue-on-error: ${{ contains(github.ref, 'rc') }}
         env:
           SETUP_ENVTEST_VER: v0.0.0-20250218120612-6f6111124902
-          ENVTEST_K8S_VERSION: 1.34
+          ENVTEST_K8S_VERSION: 1.35
         run: ./.github/scripts/run-integration-tests.sh
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
 
       - name: Install Cosign
         uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad # v4.0.0
@@ -137,21 +154,21 @@ jobs:
           sudo systemctl restart docker
 
       - name: Log into Docker Container registry
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
         if: ${{ env.IS_HOTFIX == 'false' }}
         with:
           username: ${{ env.DOCKER_USERNAME }}
           password: ${{ env.DOCKER_PASSWORD }}
 
       - name: Log into Staging registry
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
         with:
           username: ${{ env.STAGE_REGISTRY_USERNAME }}
           password: ${{ env.STAGE_REGISTRY_PASSWORD }}
           registry: ${{ env.STAGE_REGISTRY }}
 
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6
+        uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6.4.0
         id: goreleaser
         with:
           distribution: goreleaser
@@ -159,70 +176,149 @@ jobs:
           args: release --clean --verbose
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GORELEASER_CURRENT_TAG: ${{ github.ref_name }}
+          GORELEASER_CURRENT_TAG: ${{ env.RELEASE_TAG }}
           STAGE_REGISTRY: ${{ env.STAGE_REGISTRY }}
           PRIME_REGISTRY: ${{ env.PRIME_REGISTRY }}
 
-      # Workaround until `docker manifest create` supports provenance meta data
-      # Background: https://stackoverflow.com/questions/75521775/buildx-docker-image-claims-to-be-a-manifest-list
-      # Released images will eventually be moved into the Prime registry, hence their signatures must match that registry.
-      - name: Create Docker manifest for Staging and sign it for the Prime registry
+      - name: Parse image digests
+        id: digests
         shell: bash
         env:
           STAGE_REGISTRY: ${{ env.STAGE_REGISTRY }}
-          PRIME_REGISTRY: ${{ env.PRIME_REGISTRY }}
         run: |
-          for IMAGE in fleet fleet-agent; do
-            URL="${{ env.STAGE_REGISTRY }}/rancher/${IMAGE}:${{ github.ref_name }}"
-            docker buildx imagetools create -t "${URL}" \
-              "${URL}-linux-amd64" \
-              "${URL}-linux-arm64"
+          set -euo pipefail
 
-            cosign sign \
-              --oidc-provider=github-actions \
-              --yes \
-              --sign-container-identity="${{ env.PRIME_REGISTRY }}/rancher/${IMAGE}" \
-              "${URL}"
+          if [[ ! -f dist/digests.txt ]] || [[ ! -s dist/digests.txt ]]; then
+            echo "ERROR: dist/digests.txt not found or empty"
+            exit 1
+          fi
 
-            # Pull the manifest locally to make it available for inspection
-            docker pull "${URL}"
-          done
+          echo "=== All images in digests.txt ==="
+          cat dist/digests.txt
+          echo ""
+
+          # Extract all manifest images (exclude already-tagged platform-specific images)
+          # Format: <digest>  <image:tag> → sha256:<digest> <image:tag>
+          echo "=== All manifest images ==="
+          all_images=$(grep -v -- '-linux-' dist/digests.txt | \
+          awk '{print "sha256:" $1, $NF}')
+
+          echo "$all_images"
+
+          if [[ -z "$all_images" ]]; then
+            echo "ERROR: No manifest images found"
+            exit 1
+          fi
+
+          echo "=== Staging images for attestation ==="
+          staging_images=$(echo "$all_images" | grep "${STAGE_REGISTRY}" || true)
+
+          if [[ -z "$staging_images" ]]; then
+            echo "ERROR: No staging images found"
+            exit 1
+          fi
+
+          echo "$staging_images"
+
+          {
+            echo 'all_images<<EOF'
+            echo "$all_images"
+            echo 'EOF'
+            echo 'staging_images<<EOF'
+            echo "$staging_images"
+            echo 'EOF'
+          } >> $GITHUB_OUTPUT
+
+      - name: Create platform-specific tags and sign staging images
+        shell: bash
+        env:
+          PRIME_REGISTRY: ${{ env.PRIME_REGISTRY }}
+          STAGE_REGISTRY: ${{ env.STAGE_REGISTRY }}
+        run: |
+          set -euo pipefail
+
+          while read -r digest image_ref; do
+            echo "Processing: ${image_ref}"
+
+            # Get platform-specific digests from manifest
+            docker buildx imagetools inspect "${image_ref}@${digest}" --raw | \
+              jq -r '.manifests[] | select(.platform.os=="linux" and .platform.architecture!="unknown") | "\(.digest)|\(.platform.architecture)"' | \
+              while IFS='|' read -r platform_digest arch; do
+                platform_tag="${image_ref}-linux-${arch}"
+                echo "  Creating: ${platform_tag}"
+                docker buildx imagetools create -t "${platform_tag}" "${image_ref}@${platform_digest}"
+
+                # Sign staging platform-specific tags
+                if [[ "${image_ref}" == *"${STAGE_REGISTRY}"* ]]; then
+                  image_and_tag=$(basename "${platform_tag}")
+                  echo "    Signing: ${platform_tag}@${platform_digest}"
+                  cosign sign \
+                    --oidc-provider=github-actions \
+                    --yes \
+                    --sign-container-identity="${PRIME_REGISTRY}/rancher/${image_and_tag}" \
+                    "${platform_tag}@${platform_digest}"
+                  echo "      ✓ Signed"
+                fi
+              done
+          done <<< '${{ steps.digests.outputs.all_images }}'
+
+          echo ""
+          echo "✓ Platform tags created and staging images signed"
 
       - name: Attest provenance
         shell: bash
         run: |
-          IMAGES=$(yq e '.dockers[].image_templates[0]' .goreleaser.yaml | grep STAGE_REGISTRY | sed "s/{{ .Env.STAGE_REGISTRY }}/${{ env.STAGE_REGISTRY }}/g" | sed "s/{{ .Tag }}/${{ github.ref_name }}/g")
+          set -euo pipefail
 
-          for IMG_NAME in $IMAGES; do
-            DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "${IMG_NAME}" | cut -d'@' -f2)
-            # Construct fully qualified image name with both tag and digest
-            URL="${IMG_NAME}@${DIGEST}"
+          staging_images='${{ steps.digests.outputs.staging_images }}'
+          if [[ -z "$staging_images" ]]; then
+            echo "ERROR: No staging images to attest"
+            exit 1
+          fi
 
-            max_retries=3
-            retry_delay=5
+          max_retries=3
 
-            for ((i=0; i<max_retries; i++)); do
-              if [[ "${IMG_NAME}" =~ -linux-([^-]+)$ ]]; then
-                PLATFORM="linux/${BASH_REMATCH[1]}"
-              else
-                PLATFORM="linux/amd64"
-              fi
+          while read -r digest image_ref; do
+            echo ""
+            echo "Attesting: ${image_ref}"
+            echo "  Digest: ${digest}"
 
-              if slsactl download provenance --format=slsav1 --platform="${PLATFORM}" "${URL}" > provenance-slsav1.json; then
-                break
-              fi
-              if [ "${i}" -eq "$(( max_retries - 1 ))" ]; then
-                echo "ERROR: Failed to generate slsav1 provenance. Check whether the image is present in the Staging registry."
-                cat provenance-slsav1.json 2>/dev/null || echo "No provenance file generated"
+            for platform in "linux/amd64" "linux/arm64"; do
+              echo "  Platform ${platform}..."
+              prov_file="provenance_${platform/\//_}.json"
+
+              # Retry download
+              for ((i=1; i<=max_retries; i++)); do
+                echo "    Attempt ${i}/${max_retries}..."
+
+                if slsactl download provenance --format=slsav1 --platform="${platform}" "${image_ref}@${digest}" > "${prov_file}"; then
+                  echo "      ✓ Downloaded provenance"
+                  break
+                fi
+
+                if [ "${i}" -eq "${max_retries}" ]; then
+                  echo "ERROR: Failed to download provenance for ${platform} of ${image_ref} after ${max_retries} attempts"
+                  exit 1
+                fi
+
+                echo "      Waiting before retry..."
+                sleep 5
+              done
+
+              # Attest (must succeed)
+              if ! cosign attest --yes --predicate "${prov_file}" --type slsaprovenance1 "${image_ref}@${digest}" 2>&1; then
+                echo "ERROR: cosign attest failed for ${platform} of ${image_ref}"
+                rm -f "${prov_file}"
                 exit 1
               fi
-              sleep "${retry_delay}"
-            done
 
-            cat provenance-slsav1.json
-            cosign attest --yes --predicate provenance-slsav1.json --type slsaprovenance1 "${URL}"
-            rm -f provenance-slsav1.json
-          done
+              echo "      ✓ Attested"
+              rm -f "${prov_file}"
+            done
+          done <<< "$staging_images"
+
+          echo ""
+          echo "✓ Provenance attestation completed for all images"
 
       - name: Upload charts to release
         if: ${{ env.IS_HOTFIX == 'false' }}

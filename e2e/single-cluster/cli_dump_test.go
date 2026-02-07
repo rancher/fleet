@@ -48,7 +48,7 @@ var _ = Describe("Fleet dump", Label("sharding"), func() {
 
 			tgzPath := "test.tgz"
 
-			err = dump.Create(context.Background(), restConfig, tgzPath)
+			err = dump.Create(context.Background(), restConfig, tgzPath, dump.Options{})
 			Expect(err).ToNot(HaveOccurred())
 
 			defer func() {
