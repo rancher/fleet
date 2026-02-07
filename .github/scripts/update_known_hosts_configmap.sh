@@ -11,7 +11,8 @@ providers=(
     "vs-ssh.visualstudio.com"
 )
 
-dst=charts/fleet/templates/configmap_known_hosts.yaml
+#dst=charts/fleet/templates/configmap_known_hosts.yaml
+dst=resultat.yaml
 echo "apiVersion: v1" > "$dst"
 echo "kind: ConfigMap" >> "$dst"
 echo "metadata:" >> "$dst"
@@ -22,3 +23,9 @@ echo "  known_hosts: |" >> "$dst"
 for prov in "${providers[@]}"; do
     ssh-keyscan "$prov" | grep "^$prov" | sort -b | sed 's/^/    /' >> "$dst"
 done
+
+echo '{{- if .Values.additionalKnownHosts }}
+    {{ range .Values.additionalKnownHosts -}}
+    {{ . }}
+    {{ end -}}
+{{- end }}' >> "$dst"
