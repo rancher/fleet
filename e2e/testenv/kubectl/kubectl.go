@@ -58,7 +58,7 @@ func (c Command) Get(args ...string) (string, error) {
 func (c Command) Delete(args ...string) (string, error) {
 	// Changes for debug purposes
 	// Normally the args to delete are the resource type and the name
-	out, err := c.Run(append([]string{"delete", "--timeout=1m"}, args...)...)
+	out, err := c.Run(append([]string{"delete", "-v=6", "--timeout=5m"}, args...)...)
 	if err != nil {
 		GinkgoWriter.Printf("ERROR DELETING RESOURCE: %s\n", out)
 		getArgs := append(
