@@ -768,3 +768,140 @@ func Test_addContentsToArchive(t *testing.T) {
 		})
 	}
 }
+
+func Test_collectBundleNamesByGitRepo(t *testing.T) {
+	tests := []struct {
+		name          string
+		bundles       []runtime.Object
+		namespace     string
+		gitrepo       string
+		fetchLimit    int64
+		expectedNames []string
+		wantErr       bool
+	}{
+		{
+			name:      "no bundles found",
+			bundles:   []runtime.Object{},
+			namespace: "fleet-local",
+			gitrepo:   "my-repo",
+			expectedNames: []string{},
+			wantErr:   false,
+		},
+		{
+			name: "filter bundles by gitrepo label",
+			bundles: []runtime.Object{
+				&v1alpha1.Bundle{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "bundle1",
+						Namespace: "fleet-local",
+						Labels: map[string]string{
+							"fleet.cattle.io/repo-name": "my-repo",
+						},
+					},
+				},
+				&v1alpha1.Bundle{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "bundle2",
+						Namespace: "fleet-local",
+						Labels: map[string]string{
+							"fleet.cattle.io/repo-name": "other-repo",
+						},
+					},
+				},
+				&v1alpha1.Bundle{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "bundle3",
+						Namespace: "fleet-local",
+						Labels: map[string]string{
+							"fleet.cattle.io/repo-name": "my-repo",
+						},
+					},
+				},
+			},
+			namespace:     "fleet-local",
+			gitrepo:       "my-repo",
+			expectedNames: []string{"bundle1", "bundle3"},
+			wantErr:       false,
+		},
+		{
+			name: "pagination with gitrepo filter",
+			bundles: []runtime.Object{
+				&v1alpha1.Bundle{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "bundle1",
+						Namespace: "fleet-local",
+						Labels: map[string]string{
+							"fleet.cattle.io/repo-name": "my-repo",
+						},
+					},
+				},
+				&v1alpha1.Bundle{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "bundle2",
+						Namespace: "fleet-local",
+						Labels: map[string]string{
+							"fleet.cattle.io/repo-name": "my-repo",
+						},
+					},
+				},
+			},
+			namespace:     "fleet-local",
+			gitrepo:       "my-repo",
+			fetchLimit:    1, // Force pagination
+			expectedNames: []string{"bundle1", "bundle2"},
+			wantErr:       false,
+		},
+		{
+			name: "bundles without label are excluded",
+			bundles: []runtime.Object{
+				&v1alpha1.Bundle{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "bundle1",
+						Namespace: "fleet-local",
+						Labels: map[string]string{
+							"fleet.cattle.io/repo-name": "my-repo",
+						},
+					},
+				},
+				&v1alpha1.Bundle{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "bundle2",
+						Namespace: "fleet-local",
+						// No labels
+					},
+				},
+			},
+			namespace:     "fleet-local",
+			gitrepo:       "my-repo",
+			expectedNames: []string{"bundle1"},
+			wantErr:       false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			scheme := runtime.NewScheme()
+			utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+			utilruntime.Must(v1alpha1.AddToScheme(scheme))
+
+			fakeDynClient := fake.NewSimpleDynamicClient(scheme, tt.bundles...)
+			ctx := context.Background()
+
+			names, err := collectBundleNamesByGitRepo(ctx, fakeDynClient, tt.namespace, tt.gitrepo, tt.fetchLimit)
+
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("collectBundleNamesByGitRepo() error = %v, wantErr %v", err, tt.wantErr)
+			}
+
+			if len(names) != len(tt.expectedNames) {
+				t.Fatalf("expected %d bundle names, got %d: %v", len(tt.expectedNames), len(names), names)
+			}
+
+			for i, name := range names {
+				if name != tt.expectedNames[i] {
+					t.Errorf("expected bundle name %q at index %d, got %q", tt.expectedNames[i], i, name)
+				}
+			}
+		})
+	}
+}

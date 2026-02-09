@@ -490,6 +490,174 @@ var _ = Describe("Fleet dump", Label("sharding"), func() {
 			}
 		})
 	})
+
+	When("filtering by GitRepo", func() {
+		var (
+			testName1        = "test-gitrepo-filter-repo1"
+			testName2        = "test-gitrepo-filter-repo2"
+			testPath1        = "simple"
+			testPath2        = "simple-chart"
+			namespace        = "fleet-local"
+			tgzPath          = "test-gitrepo-filter.tgz"
+			repo1ContentName string
+			repo2ContentName string
+		)
+
+		BeforeEach(func() {
+			k := env.Kubectl
+
+			// Create two GitRepos in the same namespace
+			err := testenv.CreateGitRepo(k.Namespace(namespace), namespace, testName1, "master", "", testPath1)
+			Expect(err).ToNot(HaveOccurred())
+
+			err = testenv.CreateGitRepo(k.Namespace(namespace), namespace, testName2, "master", "", testPath2)
+			Expect(err).ToNot(HaveOccurred())
+
+			// Wait for bundles from both GitRepos
+			Eventually(func() bool {
+				out, err := k.Namespace(namespace).Get("bundles", "-l", "fleet.cattle.io/repo-name="+testName1)
+				if err != nil {
+					return false
+				}
+				return strings.Contains(out, testName1)
+			}, 30*time.Second, 2*time.Second).Should(BeTrue())
+
+			Eventually(func() bool {
+				out, err := k.Namespace(namespace).Get("bundles", "-l", "fleet.cattle.io/repo-name="+testName2)
+				if err != nil {
+					return false
+				}
+				return strings.Contains(out, testName2)
+			}, 30*time.Second, 2*time.Second).Should(BeTrue())
+
+			// Get cluster namespace
+			var clusterNs string
+			Eventually(func() bool {
+				out, err := k.Namespace(namespace).Run("get", "cluster", "local", "-o", "jsonpath={.status.namespace}")
+				if err != nil || out == "" {
+					return false
+				}
+				clusterNs = out
+				return true
+			}, 30*time.Second, 2*time.Second).Should(BeTrue())
+
+			// Wait for BundleDeployments for both repos
+			Eventually(func() bool {
+				out, err := k.Namespace(clusterNs).Get("bundledeployments")
+				if err != nil {
+					return false
+				}
+				return strings.Contains(out, testName1) && strings.Contains(out, testName2)
+			}, 30*time.Second, 2*time.Second).Should(BeTrue())
+
+			// Get content names for both repos
+			Eventually(func() bool {
+				out, err := k.Namespace(clusterNs).Run(
+					"get", "bundledeployments",
+					"-l", "fleet.cattle.io/bundle-namespace="+namespace,
+					"-l", "fleet.cattle.io/bundle-name="+testName1+"-"+testPath1,
+					"-o", "jsonpath={.items[0].metadata.labels['fleet\\.cattle\\.io/content-name']}",
+				)
+				if err != nil || out == "" {
+					return false
+				}
+				repo1ContentName = strings.Fields(out)[0]
+				return true
+			}, 30*time.Second, 2*time.Second).Should(BeTrue())
+
+			Eventually(func() bool {
+				out, err := k.Namespace(clusterNs).Run(
+					"get", "bundledeployments",
+					"-l", "fleet.cattle.io/bundle-namespace="+namespace,
+					"-l", "fleet.cattle.io/bundle-name="+testName2+"-"+testPath2,
+					"-o", "jsonpath={.items[0].metadata.labels['fleet\\.cattle\\.io/content-name']}",
+				)
+				if err != nil || out == "" {
+					return false
+				}
+				repo2ContentName = strings.Fields(out)[0]
+				return true
+			}, 30*time.Second, 2*time.Second).Should(BeTrue())
+
+			GinkgoWriter.Printf("Repo1 content name: %s\n", repo1ContentName)
+			GinkgoWriter.Printf("Repo2 content name: %s\n", repo2ContentName)
+		})
+
+		AfterEach(func() {
+			k := env.Kubectl.Namespace(namespace)
+			_, _ = k.Delete("gitrepo", testName1)
+			_, _ = k.Delete("gitrepo", testName2)
+			_ = os.RemoveAll(tgzPath)
+		})
+
+		It("dumps only resources from the specified GitRepo", func() {
+			// Create dump filtered by GitRepo
+			err := dump.Create(context.Background(), restConfig, tgzPath, dump.Options{
+				Namespace:           namespace,
+				GitRepo:             testName1,
+				AllNamespaces:       false,
+				WithContent:         true,
+				WithSecretsMetadata: true,
+			})
+			Expect(err).ToNot(HaveOccurred())
+
+			// Parse the archive and collect dumped resources
+			dumpedResources := extractResourcesFromArchive(tgzPath)
+
+			// Verify GitRepos - should only include testName1
+			Expect(dumpedResources["gitrepos"]).To(ContainElement(ContainSubstring(testName1)),
+				"Should include GitRepo "+testName1)
+			Expect(dumpedResources["gitrepos"]).ToNot(ContainElement(ContainSubstring(testName2)),
+				"Should NOT include GitRepo "+testName2)
+			Expect(len(dumpedResources["gitrepos"])).To(Equal(1),
+				"Should have exactly 1 GitRepo")
+
+			// Verify Bundles - should only include testName1's bundles
+			foundTestName1Bundle := false
+			foundTestName2Bundle := false
+			for _, bundle := range dumpedResources["bundles"] {
+				if strings.Contains(bundle, testName1) {
+					foundTestName1Bundle = true
+				}
+				if strings.Contains(bundle, testName2) {
+					foundTestName2Bundle = true
+				}
+			}
+			Expect(foundTestName1Bundle).To(BeTrue(), "Should include bundles from "+testName1)
+			Expect(foundTestName2Bundle).To(BeFalse(), "Should NOT include bundles from "+testName2)
+
+			// Verify BundleDeployments - should only include testName1's
+			foundTestName1BD := false
+			foundTestName2BD := false
+			for _, bd := range dumpedResources["bundledeployments"] {
+				if strings.Contains(bd, testName1) {
+					foundTestName1BD = true
+				}
+				if strings.Contains(bd, testName2) {
+					foundTestName2BD = true
+				}
+			}
+			Expect(foundTestName1BD).To(BeTrue(), "Should include BundleDeployments from "+testName1)
+			Expect(foundTestName2BD).To(BeFalse(), "Should NOT include BundleDeployments from "+testName2)
+
+			// Verify Contents - should only include testName1's content
+			foundTestName1Content := false
+			foundTestName2Content := false
+			for _, content := range dumpedResources["contents"] {
+				if strings.Contains(content, repo1ContentName) {
+					foundTestName1Content = true
+				}
+				if strings.Contains(content, repo2ContentName) {
+					foundTestName2Content = true
+				}
+			}
+			Expect(foundTestName1Content).To(BeTrue(), "Should include content from "+testName1)
+			Expect(foundTestName2Content).To(BeFalse(), "Should NOT include content from "+testName2)
+
+			// Verify Clusters are still included (they're namespace-scoped, not GitRepo-scoped)
+			Expect(dumpedResources["clusters"]).To(Not(BeEmpty()), "Should include clusters from the namespace")
+		})
+	})
 })
 
 // extractResourcesFromArchive extracts resources from a dump archive and returns a map of resource types to file names

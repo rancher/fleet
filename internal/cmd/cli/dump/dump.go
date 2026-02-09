@@ -44,6 +44,7 @@ type Options struct {
 	FetchLimit          int64
 	Namespace           string
 	AllNamespaces       bool
+	GitRepo             string
 	WithSecrets         bool
 	WithSecretsMetadata bool
 	WithContent         bool
@@ -61,8 +62,8 @@ func Create(ctx context.Context, cfg *rest.Config, path string, opt Options) err
 		return fmt.Errorf("failed to create dynamic Kubernetes client: %w", err)
 	}
 
-	// Use filtered version when namespace filtering is active
-	if !opt.AllNamespaces && opt.Namespace != "" {
+	// Use filtered version when namespace or GitRepo filtering is active
+	if !opt.AllNamespaces && (opt.Namespace != "" || opt.GitRepo != "") {
 		return CreateWithClientsFiltered(ctx, cfg, d, c, path, opt)
 	}
 
@@ -804,39 +805,68 @@ func CreateWithClientsFiltered(ctx context.Context, cfg *rest.Config, d dynamic.
 	gz := gzip.NewWriter(tgz)
 	w := tar.NewWriter(gz)
 
-	// Collect bundle metadata if filtering by namespace
+	// Collect bundle metadata if filtering by namespace or GitRepo
 	var bundleNames []string
 	if !opt.AllNamespaces && opt.Namespace != "" {
-		bundleNames, err = collectBundleNames(ctx, d, opt.Namespace, opt.FetchLimit)
-		if err != nil {
-			return fmt.Errorf("failed to collect bundle names: %w", err)
+		if opt.GitRepo != "" {
+			// Filter by GitRepo using label selector
+			bundleNames, err = collectBundleNamesByGitRepo(ctx, d, opt.Namespace, opt.GitRepo, opt.FetchLimit)
+			if err != nil {
+				return fmt.Errorf("failed to collect bundle names for gitrepo %q: %w", opt.GitRepo, err)
+			}
+			logger.Info("Filtering by GitRepo", "namespace", opt.Namespace, "gitrepo", opt.GitRepo, "bundles", len(bundleNames))
+		} else {
+			// Filter by namespace only
+			bundleNames, err = collectBundleNames(ctx, d, opt.Namespace, opt.FetchLimit)
+			if err != nil {
+				return fmt.Errorf("failed to collect bundle names: %w", err)
+			}
+			logger.Info("Filtering by namespace", "namespace", opt.Namespace, "bundles", len(bundleNames))
 		}
-		logger.Info("Filtering by namespace", "namespace", opt.Namespace, "bundles", len(bundleNames))
 	}
 
 	// Resources in the same namespace as GitRepos/Bundles
-	sameNamespaceTypes := []string{
-		"gitrepos",
-		"bundles",
+	// When GitRepo filter is active, filter gitrepos and bundles by name
+	if opt.GitRepo != "" {
+		// Add only the specific GitRepo
+		if err := addObjectsWithNameFilter(ctx, d, logger, "fleet.cattle.io", "v1alpha1", "gitrepos", w, []string{opt.GitRepo}, opt); err != nil {
+			return fmt.Errorf("failed to add gitrepos to archive: %w", err)
+		}
+		// Add only bundles matching the collected bundle names
+		if err := addObjectsWithNameFilter(ctx, d, logger, "fleet.cattle.io", "v1alpha1", "bundles", w, bundleNames, opt); err != nil {
+			return fmt.Errorf("failed to add bundles to archive: %w", err)
+		}
+	} else {
+		// No GitRepo filter, add all gitrepos and bundles from namespace
+		if err := addObjectsToArchive(ctx, d, logger, "fleet.cattle.io", "v1alpha1", "gitrepos", w, opt); err != nil {
+			return fmt.Errorf("failed to add gitrepos to archive: %w", err)
+		}
+		if err := addObjectsToArchive(ctx, d, logger, "fleet.cattle.io", "v1alpha1", "bundles", w, opt); err != nil {
+			return fmt.Errorf("failed to add bundles to archive: %w", err)
+		}
+	}
+
+	// Other namespace resources (not filtered by GitRepo)
+	otherNamespaceTypes := []string{
 		"clusters",
 		"clustergroups",
 		"bundlenamespacemappings",
 		"gitreporestrictions",
 	}
 
-	for _, t := range sameNamespaceTypes {
+	for _, t := range otherNamespaceTypes {
 		if err := addObjectsToArchive(ctx, d, logger, "fleet.cattle.io", "v1alpha1", t, w, opt); err != nil {
 			return fmt.Errorf("failed to add %s to archive: %w", t, err)
 		}
 	}
 
 	// BundleDeployments: filter by bundle-namespace label when filtering
-	if err := addBundleDeployments(ctx, d, logger, w, opt); err != nil {
+	if err := addBundleDeployments(ctx, d, logger, w, bundleNames, opt); err != nil {
 		return fmt.Errorf("failed to add bundledeployments to archive: %w", err)
 	}
 
 	// HelmOps: filter by bundle-namespace label like BundleDeployments
-	if err := addHelmOps(ctx, d, logger, w, opt); err != nil {
+	if err := addHelmOps(ctx, d, logger, w, bundleNames, opt); err != nil {
 		return fmt.Errorf("failed to add helmops to archive: %w", err)
 	}
 
@@ -846,7 +876,7 @@ func CreateWithClientsFiltered(ctx context.Context, cfg *rest.Config, d dynamic.
 		var contentIDs []string
 		if !opt.AllNamespaces && opt.Namespace != "" {
 			var err error
-			contentIDs, err = collectContentIDs(ctx, d, opt.Namespace, opt.FetchLimit)
+			contentIDs, err = collectContentIDs(ctx, d, opt.Namespace, bundleNames, opt.FetchLimit)
 			if err != nil {
 				return fmt.Errorf("failed to collect content IDs from bundles: %w", err)
 			}
@@ -884,6 +914,16 @@ func CreateWithClientsFiltered(ctx context.Context, cfg *rest.Config, d dynamic.
 	return nil
 }
 
+// buildBundleNameSelector creates a label selector for filtering by bundle names
+func buildBundleNameSelector(namespace string, bundleNames []string) string {
+	if len(bundleNames) == 0 {
+		return fmt.Sprintf("fleet.cattle.io/bundle-namespace=%s", namespace)
+	}
+	// Use "in" operator for bundle names: bundle-name in (name1,name2,...)
+	bundleNameList := strings.Join(bundleNames, ",")
+	return fmt.Sprintf("fleet.cattle.io/bundle-namespace=%s,fleet.cattle.io/bundle-name in (%s)", namespace, bundleNameList)
+}
+
 // collectBundleNames fetches bundle names from the given namespace for filtering
 func collectBundleNames(ctx context.Context, d dynamic.Interface, namespace string, fetchLimit int64) ([]string, error) {
 	rID := schema.GroupVersionResource{
@@ -914,10 +954,44 @@ func collectBundleNames(ctx context.Context, d dynamic.Interface, namespace stri
 	return names, nil
 }
 
+// collectBundleNamesByGitRepo fetches bundle names from the given namespace filtered by GitRepo name
+func collectBundleNamesByGitRepo(ctx context.Context, d dynamic.Interface, namespace string, gitrepo string, fetchLimit int64) ([]string, error) {
+	rID := schema.GroupVersionResource{
+		Group:    "fleet.cattle.io",
+		Version:  "v1alpha1",
+		Resource: "bundles",
+	}
+
+	var names []string
+	lo := metav1.ListOptions{
+		Limit:         fetchLimit,
+		LabelSelector: fmt.Sprintf("fleet.cattle.io/repo-name=%s", gitrepo),
+	}
+
+	for {
+		list, err := d.Resource(rID).Namespace(namespace).List(ctx, lo)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list bundles: %w", err)
+		}
+
+		for _, item := range list.Items {
+			names = append(names, item.GetName())
+		}
+
+		if list.GetContinue() == "" {
+			break
+		}
+		lo.Continue = list.GetContinue()
+	}
+
+	return names, nil
+}
+
 // collectContentIDs fetches content IDs referenced by BundleDeployments associated with bundles in the given namespace.
 // It queries BundleDeployments across all namespaces using the fleet.cattle.io/bundle-namespace label selector,
 // then extracts content names from the fleet.cattle.io/content-name label.
-func collectContentIDs(ctx context.Context, d dynamic.Interface, namespace string, fetchLimit int64) ([]string, error) {
+// When bundleNames is provided, filters to only those specific bundles.
+func collectContentIDs(ctx context.Context, d dynamic.Interface, namespace string, bundleNames []string, fetchLimit int64) ([]string, error) {
 	rID := schema.GroupVersionResource{
 		Group:    "fleet.cattle.io",
 		Version:  "v1alpha1",
@@ -927,7 +1001,7 @@ func collectContentIDs(ctx context.Context, d dynamic.Interface, namespace strin
 	contentIDMap := make(map[string]bool)
 	lo := metav1.ListOptions{
 		Limit:         fetchLimit,
-		LabelSelector: fmt.Sprintf("fleet.cattle.io/bundle-namespace=%s", namespace),
+		LabelSelector: buildBundleNameSelector(namespace, bundleNames),
 	}
 
 	for {
@@ -962,24 +1036,89 @@ func collectContentIDs(ctx context.Context, d dynamic.Interface, namespace strin
 
 // addBundleDeployments adds bundledeployment resources to the archive.
 // When filtering by namespace, uses label selector for bundle-namespace.
-func addBundleDeployments(ctx context.Context, d dynamic.Interface, logger logr.Logger, w *tar.Writer, opt Options) error {
+// When bundleNames is provided, additionally filters by bundle-name.
+func addBundleDeployments(ctx context.Context, d dynamic.Interface, logger logr.Logger, w *tar.Writer, bundleNames []string, opt Options) error {
 	// When filtering by namespace, use label selector for bundle-namespace
 	if !opt.AllNamespaces && opt.Namespace != "" {
 		return addObjectsWithLabelSelector(ctx, d, logger, "fleet.cattle.io", "v1alpha1", "bundledeployments", w,
-			fmt.Sprintf("fleet.cattle.io/bundle-namespace=%s", opt.Namespace), opt.FetchLimit)
+			buildBundleNameSelector(opt.Namespace, bundleNames), opt.FetchLimit)
 	}
 	return addObjectsToArchive(ctx, d, logger, "fleet.cattle.io", "v1alpha1", "bundledeployments", w, opt)
 }
 
 // addHelmOps adds helmop resources to the archive.
 // When filtering by namespace, uses label selector for bundle-namespace like BundleDeployments.
-func addHelmOps(ctx context.Context, d dynamic.Interface, logger logr.Logger, w *tar.Writer, opt Options) error {
+// When bundleNames is provided, additionally filters by bundle-name.
+func addHelmOps(ctx context.Context, d dynamic.Interface, logger logr.Logger, w *tar.Writer, bundleNames []string, opt Options) error {
 	// Filter by bundle-namespace label like BundleDeployments
 	if !opt.AllNamespaces && opt.Namespace != "" {
 		return addObjectsWithLabelSelector(ctx, d, logger, "fleet.cattle.io", "v1alpha1", "helmops", w,
-			fmt.Sprintf("fleet.cattle.io/bundle-namespace=%s", opt.Namespace), opt.FetchLimit)
+			buildBundleNameSelector(opt.Namespace, bundleNames), opt.FetchLimit)
 	}
 	return addObjectsToArchive(ctx, d, logger, "fleet.cattle.io", "v1alpha1", "helmops", w, opt)
+}
+
+// addObjectsWithNameFilter fetches resources from a namespace and filters by resource names
+func addObjectsWithNameFilter(ctx context.Context, d dynamic.Interface, logger logr.Logger, g, v, r string, w *tar.Writer, names []string, opt Options) error {
+	if len(names) == 0 {
+		// No names to filter, don't add any resources
+		return nil
+	}
+
+	// Create a map for efficient name lookup
+	nameMap := make(map[string]bool, len(names))
+	for _, name := range names {
+		nameMap[name] = true
+	}
+
+	rID := schema.GroupVersionResource{
+		Group:    g,
+		Version:  v,
+		Resource: r,
+	}
+
+	logger.V(1).Info("Fetching with name filter...", "resource", rID.String(), "names", len(names))
+
+	lo := metav1.ListOptions{Limit: opt.FetchLimit}
+	for {
+		var list *unstructured.UnstructuredList
+		var err error
+
+		if opt.Namespace != "" && !opt.AllNamespaces {
+			list, err = d.Resource(rID).Namespace(opt.Namespace).List(ctx, lo)
+		} else {
+			list, err = d.Resource(rID).List(ctx, lo)
+		}
+
+		if err != nil {
+			return fmt.Errorf("failed to list %s: %w", r, err)
+		}
+
+		for _, i := range list.Items {
+			// Filter by name
+			if !nameMap[i.GetName()] {
+				continue
+			}
+
+			g, err := yaml.Marshal(&i)
+			if err != nil {
+				return fmt.Errorf("failed to marshal %s: %w", r, err)
+			}
+
+			fileName := fmt.Sprintf("%s_%s_%s", r, i.GetNamespace(), i.GetName())
+			if err := addFileToArchive(g, fileName, w); err != nil {
+				return err
+			}
+		}
+
+		c := list.GetContinue()
+		if c == "" {
+			break
+		}
+		lo.Continue = c
+	}
+
+	return nil
 }
 
 // addObjectsWithLabelSelector fetches resources using a label selector (across all namespaces)
