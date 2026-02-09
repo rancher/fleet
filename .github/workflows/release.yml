@@ -180,8 +180,9 @@ jobs:
           STAGE_REGISTRY: ${{ env.STAGE_REGISTRY }}
           PRIME_REGISTRY: ${{ env.PRIME_REGISTRY }}
 
-      - name: Parse image digests
-        id: digests
+      - name: Attest provenance
+        # Note: This step only works if the release process was triggered by a commit
+        # (push with a tag). Manual workflow_dispatch runs will not have valid provenance.
         shell: bash
         env:
           STAGE_REGISTRY: ${{ env.STAGE_REGISTRY }}
@@ -193,90 +194,20 @@ jobs:
             exit 1
           fi
 
-          echo "=== All images in digests.txt ==="
-          cat dist/digests.txt
-          echo ""
-
-          # Extract all manifest images (exclude already-tagged platform-specific images)
-          # Format: <digest>  <image:tag> → sha256:<digest> <image:tag>
-          echo "=== All manifest images ==="
-          all_images=$(grep -v -- '-linux-' dist/digests.txt | \
-          awk '{print "sha256:" $1, $NF}')
-
-          echo "$all_images"
-
-          if [[ -z "$all_images" ]]; then
-            echo "ERROR: No manifest images found"
-            exit 1
-          fi
-
-          echo "=== Staging images for attestation ==="
-          staging_images=$(echo "$all_images" | grep "${STAGE_REGISTRY}" || true)
+          # Extract staging images (exclude platform-specific tags)
+          # Format: <digest>  <image:tag> → only staging registry images
+          staging_images=$(grep -v -- '-linux-' dist/digests.txt | \
+            awk '{print "sha256:" $1, $NF}' | \
+            grep -F -- "${STAGE_REGISTRY}" || true)
 
           if [[ -z "$staging_images" ]]; then
             echo "ERROR: No staging images found"
             exit 1
           fi
 
+          echo "=== Staging images for attestation ==="
           echo "$staging_images"
-
-          {
-            echo 'all_images<<EOF'
-            echo "$all_images"
-            echo 'EOF'
-            echo 'staging_images<<EOF'
-            echo "$staging_images"
-            echo 'EOF'
-          } >> $GITHUB_OUTPUT
-
-      - name: Create platform-specific tags and sign staging images
-        shell: bash
-        env:
-          PRIME_REGISTRY: ${{ env.PRIME_REGISTRY }}
-          STAGE_REGISTRY: ${{ env.STAGE_REGISTRY }}
-        run: |
-          set -euo pipefail
-
-          while read -r digest image_ref; do
-            echo "Processing: ${image_ref}"
-
-            # Get platform-specific digests from manifest
-            docker buildx imagetools inspect "${image_ref}@${digest}" --raw | \
-              jq -r '.manifests[] | select(.platform.os=="linux" and .platform.architecture!="unknown") | "\(.digest)|\(.platform.architecture)"' | \
-              while IFS='|' read -r platform_digest arch; do
-                platform_tag="${image_ref}-linux-${arch}"
-                echo "  Creating: ${platform_tag}"
-                docker buildx imagetools create -t "${platform_tag}" "${image_ref}@${platform_digest}"
-
-                # Sign staging platform-specific tags
-                if [[ "${image_ref}" == *"${STAGE_REGISTRY}"* ]]; then
-                  image_and_tag=$(basename "${platform_tag}")
-                  echo "    Signing: ${platform_tag}@${platform_digest}"
-                  cosign sign \
-                    --oidc-provider=github-actions \
-                    --yes \
-                    --sign-container-identity="${PRIME_REGISTRY}/rancher/${image_and_tag}" \
-                    "${platform_tag}@${platform_digest}"
-                  echo "      ✓ Signed"
-                fi
-              done
-          done <<< '${{ steps.digests.outputs.all_images }}'
-
           echo ""
-          echo "✓ Platform tags created and staging images signed"
-
-      - name: Attest provenance
-        # Note: This step only works if the release process was triggered by a commit
-        # (push with a tag). Manual workflow_dispatch runs will not have valid provenance.
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          staging_images='${{ steps.digests.outputs.staging_images }}'
-          if [[ -z "$staging_images" ]]; then
-            echo "ERROR: No staging images to attest"
-            exit 1
-          fi
 
           max_retries=3
 
