@@ -38,6 +38,7 @@ type Dump struct {
 	FetchLimit          int64  `usage:"Limit number of items per resource that are fetched at once (0 means no limit)" short:"l" default:"500"`
 	AllNamespaces       bool   `usage:"Dump resources from all namespaces" short:"A"`
 	GitRepo             string `usage:"Filter by GitRepo name (requires --namespace)"`
+	Bundle              string `usage:"Filter by Bundle name (requires --namespace, mutually exclusive with --gitrepo)"`
 	WithSecrets         bool   `usage:"Include secrets with full data"`
 	WithSecretsMetadata bool   `usage:"Include secrets with metadata only"`
 	WithContent         bool   `usage:"Include Content resources with full data"`
@@ -65,11 +66,20 @@ func (d *Dump) Run(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("--namespace and --all-namespaces are mutually exclusive")
 		}
 	}
+	if d.GitRepo != "" && d.Bundle != "" {
+		return fmt.Errorf("--bundle and --gitrepo are mutually exclusive")
+	}
 	if d.GitRepo != "" && d.AllNamespaces {
 		return fmt.Errorf("--gitrepo requires --namespace to be specified (--all-namespaces is not compatible)")
 	}
 	if d.GitRepo != "" && !cmd.Flags().Changed("namespace") {
 		return fmt.Errorf("--gitrepo requires --namespace to be explicitly specified")
+	}
+	if d.Bundle != "" && d.AllNamespaces {
+		return fmt.Errorf("--bundle requires --namespace to be specified (--all-namespaces is not compatible)")
+	}
+	if d.Bundle != "" && !cmd.Flags().Changed("namespace") {
+		return fmt.Errorf("--bundle requires --namespace to be explicitly specified")
 	}
 
 	cfg, err := ctrl.GetConfig()
@@ -102,6 +112,7 @@ func (d *Dump) Run(cmd *cobra.Command, args []string) error {
 		Namespace:           namespace,
 		AllNamespaces:       d.AllNamespaces,
 		GitRepo:             d.GitRepo,
+		Bundle:              d.Bundle,
 		WithSecrets:         d.WithSecrets,
 		WithSecretsMetadata: d.WithSecretsMetadata,
 		WithContent:         d.WithContent,

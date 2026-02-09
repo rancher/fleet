@@ -25,6 +25,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -45,6 +46,7 @@ type Options struct {
 	Namespace           string
 	AllNamespaces       bool
 	GitRepo             string
+	Bundle              string
 	WithSecrets         bool
 	WithSecretsMetadata bool
 	WithContent         bool
@@ -805,10 +807,21 @@ func CreateWithClientsFiltered(ctx context.Context, cfg *rest.Config, d dynamic.
 	gz := gzip.NewWriter(tgz)
 	w := tar.NewWriter(gz)
 
-	// Collect bundle metadata if filtering by namespace or GitRepo
+	// Collect bundle metadata if filtering by namespace, GitRepo, or Bundle
 	var bundleNames []string
 	if !opt.AllNamespaces && opt.Namespace != "" {
-		if opt.GitRepo != "" {
+		if opt.Bundle != "" {
+			// Filter by Bundle name directly - validate bundle exists first
+			exists, err := bundleExists(ctx, d, opt.Namespace, opt.Bundle)
+			if err != nil {
+				return fmt.Errorf("failed to check if bundle %q exists: %w", opt.Bundle, err)
+			}
+			if !exists {
+				return fmt.Errorf("bundle %q does not exist in namespace %q", opt.Bundle, opt.Namespace)
+			}
+			bundleNames = []string{opt.Bundle}
+			logger.Info("Filtering by Bundle", "namespace", opt.Namespace, "bundle", opt.Bundle)
+		} else if opt.GitRepo != "" {
 			// Filter by GitRepo using label selector
 			bundleNames, err = collectBundleNamesByGitRepo(ctx, d, opt.Namespace, opt.GitRepo, opt.FetchLimit)
 			if err != nil {
@@ -826,7 +839,7 @@ func CreateWithClientsFiltered(ctx context.Context, cfg *rest.Config, d dynamic.
 	}
 
 	// Resources in the same namespace as GitRepos/Bundles
-	// When GitRepo filter is active, filter gitrepos and bundles by name
+	// When GitRepo or Bundle filter is active, filter by name
 	if opt.GitRepo != "" {
 		// Add only the specific GitRepo
 		if err := addObjectsWithNameFilter(ctx, d, logger, "fleet.cattle.io", "v1alpha1", "gitrepos", w, []string{opt.GitRepo}, opt); err != nil {
@@ -836,8 +849,13 @@ func CreateWithClientsFiltered(ctx context.Context, cfg *rest.Config, d dynamic.
 		if err := addObjectsWithNameFilter(ctx, d, logger, "fleet.cattle.io", "v1alpha1", "bundles", w, bundleNames, opt); err != nil {
 			return fmt.Errorf("failed to add bundles to archive: %w", err)
 		}
+	} else if opt.Bundle != "" {
+		// Bundle filter: skip GitRepos, add only the specific Bundle
+		if err := addObjectsWithNameFilter(ctx, d, logger, "fleet.cattle.io", "v1alpha1", "bundles", w, bundleNames, opt); err != nil {
+			return fmt.Errorf("failed to add bundles to archive: %w", err)
+		}
 	} else {
-		// No GitRepo filter, add all gitrepos and bundles from namespace
+		// No filter, add all gitrepos and bundles from namespace
 		if err := addObjectsToArchive(ctx, d, logger, "fleet.cattle.io", "v1alpha1", "gitrepos", w, opt); err != nil {
 			return fmt.Errorf("failed to add gitrepos to archive: %w", err)
 		}
@@ -912,6 +930,25 @@ func CreateWithClientsFiltered(ctx context.Context, cfg *rest.Config, d dynamic.
 	}
 
 	return nil
+}
+
+// bundleExists checks if a bundle with the given name exists in the namespace
+func bundleExists(ctx context.Context, d dynamic.Interface, namespace string, bundleName string) (bool, error) {
+	rID := schema.GroupVersionResource{
+		Group:    "fleet.cattle.io",
+		Version:  "v1alpha1",
+		Resource: "bundles",
+	}
+
+	_, err := d.Resource(rID).Namespace(namespace).Get(ctx, bundleName, metav1.GetOptions{})
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return false, nil
+		}
+		return false, err
+	}
+
+	return true, nil
 }
 
 // buildBundleNameSelector creates a label selector for filtering by bundle names

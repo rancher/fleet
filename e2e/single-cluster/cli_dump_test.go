@@ -658,6 +658,161 @@ var _ = Describe("Fleet dump", Label("sharding"), func() {
 			Expect(dumpedResources["clusters"]).To(Not(BeEmpty()), "Should include clusters from the namespace")
 		})
 	})
+
+	When("filtering by Bundle", func() {
+		var (
+			testName1          = "test-bundle-filter-bundle1"
+			testName2          = "test-bundle-filter-bundle2"
+			testPath1          = "simple"
+			testPath2          = "simple-chart"
+			namespace          = "fleet-local"
+			tgzPath            = "test-bundle-filter.tgz"
+			bundle1ContentName string
+			bundle2ContentName string
+			bundleName1        string
+			bundleName2        string
+		)
+
+		BeforeEach(func() {
+			bundleName1 = testName1 + "-" + testPath1
+			bundleName2 = testName2 + "-" + testPath2
+
+			k := env.Kubectl.Namespace(namespace)
+
+			// Create two separate GitRepos to get distinct bundles
+			err := testenv.CreateGitRepo(k, namespace, testName1, "master", "", testPath1)
+			Expect(err).ToNot(HaveOccurred())
+
+			err = testenv.CreateGitRepo(k, namespace, testName2, "master", "", testPath2)
+			Expect(err).ToNot(HaveOccurred())
+
+			// Wait for both bundles to be created
+			Eventually(func() bool {
+				out, err := k.Get("bundles", "-l", "fleet.cattle.io/repo-name="+testName1, "-o", "jsonpath={.items[*].metadata.name}")
+				return err == nil && strings.TrimSpace(out) != ""
+			}).Should(BeTrue(), "Bundle for "+testName1+" should be created")
+
+			Eventually(func() bool {
+				out, err := k.Get("bundles", "-l", "fleet.cattle.io/repo-name="+testName2, "-o", "jsonpath={.items[*].metadata.name}")
+				return err == nil && strings.TrimSpace(out) != ""
+			}).Should(BeTrue(), "Bundle for "+testName2+" should be created")
+
+			// Get cluster namespace
+			var clusterNs string
+			Eventually(func() bool {
+				out, err := k.Namespace(namespace).Run("get", "cluster", "local", "-o", "jsonpath={.status.namespace}")
+				if err != nil || out == "" {
+					return false
+				}
+				clusterNs = out
+				return true
+			}, 30*time.Second, 2*time.Second).Should(BeTrue())
+
+			Eventually(func() bool {
+				out, err := k.Namespace(clusterNs).Get("bundledeployments", "-l", "fleet.cattle.io/bundle-name="+testName1+"-"+testPath1, "-o", "name")
+				if err != nil {
+					return false
+				}
+				return strings.Contains(out, testName1+"-"+testPath1)
+			}).Should(BeTrue(), "BundleDeployment for "+testName1+" should be created")
+
+			Eventually(func() bool {
+				out, err := k.Namespace(clusterNs).Get("bundledeployments", "-l", "fleet.cattle.io/bundle-name="+testName2+"-"+testPath2, "-o", "name")
+				if err != nil {
+					return false
+				}
+				return strings.Contains(out, testName2+"-"+testPath2)
+			}).Should(BeTrue(), "BundleDeployment for "+testName2+" should be created")
+
+			// Get content names from bundledeployments
+			out, err := k.Namespace(clusterNs).Get("bundledeployments", "-l", "fleet.cattle.io/bundle-name="+bundleName1, "-o", "jsonpath={.items[0].metadata.labels['fleet\\.cattle\\.io/content-name']}")
+			Expect(err).ToNot(HaveOccurred())
+			bundle1ContentName = strings.TrimSpace(out)
+			GinkgoWriter.Printf("Bundle 1 content name: %s\n", bundle1ContentName)
+
+			out, err = k.Namespace(clusterNs).Get("bundledeployments", "-l", "fleet.cattle.io/bundle-name="+bundleName2, "-o", "jsonpath={.items[0].metadata.labels['fleet\\.cattle\\.io/content-name']}")
+			Expect(err).ToNot(HaveOccurred())
+			bundle2ContentName = strings.TrimSpace(out)
+			GinkgoWriter.Printf("Bundle 2 content name: %s\n", bundle2ContentName)
+		})
+
+		AfterEach(func() {
+			// Clean up the GitRepos and dump file
+			k := env.Kubectl.Namespace(namespace)
+			_, _ = k.Delete("gitrepo", "test-bundle-filter-bundle1")
+			_, _ = k.Delete("gitrepo", "test-bundle-filter-bundle2")
+			_ = os.Remove(tgzPath)
+		})
+
+		It("includes only resources from the specified bundle", func() {
+			// Run dump with Bundle filter
+			err := dump.Create(context.Background(), restConfig, tgzPath, dump.Options{
+				Namespace: namespace,
+				Bundle:    bundleName1, // Filter by first bundle only
+			})
+			Expect(err).ToNot(HaveOccurred())
+
+			// Extract and analyze the dump
+			dumpedResources := extractResourcesFromArchive(tgzPath)
+
+			// Verify bundles: should include testName1, not testName2
+			Expect(dumpedResources["bundles"]).To(Not(BeEmpty()), "Should have bundles")
+			foundTestName1Bundle := false
+			foundTestName2Bundle := false
+			for _, bundleFile := range dumpedResources["bundles"] {
+				if strings.Contains(bundleFile, bundleName1) {
+					foundTestName1Bundle = true
+				}
+				if strings.Contains(bundleFile, bundleName2) {
+					foundTestName2Bundle = true
+				}
+			}
+			Expect(foundTestName1Bundle).To(BeTrue(), "Should include bundle "+bundleName1)
+			Expect(foundTestName2Bundle).To(BeFalse(), "Should NOT include bundle "+bundleName2)
+
+			// Verify GitRepos: should NOT be included when filtering by Bundle
+			Expect(dumpedResources["gitrepos"]).To(BeEmpty(), "Should NOT include gitrepos when filtering by Bundle")
+
+			// Verify BundleDeployments: should only include those from testName1
+			if bundledeployments, hasBDs := dumpedResources["bundledeployments"]; hasBDs && len(bundledeployments) > 0 {
+				foundTestName1BD := false
+				foundTestName2BD := false
+				for _, bdFile := range bundledeployments {
+					// BundleDeployments reference bundles via labels - check the file content would be more accurate
+					// but file names often include identifiable info
+					if strings.Contains(bdFile, bundleName1) {
+						foundTestName1BD = true
+					}
+					if strings.Contains(bdFile, bundleName2) {
+						foundTestName2BD = true
+					}
+				}
+				if foundTestName1BD || foundTestName2BD {
+					GinkgoWriter.Printf("BundleDeployments: testName1=%v, testName2=%v\n", foundTestName1BD, foundTestName2BD)
+					Expect(foundTestName2BD).To(BeFalse(), "Should NOT include BundleDeployments from "+bundleName2)
+				}
+			}
+
+			// Verify Contents: should only include content from bundleName1
+			if contents, hasContents := dumpedResources["contents"]; hasContents && len(contents) > 0 {
+				foundTestName1Content := false
+				foundTestName2Content := false
+				for _, contentFile := range contents {
+					if bundle1ContentName != "" && strings.Contains(contentFile, bundle1ContentName) {
+						foundTestName1Content = true
+					}
+					if bundle2ContentName != "" && strings.Contains(contentFile, bundle2ContentName) {
+						foundTestName2Content = true
+					}
+				}
+				Expect(foundTestName1Content).To(BeTrue(), "Should include content from "+bundleName1)
+				Expect(foundTestName2Content).To(BeFalse(), "Should NOT include content from "+bundleName2)
+			}
+
+			// Verify Clusters are still included (they're namespace-scoped, not Bundle-scoped)
+			Expect(dumpedResources["clusters"]).To(Not(BeEmpty()), "Should include clusters from the namespace")
+		})
+	})
 })
 
 // extractResourcesFromArchive extracts resources from a dump archive and returns a map of resource types to file names
