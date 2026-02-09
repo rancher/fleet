@@ -56,7 +56,30 @@ func (c Command) Get(args ...string) (string, error) {
 }
 
 func (c Command) Delete(args ...string) (string, error) {
-	return c.Run(append([]string{"delete"}, args...)...)
+	// Changes for debug purposes
+	// Normally the args to delete are the resource type and the name
+	out, err := c.Run(append([]string{"delete", "--timeout=1m"}, args...)...)
+	if err != nil {
+		GinkgoWriter.Printf("ERROR DELETING RESOURCE: %s\n", out)
+		getArgs := append(
+			append([]string{"get"}, args...),
+			"-o", "yaml",
+		)
+		outGet, errGet := c.Run(getArgs...)
+		if errGet != nil {
+			GinkgoWriter.Printf("ERROR GETTING RESOURCE: %s\n", outGet)
+		} else {
+			GinkgoWriter.Printf("---------------- RESOURCE -----------------\n")
+			GinkgoWriter.Printf("%s\n", outGet)
+			GinkgoWriter.Printf("-------------- END RESOURCE----------------\n")
+		}
+	}
+
+	return out, err
+}
+
+func (c Command) DeleteNoWait(args ...string) (string, error) {
+	return c.Run(append([]string{"delete", "--wait=false"}, args...)...)
 }
 
 func (c Command) Create(args ...string) (string, error) {
