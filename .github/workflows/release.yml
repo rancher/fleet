@@ -266,6 +266,8 @@ jobs:
           echo "✓ Platform tags created and staging images signed"
 
       - name: Attest provenance
+        # Note: This step only works if the release process was triggered by a commit
+        # (push with a tag). Manual workflow_dispatch runs will not have valid provenance.
         shell: bash
         run: |
           set -euo pipefail
