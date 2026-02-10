@@ -23,6 +23,7 @@ import (
 	"github.com/gorilla/mux"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	gerrit "github.com/rancher/fleet/pkg/webhook/gerrit"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -250,8 +251,9 @@ func getErrorCodeFromErr(err error) int {
 		errors.Is(err, gitlab.ErrInvalidHTTPMethod),
 		errors.Is(err, bitbucket.ErrInvalidHTTPMethod),
 		errors.Is(err, bitbucketserver.ErrInvalidHTTPMethod),
-		errors.Is(err, azuredevops.ErrInvalidHTTPMethod):
-
+		errors.Is(err, azuredevops.ErrInvalidHTTPMethod),
+		errors.Is(err, gerrit.ErrInvalidHTTPMethod):
+		
 		return http.StatusMethodNotAllowed
 	}
 	return http.StatusInternalServerError
@@ -275,6 +277,15 @@ func getBranchTagFromRef(ref string) (string, string) {
 func parsePayload(payload interface{}) (revision, branch, tag string, repoURLs []string) {
 	// credit from https://github.com/argoproj/argo-cd/blob/97003caebcaafe1683e71934eb483a88026a4c33/util/webhook/webhook.go#L84-L87
 	switch t := payload.(type) {
+	case gerrit.ChangeMergedPayload:
+		branch, tag = getBranchTagFromRef(t.RefName)
+		revision = t.NewRev
+		repoURL, err := gerrit.ExtractRepoURL(t)
+		if err != nil {
+			fmt.Println("Error extracting repo URL from gerrit", err)
+			break
+		}
+		repoURLs = append(repoURLs, repoURL)
 	case github.PushPayload:
 		branch, tag = getBranchTagFromRef(t.Ref)
 		revision = t.After
