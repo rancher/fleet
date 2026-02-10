@@ -202,7 +202,7 @@ func createAuthFromOpts(opts *GitCloner) (transport.AuthMethod, error) {
 			return nil, fmt.Errorf("failed to read GitHub app private key from file: %w", err)
 		}
 
-		auth, err := appAuthGetter.Get(opts.GitHubAppID, opts.GitHubAppInstallation, key)
+		auth, err := appAuthGetter.Get(opts.Repo, opts.GitHubAppID, opts.GitHubAppInstallation, key)
 		if err != nil {
 			return nil, err
 		}

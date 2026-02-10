@@ -72,7 +72,7 @@ func GetAuthFromSecret(url string, creds *corev1.Secret, knownHosts string) (tra
 		}
 		return auth, nil
 	default:
-		auth, err := fleetgithub.GetGithubAppAuthFromSecret(creds, GitHubAppGetter)
+		auth, err := fleetgithub.GetGithubAppAuthFromSecret(url, creds, GitHubAppGetter)
 		if err != nil {
 			if errors.Is(err, fleetgithub.ErrNotGithubAppSecret) {
 				return nil, nil
