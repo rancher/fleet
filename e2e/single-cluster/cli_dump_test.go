@@ -813,6 +813,194 @@ var _ = Describe("Fleet dump", Label("sharding"), func() {
 			Expect(dumpedResources["clusters"]).To(Not(BeEmpty()), "Should include clusters from the namespace")
 		})
 	})
+
+	When("filtering by HelmOp", func() {
+		var (
+			testName1        = "test-helmop-filter-helm1"
+			testName2        = "test-helmop-filter-helm2"
+			namespace        = "fleet-local"
+			tgzPath          = "test-helmop-filter.tgz"
+			helm1ContentName string
+			helm2ContentName string
+		)
+
+		BeforeEach(func() {
+			k := env.Kubectl.Namespace(namespace)
+
+			// Create two HelmOps with the same chart (different names for filtering test)
+			err := testenv.CreateHelmOp(k, namespace, testName1, "oci://ghcr.io/rancher/fleet-test-configmap-chart", "0.1.0", "")
+			Expect(err).ToNot(HaveOccurred())
+
+			err = testenv.CreateHelmOp(k, namespace, testName2, "oci://ghcr.io/rancher/fleet-test-configmap-chart", "0.1.0", "")
+			Expect(err).ToNot(HaveOccurred())
+
+			// Wait for bundles from both HelmOps
+			Eventually(func() bool {
+				out, err := k.Get("bundles", "-l", "fleet.cattle.io/fleet-helm-name="+testName1)
+				return err == nil && strings.Contains(out, testName1)
+			}, 30*time.Second, 2*time.Second).Should(BeTrue())
+
+			Eventually(func() bool {
+				out, err := k.Get("bundles", "-l", "fleet.cattle.io/fleet-helm-name="+testName2)
+				return err == nil && strings.Contains(out, testName2)
+			}, 30*time.Second, 2*time.Second).Should(BeTrue())
+
+			// Get cluster namespace
+			var clusterNs string
+			Eventually(func() bool {
+				out, err := k.Run("get", "cluster", "local", "-o", "jsonpath={.status.namespace}")
+				if err != nil || out == "" {
+					return false
+				}
+				clusterNs = out
+				return true
+			}, 30*time.Second, 2*time.Second).Should(BeTrue())
+
+			// Wait for BundleDeployments for both HelmOps
+			Eventually(func() bool {
+				out, err := k.Namespace(clusterNs).Get("bundledeployments")
+				if err != nil {
+					return false
+				}
+				return strings.Contains(out, testName1) && strings.Contains(out, testName2)
+			}, 30*time.Second, 2*time.Second).Should(BeTrue())
+
+			// Get content names for both HelmOps
+			Eventually(func() bool {
+				// Get bundles for helm1 to find its content
+				bundlesOut, err := k.Get("bundles", "-l", "fleet.cattle.io/fleet-helm-name="+testName1, "-o", "jsonpath={.items[*].metadata.name}")
+				if err != nil || bundlesOut == "" {
+					return false
+				}
+				bundleNames := strings.Fields(bundlesOut)
+				if len(bundleNames) == 0 {
+					return false
+				}
+
+				// Get content name from BundleDeployment for first bundle of helm1
+				out, err := k.Namespace(clusterNs).Run(
+					"get", "bundledeployments",
+					"-l", "fleet.cattle.io/bundle-name="+bundleNames[0],
+					"-l", "fleet.cattle.io/bundle-namespace="+namespace,
+					"-o", "jsonpath={.items[0].metadata.labels['fleet\\.cattle\\.io/content-name']}",
+				)
+				if err != nil || out == "" {
+					return false
+				}
+				helm1ContentName = strings.Fields(out)[0]
+				return true
+			}, 30*time.Second, 2*time.Second).Should(BeTrue())
+
+			Eventually(func() bool {
+				// Get bundles for helm2 to find its content
+				bundlesOut, err := k.Get("bundles", "-l", "fleet.cattle.io/fleet-helm-name="+testName2, "-o", "jsonpath={.items[*].metadata.name}")
+				if err != nil || bundlesOut == "" {
+					return false
+				}
+				bundleNames := strings.Fields(bundlesOut)
+				if len(bundleNames) == 0 {
+					return false
+				}
+
+				// Get content name from BundleDeployment for first bundle of helm2
+				out, err := k.Namespace(clusterNs).Run(
+					"get", "bundledeployments",
+					"-l", "fleet.cattle.io/bundle-name="+bundleNames[0],
+					"-l", "fleet.cattle.io/bundle-namespace="+namespace,
+					"-o", "jsonpath={.items[0].metadata.labels['fleet\\.cattle\\.io/content-name']}",
+				)
+				if err != nil || out == "" {
+					return false
+				}
+				helm2ContentName = strings.Fields(out)[0]
+				return true
+			}, 30*time.Second, 2*time.Second).Should(BeTrue())
+
+			GinkgoWriter.Printf("HelmOp1 content name: %s\n", helm1ContentName)
+			GinkgoWriter.Printf("HelmOp2 content name: %s\n", helm2ContentName)
+		})
+
+		AfterEach(func() {
+			k := env.Kubectl.Namespace(namespace)
+			_, _ = k.Delete("helmop", testName1)
+			_, _ = k.Delete("helmop", testName2)
+			_ = os.RemoveAll(tgzPath)
+		})
+
+		It("dumps only resources from the specified HelmOp", func() {
+			// Create dump filtered by HelmOp
+			err := dump.Create(context.Background(), restConfig, tgzPath, dump.Options{
+				Namespace:           namespace,
+				HelmOp:              testName1,
+				AllNamespaces:       false,
+				WithContent:         true,
+				WithSecretsMetadata: true,
+			})
+			Expect(err).ToNot(HaveOccurred())
+
+			// Parse and verify archive contents
+			dumpedResources := extractResourcesFromArchive(tgzPath)
+
+			// Verify HelmOps
+			Expect(dumpedResources["helmops"]).To(ContainElement(ContainSubstring(testName1)),
+				"Should include HelmOp "+testName1)
+			Expect(dumpedResources["helmops"]).ToNot(ContainElement(ContainSubstring(testName2)),
+				"Should NOT include HelmOp "+testName2)
+			Expect(len(dumpedResources["helmops"])).To(Equal(1))
+
+			// Verify Bundles
+			foundHelm1Bundle := false
+			foundHelm2Bundle := false
+			for _, bundle := range dumpedResources["bundles"] {
+				if strings.Contains(bundle, testName1) {
+					foundHelm1Bundle = true
+				}
+				if strings.Contains(bundle, testName2) {
+					foundHelm2Bundle = true
+				}
+			}
+			Expect(foundHelm1Bundle).To(BeTrue(), "Should include bundles from "+testName1)
+			Expect(foundHelm2Bundle).To(BeFalse(), "Should NOT include bundles from "+testName2)
+
+			// Verify BundleDeployments
+			if bundledeployments, hasBDs := dumpedResources["bundledeployments"]; hasBDs && len(bundledeployments) > 0 {
+				foundHelm1BD := false
+				foundHelm2BD := false
+				for _, bd := range bundledeployments {
+					if strings.Contains(bd, testName1) {
+						foundHelm1BD = true
+					}
+					if strings.Contains(bd, testName2) {
+						foundHelm2BD = true
+					}
+				}
+				Expect(foundHelm1BD).To(BeTrue(), "Should include bundledeployments from "+testName1)
+				Expect(foundHelm2BD).To(BeFalse(), "Should NOT include bundledeployments from "+testName2)
+			}
+
+			// Verify Contents - should only include helm1's content
+			if contents, hasContents := dumpedResources["contents"]; hasContents && len(contents) > 0 {
+				foundHelm1Content := false
+				foundHelm2Content := false
+				for _, content := range contents {
+					if helm1ContentName != "" && strings.Contains(content, helm1ContentName) {
+						foundHelm1Content = true
+					}
+					if helm2ContentName != "" && strings.Contains(content, helm2ContentName) {
+						foundHelm2Content = true
+					}
+				}
+				Expect(foundHelm1Content).To(BeTrue(), "Should include content from "+testName1)
+				Expect(foundHelm2Content).To(BeFalse(), "Should NOT include content from "+testName2)
+			}
+
+			// Verify GitRepos: should NOT be included when filtering by HelmOp
+			Expect(dumpedResources["gitrepos"]).To(BeEmpty(), "Should NOT include gitrepos when filtering by HelmOp")
+
+			// Verify Clusters are still included
+			Expect(dumpedResources["clusters"]).To(Not(BeEmpty()), "Should include clusters from the namespace")
+		})
+	})
 })
 
 // extractResourcesFromArchive extracts resources from a dump archive and returns a map of resource types to file names

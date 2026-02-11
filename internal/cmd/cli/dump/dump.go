@@ -47,6 +47,7 @@ type Options struct {
 	AllNamespaces       bool
 	GitRepo             string
 	Bundle              string
+	HelmOp              string
 	WithSecrets         bool
 	WithSecretsMetadata bool
 	WithContent         bool
@@ -65,7 +66,7 @@ func Create(ctx context.Context, cfg *rest.Config, path string, opt Options) err
 	}
 
 	// Use filtered version when namespace or GitRepo filtering is active
-	if !opt.AllNamespaces && (opt.Namespace != "" || opt.GitRepo != "") {
+	if !opt.AllNamespaces && (opt.Namespace != "" || opt.GitRepo != "" || opt.HelmOp != "") {
 		return CreateWithClientsFiltered(ctx, cfg, d, c, path, opt)
 	}
 
@@ -828,6 +829,13 @@ func CreateWithClientsFiltered(ctx context.Context, cfg *rest.Config, d dynamic.
 				return fmt.Errorf("failed to collect bundle names for gitrepo %q: %w", opt.GitRepo, err)
 			}
 			logger.Info("Filtering by GitRepo", "namespace", opt.Namespace, "gitrepo", opt.GitRepo, "bundles", len(bundleNames))
+		} else if opt.HelmOp != "" {
+			// Filter by HelmOp using label selector
+			bundleNames, err = collectBundleNamesByHelmOp(ctx, d, opt.Namespace, opt.HelmOp, opt.FetchLimit)
+			if err != nil {
+				return fmt.Errorf("failed to collect bundle names for helmop %q: %w", opt.HelmOp, err)
+			}
+			logger.Info("Filtering by HelmOp", "namespace", opt.Namespace, "helmop", opt.HelmOp, "bundles", len(bundleNames))
 		} else {
 			// Filter by namespace only
 			bundleNames, err = collectBundleNames(ctx, d, opt.Namespace, opt.FetchLimit)
@@ -844,6 +852,15 @@ func CreateWithClientsFiltered(ctx context.Context, cfg *rest.Config, d dynamic.
 		// Add only the specific GitRepo
 		if err := addObjectsWithNameFilter(ctx, d, logger, "fleet.cattle.io", "v1alpha1", "gitrepos", w, []string{opt.GitRepo}, opt); err != nil {
 			return fmt.Errorf("failed to add gitrepos to archive: %w", err)
+		}
+		// Add only bundles matching the collected bundle names
+		if err := addObjectsWithNameFilter(ctx, d, logger, "fleet.cattle.io", "v1alpha1", "bundles", w, bundleNames, opt); err != nil {
+			return fmt.Errorf("failed to add bundles to archive: %w", err)
+		}
+	} else if opt.HelmOp != "" {
+		// HelmOp filter: add only the specific HelmOp
+		if err := addObjectsWithNameFilter(ctx, d, logger, "fleet.cattle.io", "v1alpha1", "helmops", w, []string{opt.HelmOp}, opt); err != nil {
+			return fmt.Errorf("failed to add helmops to archive: %w", err)
 		}
 		// Add only bundles matching the collected bundle names
 		if err := addObjectsWithNameFilter(ctx, d, logger, "fleet.cattle.io", "v1alpha1", "bundles", w, bundleNames, opt); err != nil {
@@ -1003,6 +1020,39 @@ func collectBundleNamesByGitRepo(ctx context.Context, d dynamic.Interface, names
 	lo := metav1.ListOptions{
 		Limit:         fetchLimit,
 		LabelSelector: fmt.Sprintf("fleet.cattle.io/repo-name=%s", gitrepo),
+	}
+
+	for {
+		list, err := d.Resource(rID).Namespace(namespace).List(ctx, lo)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list bundles: %w", err)
+		}
+
+		for _, item := range list.Items {
+			names = append(names, item.GetName())
+		}
+
+		if list.GetContinue() == "" {
+			break
+		}
+		lo.Continue = list.GetContinue()
+	}
+
+	return names, nil
+}
+
+// collectBundleNamesByHelmOp fetches bundle names from the given namespace filtered by HelmOp name
+func collectBundleNamesByHelmOp(ctx context.Context, d dynamic.Interface, namespace string, helmop string, fetchLimit int64) ([]string, error) {
+	rID := schema.GroupVersionResource{
+		Group:    "fleet.cattle.io",
+		Version:  "v1alpha1",
+		Resource: "bundles",
+	}
+
+	var names []string
+	lo := metav1.ListOptions{
+		Limit:         fetchLimit,
+		LabelSelector: fmt.Sprintf("fleet.cattle.io/fleet-helm-name=%s", helmop),
 	}
 
 	for {

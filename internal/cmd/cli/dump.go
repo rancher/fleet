@@ -39,6 +39,7 @@ type Dump struct {
 	AllNamespaces       bool   `usage:"Dump resources from all namespaces" short:"A"`
 	GitRepo             string `usage:"Filter by GitRepo name (requires --namespace)"`
 	Bundle              string `usage:"Filter by Bundle name (requires --namespace, mutually exclusive with --gitrepo)"`
+	HelmOp              string `usage:"Filter by HelmOp name (requires --namespace, mutually exclusive with --gitrepo and --bundle)"`
 	WithSecrets         bool   `usage:"Include secrets with full data"`
 	WithSecretsMetadata bool   `usage:"Include secrets with metadata only"`
 	WithContent         bool   `usage:"Include Content resources with full data"`
@@ -81,6 +82,18 @@ func (d *Dump) Run(cmd *cobra.Command, args []string) error {
 	if d.Bundle != "" && !cmd.Flags().Changed("namespace") {
 		return fmt.Errorf("--bundle requires --namespace to be explicitly specified")
 	}
+	if d.HelmOp != "" && d.GitRepo != "" {
+		return fmt.Errorf("--helmop and --gitrepo are mutually exclusive")
+	}
+	if d.HelmOp != "" && d.Bundle != "" {
+		return fmt.Errorf("--helmop and --bundle are mutually exclusive")
+	}
+	if d.HelmOp != "" && d.AllNamespaces {
+		return fmt.Errorf("--helmop requires --namespace to be specified (--all-namespaces is not compatible)")
+	}
+	if d.HelmOp != "" && !cmd.Flags().Changed("namespace") {
+		return fmt.Errorf("--helmop requires --namespace to be explicitly specified")
+	}
 
 	cfg, err := ctrl.GetConfig()
 	if err != nil {
@@ -113,6 +126,7 @@ func (d *Dump) Run(cmd *cobra.Command, args []string) error {
 		AllNamespaces:       d.AllNamespaces,
 		GitRepo:             d.GitRepo,
 		Bundle:              d.Bundle,
+		HelmOp:              d.HelmOp,
 		WithSecrets:         d.WithSecrets,
 		WithSecretsMetadata: d.WithSecretsMetadata,
 		WithContent:         d.WithContent,

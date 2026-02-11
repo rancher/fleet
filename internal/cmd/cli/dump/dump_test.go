@@ -1378,3 +1378,197 @@ func Test_bundleExists(t *testing.T) {
 		})
 	}
 }
+
+func Test_HelmOpFiltering(t *testing.T) {
+	ctx := context.Background()
+	logger := log.FromContext(ctx).WithName("test-fleet-dump")
+
+	scheme := runtime.NewScheme()
+	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+	utilruntime.Must(v1alpha1.AddToScheme(scheme))
+
+	// Create test data: 2 HelmOps with their bundles and bundledeployments
+	objs := []runtime.Object{
+		// HelmOp 1: my-helmop
+		&v1alpha1.HelmOp{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "my-helmop",
+				Namespace: "fleet-local",
+			},
+		},
+		// HelmOp 2: other-helmop
+		&v1alpha1.HelmOp{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "other-helmop",
+				Namespace: "fleet-local",
+			},
+		},
+		// Bundles from my-helmop
+		&v1alpha1.Bundle{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "my-bundle-1",
+				Namespace: "fleet-local",
+				Labels: map[string]string{
+					"fleet.cattle.io/fleet-helm-name": "my-helmop",
+				},
+			},
+		},
+		&v1alpha1.Bundle{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "my-bundle-2",
+				Namespace: "fleet-local",
+				Labels: map[string]string{
+					"fleet.cattle.io/fleet-helm-name": "my-helmop",
+				},
+			},
+		},
+		// Bundle from other-helmop
+		&v1alpha1.Bundle{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "other-bundle",
+				Namespace: "fleet-local",
+				Labels: map[string]string{
+					"fleet.cattle.io/fleet-helm-name": "other-helmop",
+				},
+			},
+		},
+		// BundleDeployments from my-helmop bundles
+		&v1alpha1.BundleDeployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "my-bd-1",
+				Namespace: "cluster-ns-1",
+				Labels: map[string]string{
+					"fleet.cattle.io/bundle-name":      "my-bundle-1",
+					"fleet.cattle.io/bundle-namespace": "fleet-local",
+				},
+			},
+		},
+		&v1alpha1.BundleDeployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "my-bd-2",
+				Namespace: "cluster-ns-2",
+				Labels: map[string]string{
+					"fleet.cattle.io/bundle-name":      "my-bundle-2",
+					"fleet.cattle.io/bundle-namespace": "fleet-local",
+				},
+			},
+		},
+		// BundleDeployment from other-helmop
+		&v1alpha1.BundleDeployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "other-bd",
+				Namespace: "cluster-ns-1",
+				Labels: map[string]string{
+					"fleet.cattle.io/bundle-name":      "other-bundle",
+					"fleet.cattle.io/bundle-namespace": "fleet-local",
+				},
+			},
+		},
+	}
+
+	fakeDynClient := fake.NewSimpleDynamicClient(scheme, objs...)
+
+	// Test filtering by HelmOp
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gz)
+
+	opt := Options{
+		FetchLimit: 0,
+		Namespace:  "fleet-local",
+		HelmOp:     "my-helmop",
+	}
+
+	// Collect bundle names for my-helmop
+	bundleNames, err := collectBundleNamesByHelmOp(ctx, fakeDynClient, opt.Namespace, opt.HelmOp, opt.FetchLimit)
+	if err != nil {
+		t.Fatalf("failed to collect bundle names: %v", err)
+	}
+
+	if len(bundleNames) != 2 {
+		t.Fatalf("expected 2 bundles for my-helmop, got %d", len(bundleNames))
+	}
+
+	// Test addObjectsWithNameFilter for HelmOps
+	err = addObjectsWithNameFilter(ctx, fakeDynClient, logger, "fleet.cattle.io", "v1alpha1", "helmops", tw, []string{"my-helmop"}, opt)
+	if err != nil {
+		t.Fatalf("failed to add helmops: %v", err)
+	}
+
+	// Test addObjectsWithNameFilter for Bundles
+	err = addObjectsWithNameFilter(ctx, fakeDynClient, logger, "fleet.cattle.io", "v1alpha1", "bundles", tw, bundleNames, opt)
+	if err != nil {
+		t.Fatalf("failed to add bundles: %v", err)
+	}
+
+	// Test addBundleDeployments with bundle name filter
+	err = addBundleDeployments(ctx, fakeDynClient, logger, tw, bundleNames, opt)
+	if err != nil {
+		t.Fatalf("failed to add bundledeployments: %v", err)
+	}
+
+	tw.Close()
+	gz.Close()
+
+	// Read back the tar archive and verify contents
+	gzReader, err := gzip.NewReader(&buf)
+	if err != nil {
+		t.Fatalf("failed to create gzip reader: %v", err)
+	}
+	defer gzReader.Close()
+	tarReader := tar.NewReader(gzReader)
+
+	entries := make(map[string]bool)
+	for {
+		header, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatalf("failed to read tar header: %v", err)
+		}
+
+		// Read and validate YAML content
+		data, err := io.ReadAll(tarReader)
+		if err != nil {
+			t.Fatalf("failed to read tar content: %v", err)
+		}
+
+		var obj map[string]interface{}
+		if err := yaml.Unmarshal(data, &obj); err != nil {
+			t.Fatalf("failed to unmarshal %s: %v", header.Name, err)
+		}
+
+		entries[header.Name] = true
+	}
+
+	// Verify expected entries are present
+	expectedEntries := []string{
+		"helmops_fleet-local_my-helmop",
+		"bundles_fleet-local_my-bundle-1",
+		"bundles_fleet-local_my-bundle-2",
+		"bundledeployments_cluster-ns-1_my-bd-1",
+		"bundledeployments_cluster-ns-2_my-bd-2",
+	}
+
+	for _, expected := range expectedEntries {
+		if !entries[expected] {
+			t.Errorf("expected entry %q not found in archive", expected)
+		}
+	}
+
+	// Verify excluded entries are not present
+	excludedEntries := []string{
+		"helmops_fleet-local_other-helmop",
+		"bundles_fleet-local_other-bundle",
+		"bundledeployments_cluster-ns-1_other-bd",
+	}
+
+	for _, excluded := range excludedEntries {
+		if entries[excluded] {
+			t.Errorf("excluded entry %q should not be in archive", excluded)
+		}
+	}
+
+	t.Logf("Archive contains %d entries (expected 5)", len(entries))
+}
