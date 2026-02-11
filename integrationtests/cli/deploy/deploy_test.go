@@ -251,7 +251,7 @@ var _ = Describe("Fleet CLI Deploy", func() {
 
 			// check that the secret was created using List with a label selector
 			// that uses owner=helm and name=testbundle-simple-chart
-			Eventually(func() bool {
+			Eventually(func(g Gomega) {
 				secrets := &corev1.SecretList{}
 				err := k8sClient.List(ctx, secrets, &client.ListOptions{
 					Namespace: namespace,
@@ -260,11 +260,9 @@ var _ = Describe("Fleet CLI Deploy", func() {
 						"owner": "helm",
 					}),
 				})
-				if err != nil {
-					return false
-				}
-				return len(secrets.Items) >= 2
-			}, "5s", "500ms").Should(BeTrue())
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(len(secrets.Items)).To(BeNumerically(">=", 2))
+			}, "5s", "500ms").Should(Succeed())
 
 			args = []string{
 				"--input-file", clihelper.AssetsPath + "bundledeployment/bd.yaml",
@@ -362,7 +360,7 @@ var _ = Describe("Fleet CLI Deploy", func() {
 			}
 
 			// Wait for all secrets to be deleted before creating the new one
-			Eventually(func() bool {
+			Eventually(func(g Gomega) {
 				secrets := &corev1.SecretList{}
 				err := k8sClient.List(ctx, secrets, &client.ListOptions{
 					Namespace: namespace,
@@ -371,17 +369,15 @@ var _ = Describe("Fleet CLI Deploy", func() {
 						"owner": "helm",
 					}),
 				})
-				if err != nil {
-					return false
-				}
-				return len(secrets.Items) == 0
-			}, "5s", "500ms").Should(BeTrue())
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(secrets.Items).To(BeEmpty())
+			}, "5s", "500ms").Should(Succeed())
 
 			// Create only the pending-install secret
 			Expect(k8sClient.Create(ctx, &releaseSecretV1)).ToNot(HaveOccurred())
 
 			// Verify the secret was created
-			Eventually(func() bool {
+			Eventually(func(g Gomega) {
 				secrets := &corev1.SecretList{}
 				err := k8sClient.List(ctx, secrets, &client.ListOptions{
 					Namespace: namespace,
@@ -390,11 +386,9 @@ var _ = Describe("Fleet CLI Deploy", func() {
 						"owner": "helm",
 					}),
 				})
-				if err != nil {
-					return false
-				}
-				return len(secrets.Items) == 1
-			}, "5s", "500ms").Should(BeTrue())
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(secrets.Items).To(HaveLen(1))
+			}, "5s", "500ms").Should(Succeed())
 
 			args = []string{
 				"--input-file", clihelper.AssetsPath + "bundledeployment/bd.yaml",
