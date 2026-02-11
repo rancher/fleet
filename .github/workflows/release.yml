@@ -133,7 +133,7 @@ jobs:
 
       - name: Install Cosign
         uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad # v4.0.0
-      - uses: rancherlabs/slsactl/actions/install-slsactl@1d0317776fbf526919f9dacdb97e405ac7a350cf # v0.1.10
+      - uses: rancherlabs/slsactl/actions/install-slsactl@5e13d3f45f914f9bdd8d6b120f921164c7fd3003 # v0.1.17
         with:
           version: v0.1.10
 
