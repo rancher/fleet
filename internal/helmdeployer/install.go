@@ -205,11 +205,14 @@ func (h *Helm) configureInstallAction(u *action.Install, cfg *action.Configurati
 		}
 	}
 	u.TakeOwnership = options.Helm.TakeOwnership
-	// Disable server-side apply when taking ownership to avoid managedFields validation errors.
-	// When adopting existing resources, they have managedFields populated by Kubernetes,
-	// but server-side apply requires managedFields to be nil. Using client-side apply (three-way merge) instead.
-	if u.TakeOwnership {
+	u.ForceReplace = options.Helm.Force || (options.CorrectDrift != nil && options.CorrectDrift.Force)
+	// Disable server-side apply when taking ownership or forcing replacement to avoid conflicts.
+	// When adopting existing resources or forcing replacement, we need three-way merge instead.
+	if u.TakeOwnership || u.ForceReplace {
 		u.ServerSideApply = false
+	} else {
+		// Explicitly enable server-side apply when neither TakeOwnership nor ForceReplace is set
+		u.ServerSideApply = true
 	}
 	u.EnableDNS = !options.Helm.DisableDNS
 	u.Replace = true
