@@ -70,14 +70,8 @@ func (d *Dump) Run(cmd *cobra.Command, args []string) error {
 	if d.Gitrepo != "" && d.Bundle != "" {
 		return fmt.Errorf("--bundle and --gitrepo are mutually exclusive")
 	}
-	if d.Gitrepo != "" && d.AllNamespaces {
-		return fmt.Errorf("--gitrepo requires --namespace to be specified (--all-namespaces is not compatible)")
-	}
 	if d.Gitrepo != "" && !cmd.Flags().Changed("namespace") {
 		return fmt.Errorf("--gitrepo requires --namespace to be explicitly specified")
-	}
-	if d.Bundle != "" && d.AllNamespaces {
-		return fmt.Errorf("--bundle requires --namespace to be specified (--all-namespaces is not compatible)")
 	}
 	if d.Bundle != "" && !cmd.Flags().Changed("namespace") {
 		return fmt.Errorf("--bundle requires --namespace to be explicitly specified")
@@ -87,9 +81,6 @@ func (d *Dump) Run(cmd *cobra.Command, args []string) error {
 	}
 	if d.Helmop != "" && d.Bundle != "" {
 		return fmt.Errorf("--helmop and --bundle are mutually exclusive")
-	}
-	if d.Helmop != "" && d.AllNamespaces {
-		return fmt.Errorf("--helmop requires --namespace to be specified (--all-namespaces is not compatible)")
 	}
 	if d.Helmop != "" && !cmd.Flags().Changed("namespace") {
 		return fmt.Errorf("--helmop requires --namespace to be explicitly specified")
