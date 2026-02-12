@@ -25,8 +25,8 @@ github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee/go.mod h1:yWu
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 h1:Jamvg5psRIccs7FGNTlIRMkT8wgtp5eCXdBlqhYGL6U=
 github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
-github.com/rancher/wrangler/v3 v3.3.2-rc.2 h1:terdYKoYsdMiabh7CBLzGLJPl3Sf9j4Qgd4GO10yxPA=
-github.com/rancher/wrangler/v3 v3.3.2-rc.2/go.mod h1:bRcdkdwRTwoXVSWVGtJdSBNXkKbInlo+PVkCtkUCi4s=
+github.com/rancher/wrangler/v3 v3.3.2 h1:Fid1VzBdy7VVPZsEKC9AQR9ghmC7ku1oRhe2jyrwHDY=
+github.com/rancher/wrangler/v3 v3.3.2/go.mod h1:bRcdkdwRTwoXVSWVGtJdSBNXkKbInlo+PVkCtkUCi4s=
 github.com/rogpeppe/go-internal v1.14.1 h1:UQB4HGPB6osV0SQTLymcB4TgvyWu6ZyliaW0tI/otEQ=
 github.com/rogpeppe/go-internal v1.14.1/go.mod h1:MaRKkUm5W0goXpeCfT7UZI6fk/L7L7so1lCWt35ZSgc=
 github.com/spf13/pflag v1.0.9 h1:9exaQaMOCwffKiiiYk6/BndUBv+iRViNW+4lEMi0PvY=
