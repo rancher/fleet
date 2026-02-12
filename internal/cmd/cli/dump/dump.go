@@ -26,6 +26,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/labels"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -1002,14 +1003,31 @@ func bundleExists(ctx context.Context, d dynamic.Interface, namespace string, bu
 	return true, nil
 }
 
-// buildBundleNameSelector creates a label selector for filtering by bundle names
-func buildBundleNameSelector(namespace string, bundleNames []string) string {
-	if len(bundleNames) == 0 {
-		return fmt.Sprintf("fleet.cattle.io/bundle-namespace=%s", namespace)
+// buildBundleNameSelector creates a label selector for filtering by bundle names.
+// Returns a structured labels.Selector to prevent injection attacks from special characters in bundle names.
+func buildBundleNameSelector(namespace string, bundleNames []string) (labels.Selector, error) {
+	labelSelector := &metav1.LabelSelector{
+		MatchLabels: map[string]string{
+			"fleet.cattle.io/bundle-namespace": namespace,
+		},
 	}
-	// Use "in" operator for bundle names: bundle-name in (name1,name2,...)
-	bundleNameList := strings.Join(bundleNames, ",")
-	return fmt.Sprintf("fleet.cattle.io/bundle-namespace=%s,fleet.cattle.io/bundle-name in (%s)", namespace, bundleNameList)
+
+	if len(bundleNames) > 0 {
+		labelSelector.MatchExpressions = []metav1.LabelSelectorRequirement{
+			{
+				Key:      "fleet.cattle.io/bundle-name",
+				Operator: metav1.LabelSelectorOpIn,
+				Values:   bundleNames,
+			},
+		}
+	}
+
+	parsedSelector, err := metav1.LabelSelectorAsSelector(labelSelector)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build label selector: %w", err)
+	}
+
+	return parsedSelector, nil
 }
 
 // collectBundleNames fetches bundle names from the given namespace for filtering
@@ -1120,9 +1138,15 @@ func collectContentIDs(ctx context.Context, d dynamic.Interface, namespace strin
 	}
 
 	contentIDMap := make(map[string]bool)
+
+	selector, err := buildBundleNameSelector(namespace, bundleNames)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build bundle name selector: %w", err)
+	}
+
 	lo := metav1.ListOptions{
 		Limit:         fetchLimit,
-		LabelSelector: buildBundleNameSelector(namespace, bundleNames),
+		LabelSelector: selector.String(),
 	}
 
 	for {
@@ -1271,8 +1295,11 @@ func collectSecretNames(ctx context.Context, d dynamic.Interface, namespace stri
 func addBundleDeployments(ctx context.Context, d dynamic.Interface, logger logr.Logger, w *tar.Writer, bundleNames []string, opt Options) error {
 	// When filtering by namespace, use label selector for bundle-namespace
 	if !opt.AllNamespaces && opt.Namespace != "" {
-		return addObjectsWithLabelSelector(ctx, d, logger, "bundledeployments", w,
-			buildBundleNameSelector(opt.Namespace, bundleNames), opt.FetchLimit)
+		selector, err := buildBundleNameSelector(opt.Namespace, bundleNames)
+		if err != nil {
+			return fmt.Errorf("failed to build bundle name selector: %w", err)
+		}
+		return addObjectsWithLabelSelector(ctx, d, logger, "bundledeployments", w, selector, opt.FetchLimit)
 	}
 	return addObjectsToArchive(ctx, d, logger, "bundledeployments", w, opt)
 }
@@ -1283,8 +1310,11 @@ func addBundleDeployments(ctx context.Context, d dynamic.Interface, logger logr.
 func addHelmOps(ctx context.Context, d dynamic.Interface, logger logr.Logger, w *tar.Writer, bundleNames []string, opt Options) error {
 	// Filter by bundle-namespace label like BundleDeployments
 	if !opt.AllNamespaces && opt.Namespace != "" {
-		return addObjectsWithLabelSelector(ctx, d, logger, "helmops", w,
-			buildBundleNameSelector(opt.Namespace, bundleNames), opt.FetchLimit)
+		selector, err := buildBundleNameSelector(opt.Namespace, bundleNames)
+		if err != nil {
+			return fmt.Errorf("failed to build bundle name selector: %w", err)
+		}
+		return addObjectsWithLabelSelector(ctx, d, logger, "helmops", w, selector, opt.FetchLimit)
 	}
 	return addObjectsToArchive(ctx, d, logger, "helmops", w, opt)
 }
@@ -1353,18 +1383,19 @@ func addObjectsWithNameFilter(ctx context.Context, d dynamic.Interface, logger l
 }
 
 // addObjectsWithLabelSelector fetches resources using a label selector (across all namespaces)
-func addObjectsWithLabelSelector(ctx context.Context, d dynamic.Interface, logger logr.Logger, resource string, w *tar.Writer, labelSelector string, fetchLimit int64) error {
+func addObjectsWithLabelSelector(ctx context.Context, d dynamic.Interface, logger logr.Logger, resource string, w *tar.Writer, labelSelector labels.Selector, fetchLimit int64) error {
 	rID := schema.GroupVersionResource{
 		Group:    "fleet.cattle.io",
 		Version:  "v1alpha1",
 		Resource: resource,
 	}
 
-	logger.V(1).Info("Fetching with label selector...", "resource", rID.String(), "labelSelector", labelSelector)
+	selectorString := labelSelector.String()
+	logger.V(1).Info("Fetching with label selector...", "resource", rID.String(), "labelSelector", selectorString)
 
 	lo := metav1.ListOptions{
 		Limit:         fetchLimit,
-		LabelSelector: labelSelector,
+		LabelSelector: selectorString,
 	}
 
 	for {

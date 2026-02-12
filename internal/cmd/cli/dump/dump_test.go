@@ -1118,19 +1118,23 @@ func Test_buildBundleNameSelector(t *testing.T) {
 			name:        "single bundle name",
 			namespace:   "fleet-local",
 			bundleNames: []string{"bundle1"},
-			expected:    "fleet.cattle.io/bundle-namespace=fleet-local,fleet.cattle.io/bundle-name in (bundle1)",
+			expected:    "fleet.cattle.io/bundle-name in (bundle1),fleet.cattle.io/bundle-namespace=fleet-local",
 		},
 		{
 			name:        "multiple bundle names",
 			namespace:   "fleet-local",
 			bundleNames: []string{"bundle1", "bundle2", "bundle3"},
-			expected:    "fleet.cattle.io/bundle-namespace=fleet-local,fleet.cattle.io/bundle-name in (bundle1,bundle2,bundle3)",
+			expected:    "fleet.cattle.io/bundle-name in (bundle1,bundle2,bundle3),fleet.cattle.io/bundle-namespace=fleet-local",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := buildBundleNameSelector(tt.namespace, tt.bundleNames)
+			selector, err := buildBundleNameSelector(tt.namespace, tt.bundleNames)
+			if err != nil {
+				t.Fatalf("buildBundleNameSelector() error = %v", err)
+			}
+			result := selector.String()
 			if result != tt.expected {
 				t.Errorf("buildBundleNameSelector() = %q, want %q", result, tt.expected)
 			}
