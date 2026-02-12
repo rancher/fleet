@@ -297,7 +297,7 @@ func Test_addObjectsToArchive_pagination(t *testing.T) {
 	})
 
 	// Test with fetchLimit = 2 (should trigger pagination)
-	err := addObjectsToArchive(ctx, fakeDynClient, logger, "fleet.cattle.io", "v1alpha1", "clusters", w, Options{FetchLimit: 2})
+	err := addObjectsToArchive(ctx, fakeDynClient, logger, "clusters", w, Options{FetchLimit: 2})
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -1017,13 +1017,13 @@ func Test_GitRepoFiltering(t *testing.T) {
 	}
 
 	// Test addObjectsWithNameFilter for GitRepos
-	err = addObjectsWithNameFilter(ctx, fakeDynClient, logger, "fleet.cattle.io", "v1alpha1", "gitrepos", tw, []string{"my-repo"}, opt)
+	err = addObjectsWithNameFilter(ctx, fakeDynClient, logger, "gitrepos", tw, []string{"my-repo"}, opt)
 	if err != nil {
 		t.Fatalf("failed to add gitrepos: %v", err)
 	}
 
 	// Test addObjectsWithNameFilter for Bundles
-	err = addObjectsWithNameFilter(ctx, fakeDynClient, logger, "fleet.cattle.io", "v1alpha1", "bundles", tw, bundleNames, opt)
+	err = addObjectsWithNameFilter(ctx, fakeDynClient, logger, "bundles", tw, bundleNames, opt)
 	if err != nil {
 		t.Fatalf("failed to add bundles: %v", err)
 	}
@@ -1048,7 +1048,7 @@ func Test_GitRepoFiltering(t *testing.T) {
 	entries := make(map[string]bool)
 	for {
 		header, err := tarReader.Next()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
@@ -1239,7 +1239,7 @@ func Test_BundleFiltering(t *testing.T) {
 	bundleNames := []string{opt.Bundle}
 
 	// Test addObjectsWithNameFilter for Bundles
-	err = addObjectsWithNameFilter(ctx, fakeDynClient, logger, "fleet.cattle.io", "v1alpha1", "bundles", tw, bundleNames, opt)
+	err = addObjectsWithNameFilter(ctx, fakeDynClient, logger, "bundles", tw, bundleNames, opt)
 	if err != nil {
 		t.Fatalf("failed to add bundles: %v", err)
 	}
@@ -1264,7 +1264,7 @@ func Test_BundleFiltering(t *testing.T) {
 	entries := make(map[string]bool)
 	for {
 		header, err := tarReader.Next()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
@@ -1490,13 +1490,13 @@ func Test_HelmOpFiltering(t *testing.T) {
 	}
 
 	// Test addObjectsWithNameFilter for HelmOps
-	err = addObjectsWithNameFilter(ctx, fakeDynClient, logger, "fleet.cattle.io", "v1alpha1", "helmops", tw, []string{"my-helmop"}, opt)
+	err = addObjectsWithNameFilter(ctx, fakeDynClient, logger, "helmops", tw, []string{"my-helmop"}, opt)
 	if err != nil {
 		t.Fatalf("failed to add helmops: %v", err)
 	}
 
 	// Test addObjectsWithNameFilter for Bundles
-	err = addObjectsWithNameFilter(ctx, fakeDynClient, logger, "fleet.cattle.io", "v1alpha1", "bundles", tw, bundleNames, opt)
+	err = addObjectsWithNameFilter(ctx, fakeDynClient, logger, "bundles", tw, bundleNames, opt)
 	if err != nil {
 		t.Fatalf("failed to add bundles: %v", err)
 	}
@@ -1521,7 +1521,7 @@ func Test_HelmOpFiltering(t *testing.T) {
 	entries := make(map[string]bool)
 	for {
 		header, err := tarReader.Next()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {

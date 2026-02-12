@@ -72,14 +72,14 @@ func addObjectsToArchive(
 	ctx context.Context,
 	dynamic dynamic.Interface,
 	logger logr.Logger,
-	g, v, r string,
+	resource string,
 	w *tar.Writer,
 	opt Options,
 ) error {
 	rID := schema.GroupVersionResource{
-		Group:    g,
-		Version:  v,
-		Resource: r,
+		Group:    "fleet.cattle.io",
+		Version:  "v1alpha1",
+		Resource: resource,
 	}
 
 	logger.V(1).Info("Fetching ...", "resource", rID.String())
@@ -97,16 +97,16 @@ func addObjectsToArchive(
 		}
 
 		if err != nil {
-			return fmt.Errorf("failed to list %s: %w", r, err)
+			return fmt.Errorf("failed to list %s: %w", resource, err)
 		}
 
 		for _, i := range list.Items {
 			g, err := yaml.Marshal(&i)
 			if err != nil {
-				return fmt.Errorf("failed to marshal %s: %w", r, err)
+				return fmt.Errorf("failed to marshal %s: %w", resource, err)
 			}
 
-			fileName := fmt.Sprintf("%s_%s_%s", r, i.GetNamespace(), i.GetName())
+			fileName := fmt.Sprintf("%s_%s_%s", resource, i.GetNamespace(), i.GetName())
 			if err := addFileToArchive(g, fileName, w); err != nil {
 				return err
 			}
@@ -708,29 +708,29 @@ func addFilteredGitReposAndBundles(ctx context.Context, d dynamic.Interface, log
 	switch {
 	case opt.GitRepo != "":
 		// Add only the specific GitRepo
-		if err := addObjectsWithNameFilter(ctx, d, logger, "fleet.cattle.io", "v1alpha1", "gitrepos", w, []string{opt.GitRepo}, opt); err != nil {
+		if err := addObjectsWithNameFilter(ctx, d, logger, "gitrepos", w, []string{opt.GitRepo}, opt); err != nil {
 			return fmt.Errorf("failed to add gitrepos to archive: %w", err)
 		}
 		// Add only bundles matching the collected bundle names
-		if err := addObjectsWithNameFilter(ctx, d, logger, "fleet.cattle.io", "v1alpha1", "bundles", w, cfg.bundleNames, opt); err != nil {
+		if err := addObjectsWithNameFilter(ctx, d, logger, "bundles", w, cfg.bundleNames, opt); err != nil {
 			return fmt.Errorf("failed to add bundles to archive: %w", err)
 		}
 	case opt.HelmOp != "":
 		// HelmOp filter: skip GitRepos, add only bundles
-		if err := addObjectsWithNameFilter(ctx, d, logger, "fleet.cattle.io", "v1alpha1", "bundles", w, cfg.bundleNames, opt); err != nil {
+		if err := addObjectsWithNameFilter(ctx, d, logger, "bundles", w, cfg.bundleNames, opt); err != nil {
 			return fmt.Errorf("failed to add bundles to archive: %w", err)
 		}
 	case opt.Bundle != "":
 		// Bundle filter: skip GitRepos, add only the specific Bundle
-		if err := addObjectsWithNameFilter(ctx, d, logger, "fleet.cattle.io", "v1alpha1", "bundles", w, cfg.bundleNames, opt); err != nil {
+		if err := addObjectsWithNameFilter(ctx, d, logger, "bundles", w, cfg.bundleNames, opt); err != nil {
 			return fmt.Errorf("failed to add bundles to archive: %w", err)
 		}
 	default:
 		// No filter, add all gitrepos and bundles from namespace
-		if err := addObjectsToArchive(ctx, d, logger, "fleet.cattle.io", "v1alpha1", "gitrepos", w, opt); err != nil {
+		if err := addObjectsToArchive(ctx, d, logger, "gitrepos", w, opt); err != nil {
 			return fmt.Errorf("failed to add gitrepos to archive: %w", err)
 		}
-		if err := addObjectsToArchive(ctx, d, logger, "fleet.cattle.io", "v1alpha1", "bundles", w, opt); err != nil {
+		if err := addObjectsToArchive(ctx, d, logger, "bundles", w, opt); err != nil {
 			return fmt.Errorf("failed to add bundles to archive: %w", err)
 		}
 	}
@@ -747,7 +747,7 @@ func addOtherNamespaceResources(ctx context.Context, d dynamic.Interface, logger
 	}
 
 	for _, t := range otherNamespaceTypes {
-		if err := addObjectsToArchive(ctx, d, logger, "fleet.cattle.io", "v1alpha1", t, w, opt); err != nil {
+		if err := addObjectsToArchive(ctx, d, logger, t, w, opt); err != nil {
 			return fmt.Errorf("failed to add %s to archive: %w", t, err)
 		}
 	}
@@ -759,7 +759,7 @@ func addFilteredHelmOps(ctx context.Context, d dynamic.Interface, logger logr.Lo
 	switch {
 	case opt.HelmOp != "":
 		// Add only the specific HelmOp
-		if err := addObjectsWithNameFilter(ctx, d, logger, "fleet.cattle.io", "v1alpha1", "helmops", w, []string{opt.HelmOp}, opt); err != nil {
+		if err := addObjectsWithNameFilter(ctx, d, logger, "helmops", w, []string{opt.HelmOp}, opt); err != nil {
 			return fmt.Errorf("failed to add helmops to archive: %w", err)
 		}
 	case cfg.useFiltering:
@@ -768,7 +768,7 @@ func addFilteredHelmOps(ctx context.Context, d dynamic.Interface, logger logr.Lo
 			return fmt.Errorf("failed to add helmops to archive: %w", err)
 		}
 	default:
-		if err := addObjectsToArchive(ctx, d, logger, "fleet.cattle.io", "v1alpha1", "helmops", w, opt); err != nil {
+		if err := addObjectsToArchive(ctx, d, logger, "helmops", w, opt); err != nil {
 			return fmt.Errorf("failed to add helmops to archive: %w", err)
 		}
 	}
@@ -1125,10 +1125,10 @@ func collectContentIDs(ctx context.Context, d dynamic.Interface, namespace strin
 func addBundleDeployments(ctx context.Context, d dynamic.Interface, logger logr.Logger, w *tar.Writer, bundleNames []string, opt Options) error {
 	// When filtering by namespace, use label selector for bundle-namespace
 	if !opt.AllNamespaces && opt.Namespace != "" {
-		return addObjectsWithLabelSelector(ctx, d, logger, "fleet.cattle.io", "v1alpha1", "bundledeployments", w,
+		return addObjectsWithLabelSelector(ctx, d, logger, "bundledeployments", w,
 			buildBundleNameSelector(opt.Namespace, bundleNames), opt.FetchLimit)
 	}
-	return addObjectsToArchive(ctx, d, logger, "fleet.cattle.io", "v1alpha1", "bundledeployments", w, opt)
+	return addObjectsToArchive(ctx, d, logger, "bundledeployments", w, opt)
 }
 
 // addHelmOps adds helmop resources to the archive.
@@ -1137,14 +1137,14 @@ func addBundleDeployments(ctx context.Context, d dynamic.Interface, logger logr.
 func addHelmOps(ctx context.Context, d dynamic.Interface, logger logr.Logger, w *tar.Writer, bundleNames []string, opt Options) error {
 	// Filter by bundle-namespace label like BundleDeployments
 	if !opt.AllNamespaces && opt.Namespace != "" {
-		return addObjectsWithLabelSelector(ctx, d, logger, "fleet.cattle.io", "v1alpha1", "helmops", w,
+		return addObjectsWithLabelSelector(ctx, d, logger, "helmops", w,
 			buildBundleNameSelector(opt.Namespace, bundleNames), opt.FetchLimit)
 	}
-	return addObjectsToArchive(ctx, d, logger, "fleet.cattle.io", "v1alpha1", "helmops", w, opt)
+	return addObjectsToArchive(ctx, d, logger, "helmops", w, opt)
 }
 
 // addObjectsWithNameFilter fetches resources from a namespace and filters by resource names
-func addObjectsWithNameFilter(ctx context.Context, d dynamic.Interface, logger logr.Logger, g, v, r string, w *tar.Writer, names []string, opt Options) error {
+func addObjectsWithNameFilter(ctx context.Context, d dynamic.Interface, logger logr.Logger, resource string, w *tar.Writer, names []string, opt Options) error {
 	if len(names) == 0 {
 		// No names to filter, don't add any resources
 		return nil
@@ -1157,9 +1157,9 @@ func addObjectsWithNameFilter(ctx context.Context, d dynamic.Interface, logger l
 	}
 
 	rID := schema.GroupVersionResource{
-		Group:    g,
-		Version:  v,
-		Resource: r,
+		Group:    "fleet.cattle.io",
+		Version:  "v1alpha1",
+		Resource: resource,
 	}
 
 	logger.V(1).Info("Fetching with name filter...", "resource", rID.String(), "names", len(names))
@@ -1176,7 +1176,7 @@ func addObjectsWithNameFilter(ctx context.Context, d dynamic.Interface, logger l
 		}
 
 		if err != nil {
-			return fmt.Errorf("failed to list %s: %w", r, err)
+			return fmt.Errorf("failed to list %s: %w", resource, err)
 		}
 
 		for _, i := range list.Items {
@@ -1187,10 +1187,10 @@ func addObjectsWithNameFilter(ctx context.Context, d dynamic.Interface, logger l
 
 			g, err := yaml.Marshal(&i)
 			if err != nil {
-				return fmt.Errorf("failed to marshal %s: %w", r, err)
+				return fmt.Errorf("failed to marshal %s: %w", resource, err)
 			}
 
-			fileName := fmt.Sprintf("%s_%s_%s", r, i.GetNamespace(), i.GetName())
+			fileName := fmt.Sprintf("%s_%s_%s", resource, i.GetNamespace(), i.GetName())
 			if err := addFileToArchive(g, fileName, w); err != nil {
 				return err
 			}
@@ -1207,11 +1207,11 @@ func addObjectsWithNameFilter(ctx context.Context, d dynamic.Interface, logger l
 }
 
 // addObjectsWithLabelSelector fetches resources using a label selector (across all namespaces)
-func addObjectsWithLabelSelector(ctx context.Context, d dynamic.Interface, logger logr.Logger, g, v, r string, w *tar.Writer, labelSelector string, fetchLimit int64) error {
+func addObjectsWithLabelSelector(ctx context.Context, d dynamic.Interface, logger logr.Logger, resource string, w *tar.Writer, labelSelector string, fetchLimit int64) error {
 	rID := schema.GroupVersionResource{
-		Group:    g,
-		Version:  v,
-		Resource: r,
+		Group:    "fleet.cattle.io",
+		Version:  "v1alpha1",
+		Resource: resource,
 	}
 
 	logger.V(1).Info("Fetching with label selector...", "resource", rID.String(), "labelSelector", labelSelector)
@@ -1224,16 +1224,16 @@ func addObjectsWithLabelSelector(ctx context.Context, d dynamic.Interface, logge
 	for {
 		list, err := d.Resource(rID).List(ctx, lo)
 		if err != nil {
-			return fmt.Errorf("failed to list %s: %w", r, err)
+			return fmt.Errorf("failed to list %s: %w", resource, err)
 		}
 
 		for _, i := range list.Items {
 			g, err := yaml.Marshal(&i)
 			if err != nil {
-				return fmt.Errorf("failed to marshal %s: %w", r, err)
+				return fmt.Errorf("failed to marshal %s: %w", resource, err)
 			}
 
-			fileName := fmt.Sprintf("%s_%s_%s", r, i.GetNamespace(), i.GetName())
+			fileName := fmt.Sprintf("%s_%s_%s", resource, i.GetNamespace(), i.GetName())
 			if err := addFileToArchive(g, fileName, w); err != nil {
 				return err
 			}

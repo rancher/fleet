@@ -609,7 +609,7 @@ var _ = Describe("Fleet dump", Label("sharding"), func() {
 				"Should include GitRepo "+testName1)
 			Expect(dumpedResources["gitrepos"]).ToNot(ContainElement(ContainSubstring(testName2)),
 				"Should NOT include GitRepo "+testName2)
-			Expect(len(dumpedResources["gitrepos"])).To(Equal(1),
+			Expect(dumpedResources["gitrepos"]).To(HaveLen(1),
 				"Should have exactly 1 GitRepo")
 
 			// Verify Bundles - should only include testName1's bundles
@@ -946,7 +946,7 @@ var _ = Describe("Fleet dump", Label("sharding"), func() {
 				"Should include HelmOp "+testName1)
 			Expect(dumpedResources["helmops"]).ToNot(ContainElement(ContainSubstring(testName2)),
 				"Should NOT include HelmOp "+testName2)
-			Expect(len(dumpedResources["helmops"])).To(Equal(1))
+			Expect(dumpedResources["helmops"]).To(HaveLen(1))
 
 			// Verify Bundles
 			foundHelm1Bundle := false
