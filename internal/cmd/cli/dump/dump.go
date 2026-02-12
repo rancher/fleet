@@ -718,7 +718,7 @@ func determineFilterConfig(ctx context.Context, d dynamic.Interface, logger logr
 
 	// Collect secret names if secret options are enabled
 	if (opt.WithSecrets || opt.WithSecretsMetadata) && len(cfg.bundleNames) > 0 {
-		cfg.secretNames, err = collectSecretNames(ctx, d, opt.Namespace, cfg.bundleNames, opt.FetchLimit)
+		cfg.secretNames, err = collectSecretNames(ctx, d, logger, opt.Namespace, cfg.bundleNames, opt.FetchLimit)
 		if err != nil {
 			return nil, fmt.Errorf("failed to collect secret names: %w", err)
 		}
@@ -1180,7 +1180,7 @@ func collectContentIDs(ctx context.Context, d dynamic.Interface, namespace strin
 // It queries GitRepos for spec.helmSecretName, spec.helmSecretNameForPaths, and spec.clientSecretName,
 // and Bundles for spec.helm.valuesFrom[].secretKeyRef.name.
 // When bundleNames is provided, filters Bundles to only those specific bundles.
-func collectSecretNames(ctx context.Context, d dynamic.Interface, namespace string, bundleNames []string, fetchLimit int64) ([]string, error) {
+func collectSecretNames(ctx context.Context, d dynamic.Interface, logger logr.Logger, namespace string, bundleNames []string, fetchLimit int64) ([]string, error) {
 	secretNameMap := make(map[string]bool)
 
 	// Fetch GitRepos in the namespace
@@ -1201,9 +1201,17 @@ func collectSecretNames(ctx context.Context, d dynamic.Interface, namespace stri
 			var gitRepo fleet.GitRepo
 			un, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&item)
 			if err != nil {
+				logger.Error(
+					fmt.Errorf("resource %v", item),
+					"Skipping resource listed as gitrepo but with incompatible format; this should not happen",
+				)
 				continue
 			}
 			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(un, &gitRepo); err != nil {
+				logger.Error(
+					fmt.Errorf("resource %v", item),
+					"Skipping resource listed as gitrepo but with incompatible format; this should not happen",
+				)
 				continue
 			}
 
@@ -1256,9 +1264,17 @@ func collectSecretNames(ctx context.Context, d dynamic.Interface, namespace stri
 			var bundle fleet.Bundle
 			un, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&item)
 			if err != nil {
+				logger.Error(
+					fmt.Errorf("resource %v", item),
+					"Skipping resource listed as bundle but with incompatible format; this should not happen",
+				)
 				continue
 			}
 			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(un, &bundle); err != nil {
+				logger.Error(
+					fmt.Errorf("resource %v", item),
+					"Skipping resource listed as bundle but with incompatible format; this should not happen",
+				)
 				continue
 			}
 
