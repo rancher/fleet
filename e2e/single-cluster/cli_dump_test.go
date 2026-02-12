@@ -149,11 +149,11 @@ var _ = Describe("Fleet dump", Label("sharding"), func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			// Create HelmOp in fleet-local namespace
-			err = testenv.CreateHelmOp(k.Namespace(targetNs), targetNs, testName+"-helmop", "oci://ghcr.io/rancher/fleet-test-configmap-chart", "0.1.0", "")
+			err = testenv.CreateHelmOp(k.Namespace(targetNs), targetNs, testName+"-helmop", "", "oci://ghcr.io/rancher/fleet-test-configmap-chart", "0.1.0", "")
 			Expect(err).ToNot(HaveOccurred())
 
 			// Create HelmOp in fleet-other namespace
-			err = testenv.CreateHelmOp(k.Namespace(otherNs), otherNs, otherTestName+"-helmop", "oci://ghcr.io/rancher/fleet-test-configmap-chart", "0.1.0", "")
+			err = testenv.CreateHelmOp(k.Namespace(otherNs), otherNs, otherTestName+"-helmop", "", "oci://ghcr.io/rancher/fleet-test-configmap-chart", "0.1.0", "")
 			Expect(err).ToNot(HaveOccurred())
 
 			// Wait for bundle in fleet-local
@@ -850,10 +850,10 @@ var _ = Describe("Fleet dump", Label("sharding"), func() {
 			k := env.Kubectl.Namespace(namespace)
 
 			// Create two HelmOps with the same chart (different names for filtering test)
-			err := testenv.CreateHelmOp(k, namespace, testName1, "oci://ghcr.io/rancher/fleet-test-configmap-chart", "0.1.0", "")
+			err := testenv.CreateHelmOp(k, namespace, testName1, "", "oci://ghcr.io/rancher/fleet-test-configmap-chart", "0.1.0", "")
 			Expect(err).ToNot(HaveOccurred())
 
-			err = testenv.CreateHelmOp(k, namespace, testName2, "oci://ghcr.io/rancher/fleet-test-configmap-chart", "0.1.0", "")
+			err = testenv.CreateHelmOp(k, namespace, testName2, "", "oci://ghcr.io/rancher/fleet-test-configmap-chart", "0.1.0", "")
 			Expect(err).ToNot(HaveOccurred())
 
 			// Wait for bundles from both HelmOps

@@ -36,6 +36,7 @@ type GitRepoData struct {
 type HelmOpData struct {
 	Name      string
 	Chart     string
+	Repo      string
 	Version   string
 	Namespace string
 	Shard     string
@@ -67,6 +68,7 @@ func CreateHelmOp(
 	namespace string,
 	name string,
 	chart string,
+	repo string,
 	version string,
 	shard string,
 ) error {
@@ -74,6 +76,7 @@ func CreateHelmOp(
 		Namespace: namespace,
 		Name:      name,
 		Chart:     chart,
+		Repo:      repo,
 		Version:   version,
 		Shard:     shard,
 	})
