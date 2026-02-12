@@ -210,6 +210,8 @@ func addSecretsToArchive(
 	logger logr.Logger,
 	w *tar.Writer,
 	metadataOnly bool,
+	secretNames []string,
+	namespace string,
 	opt Options,
 ) error {
 	nss, err := getNamespaces(ctx, dynamic, logger, opt)
@@ -217,10 +219,30 @@ func addSecretsToArchive(
 		return fmt.Errorf("failed to get relevant namespaces for secrets: %w", err)
 	}
 
+	// Convert secretNames to map for efficient lookup
+	var secretNameMap map[string]bool
+	if secretNames != nil {
+		secretNameMap = make(map[string]bool, len(secretNames))
+		for _, name := range secretNames {
+			secretNameMap[name] = true
+		}
+	}
+
+	// System namespaces that should never be filtered
+	systemNamespaces := map[string]bool{
+		"kube-system":               true,
+		"default":                   true,
+		config.DefaultNamespace:     true,
+		"cattle-fleet-local-system": true,
+	}
+
 	var merr []error
 
 nss:
 	for _, ns := range nss {
+		// Determine if we should filter secrets in this namespace
+		shouldFilter := secretNameMap != nil && ns == namespace && !systemNamespaces[ns]
+
 		var secrets corev1.SecretList
 		for {
 			if err := c.List(ctx, &secrets, client.InNamespace(ns), client.Limit(opt.FetchLimit), client.Continue(secrets.Continue)); err != nil {
@@ -229,6 +251,10 @@ nss:
 			}
 
 			for _, secret := range secrets.Items {
+				// Skip if filtering and this secret is not in our filter set
+				if shouldFilter && !secretNameMap[secret.Name] {
+					continue
+				}
 				if metadataOnly {
 					secret.Data = nil
 				}
@@ -636,6 +662,7 @@ func createDialer(ctx context.Context, cfg *rest.Config, c client.Client, svc *c
 type filterConfig struct {
 	bundleNames  []string
 	contentIDs   []string
+	secretNames  []string
 	namespace    string
 	useFiltering bool
 }
@@ -686,6 +713,15 @@ func determineFilterConfig(ctx context.Context, d dynamic.Interface, logger logr
 			return nil, fmt.Errorf("failed to collect content IDs: %w", err)
 		}
 		logger.Info("Collected content IDs from bundles", "count", len(cfg.contentIDs))
+	}
+
+	// Collect secret names if secret options are enabled
+	if (opt.WithSecrets || opt.WithSecretsMetadata) && len(cfg.bundleNames) > 0 {
+		cfg.secretNames, err = collectSecretNames(ctx, d, opt.Namespace, cfg.bundleNames, opt.FetchLimit)
+		if err != nil {
+			return nil, fmt.Errorf("failed to collect secret names: %w", err)
+		}
+		logger.Info("Collected secret names from GitRepos/Bundles", "count", len(cfg.secretNames))
 	}
 
 	return cfg, nil
@@ -920,7 +956,7 @@ func CreateWithClients(ctx context.Context, cfg *rest.Config, d dynamic.Interfac
 	// Add secrets if requested
 	if opt.WithSecrets || opt.WithSecretsMetadata {
 		secretsMetadataOnly := opt.WithSecretsMetadata && !opt.WithSecrets
-		if err := addSecretsToArchive(ctx, d, c, logger, w, secretsMetadataOnly, opt); err != nil {
+		if err := addSecretsToArchive(ctx, d, c, logger, w, secretsMetadataOnly, filterCfg.secretNames, filterCfg.namespace, opt); err != nil {
 			return fmt.Errorf("failed to add secrets to archive: %w", err)
 		}
 	}
@@ -1117,6 +1153,116 @@ func collectContentIDs(ctx context.Context, d dynamic.Interface, namespace strin
 	}
 
 	return ids, nil
+}
+
+// collectSecretNames fetches secret names referenced by GitRepos and Bundles in the given namespace.
+// It queries GitRepos for spec.helmSecretName, spec.helmSecretNameForPaths, and spec.clientSecretName,
+// and Bundles for spec.helm.valuesFrom[].secretKeyRef.name.
+// When bundleNames is provided, filters Bundles to only those specific bundles.
+func collectSecretNames(ctx context.Context, d dynamic.Interface, namespace string, bundleNames []string, fetchLimit int64) ([]string, error) {
+	secretNameMap := make(map[string]bool)
+
+	// Fetch GitRepos in the namespace
+	gitRepoRID := schema.GroupVersionResource{
+		Group:    "fleet.cattle.io",
+		Version:  "v1alpha1",
+		Resource: "gitrepos",
+	}
+
+	lo := metav1.ListOptions{Limit: fetchLimit}
+	for {
+		list, err := d.Resource(gitRepoRID).Namespace(namespace).List(ctx, lo)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list gitrepos: %w", err)
+		}
+
+		for _, item := range list.Items {
+			var gitRepo fleet.GitRepo
+			un, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&item)
+			if err != nil {
+				continue
+			}
+			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(un, &gitRepo); err != nil {
+				continue
+			}
+
+			if gitRepo.Spec.HelmSecretName != "" {
+				secretNameMap[gitRepo.Spec.HelmSecretName] = true
+			}
+			if gitRepo.Spec.HelmSecretNameForPaths != "" {
+				secretNameMap[gitRepo.Spec.HelmSecretNameForPaths] = true
+			}
+			if gitRepo.Spec.ClientSecretName != "" {
+				secretNameMap[gitRepo.Spec.ClientSecretName] = true
+			}
+		}
+
+		if list.GetContinue() == "" {
+			break
+		}
+		lo.Continue = list.GetContinue()
+	}
+
+	// Fetch Bundles in the namespace
+	bundleRID := schema.GroupVersionResource{
+		Group:    "fleet.cattle.io",
+		Version:  "v1alpha1",
+		Resource: "bundles",
+	}
+
+	// Create a map for efficient bundle name filtering if needed
+	var bundleNameMap map[string]bool
+	if len(bundleNames) > 0 {
+		bundleNameMap = make(map[string]bool, len(bundleNames))
+		for _, name := range bundleNames {
+			bundleNameMap[name] = true
+		}
+	}
+
+	lo = metav1.ListOptions{Limit: fetchLimit}
+	for {
+		list, err := d.Resource(bundleRID).Namespace(namespace).List(ctx, lo)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list bundles: %w", err)
+		}
+
+		for _, item := range list.Items {
+			// Filter by bundle name if specified
+			if bundleNameMap != nil && !bundleNameMap[item.GetName()] {
+				continue
+			}
+
+			var bundle fleet.Bundle
+			un, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&item)
+			if err != nil {
+				continue
+			}
+			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(un, &bundle); err != nil {
+				continue
+			}
+
+			if bundle.Spec.Helm != nil {
+				for _, valuesFrom := range bundle.Spec.Helm.ValuesFrom {
+					if valuesFrom.SecretKeyRef != nil && valuesFrom.SecretKeyRef.Name != "" {
+						secretNameMap[valuesFrom.SecretKeyRef.Name] = true
+					}
+				}
+			}
+		}
+
+		if list.GetContinue() == "" {
+			break
+		}
+		lo.Continue = list.GetContinue()
+	}
+
+	// Convert map to slice
+	names := make([]string, 0, len(secretNameMap))
+	for name := range secretNameMap {
+		names = append(names, name)
+	}
+
+	return names, nil
 }
 
 // addBundleDeployments adds bundledeployment resources to the archive.

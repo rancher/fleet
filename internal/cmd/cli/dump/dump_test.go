@@ -625,7 +625,7 @@ func Test_addSecretsToArchive(t *testing.T) {
 			var buf bytes.Buffer
 			tw := tar.NewWriter(&buf)
 
-			err := addSecretsToArchive(ctx, fakeDynClient, mockClient, logger, tw, c.metadataOnly, Options{FetchLimit: 0})
+			err := addSecretsToArchive(ctx, fakeDynClient, mockClient, logger, tw, c.metadataOnly, nil, "", Options{FetchLimit: 0})
 
 			if (err == nil) != (c.expErrStr == "") {
 				t.Fatalf("expected err %s, \n\tgot %s", c.expErrStr, err)
