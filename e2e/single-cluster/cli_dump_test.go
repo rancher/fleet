@@ -749,6 +749,7 @@ var _ = Describe("Fleet dump", Label("sharding"), func() {
 			err := dump.Create(context.Background(), restConfig, tgzPath, dump.Options{
 				Namespace: namespace,
 				Bundle:    bundleName1, // Filter by first bundle only
+				WithContent: true,
 			})
 			Expect(err).ToNot(HaveOccurred())
 
