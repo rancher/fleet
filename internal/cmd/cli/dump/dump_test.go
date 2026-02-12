@@ -3,19 +3,24 @@ package dump
 import (
 	"archive/tar"
 	"bytes"
+	"compress/gzip"
 	"context"
 	"errors"
 	"io"
+	"slices"
 	"strings"
 	"testing"
 
 	"go.uber.org/mock/gomock"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/dynamic/fake"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	k8stesting "k8s.io/client-go/testing"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/yaml"
@@ -34,8 +39,14 @@ func Test_getNamespaces(t *testing.T) {
 		},
 		&v1alpha1.Cluster{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "cluster1",
+				Name:      "cluster2",
 				Namespace: "ns2",
+			},
+		},
+		&v1alpha1.Cluster{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "cluster3",
+				Namespace: "ns1", // Same namespace as cluster1
 			},
 		},
 		&corev1.ConfigMap{ // should not have its namespace listed (not a cluster)
@@ -54,7 +65,7 @@ func Test_getNamespaces(t *testing.T) {
 	ctx := context.Background()
 	logger := log.FromContext(ctx).WithName("test-fleet-dump")
 
-	namespaces, err := getNamespaces(ctx, fakeDynClient, logger)
+	namespaces, err := getNamespaces(ctx, fakeDynClient, logger, 0)
 
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -73,10 +84,265 @@ func Test_getNamespaces(t *testing.T) {
 		t.Fatalf("expected %d namespaces, got %d: %v", len(expectedNS), len(namespaces), namespaces)
 	}
 
+	// Check for duplicates
+	seen := make(map[string]bool)
+	for _, ns := range namespaces {
+		if seen[ns] {
+			t.Fatalf("namespace %s appears more than once in result", ns)
+		}
+		seen[ns] = true
+	}
+
 	for _, got := range namespaces {
 		if _, ok := expectedNS[got]; !ok {
 			t.Fatalf("got unexpected namespace %s", got)
 		}
+	}
+}
+
+func Test_getNamespaces_pagination(t *testing.T) {
+	ctx := context.Background()
+	logger := log.FromContext(ctx).WithName("test-fleet-dump")
+
+	// Create a fake dynamic client with a scheme
+	scheme := runtime.NewScheme()
+	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+	utilruntime.Must(v1alpha1.AddToScheme(scheme))
+
+	// Create clusters in different namespaces
+	clusters := []*v1alpha1.Cluster{
+		{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: "fleet.cattle.io/v1alpha1",
+				Kind:       "Cluster",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "cluster1",
+				Namespace: "ns1",
+			},
+		},
+		{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: "fleet.cattle.io/v1alpha1",
+				Kind:       "Cluster",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "cluster2",
+				Namespace: "ns2",
+			},
+		},
+		{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: "fleet.cattle.io/v1alpha1",
+				Kind:       "Cluster",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "cluster3",
+				Namespace: "ns3",
+			},
+		},
+	}
+
+	// Convert to unstructured
+	var objs []runtime.Object
+	for _, cluster := range clusters {
+		unstructuredObj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(cluster)
+		if err != nil {
+			t.Fatalf("failed to convert to unstructured: %v", err)
+		}
+		objs = append(objs, &unstructured.Unstructured{Object: unstructuredObj})
+	}
+
+	fakeDynClient := fake.NewSimpleDynamicClient(scheme, objs...)
+
+	// Set up pagination: first page returns 2 clusters, second page returns 1
+	callCount := 0
+	fakeDynClient.PrependReactor("list", "clusters", func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+		list := &unstructured.UnstructuredList{}
+		list.SetAPIVersion("fleet.cattle.io/v1alpha1")
+		list.SetKind("ClusterList")
+
+		callCount++
+		switch callCount {
+		case 1:
+			// First page: return first 2 clusters with continue token
+			list.SetResourceVersion("1")
+			list.SetContinue("continue-token")
+			list.Items = []unstructured.Unstructured{*objs[0].(*unstructured.Unstructured), *objs[1].(*unstructured.Unstructured)}
+		case 2:
+			// Second page: return last cluster
+			list.SetResourceVersion("2")
+			list.SetContinue("")
+			list.Items = []unstructured.Unstructured{*objs[2].(*unstructured.Unstructured)}
+		}
+
+		return true, list, nil
+	})
+
+	// Test with fetchLimit = 2 (should trigger pagination)
+	namespaces, err := getNamespaces(ctx, fakeDynClient, logger, 2)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	// Verify all namespaces are included
+	expectedNS := map[string]struct{}{
+		"default":                   {},
+		"kube-system":               {},
+		"cattle-fleet-system":       {},
+		"cattle-fleet-local-system": {},
+		"ns1":                       {},
+		"ns2":                       {},
+		"ns3":                       {},
+	}
+
+	if len(namespaces) != len(expectedNS) {
+		t.Fatalf("expected %d namespaces, got %d: %v", len(expectedNS), len(namespaces), namespaces)
+	}
+
+	for _, got := range namespaces {
+		if _, ok := expectedNS[got]; !ok {
+			t.Fatalf("got unexpected namespace %s", got)
+		}
+	}
+
+	// Verify pagination was called twice
+	if callCount != 2 {
+		t.Fatalf("expected 2 pagination calls, got %d", callCount)
+	}
+}
+
+func Test_addObjectsToArchive_pagination(t *testing.T) {
+	ctx := context.Background()
+	logger := log.FromContext(ctx).WithName("test-fleet-dump")
+
+	// Create a buffer to write tar archive
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(&buf)
+	w := tar.NewWriter(gz)
+
+	// Create a fake dynamic client with a scheme
+	scheme := runtime.NewScheme()
+	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+	utilruntime.Must(v1alpha1.AddToScheme(scheme))
+
+	// Create clusters in different namespaces
+	clusters := []*v1alpha1.Cluster{
+		{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: "fleet.cattle.io/v1alpha1",
+				Kind:       "Cluster",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "cluster1",
+				Namespace: "ns1",
+			},
+		},
+		{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: "fleet.cattle.io/v1alpha1",
+				Kind:       "Cluster",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "cluster2",
+				Namespace: "ns2",
+			},
+		},
+		{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: "fleet.cattle.io/v1alpha1",
+				Kind:       "Cluster",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "cluster3",
+				Namespace: "ns3",
+			},
+		},
+	}
+
+	// Convert to unstructured
+	var objs []*unstructured.Unstructured
+	for _, cluster := range clusters {
+		unstructuredObj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(cluster)
+		if err != nil {
+			t.Fatalf("failed to convert to unstructured: %v", err)
+		}
+		objs = append(objs, &unstructured.Unstructured{Object: unstructuredObj})
+	}
+
+	fakeDynClient := fake.NewSimpleDynamicClient(scheme)
+
+	// Set up pagination: first page returns 2 clusters, second page returns 1
+	callCount := 0
+	fakeDynClient.PrependReactor("list", "clusters", func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+		list := &unstructured.UnstructuredList{}
+		list.SetAPIVersion("fleet.cattle.io/v1alpha1")
+		list.SetKind("ClusterList")
+
+		callCount++
+		switch callCount {
+		case 1:
+			// First page: return first 2 clusters with continue token
+			list.SetResourceVersion("1")
+			list.SetContinue("continue-token")
+			list.Items = []unstructured.Unstructured{*objs[0], *objs[1]}
+		case 2:
+			// Second page: return last cluster
+			list.SetResourceVersion("2")
+			list.SetContinue("")
+			list.Items = []unstructured.Unstructured{*objs[2]}
+		}
+
+		return true, list, nil
+	})
+
+	// Test with fetchLimit = 2 (should trigger pagination)
+	err := addObjectsToArchive(ctx, fakeDynClient, logger, "fleet.cattle.io", "v1alpha1", "clusters", w, 2)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	// Close writers to flush data
+	w.Close()
+	gz.Close()
+
+	// Read back the tar archive
+	gzReader, err := gzip.NewReader(&buf)
+	if err != nil {
+		t.Fatalf("failed to create gzip reader: %v", err)
+	}
+	defer gzReader.Close()
+	tarReader := tar.NewReader(gzReader)
+
+	// Should have three entries (one for each cluster)
+	entries := make([]string, 0, 3)
+	for {
+		header, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatalf("failed to read tar header: %v", err)
+		}
+		entries = append(entries, header.Name)
+	}
+
+	if len(entries) != 3 {
+		t.Fatalf("expected 3 tar entries, got %d: %v", len(entries), entries)
+	}
+
+	expectedEntries := []string{
+		"clusters_ns1_cluster1",
+		"clusters_ns2_cluster2",
+		"clusters_ns3_cluster3",
+	}
+	if !slices.Equal(entries, expectedEntries) {
+		t.Fatalf("expected tar entries %v, got %v", expectedEntries, entries)
+	}
+
+	// Verify pagination was called twice
+	if callCount != 2 {
+		t.Fatalf("expected 2 pagination calls, got %d", callCount)
 	}
 }
 
@@ -88,6 +354,7 @@ func Test_addMetrics(t *testing.T) {
 		pods       []corev1.Pod
 		podListErr error
 		expErrStr  string
+		fetchLimit int64
 	}{
 		{
 			name: "no services found",
@@ -234,7 +501,10 @@ func Test_addMetrics(t *testing.T) {
 			mockClient.EXPECT().List(
 				ctx,
 				gomock.AssignableToTypeOf(&corev1.ServiceList{}),
-				client.InNamespace("cattle-fleet-system")).
+				client.InNamespace("cattle-fleet-system"),
+				gomock.Any(), // client.Limit(...)
+				gomock.Any(), // client.Continue(...)
+			).
 				DoAndReturn(
 					func(_ context.Context, sl *corev1.ServiceList, _ ...client.ListOption) error {
 						sl.Items = c.svcs
@@ -243,11 +513,15 @@ func Test_addMetrics(t *testing.T) {
 					},
 				)
 
-				// Possible call to get pods from the service if it is properly formed (port + label selector)
+			// Possible call to get pods from the service if it is properly formed (port + label selector)
 			mockClient.EXPECT().List(
 				ctx,
 				gomock.AssignableToTypeOf(&corev1.PodList{}),
-				client.InNamespace("cattle-fleet-system")).
+				client.InNamespace("cattle-fleet-system"),
+				gomock.Any(), // matching labels are added when limit handling is enabled
+				gomock.Any(), // client.Limit(...)
+				gomock.Any(), // client.Continue(...)
+			). // pagination options are always appended
 				DoAndReturn(
 					func(_ context.Context, pl *corev1.PodList, _ ...client.ListOption) error {
 						pl.Items = c.pods
@@ -259,7 +533,7 @@ func Test_addMetrics(t *testing.T) {
 
 			logger := log.FromContext(ctx).WithName("test-fleet-dump")
 
-			err := addMetricsToArchive(ctx, mockClient, logger, nil, nil) // cfg and tar writer not needed for basic failure cases
+			err := addMetricsToArchive(ctx, mockClient, logger, nil, nil, c.fetchLimit) // cfg and tar writer not needed for basic failure cases
 
 			if (err == nil) != (c.expErrStr == "") {
 				t.Fatalf("expected err %s, \n\tgot %s", c.expErrStr, err)
@@ -351,7 +625,7 @@ func Test_addSecretsToArchive(t *testing.T) {
 			var buf bytes.Buffer
 			tw := tar.NewWriter(&buf)
 
-			err := addSecretsToArchive(ctx, fakeDynClient, mockClient, logger, tw, c.metadataOnly)
+			err := addSecretsToArchive(ctx, fakeDynClient, mockClient, logger, tw, c.metadataOnly, 0)
 
 			if (err == nil) != (c.expErrStr == "") {
 				t.Fatalf("expected err %s, \n\tgot %s", c.expErrStr, err)
@@ -453,7 +727,7 @@ func Test_addContentsToArchive(t *testing.T) {
 			var buf bytes.Buffer
 			tw := tar.NewWriter(&buf)
 
-			err := addContentsToArchive(ctx, fakeDynClient, logger, tw, c.metadataOnly)
+			err := addContentsToArchive(ctx, fakeDynClient, logger, tw, c.metadataOnly, 0)
 
 			if (err == nil) != (c.expErrStr == "") {
 				t.Fatalf("expected err %s, \n\tgot %s", c.expErrStr, err)

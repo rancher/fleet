@@ -365,7 +365,7 @@ func TestServerSideApplyConfiguration(t *testing.T) {
 		a.False(installAction.ServerSideApply, "ServerSideApply should be false when TakeOwnership is true")
 	})
 
-	t.Run("Install without TakeOwnership keeps ServerSideApply default", func(t *testing.T) {
+	t.Run("Install without TakeOwnership keeps ServerSideApply enabled", func(t *testing.T) {
 		installAction := &action.Install{}
 		h.configureInstallAction(
 			installAction,
@@ -381,9 +381,7 @@ func TestServerSideApplyConfiguration(t *testing.T) {
 			nil,
 			dryRunConfig{DryRun: false},
 		)
-		// When TakeOwnership is false, ServerSideApply remains at its zero value (false)
-		// but it's not explicitly set, so Helm would use its default behavior
-		a.False(installAction.ServerSideApply)
+		a.True(installAction.ServerSideApply, "ServerSideApply should be true when TakeOwnership and ForceReplace are false")
 	})
 
 	t.Run("Upgrade uses auto mode for ServerSideApply", func(t *testing.T) {
@@ -671,4 +669,101 @@ func TestValuesFromErrorWhenCopiedDownstreamButExperimentalDisabled(t *testing.T
 	r.Error(err)
 	// get will fail trying to read from provided-ns and should report not found
 	a.True(apierrors.IsNotFound(err), "expected a NotFound error when valuesFrom references resources and experimental feature is disabled")
+}
+
+func TestInstallActionCorrectDriftForce(t *testing.T) {
+	a := assert.New(t)
+	h := &Helm{}
+	testCfg := &action.Configuration{}
+
+	tests := []struct {
+		name                    string
+		helmForce               bool
+		driftForce              bool
+		takeOwnership           bool
+		expectedForceReplace    bool
+		expectedServerSideApply bool
+	}{
+		{
+			name:                    "both false, no ownership",
+			helmForce:               false,
+			driftForce:              false,
+			takeOwnership:           false,
+			expectedForceReplace:    false,
+			expectedServerSideApply: true,
+		},
+		{
+			name:                    "helm force true",
+			helmForce:               true,
+			driftForce:              false,
+			takeOwnership:           false,
+			expectedForceReplace:    true,
+			expectedServerSideApply: false,
+		},
+		{
+			name:                    "drift force true",
+			helmForce:               false,
+			driftForce:              true,
+			takeOwnership:           false,
+			expectedForceReplace:    true,
+			expectedServerSideApply: false,
+		},
+		{
+			name:                    "both forces true",
+			helmForce:               true,
+			driftForce:              true,
+			takeOwnership:           false,
+			expectedForceReplace:    true,
+			expectedServerSideApply: false,
+		},
+		{
+			name:                    "take ownership disables server-side apply",
+			helmForce:               false,
+			driftForce:              false,
+			takeOwnership:           true,
+			expectedForceReplace:    false,
+			expectedServerSideApply: false,
+		},
+		{
+			name:                    "take ownership with force",
+			helmForce:               true,
+			driftForce:              false,
+			takeOwnership:           true,
+			expectedForceReplace:    true,
+			expectedServerSideApply: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			installAction := &action.Install{}
+			opts := fleet.BundleDeploymentOptions{
+				Helm: &fleet.HelmOptions{
+					Force:         tt.helmForce,
+					TakeOwnership: tt.takeOwnership,
+				},
+			}
+			if tt.driftForce {
+				opts.CorrectDrift = &fleet.CorrectDrift{
+					Force: tt.driftForce,
+				}
+			}
+
+			h.configureInstallAction(
+				installAction,
+				testCfg,
+				"test-release",
+				"test-namespace",
+				time.Duration(0),
+				opts,
+				nil,
+				dryRunConfig{DryRun: false},
+			)
+
+			a.Equal(tt.expectedForceReplace, installAction.ForceReplace,
+				"ForceReplace should be set correctly based on Helm.Force and CorrectDrift.Force")
+			a.Equal(tt.expectedServerSideApply, installAction.ServerSideApply,
+				"ServerSideApply should be disabled when ForceReplace or TakeOwnership is true")
+		})
+	}
 }

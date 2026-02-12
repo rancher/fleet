@@ -19,7 +19,7 @@ import (
 
 type fakeGetter struct{}
 
-func (fakeGetter) Get(appID, instID int64, key []byte) (*httpgit.BasicAuth, error) {
+func (fakeGetter) Get(_ string, appID, instID int64, key []byte) (*httpgit.BasicAuth, error) {
 	return &httpgit.BasicAuth{
 		Username: "x-access-token",
 		Password: "token",

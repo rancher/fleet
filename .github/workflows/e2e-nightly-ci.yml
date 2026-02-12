@@ -8,9 +8,9 @@ on:
   workflow_dispatch:
     inputs:
       k3s_version:
-        description: 'K3s version to test (e.g., v1.35.0-k3s1)'
+        description: 'K3s version to test (e.g., v1.34.1-k3s1)'
         required: false
-        default: 'v1.35.0-k3s1'
+        default: 'v1.34.1-k3s1'
       test_type:
         description: 'Test type to run'
         required: false
@@ -35,7 +35,7 @@ jobs:
         k3s_version:
           # k3d version list k3s | sed 's/+/-/' | sort -h
           # https://hub.docker.com/r/rancher/k3s/tags
-          - ${{ github.event.inputs.k3s_version || 'v1.35.0-k3s1' }}
+          - ${{ github.event.inputs.k3s_version || 'v1.34.1-k3s1' }}
           - ${{ github.event_name == 'schedule' && 'v1.33.5-k3s1' || '' }}
         test_type:
           - ${{ github.event.inputs.test_type || 'acceptance' }}
@@ -64,7 +64,7 @@ jobs:
       -
         name: Cache crust-gather CLI
         id: cache-crust
-        uses: actions/cache@8b402f58fbc84540c8b491a91e594a4576fec3d7 # v5.0.2
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ~/.local/bin/crust-gather
           key: ${{ runner.os }}-crust-gather-${{ steps.cache-key.outputs.value }}
