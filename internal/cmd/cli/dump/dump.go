@@ -65,75 +65,7 @@ func Create(ctx context.Context, cfg *rest.Config, path string, opt Options) err
 		return fmt.Errorf("failed to create dynamic Kubernetes client: %w", err)
 	}
 
-	// Use filtered version when namespace or GitRepo filtering is active
-	if !opt.AllNamespaces && (opt.Namespace != "" || opt.GitRepo != "" || opt.HelmOp != "") {
-		return CreateWithClientsFiltered(ctx, cfg, d, c, path, opt)
-	}
-
 	return CreateWithClients(ctx, cfg, d, c, path, opt)
-}
-
-func CreateWithClients(ctx context.Context, cfg *rest.Config, d dynamic.Interface, c client.Client, path string, opt Options) error {
-	logger := log.FromContext(ctx).WithName("fleet-dump")
-
-	tgz, err := os.Create(path)
-	if err != nil {
-		return fmt.Errorf("failed to create %s: %w", path, err)
-	}
-
-	gz := gzip.NewWriter(tgz)
-	w := tar.NewWriter(gz)
-
-	types := []string{
-		"bundles",
-		"bundledeployments",
-		"bundlenamespacemappings",
-		"clusters",
-		"clustergroups",
-		"gitrepos",
-		"gitreporestrictions",
-		"helmops",
-	}
-
-	for _, t := range types {
-		if err := addObjectsToArchive(ctx, d, logger, "fleet.cattle.io", "v1alpha1", t, w, opt); err != nil {
-			return fmt.Errorf("failed to add %s to archive: %w", t, err)
-		}
-	}
-
-	if opt.WithContent || opt.WithContentMetadata {
-		// If both full content and metadata-only are requested, prefer full content
-		contentMetadataOnly := opt.WithContentMetadata && !opt.WithContent
-		if err := addContentsToArchive(ctx, d, logger, w, contentMetadataOnly, nil, opt); err != nil {
-			return fmt.Errorf("failed to add contents to archive: %w", err)
-		}
-	}
-
-	if opt.WithSecrets || opt.WithSecretsMetadata {
-		// If both full secrets and metadata-only are requested, prefer full secrets
-		secretsMetadataOnly := opt.WithSecretsMetadata && !opt.WithSecrets
-		if err := addSecretsToArchive(ctx, d, c, logger, w, secretsMetadataOnly, opt); err != nil {
-			return fmt.Errorf("failed to add secrets to archive: %w", err)
-		}
-	}
-
-	if err := addEventsToArchive(ctx, d, c, logger, w, opt); err != nil {
-		return fmt.Errorf("failed to add events to archive: %w", err)
-	}
-
-	if err := addMetricsToArchive(ctx, c, logger, cfg, w, opt); err != nil {
-		return fmt.Errorf("failed to add metrics to archive: %w", err)
-	}
-
-	if err := w.Close(); err != nil {
-		return fmt.Errorf("failed to close tar writer: %w", err)
-	}
-
-	if err := gz.Close(); err != nil {
-		return fmt.Errorf("failed to close gzip writer: %w", err)
-	}
-
-	return nil
 }
 
 func addObjectsToArchive(
@@ -791,13 +723,13 @@ func forwardPorts(
 	return closeFn, port, httpCli, nil
 }
 
-// CreateWithClientsFiltered creates a dump with namespace filtering support.
+// CreateWithClients creates a dump with namespace filtering support.
 // When opt.Namespace is set and opt.AllNamespaces is false, it filters resources
 // intelligently based on their relationships:
 // - GitRepos, Bundles, ClusterGroups, etc. are filtered by namespace
 // - BundleDeployments are filtered by bundle-namespace label
 // - Clusters may be in the bundle namespace or other namespaces
-func CreateWithClientsFiltered(ctx context.Context, cfg *rest.Config, d dynamic.Interface, c client.Client, path string, opt Options) error {
+func CreateWithClients(ctx context.Context, cfg *rest.Config, d dynamic.Interface, c client.Client, path string, opt Options) error {
 	logger := log.FromContext(ctx).WithName("fleet-dump")
 
 	tgz, err := os.Create(path)
