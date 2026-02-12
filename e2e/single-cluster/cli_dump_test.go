@@ -148,6 +148,14 @@ var _ = Describe("Fleet dump", Label("sharding"), func() {
 			err = testenv.CreateGitRepo(k.Namespace(otherNs), otherNs, otherTestName, "master", "", "simple")
 			Expect(err).ToNot(HaveOccurred())
 
+			// Create HelmOp in fleet-local namespace
+			err = testenv.CreateHelmOp(k.Namespace(targetNs), targetNs, testName+"-helmop", "oci://ghcr.io/rancher/fleet-test-configmap-chart", "0.1.0", "")
+			Expect(err).ToNot(HaveOccurred())
+
+			// Create HelmOp in fleet-other namespace
+			err = testenv.CreateHelmOp(k.Namespace(otherNs), otherNs, otherTestName+"-helmop", "oci://ghcr.io/rancher/fleet-test-configmap-chart", "0.1.0", "")
+			Expect(err).ToNot(HaveOccurred())
+
 			// Wait for bundle in fleet-local
 			Eventually(func() bool {
 				out, err := k.Namespace(targetNs).Get("bundles")
@@ -249,6 +257,7 @@ var _ = Describe("Fleet dump", Label("sharding"), func() {
 
 			_, _ = k.Delete("namespace", otherNs) // just delete the extra namespace (inclusive GitRepo)
 			_, _ = k.Namespace(targetNs).Delete("gitrepo", testName)
+			_, _ = k.Namespace(targetNs).Delete("helmop", testName+"-helmop")
 			_ = os.RemoveAll(tgzPath)
 		})
 
@@ -364,6 +373,12 @@ var _ = Describe("Fleet dump", Label("sharding"), func() {
 					Expect(namespace).ToNot(Equal(otherNs), "Should NOT have secrets from other namespace")
 				}
 			}
+
+			// Verify HelmOps are filtered by namespace
+			Expect(dumpedResources["helmops"]).To(ContainElement(ContainSubstring(testName+"-helmop")),
+				"Should include HelmOp from target namespace")
+			Expect(dumpedResources["helmops"]).ToNot(ContainElement(ContainSubstring(otherTestName+"-helmop")),
+				"Should NOT include HelmOp from other namespace")
 		})
 
 		It("dumps all resources when using --all-namespaces", func() {
@@ -488,6 +503,12 @@ var _ = Describe("Fleet dump", Label("sharding"), func() {
 				Expect(foundTargetNsSecrets || foundOtherNsSecrets).To(BeTrue(),
 					"Should have secrets from at least one of the namespaces")
 			}
+
+			// Verify HelmOps from both namespaces are included
+			Expect(dumpedResources["helmops"]).To(ContainElement(ContainSubstring(testName+"-helmop")),
+				"Should include HelmOp from target namespace")
+			Expect(dumpedResources["helmops"]).To(ContainElement(ContainSubstring(otherTestName+"-helmop")),
+				"Should include HelmOp from other namespace")
 		})
 	})
 

@@ -26,9 +26,9 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/labels"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	errutil "k8s.io/apimachinery/pkg/util/errors"
@@ -791,7 +791,8 @@ func addOtherNamespaceResources(ctx context.Context, d dynamic.Interface, logger
 	return nil
 }
 
-// addFilteredHelmOps adds HelmOps with appropriate filtering
+// addFilteredHelmOps adds HelmOps with appropriate filtering.
+// HelmOps are namespace-scoped resources like GitRepos, so they use namespace filtering only.
 func addFilteredHelmOps(ctx context.Context, d dynamic.Interface, logger logr.Logger, w *tar.Writer, cfg *filterConfig, opt Options) error {
 	switch {
 	case opt.HelmOp != "":
@@ -799,12 +800,8 @@ func addFilteredHelmOps(ctx context.Context, d dynamic.Interface, logger logr.Lo
 		if err := addObjectsWithNameFilter(ctx, d, logger, "helmops", w, []string{opt.HelmOp}, opt); err != nil {
 			return fmt.Errorf("failed to add helmops to archive: %w", err)
 		}
-	case cfg.useFiltering:
-		// Filter by bundle-namespace label like BundleDeployments
-		if err := addHelmOps(ctx, d, logger, w, cfg.bundleNames, opt); err != nil {
-			return fmt.Errorf("failed to add helmops to archive: %w", err)
-		}
 	default:
+		// HelmOps are namespace-scoped like GitRepos, use namespace filtering
 		if err := addObjectsToArchive(ctx, d, logger, "helmops", w, opt); err != nil {
 			return fmt.Errorf("failed to add helmops to archive: %w", err)
 		}
@@ -1302,21 +1299,6 @@ func addBundleDeployments(ctx context.Context, d dynamic.Interface, logger logr.
 		return addObjectsWithLabelSelector(ctx, d, logger, "bundledeployments", w, selector, opt.FetchLimit)
 	}
 	return addObjectsToArchive(ctx, d, logger, "bundledeployments", w, opt)
-}
-
-// addHelmOps adds helmop resources to the archive.
-// When filtering by namespace, uses label selector for bundle-namespace like BundleDeployments.
-// When bundleNames is provided, additionally filters by bundle-name.
-func addHelmOps(ctx context.Context, d dynamic.Interface, logger logr.Logger, w *tar.Writer, bundleNames []string, opt Options) error {
-	// Filter by bundle-namespace label like BundleDeployments
-	if !opt.AllNamespaces && opt.Namespace != "" {
-		selector, err := buildBundleNameSelector(opt.Namespace, bundleNames)
-		if err != nil {
-			return fmt.Errorf("failed to build bundle name selector: %w", err)
-		}
-		return addObjectsWithLabelSelector(ctx, d, logger, "helmops", w, selector, opt.FetchLimit)
-	}
-	return addObjectsToArchive(ctx, d, logger, "helmops", w, opt)
 }
 
 // addObjectsWithNameFilter fetches resources from a namespace and filters by resource names
