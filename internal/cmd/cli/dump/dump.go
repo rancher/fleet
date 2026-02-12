@@ -632,6 +632,149 @@ func createDialer(ctx context.Context, cfg *rest.Config, c client.Client, svc *c
 	return spdy.NewDialer(up, &httpCli, http.MethodPost, u), &httpCli, nil
 }
 
+// filterConfig holds the filtering configuration determined from options
+type filterConfig struct {
+	bundleNames  []string
+	contentIDs   []string
+	namespace    string
+	useFiltering bool
+}
+
+// determineFilterConfig analyzes options and returns the appropriate filtering configuration
+func determineFilterConfig(ctx context.Context, d dynamic.Interface, logger logr.Logger, opt Options) (*filterConfig, error) {
+	cfg := &filterConfig{
+		namespace:    opt.Namespace,
+		useFiltering: !opt.AllNamespaces && opt.Namespace != "",
+	}
+
+	if !cfg.useFiltering {
+		return cfg, nil
+	}
+
+	var err error
+	switch {
+	case opt.Bundle != "":
+		cfg.bundleNames, err = validateAndGetBundle(ctx, d, opt.Namespace, opt.Bundle)
+		if err != nil {
+			return nil, err
+		}
+		logger.Info("Filtering by Bundle", "namespace", opt.Namespace, "bundle", opt.Bundle)
+	case opt.GitRepo != "":
+		cfg.bundleNames, err = collectBundleNamesByGitRepo(ctx, d, opt.Namespace, opt.GitRepo, opt.FetchLimit)
+		if err != nil {
+			return nil, fmt.Errorf("failed to collect bundle names for gitrepo %q: %w", opt.GitRepo, err)
+		}
+		logger.Info("Filtering by GitRepo", "namespace", opt.Namespace, "gitrepo", opt.GitRepo, "bundles", len(cfg.bundleNames))
+	case opt.HelmOp != "":
+		cfg.bundleNames, err = collectBundleNamesByHelmOp(ctx, d, opt.Namespace, opt.HelmOp, opt.FetchLimit)
+		if err != nil {
+			return nil, fmt.Errorf("failed to collect bundle names for helmop %q: %w", opt.HelmOp, err)
+		}
+		logger.Info("Filtering by HelmOp", "namespace", opt.Namespace, "helmop", opt.HelmOp, "bundles", len(cfg.bundleNames))
+	default:
+		cfg.bundleNames, err = collectBundleNames(ctx, d, opt.Namespace, opt.FetchLimit)
+		if err != nil {
+			return nil, fmt.Errorf("failed to collect bundle names: %w", err)
+		}
+		logger.Info("Filtering by namespace", "namespace", opt.Namespace, "bundles", len(cfg.bundleNames))
+	}
+
+	// Collect content IDs if content options are enabled
+	if (opt.WithContent || opt.WithContentMetadata) && len(cfg.bundleNames) > 0 {
+		cfg.contentIDs, err = collectContentIDs(ctx, d, opt.Namespace, cfg.bundleNames, opt.FetchLimit)
+		if err != nil {
+			return nil, fmt.Errorf("failed to collect content IDs: %w", err)
+		}
+		logger.Info("Collected content IDs from bundles", "count", len(cfg.contentIDs))
+	}
+
+	return cfg, nil
+}
+
+// validateAndGetBundle validates a bundle exists and returns it as a single-element slice
+func validateAndGetBundle(ctx context.Context, d dynamic.Interface, namespace, bundleName string) ([]string, error) {
+	exists, err := bundleExists(ctx, d, namespace, bundleName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check if bundle %q exists: %w", bundleName, err)
+	}
+	if !exists {
+		return nil, fmt.Errorf("bundle %q does not exist in namespace %q", bundleName, namespace)
+	}
+	return []string{bundleName}, nil
+}
+
+// addFilteredGitReposAndBundles adds GitRepos and Bundles with appropriate filtering
+func addFilteredGitReposAndBundles(ctx context.Context, d dynamic.Interface, logger logr.Logger, w *tar.Writer, cfg *filterConfig, opt Options) error {
+	switch {
+	case opt.GitRepo != "":
+		// Add only the specific GitRepo
+		if err := addObjectsWithNameFilter(ctx, d, logger, "fleet.cattle.io", "v1alpha1", "gitrepos", w, []string{opt.GitRepo}, opt); err != nil {
+			return fmt.Errorf("failed to add gitrepos to archive: %w", err)
+		}
+		// Add only bundles matching the collected bundle names
+		if err := addObjectsWithNameFilter(ctx, d, logger, "fleet.cattle.io", "v1alpha1", "bundles", w, cfg.bundleNames, opt); err != nil {
+			return fmt.Errorf("failed to add bundles to archive: %w", err)
+		}
+	case opt.HelmOp != "":
+		// HelmOp filter: skip GitRepos, add only bundles
+		if err := addObjectsWithNameFilter(ctx, d, logger, "fleet.cattle.io", "v1alpha1", "bundles", w, cfg.bundleNames, opt); err != nil {
+			return fmt.Errorf("failed to add bundles to archive: %w", err)
+		}
+	case opt.Bundle != "":
+		// Bundle filter: skip GitRepos, add only the specific Bundle
+		if err := addObjectsWithNameFilter(ctx, d, logger, "fleet.cattle.io", "v1alpha1", "bundles", w, cfg.bundleNames, opt); err != nil {
+			return fmt.Errorf("failed to add bundles to archive: %w", err)
+		}
+	default:
+		// No filter, add all gitrepos and bundles from namespace
+		if err := addObjectsToArchive(ctx, d, logger, "fleet.cattle.io", "v1alpha1", "gitrepos", w, opt); err != nil {
+			return fmt.Errorf("failed to add gitrepos to archive: %w", err)
+		}
+		if err := addObjectsToArchive(ctx, d, logger, "fleet.cattle.io", "v1alpha1", "bundles", w, opt); err != nil {
+			return fmt.Errorf("failed to add bundles to archive: %w", err)
+		}
+	}
+	return nil
+}
+
+// addOtherNamespaceResources adds resources that are not filtered by GitRepo/Bundle
+func addOtherNamespaceResources(ctx context.Context, d dynamic.Interface, logger logr.Logger, w *tar.Writer, opt Options) error {
+	otherNamespaceTypes := []string{
+		"clusters",
+		"clustergroups",
+		"bundlenamespacemappings",
+		"gitreporestrictions",
+	}
+
+	for _, t := range otherNamespaceTypes {
+		if err := addObjectsToArchive(ctx, d, logger, "fleet.cattle.io", "v1alpha1", t, w, opt); err != nil {
+			return fmt.Errorf("failed to add %s to archive: %w", t, err)
+		}
+	}
+	return nil
+}
+
+// addFilteredHelmOps adds HelmOps with appropriate filtering
+func addFilteredHelmOps(ctx context.Context, d dynamic.Interface, logger logr.Logger, w *tar.Writer, cfg *filterConfig, opt Options) error {
+	switch {
+	case opt.HelmOp != "":
+		// Add only the specific HelmOp
+		if err := addObjectsWithNameFilter(ctx, d, logger, "fleet.cattle.io", "v1alpha1", "helmops", w, []string{opt.HelmOp}, opt); err != nil {
+			return fmt.Errorf("failed to add helmops to archive: %w", err)
+		}
+	case cfg.useFiltering:
+		// Filter by bundle-namespace label like BundleDeployments
+		if err := addHelmOps(ctx, d, logger, w, cfg.bundleNames, opt); err != nil {
+			return fmt.Errorf("failed to add helmops to archive: %w", err)
+		}
+	default:
+		if err := addObjectsToArchive(ctx, d, logger, "fleet.cattle.io", "v1alpha1", "helmops", w, opt); err != nil {
+			return fmt.Errorf("failed to add helmops to archive: %w", err)
+		}
+	}
+	return nil
+}
+
 // forwardPorts creates a port forwarder for svc.
 // In case of success, it returns a non-zero port number on which the service is available, an HTTP client which can
 // later be used to query the service on the forwarded port, and a closing function.
@@ -740,121 +883,41 @@ func CreateWithClients(ctx context.Context, cfg *rest.Config, d dynamic.Interfac
 	gz := gzip.NewWriter(tgz)
 	w := tar.NewWriter(gz)
 
-	// Collect bundle metadata if filtering by namespace, GitRepo, or Bundle
-	var bundleNames []string
-	if !opt.AllNamespaces && opt.Namespace != "" {
-		if opt.Bundle != "" {
-			// Filter by Bundle name directly - validate bundle exists first
-			exists, err := bundleExists(ctx, d, opt.Namespace, opt.Bundle)
-			if err != nil {
-				return fmt.Errorf("failed to check if bundle %q exists: %w", opt.Bundle, err)
-			}
-			if !exists {
-				return fmt.Errorf("bundle %q does not exist in namespace %q", opt.Bundle, opt.Namespace)
-			}
-			bundleNames = []string{opt.Bundle}
-			logger.Info("Filtering by Bundle", "namespace", opt.Namespace, "bundle", opt.Bundle)
-		} else if opt.GitRepo != "" {
-			// Filter by GitRepo using label selector
-			bundleNames, err = collectBundleNamesByGitRepo(ctx, d, opt.Namespace, opt.GitRepo, opt.FetchLimit)
-			if err != nil {
-				return fmt.Errorf("failed to collect bundle names for gitrepo %q: %w", opt.GitRepo, err)
-			}
-			logger.Info("Filtering by GitRepo", "namespace", opt.Namespace, "gitrepo", opt.GitRepo, "bundles", len(bundleNames))
-		} else if opt.HelmOp != "" {
-			// Filter by HelmOp using label selector
-			bundleNames, err = collectBundleNamesByHelmOp(ctx, d, opt.Namespace, opt.HelmOp, opt.FetchLimit)
-			if err != nil {
-				return fmt.Errorf("failed to collect bundle names for helmop %q: %w", opt.HelmOp, err)
-			}
-			logger.Info("Filtering by HelmOp", "namespace", opt.Namespace, "helmop", opt.HelmOp, "bundles", len(bundleNames))
-		} else {
-			// Filter by namespace only
-			bundleNames, err = collectBundleNames(ctx, d, opt.Namespace, opt.FetchLimit)
-			if err != nil {
-				return fmt.Errorf("failed to collect bundle names: %w", err)
-			}
-			logger.Info("Filtering by namespace", "namespace", opt.Namespace, "bundles", len(bundleNames))
-		}
+	// Determine filtering configuration
+	filterCfg, err := determineFilterConfig(ctx, d, logger, opt)
+	if err != nil {
+		return err
 	}
 
-	// Resources in the same namespace as GitRepos/Bundles
-	// When GitRepo or Bundle filter is active, filter by name
-	if opt.GitRepo != "" {
-		// Add only the specific GitRepo
-		if err := addObjectsWithNameFilter(ctx, d, logger, "fleet.cattle.io", "v1alpha1", "gitrepos", w, []string{opt.GitRepo}, opt); err != nil {
-			return fmt.Errorf("failed to add gitrepos to archive: %w", err)
-		}
-		// Add only bundles matching the collected bundle names
-		if err := addObjectsWithNameFilter(ctx, d, logger, "fleet.cattle.io", "v1alpha1", "bundles", w, bundleNames, opt); err != nil {
-			return fmt.Errorf("failed to add bundles to archive: %w", err)
-		}
-	} else if opt.HelmOp != "" {
-		// HelmOp filter: add only the specific HelmOp
-		if err := addObjectsWithNameFilter(ctx, d, logger, "fleet.cattle.io", "v1alpha1", "helmops", w, []string{opt.HelmOp}, opt); err != nil {
-			return fmt.Errorf("failed to add helmops to archive: %w", err)
-		}
-		// Add only bundles matching the collected bundle names
-		if err := addObjectsWithNameFilter(ctx, d, logger, "fleet.cattle.io", "v1alpha1", "bundles", w, bundleNames, opt); err != nil {
-			return fmt.Errorf("failed to add bundles to archive: %w", err)
-		}
-	} else if opt.Bundle != "" {
-		// Bundle filter: skip GitRepos, add only the specific Bundle
-		if err := addObjectsWithNameFilter(ctx, d, logger, "fleet.cattle.io", "v1alpha1", "bundles", w, bundleNames, opt); err != nil {
-			return fmt.Errorf("failed to add bundles to archive: %w", err)
-		}
-	} else {
-		// No filter, add all gitrepos and bundles from namespace
-		if err := addObjectsToArchive(ctx, d, logger, "fleet.cattle.io", "v1alpha1", "gitrepos", w, opt); err != nil {
-			return fmt.Errorf("failed to add gitrepos to archive: %w", err)
-		}
-		if err := addObjectsToArchive(ctx, d, logger, "fleet.cattle.io", "v1alpha1", "bundles", w, opt); err != nil {
-			return fmt.Errorf("failed to add bundles to archive: %w", err)
-		}
+	// Add GitRepos and Bundles with appropriate filtering
+	if err := addFilteredGitReposAndBundles(ctx, d, logger, w, filterCfg, opt); err != nil {
+		return err
 	}
 
-	// Other namespace resources (not filtered by GitRepo)
-	otherNamespaceTypes := []string{
-		"clusters",
-		"clustergroups",
-		"bundlenamespacemappings",
-		"gitreporestrictions",
-	}
-
-	for _, t := range otherNamespaceTypes {
-		if err := addObjectsToArchive(ctx, d, logger, "fleet.cattle.io", "v1alpha1", t, w, opt); err != nil {
-			return fmt.Errorf("failed to add %s to archive: %w", t, err)
-		}
+	// Add other namespace resources
+	if err := addOtherNamespaceResources(ctx, d, logger, w, opt); err != nil {
+		return err
 	}
 
 	// BundleDeployments: filter by bundle-namespace label when filtering
-	if err := addBundleDeployments(ctx, d, logger, w, bundleNames, opt); err != nil {
+	if err := addBundleDeployments(ctx, d, logger, w, filterCfg.bundleNames, opt); err != nil {
 		return fmt.Errorf("failed to add bundledeployments to archive: %w", err)
 	}
 
-	// HelmOps: filter by bundle-namespace label like BundleDeployments
-	if err := addHelmOps(ctx, d, logger, w, bundleNames, opt); err != nil {
-		return fmt.Errorf("failed to add helmops to archive: %w", err)
+	// HelmOps: add with appropriate filtering
+	if err := addFilteredHelmOps(ctx, d, logger, w, filterCfg, opt); err != nil {
+		return err
 	}
 
+	// Add contents if requested
 	if opt.WithContent || opt.WithContentMetadata {
 		contentMetadataOnly := opt.WithContentMetadata && !opt.WithContent
-
-		var contentIDs []string
-		if !opt.AllNamespaces && opt.Namespace != "" {
-			var err error
-			contentIDs, err = collectContentIDs(ctx, d, opt.Namespace, bundleNames, opt.FetchLimit)
-			if err != nil {
-				return fmt.Errorf("failed to collect content IDs from bundles: %w", err)
-			}
-			logger.Info("Collected content IDs from bundles", "count", len(contentIDs))
-		}
-
-		if err := addContentsToArchive(ctx, d, logger, w, contentMetadataOnly, contentIDs, opt); err != nil {
+		if err := addContentsToArchive(ctx, d, logger, w, contentMetadataOnly, filterCfg.contentIDs, opt); err != nil {
 			return fmt.Errorf("failed to add contents to archive: %w", err)
 		}
 	}
 
+	// Add secrets if requested
 	if opt.WithSecrets || opt.WithSecretsMetadata {
 		secretsMetadataOnly := opt.WithSecretsMetadata && !opt.WithSecrets
 		if err := addSecretsToArchive(ctx, d, c, logger, w, secretsMetadataOnly, opt); err != nil {
@@ -862,14 +925,17 @@ func CreateWithClients(ctx context.Context, cfg *rest.Config, d dynamic.Interfac
 		}
 	}
 
+	// Add events
 	if err := addEventsToArchive(ctx, d, c, logger, w, opt); err != nil {
 		return fmt.Errorf("failed to add events to archive: %w", err)
 	}
 
+	// Add metrics
 	if err := addMetricsToArchive(ctx, c, logger, cfg, w, opt); err != nil {
 		return fmt.Errorf("failed to add metrics to archive: %w", err)
 	}
 
+	// Close archive
 	if err := w.Close(); err != nil {
 		return fmt.Errorf("failed to close tar writer: %w", err)
 	}
