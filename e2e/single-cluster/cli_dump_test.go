@@ -768,8 +768,8 @@ var _ = Describe("Fleet dump", Label("sharding"), func() {
 		It("includes only resources from the specified bundle", func() {
 			// Run dump with Bundle filter
 			err := dump.Create(context.Background(), restConfig, tgzPath, dump.Options{
-				Namespace: namespace,
-				Bundle:    bundleName1, // Filter by first bundle only
+				Namespace:   namespace,
+				Bundle:      bundleName1, // Filter by first bundle only
 				WithContent: true,
 			})
 			Expect(err).ToNot(HaveOccurred())

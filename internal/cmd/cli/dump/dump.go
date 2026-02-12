@@ -793,7 +793,7 @@ func addOtherNamespaceResources(ctx context.Context, d dynamic.Interface, logger
 
 // addFilteredHelmOps adds HelmOps with appropriate filtering.
 // HelmOps are namespace-scoped resources like GitRepos, so they use namespace filtering only.
-func addFilteredHelmOps(ctx context.Context, d dynamic.Interface, logger logr.Logger, w *tar.Writer, cfg *filterConfig, opt Options) error {
+func addFilteredHelmOps(ctx context.Context, d dynamic.Interface, logger logr.Logger, w *tar.Writer, opt Options) error {
 	switch {
 	case opt.HelmOp != "":
 		// Add only the specific HelmOp
@@ -939,7 +939,7 @@ func CreateWithClients(ctx context.Context, cfg *rest.Config, d dynamic.Interfac
 	}
 
 	// HelmOps: add with appropriate filtering
-	if err := addFilteredHelmOps(ctx, d, logger, w, filterCfg, opt); err != nil {
+	if err := addFilteredHelmOps(ctx, d, logger, w, opt); err != nil {
 		return err
 	}
 
