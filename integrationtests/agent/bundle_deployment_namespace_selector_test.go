@@ -184,6 +184,44 @@ var _ = Describe("BundleDeployment namespace selector validation", Ordered, func
 			err = k8sClient.Delete(context.TODO(), bd)
 			Expect(err).ToNot(HaveOccurred())
 		})
+
+		// Verify that TargetNamespace takes precedence over DefaultNamespace per GetDeploymentNS logic
+		It("validates TargetNamespace when both TargetNamespace and DefaultNamespace are set", func() {
+			bd := &v1alpha1.BundleDeployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-selector-targetnamespace",
+					Namespace: clusterNS,
+				},
+				Spec: v1alpha1.BundleDeploymentSpec{
+					DeploymentID: "v1",
+					Options: v1alpha1.BundleDeploymentOptions{
+						TargetNamespace:  testNamespaceMatching, // This should take precedence
+						DefaultNamespace: testNamespaceNotMatch, // This should be ignored
+						AllowedTargetNamespaceSelector: &metav1.LabelSelector{
+							MatchLabels: map[string]string{
+								"env":  "production",
+								"team": "platform",
+							},
+						},
+					},
+				},
+			}
+
+			err := k8sClient.Create(context.TODO(), bd)
+			Expect(err).ToNot(HaveOccurred())
+
+			Eventually(func(g Gomega) {
+				err := k8sClient.Get(context.TODO(), types.NamespacedName{
+					Name:      bd.Name,
+					Namespace: bd.Namespace,
+				}, bd)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(hasDeployedCondition(bd, corev1.ConditionTrue) || bd.Status.Ready).To(BeTrue())
+			}).Should(Succeed())
+
+			err = k8sClient.Delete(context.TODO(), bd)
+			Expect(err).ToNot(HaveOccurred())
+		})
 	})
 
 	When("BundleDeployment has namespace selector not matching target namespace labels", func() {

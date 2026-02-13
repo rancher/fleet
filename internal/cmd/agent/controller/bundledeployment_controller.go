@@ -168,10 +168,7 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	// When nil, deployments proceed without namespace validation, allowing Helm's
 	// CreateNamespace feature to create missing namespaces - preserving backward compatibility.
 	if bd.Spec.Options.AllowedTargetNamespaceSelector != nil {
-		targetNamespace := bd.Spec.Options.DefaultNamespace
-		if targetNamespace == "" {
-			targetNamespace = r.DefaultNamespace
-		}
+		targetNamespace := namespaces.GetDeploymentNS(r.DefaultNamespace, bd.Spec.Options)
 
 		ns := &corev1.Namespace{}
 		if err := r.LocalClient.Get(ctx, types.NamespacedName{Name: targetNamespace}, ns); err != nil {
