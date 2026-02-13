@@ -36,6 +36,10 @@ type Dump struct {
 	FleetClient
 	DumpPath            string `usage:"Destination path for the dump" short:"p"`
 	FetchLimit          int64  `usage:"Limit number of items per resource that are fetched at once (0 means no limit)" short:"l" default:"500"`
+	AllNamespaces       bool   `usage:"Dump resources from all namespaces" short:"A"`
+	Gitrepo             string `usage:"Filter by GitRepo name (requires --namespace, mutually exclusive with --bundle and --helmop)"`
+	Bundle              string `usage:"Filter by Bundle name (requires --namespace, mutually exclusive with --gitrepo and --helmop)"`
+	Helmop              string `usage:"Filter by HelmOp name (requires --namespace, mutually exclusive with --gitrepo and --bundle)"`
 	WithSecrets         bool   `usage:"Include secrets with full data"`
 	WithSecretsMetadata bool   `usage:"Include secrets with metadata only"`
 	WithContent         bool   `usage:"Include Content resources with full data"`
@@ -57,6 +61,30 @@ func (d *Dump) Run(cmd *cobra.Command, args []string) error {
 	if d.WithContent && d.WithContentMetadata {
 		return fmt.Errorf("--with-content and --with-content-metadata are mutually exclusive")
 	}
+	if d.AllNamespaces && d.Namespace != "fleet-local" {
+		// Check if namespace was explicitly set to something other than default
+		if cmd.Flags().Changed("namespace") {
+			return fmt.Errorf("--namespace and --all-namespaces are mutually exclusive")
+		}
+	}
+	if d.Gitrepo != "" && d.Bundle != "" {
+		return fmt.Errorf("--bundle and --gitrepo are mutually exclusive")
+	}
+	if d.Gitrepo != "" && !cmd.Flags().Changed("namespace") {
+		return fmt.Errorf("--gitrepo requires --namespace to be explicitly specified")
+	}
+	if d.Bundle != "" && !cmd.Flags().Changed("namespace") {
+		return fmt.Errorf("--bundle requires --namespace to be explicitly specified")
+	}
+	if d.Helmop != "" && d.Gitrepo != "" {
+		return fmt.Errorf("--helmop and --gitrepo are mutually exclusive")
+	}
+	if d.Helmop != "" && d.Bundle != "" {
+		return fmt.Errorf("--helmop and --bundle are mutually exclusive")
+	}
+	if d.Helmop != "" && !cmd.Flags().Changed("namespace") {
+		return fmt.Errorf("--helmop requires --namespace to be explicitly specified")
+	}
 
 	cfg, err := ctrl.GetConfig()
 	if err != nil {
@@ -77,8 +105,19 @@ func (d *Dump) Run(cmd *cobra.Command, args []string) error {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zopts)))
 	ctx := log.IntoContext(cmd.Context(), ctrl.Log)
 
+	// Determine namespace filtering
+	namespace := ""
+	if !d.AllNamespaces {
+		namespace = d.Namespace
+	}
+
 	opts := dump.Options{
 		FetchLimit:          d.FetchLimit,
+		Namespace:           namespace,
+		AllNamespaces:       d.AllNamespaces,
+		GitRepo:             d.Gitrepo,
+		Bundle:              d.Bundle,
+		HelmOp:              d.Helmop,
 		WithSecrets:         d.WithSecrets,
 		WithSecretsMetadata: d.WithSecretsMetadata,
 		WithContent:         d.WithContent,

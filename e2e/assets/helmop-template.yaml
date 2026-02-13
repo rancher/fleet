@@ -9,6 +9,9 @@ metadata:
   namespace: {{.Namespace}}
 spec:
   helm:
-    chart: {{.Chart}}
+    repo: {{.Chart}}
+    chart: ""
     version: {{.Version}}
   namespace: {{.Namespace}}
+  targets:
+  - clusterSelector: {}
