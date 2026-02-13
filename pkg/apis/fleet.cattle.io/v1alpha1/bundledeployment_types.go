@@ -124,6 +124,11 @@ type BundleDeploymentOptions struct {
 	// Overwrites indicates which resources, if any, come from this bundle and overwrite another existing bundle.
 	// This flag is set internally by Fleet, and should not be altered by users.
 	Overwrites []OverwrittenResource `json:"overwrites,omitempty"`
+
+	// AllowedTargetNamespaceSelector restricts deployments to namespaces matching this selector.
+	// Propagated from GitRepoRestriction and validated by the agent on the downstream cluster.
+	// +nullable
+	AllowedTargetNamespaceSelector *metav1.LabelSelector `json:"allowedTargetNamespaceSelector,omitempty"`
 }
 
 // GitOpsBundleDeploymentOptions contains options which only make sense for GitOps

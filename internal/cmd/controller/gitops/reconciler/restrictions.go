@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"sort"
 
+	"github.com/rancher/fleet/internal/cmd/controller/labelselectors"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -28,6 +29,10 @@ func AuthorizeAndAssignDefaults(ctx context.Context, c client.Client, gitrepo *f
 
 	if len(restriction.AllowedTargetNamespaces) > 0 && gitrepo.Spec.TargetNamespace == "" {
 		return fmt.Errorf("empty targetNamespace denied, because allowedTargetNamespaces restriction is present")
+	}
+
+	if restriction.AllowedTargetNamespaceSelector != nil && gitrepo.Spec.TargetNamespace == "" {
+		return fmt.Errorf("empty targetNamespace denied, because allowedTargetNamespaceSelector restriction is present")
 	}
 
 	targetNamespace, err := isAllowed(gitrepo.Spec.TargetNamespace, "", restriction.AllowedTargetNamespaces)
@@ -78,8 +83,9 @@ func aggregate(restrictions []fleet.GitRepoRestriction) (result fleet.GitRepoRes
 		result.AllowedClientSecretNames = append(result.AllowedClientSecretNames, restriction.AllowedClientSecretNames...)
 		result.AllowedRepoPatterns = append(result.AllowedRepoPatterns, restriction.AllowedRepoPatterns...)
 		result.AllowedTargetNamespaces = append(result.AllowedTargetNamespaces, restriction.AllowedTargetNamespaces...)
+		result.AllowedTargetNamespaceSelector = labelselectors.Merge(result.AllowedTargetNamespaceSelector, restriction.AllowedTargetNamespaceSelector)
 	}
-	return
+	return result
 }
 
 func isAllowed(currentValue, defaultValue string, allowedValues []string) (string, error) {
