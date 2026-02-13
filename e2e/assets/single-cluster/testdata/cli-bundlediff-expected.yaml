@@ -1,0 +1,9 @@
+diff:
+  comparePatches:
+  - apiVersion: v1
+    kind: ConfigMap
+    name: test-bundlediff-cm
+    namespace: TARGET_NS
+    operations:
+    - op: remove
+      path: /data/key

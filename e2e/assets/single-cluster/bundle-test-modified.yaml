@@ -1,0 +1,19 @@
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: Bundle
+metadata:
+  name: {{.Name}}
+  namespace: {{.Namespace}}
+spec:
+  defaultNamespace: {{.TargetNamespace}}
+  resources:
+  - content: |
+      kind: ConfigMap
+      apiVersion: v1
+      metadata:
+        name: test-bundlediff-cm
+      data:
+        key: original-value
+    name: cm.yaml
+  targets:
+  - clusterName: local

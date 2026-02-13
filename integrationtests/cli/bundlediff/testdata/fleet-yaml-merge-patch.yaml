@@ -3,12 +3,18 @@ diff:
   - apiVersion: apps/v1
     jsonPointers:
     - /spec/replicas
-    - /spec/template/metadata/labels/old-label
     kind: Deployment
-    name: my-deployment
+    name: nginx-deploy
     namespace: test-ns
     operations:
     - op: remove
       path: /spec/replicas
+  - apiVersion: v1
+    jsonPointers:
+    - /data/key
+    kind: ConfigMap
+    name: config-map
+    namespace: test-ns
+    operations:
     - op: remove
-      path: /spec/template/metadata/labels/old-label
+      path: /data/key
