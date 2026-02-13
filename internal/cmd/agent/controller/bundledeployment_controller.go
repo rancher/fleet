@@ -163,6 +163,10 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		}
 	}
 
+	// Validate target namespace against AllowedTargetNamespaceSelector if configured.
+	// This validation only runs when the selector is explicitly set (not nil).
+	// When nil, deployments proceed without namespace validation, allowing Helm's
+	// CreateNamespace feature to create missing namespaces - preserving backward compatibility.
 	if bd.Spec.Options.AllowedTargetNamespaceSelector != nil {
 		targetNamespace := bd.Spec.Options.DefaultNamespace
 		if targetNamespace == "" {

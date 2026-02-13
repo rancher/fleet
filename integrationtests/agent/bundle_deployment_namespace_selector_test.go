@@ -106,6 +106,10 @@ var _ = Describe("BundleDeployment namespace selector validation", Ordered, func
 			Expect(err).ToNot(HaveOccurred())
 		})
 
+		// Regression test: Verify that deployments without AllowedTargetNamespaceSelector
+		// can still deploy to missing namespaces via Helm's CreateNamespace feature.
+		// Without the selector guard, the namespace existence check would run unconditionally
+		// and prevent Helm from creating the namespace, breaking existing deployments.
 		It("deploys successfully to a missing namespace", func() {
 			missingNamespace := namespace + "-missing-no-selector"
 			bd := &v1alpha1.BundleDeployment{
