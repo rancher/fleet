@@ -2,6 +2,7 @@ package agent_test
 
 import (
 	"context"
+	"fmt"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -185,6 +186,53 @@ var _ = Describe("BundleDeployment namespace selector validation", Ordered, func
 
 			message := getConditionMessage(bd, "Deployed", corev1.ConditionFalse)
 			Expect(message).To(ContainSubstring("does not match AllowedTargetNamespaceSelector"))
+
+			err = k8sClient.Delete(context.TODO(), bd)
+			Expect(err).ToNot(HaveOccurred())
+		})
+	})
+
+	When("BundleDeployment has namespace selector and target namespace is missing", func() {
+		It("fails deployment with clear error", func() {
+			missingNamespace := namespace + "-missing"
+			bd := &v1alpha1.BundleDeployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-selector-missing-namespace",
+					Namespace: clusterNS,
+				},
+				Spec: v1alpha1.BundleDeploymentSpec{
+					DeploymentID: "v1",
+					Options: v1alpha1.BundleDeploymentOptions{
+						DefaultNamespace: missingNamespace,
+						AllowedTargetNamespaceSelector: &metav1.LabelSelector{
+							MatchLabels: map[string]string{
+								"env": "production",
+							},
+						},
+					},
+				},
+			}
+
+			err := k8sClient.Create(context.TODO(), bd)
+			Expect(err).ToNot(HaveOccurred())
+
+			Eventually(func(g Gomega) {
+				err := k8sClient.Get(context.TODO(), types.NamespacedName{
+					Name:      bd.Name,
+					Namespace: bd.Namespace,
+				}, bd)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(hasCondition(bd, "Deployed", corev1.ConditionFalse)).To(BeTrue())
+			}).Should(Succeed())
+
+			err = k8sClient.Get(context.TODO(), types.NamespacedName{
+				Name:      bd.Name,
+				Namespace: bd.Namespace,
+			}, bd)
+			Expect(err).ToNot(HaveOccurred())
+
+			message := getConditionMessage(bd, "Deployed", corev1.ConditionFalse)
+			Expect(message).To(Equal(fmt.Sprintf("target namespace %s does not exist on downstream cluster", missingNamespace)))
 
 			err = k8sClient.Delete(context.TODO(), bd)
 			Expect(err).ToNot(HaveOccurred())

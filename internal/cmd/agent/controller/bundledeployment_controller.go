@@ -172,12 +172,7 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		ns := &corev1.Namespace{}
 		if err := r.LocalClient.Get(ctx, types.NamespacedName{Name: targetNamespace}, ns); err != nil {
 			if apierrors.IsNotFound(err) {
-				err = fmt.Errorf("target namespace %s does not exist on downstream cluster yet", targetNamespace)
-				bd.Status = setCondition(bd.Status, err, monitor.Cond(fleetv1.BundleDeploymentConditionDeployed))
-				if statusErr := r.updateStatus(ctx, orig, bd); statusErr != nil {
-					return ctrl.Result{}, fmt.Errorf("%w; failed to update status: %w", err, statusErr)
-				}
-				return ctrl.Result{RequeueAfter: durations.DefaultRequeueAfter}, nil
+				err = fmt.Errorf("target namespace %s does not exist on downstream cluster", targetNamespace)
 			} else {
 				err = fmt.Errorf("failed to get target namespace %s: %w", targetNamespace, err)
 			}
