@@ -109,6 +109,11 @@ priorityClassName: ""
 ## host verification fails. Insecure when set to true. Default: false.
 insecureSkipHostKeyChecks: false
 
+## Adds hosts to the known_hosts configmap if using a custom git provider for gitrepos
+additionalKnownHosts: []
+# Custom entries to be added in SSH known_hosts format (see charts/fleet/templates/configmap_known_hosts.yaml for examples):
+#   - <host>[:port] <key-algorithm> <fingerprint>
+
 gitops:
   enabled: true
   # syncPeriod is used to pick up polling for lost gitrepo events.
