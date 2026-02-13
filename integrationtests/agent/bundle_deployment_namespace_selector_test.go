@@ -92,13 +92,14 @@ var _ = Describe("BundleDeployment namespace selector validation", Ordered, func
 			err := k8sClient.Create(context.TODO(), bd)
 			Expect(err).ToNot(HaveOccurred())
 
-			Eventually(func() bool {
+			Eventually(func(g Gomega) {
 				err := k8sClient.Get(context.TODO(), types.NamespacedName{
 					Name:      bd.Name,
 					Namespace: bd.Namespace,
 				}, bd)
-				return err == nil && bd.Status.Ready
-			}).Should(BeTrue())
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(bd.Status.Ready).To(BeTrue())
+			}).Should(Succeed())
 
 			err = k8sClient.Delete(context.TODO(), bd)
 			Expect(err).ToNot(HaveOccurred())
@@ -129,17 +130,14 @@ var _ = Describe("BundleDeployment namespace selector validation", Ordered, func
 			err := k8sClient.Create(context.TODO(), bd)
 			Expect(err).ToNot(HaveOccurred())
 
-			Eventually(func() bool {
+			Eventually(func(g Gomega) {
 				err := k8sClient.Get(context.TODO(), types.NamespacedName{
 					Name:      bd.Name,
 					Namespace: bd.Namespace,
 				}, bd)
-				if err != nil {
-					return false
-				}
-
-				return hasCondition(bd, "Deployed", corev1.ConditionTrue) || bd.Status.Ready
-			}).Should(BeTrue())
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(hasCondition(bd, "Deployed", corev1.ConditionTrue) || bd.Status.Ready).To(BeTrue())
+			}).Should(Succeed())
 
 			err = k8sClient.Delete(context.TODO(), bd)
 			Expect(err).ToNot(HaveOccurred())
@@ -170,17 +168,14 @@ var _ = Describe("BundleDeployment namespace selector validation", Ordered, func
 			err := k8sClient.Create(context.TODO(), bd)
 			Expect(err).ToNot(HaveOccurred())
 
-			Eventually(func() bool {
+			Eventually(func(g Gomega) {
 				err := k8sClient.Get(context.TODO(), types.NamespacedName{
 					Name:      bd.Name,
 					Namespace: bd.Namespace,
 				}, bd)
-				if err != nil {
-					return false
-				}
-
-				return hasCondition(bd, "Deployed", corev1.ConditionFalse)
-			}).Should(BeTrue())
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(hasCondition(bd, "Deployed", corev1.ConditionFalse)).To(BeTrue())
+			}).Should(Succeed())
 
 			err = k8sClient.Get(context.TODO(), types.NamespacedName{
 				Name:      bd.Name,
