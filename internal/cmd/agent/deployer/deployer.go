@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/rancher/fleet/internal/bundlereader"
+	"github.com/rancher/fleet/internal/cmd/controller/summary"
 	"github.com/rancher/fleet/internal/helmdeployer"
 	"github.com/rancher/fleet/internal/manifest"
 	"github.com/rancher/fleet/internal/ocistorage"
@@ -24,6 +25,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
+
+type NotReadyDependenciesError struct {
+	Pending []string
+}
+
+func (e *NotReadyDependenciesError) Error() string {
+	return fmt.Sprintf("dependent bundle(s) are not ready: %v", e.Pending)
+}
 
 type Deployer struct {
 	client         client.Client
@@ -341,19 +350,38 @@ func (d *Deployer) checkDependency(ctx context.Context, bd *fleet.BundleDeployme
 			}
 
 			for _, depBundle := range bds.Items {
-				c := condition.Cond("Ready")
-				if c.IsTrue(depBundle) {
-					continue
-				} else {
+				if !isDependencyReady(depBundle, depend.AcceptedStates) {
 					depBundleList = append(depBundleList, depBundle.Name)
 				}
+
 			}
 		}
 	}
 
 	if len(depBundleList) != 0 {
-		return fmt.Errorf("dependent bundle(s) are not ready: %v", depBundleList)
+		return &NotReadyDependenciesError{Pending: depBundleList}
 	}
 
 	return nil
+}
+
+// isStateAccepted checks if currentState is in acceptedStates.
+// If acceptedStates is empty or nil, only Ready is accepted (default behavior).
+func isStateAccepted(currentState fleet.BundleState, acceptedStates []fleet.BundleState) bool {
+	if len(acceptedStates) == 0 {
+		return currentState == fleet.Ready
+	}
+	for _, s := range acceptedStates {
+		if currentState == s {
+			return true
+		}
+	}
+	return false
+}
+
+// isDependencyReady checks if a BundleDeployment dependency is in an acceptable state.
+// acceptedStates is a list of states that are considered acceptable for this dependency.
+// If acceptedStates is empty or nil, only the "Ready" state is accepted (default behavior).
+func isDependencyReady(depBundle fleet.BundleDeployment, acceptedStates []fleet.BundleState) bool {
+	return isStateAccepted(summary.GetDeploymentState(&depBundle), acceptedStates)
 }

@@ -213,5 +213,139 @@ var _ = Describe("ContentReconciler", func() {
 				Expect(gotList.Items[0].Status.ReferenceCount).To(Equal(0))
 			})
 		})
+
+		Context("when Content has finalizers but no BundleDeployments reference it", func() {
+			BeforeEach(func() {
+				content = &fleet.Content{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:       "content-with-finalizers",
+						Finalizers: []string{"fleet.cattle.io/test-finalizer"},
+					},
+					Status: fleet.ContentStatus{ReferenceCount: 0},
+				}
+
+				cl = fake.NewClientBuilder().WithScheme(sch).
+					WithIndex(&fleet.BundleDeployment{}, config.ContentNameIndex, func(obj client.Object) []string {
+						bd, ok := obj.(*fleet.BundleDeployment)
+						if !ok {
+							return nil
+						}
+						if val, exists := bd.Labels[fleet.ContentNameLabel]; exists {
+							return []string{val}
+						}
+						return nil
+					}).
+					WithObjects(content).
+					Build()
+			})
+
+			It("removes finalizers and deletes the Content", func() {
+				// ensure content exists with finalizers before reconcile
+				pre := &fleet.Content{}
+				Expect(cl.Get(ctx, client.ObjectKey{Name: content.Name}, pre)).To(Succeed())
+				Expect(pre.GetFinalizers()).To(HaveLen(1))
+
+				_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKey{Name: content.Name}})
+				Expect(err).ToNot(HaveOccurred())
+
+				// content should be deleted
+				got := &fleet.ContentList{}
+				Expect(cl.List(ctx, got)).To(Succeed())
+				Expect(got.Items).To(BeEmpty())
+			})
+		})
+
+		Context("when Content has finalizers and ReferenceCount > 0 but no BundleDeployments reference it", func() {
+			BeforeEach(func() {
+				content = &fleet.Content{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:       "content-with-finalizers-and-refs",
+						Finalizers: []string{"fleet.cattle.io/test-finalizer"},
+					},
+					Status: fleet.ContentStatus{ReferenceCount: 2},
+				}
+
+				cl = fake.NewClientBuilder().WithScheme(sch).
+					WithIndex(&fleet.BundleDeployment{}, config.ContentNameIndex, func(obj client.Object) []string {
+						bd, ok := obj.(*fleet.BundleDeployment)
+						if !ok {
+							return nil
+						}
+						if val, exists := bd.Labels[fleet.ContentNameLabel]; exists {
+							return []string{val}
+						}
+						return nil
+					}).
+					WithObjects(content).
+					Build()
+			})
+
+			It("removes finalizers and deletes the Content", func() {
+				// ensure content exists with finalizers before reconcile
+				pre := &fleet.Content{}
+				Expect(cl.Get(ctx, client.ObjectKey{Name: content.Name}, pre)).To(Succeed())
+				Expect(pre.GetFinalizers()).To(HaveLen(1))
+				Expect(pre.Status.ReferenceCount).To(Equal(2))
+
+				_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKey{Name: content.Name}})
+				Expect(err).ToNot(HaveOccurred())
+
+				// content should be deleted
+				got := &fleet.ContentList{}
+				Expect(cl.List(ctx, got)).To(Succeed())
+				Expect(got.Items).To(BeEmpty())
+			})
+		})
+
+		Context("when Content has finalizers and active BundleDeployments", func() {
+			BeforeEach(func() {
+				content = &fleet.Content{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:       "content-with-finalizers-and-bds",
+						Finalizers: []string{"fleet.cattle.io/test-finalizer"},
+					},
+					Status: fleet.ContentStatus{ReferenceCount: 0},
+				}
+
+				bd := &fleet.BundleDeployment{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "bd-active",
+						Namespace: "default",
+						Labels:    map[string]string{fleet.ContentNameLabel: content.Name},
+					},
+				}
+
+				cl = fake.NewClientBuilder().WithScheme(sch).
+					WithIndex(&fleet.BundleDeployment{}, config.ContentNameIndex, func(obj client.Object) []string {
+						bd, ok := obj.(*fleet.BundleDeployment)
+						if !ok {
+							return nil
+						}
+						if val, exists := bd.Labels[fleet.ContentNameLabel]; exists {
+							return []string{val}
+						}
+						return nil
+					}).
+					WithObjects(content, bd).
+					WithStatusSubresource(&fleet.Content{}).
+					Build()
+			})
+
+			It("removes finalizers but does not delete the Content", func() {
+				// ensure content exists with finalizers before reconcile
+				pre := &fleet.Content{}
+				Expect(cl.Get(ctx, client.ObjectKey{Name: content.Name}, pre)).To(Succeed())
+				Expect(pre.GetFinalizers()).To(HaveLen(1))
+
+				_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKey{Name: content.Name}})
+				Expect(err).ToNot(HaveOccurred())
+
+				// content should still exist with updated reference count and no finalizers
+				got := &fleet.Content{}
+				Expect(cl.Get(ctx, client.ObjectKey{Name: content.Name}, got)).To(Succeed())
+				Expect(got.GetFinalizers()).To(BeEmpty())
+				Expect(got.Status.ReferenceCount).To(Equal(1))
+			})
+		})
 	})
 })

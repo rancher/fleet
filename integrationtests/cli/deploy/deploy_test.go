@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 
 	"github.com/onsi/gomega/gbytes"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	clihelper "github.com/rancher/fleet/integrationtests/cli"
 	"github.com/rancher/fleet/integrationtests/utils"
@@ -15,6 +16,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -154,55 +156,132 @@ var _ = Describe("Fleet CLI Deploy", func() {
 
 	When("deploying on top of a release in `pending-install` status", func() {
 		BeforeEach(func() {
-			release := map[string]interface{}{
-				"name": "testbundle-simple-chart",
-				"info": map[string]string{
-					"status": "pending-install",
+			// Create release v1 (deployed)
+			releaseV1 := map[string]interface{}{
+				"name":      "testbundle-simple-chart",
+				"version":   1,
+				"namespace": namespace,
+				"info": map[string]interface{}{
+					"status": "deployed",
 				},
-				// Other release fields (e.g. chart, manifests) omitted for simplicity, not needed to
-				// check for a `pending-install` release.
+				"chart": map[string]interface{}{
+					"metadata": map[string]interface{}{
+						"name":    "testbundle-simple-chart",
+						"version": "0.1.0",
+					},
+				},
+				"config":   map[string]interface{}{},
+				"manifest": "",
+				"labels":   map[string]string{},
 			}
-			releaseJSON, err := json.Marshal(release)
+			releaseV1JSON, err := json.Marshal(releaseV1)
 			Expect(err).ToNot(HaveOccurred())
 
-			var gzBuf bytes.Buffer
-			gzWriter := gzip.NewWriter(&gzBuf)
-			_, err = gzWriter.Write(releaseJSON)
+			var gzBufV1 bytes.Buffer
+			gzWriterV1 := gzip.NewWriter(&gzBufV1)
+			_, err = gzWriterV1.Write(releaseV1JSON)
 			Expect(err).ToNot(HaveOccurred())
+			Expect(gzWriterV1.Close()).ToNot(HaveOccurred())
 
-			Expect(gzWriter.Close()).ToNot(HaveOccurred())
+			relV1 := make([]byte, base64.StdEncoding.EncodedLen(gzBufV1.Len()))
+			base64.StdEncoding.Encode(relV1, gzBufV1.Bytes())
 
-			rel := make([]byte, base64.StdEncoding.EncodedLen(gzBuf.Len()))
-			base64.StdEncoding.Encode(rel, gzBuf.Bytes())
-
-			releaseSecret := corev1.Secret{
+			releaseSecretV1 := corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "sh.helm.release.v1.testbundle-simple-chart.v1",
-					Namespace: "default",
+					Namespace: namespace,
 					Labels: map[string]string{
 						"name":    "testbundle-simple-chart",
 						"owner":   "helm",
-						"status":  "pending-install",
+						"status":  "deployed",
 						"version": "1",
 					},
 				},
 				Type: "helm.sh/release.v1",
-				Data: map[string][]byte{"release": rel},
+				Data: map[string][]byte{"release": relV1},
 			}
-			// Fleet creates release secrets into the default namespace, therefore a cleanup is needed here
-			// to prevent conflicts with other test cases.
-			_ = k8sClient.Delete(ctx, &releaseSecret)
-			Expect(k8sClient.Create(ctx, &releaseSecret)).ToNot(HaveOccurred())
+
+			// Create release v2 (pending-install)
+			releaseV2 := map[string]interface{}{
+				"name":      "testbundle-simple-chart",
+				"version":   2,
+				"namespace": namespace,
+				"info": map[string]interface{}{
+					"status": "pending-install",
+				},
+				"chart": map[string]interface{}{
+					"metadata": map[string]interface{}{
+						"name":    "testbundle-simple-chart",
+						"version": "0.1.0",
+					},
+				},
+				"config":   map[string]interface{}{},
+				"manifest": "",
+				"labels":   map[string]string{},
+			}
+			releaseV2JSON, err := json.Marshal(releaseV2)
+			Expect(err).ToNot(HaveOccurred())
+
+			var gzBufV2 bytes.Buffer
+			gzWriterV2 := gzip.NewWriter(&gzBufV2)
+			_, err = gzWriterV2.Write(releaseV2JSON)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(gzWriterV2.Close()).ToNot(HaveOccurred())
+
+			relV2 := make([]byte, base64.StdEncoding.EncodedLen(gzBufV2.Len()))
+			base64.StdEncoding.Encode(relV2, gzBufV2.Bytes())
+
+			releaseSecretV2 := corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "sh.helm.release.v1.testbundle-simple-chart.v2",
+					Namespace: namespace,
+					Labels: map[string]string{
+						"name":    "testbundle-simple-chart",
+						"owner":   "helm",
+						"status":  "pending-install",
+						"version": "2",
+					},
+				},
+				Type: "helm.sh/release.v1",
+				Data: map[string][]byte{"release": relV2},
+			}
+
+			Expect(k8sClient.Create(ctx, &releaseSecretV1)).ToNot(HaveOccurred())
+			Expect(k8sClient.Create(ctx, &releaseSecretV2)).ToNot(HaveOccurred())
+
+			// check that the secret was created using List with a label selector
+			// that uses owner=helm and name=testbundle-simple-chart
+			Eventually(func(g Gomega) {
+				secrets := &corev1.SecretList{}
+				err := k8sClient.List(ctx, secrets, &client.ListOptions{
+					Namespace: namespace,
+					LabelSelector: labels.SelectorFromSet(map[string]string{
+						"name":  "testbundle-simple-chart",
+						"owner": "helm",
+					}),
+				})
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(len(secrets.Items)).To(BeNumerically(">=", 2))
+			}, "5s", "500ms").Should(Succeed())
+
 			args = []string{
 				"--input-file", clihelper.AssetsPath + "bundledeployment/bd.yaml",
 				"--namespace", namespace,
 			}
+
 			DeferCleanup(func() {
-				Expect(k8sClient.Delete(ctx, &releaseSecret)).ToNot(HaveOccurred())
+				err := k8sClient.Delete(ctx, &releaseSecretV1)
+				if err != nil && !apierrors.IsNotFound(err) {
+					Expect(err).ToNot(HaveOccurred())
+				}
+				err = k8sClient.Delete(ctx, &releaseSecretV2)
+				if err != nil && !apierrors.IsNotFound(err) {
+					Expect(err).ToNot(HaveOccurred())
+				}
 			})
 		})
 
-		It("installs the release successfully", func() {
+		It("upgrades an orphaned pending-install release while preserving history", func() {
 			buf, err := act(args)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -214,6 +293,161 @@ var _ = Describe("Fleet CLI Deploy", func() {
 			cm := &corev1.ConfigMap{}
 			err = k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "test-simple-chart-config"}, cm)
 			Expect(err).NotTo(HaveOccurred())
+		})
+	})
+
+	When("deploying on top of a release in `pending-install` status with no previous version", func() {
+		BeforeEach(func() {
+			// Create ONLY release v1 (pending-install) - no v0 deployed version exists
+			// This simulates a failed initial install or lost history scenario
+			releaseV1 := map[string]interface{}{
+				"name":      "testbundle-simple-chart",
+				"version":   1,
+				"namespace": namespace,
+				"info": map[string]interface{}{
+					"status": "pending-install",
+				},
+				"chart": map[string]interface{}{
+					"metadata": map[string]interface{}{
+						"name":    "testbundle-simple-chart",
+						"version": "0.1.0",
+					},
+				},
+				"config":   map[string]interface{}{},
+				"manifest": "",
+				"labels":   map[string]string{},
+			}
+			releaseV1JSON, err := json.Marshal(releaseV1)
+			Expect(err).ToNot(HaveOccurred())
+
+			var gzBufV1 bytes.Buffer
+			gzWriterV1 := gzip.NewWriter(&gzBufV1)
+			_, err = gzWriterV1.Write(releaseV1JSON)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(gzWriterV1.Close()).ToNot(HaveOccurred())
+
+			relV1 := make([]byte, base64.StdEncoding.EncodedLen(gzBufV1.Len()))
+			base64.StdEncoding.Encode(relV1, gzBufV1.Bytes())
+
+			releaseSecretV1 := corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "sh.helm.release.v1.testbundle-simple-chart.v1",
+					Namespace: namespace,
+					Labels: map[string]string{
+						"name":    "testbundle-simple-chart",
+						"owner":   "helm",
+						"status":  "pending-install",
+						"version": "1",
+					},
+				},
+				Type: "helm.sh/release.v1",
+				Data: map[string][]byte{"release": relV1},
+			}
+
+			// Clean up any existing secrets from previous tests to prevent conflicts
+			// Previous tests might have created multiple versions (v1, v2, v3, etc.)
+			secrets := &corev1.SecretList{}
+			err = k8sClient.List(ctx, secrets, &client.ListOptions{
+				Namespace: namespace,
+				LabelSelector: labels.SelectorFromSet(map[string]string{
+					"name":  "testbundle-simple-chart",
+					"owner": "helm",
+				}),
+			})
+			Expect(err).ToNot(HaveOccurred())
+			for _, secret := range secrets.Items {
+				_ = k8sClient.Delete(ctx, &secret)
+			}
+
+			// Wait for all secrets to be deleted before creating the new one
+			Eventually(func(g Gomega) {
+				secrets := &corev1.SecretList{}
+				err := k8sClient.List(ctx, secrets, &client.ListOptions{
+					Namespace: namespace,
+					LabelSelector: labels.SelectorFromSet(map[string]string{
+						"name":  "testbundle-simple-chart",
+						"owner": "helm",
+					}),
+				})
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(secrets.Items).To(BeEmpty())
+			}, "5s", "500ms").Should(Succeed())
+
+			// Create only the pending-install secret
+			Expect(k8sClient.Create(ctx, &releaseSecretV1)).ToNot(HaveOccurred())
+
+			// Verify the secret was created
+			Eventually(func(g Gomega) {
+				secrets := &corev1.SecretList{}
+				err := k8sClient.List(ctx, secrets, &client.ListOptions{
+					Namespace: namespace,
+					LabelSelector: labels.SelectorFromSet(map[string]string{
+						"name":  "testbundle-simple-chart",
+						"owner": "helm",
+					}),
+				})
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(secrets.Items).To(HaveLen(1))
+			}, "5s", "500ms").Should(Succeed())
+
+			args = []string{
+				"--input-file", clihelper.AssetsPath + "bundledeployment/bd.yaml",
+				"--namespace", namespace,
+			}
+
+			DeferCleanup(func() {
+				// Clean up all helm release secrets created during this test
+				secrets := &corev1.SecretList{}
+				err := k8sClient.List(ctx, secrets, &client.ListOptions{
+					Namespace: namespace,
+					LabelSelector: labels.SelectorFromSet(map[string]string{
+						"name":  "testbundle-simple-chart",
+						"owner": "helm",
+					}),
+				})
+				if err != nil && !apierrors.IsNotFound(err) {
+					Expect(err).ToNot(HaveOccurred())
+				}
+				for _, secret := range secrets.Items {
+					_ = k8sClient.Delete(ctx, &secret)
+				}
+			})
+		})
+
+		It("upgrades an orphaned pending-install release while preserving history", func() {
+			buf, err := act(args)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("creating resources")
+			Expect(buf).To(gbytes.Say("- apiVersion: v1"))
+			Expect(buf).To(gbytes.Say("  data:"))
+			Expect(buf).To(gbytes.Say("    name: example-value"))
+
+			cm := &corev1.ConfigMap{}
+			err = k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "test-simple-chart-config"}, cm)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("verifying the release was upgraded (not deleted and reinstalled)")
+			secrets := &corev1.SecretList{}
+			err = k8sClient.List(ctx, secrets, &client.ListOptions{
+				Namespace: namespace,
+				LabelSelector: labels.SelectorFromSet(map[string]string{
+					"name":  "testbundle-simple-chart",
+					"owner": "helm",
+				}),
+			})
+			Expect(err).NotTo(HaveOccurred())
+			// Should have v1 (original pending-install) + v2 (successful upgrade)
+			Expect(len(secrets.Items)).To(BeNumerically(">=", 2))
+
+			// Verify the latest release is deployed
+			var latestVersion int
+			for _, secret := range secrets.Items {
+				if secret.Labels["status"] == "deployed" {
+					latestVersion++
+				}
+			}
+			Expect(latestVersion).To(Equal(1), "should have exactly one deployed release")
 		})
 	})
 

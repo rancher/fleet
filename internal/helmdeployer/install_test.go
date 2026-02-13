@@ -365,7 +365,7 @@ func TestServerSideApplyConfiguration(t *testing.T) {
 		a.False(installAction.ServerSideApply, "ServerSideApply should be false when TakeOwnership is true")
 	})
 
-	t.Run("Install without TakeOwnership keeps ServerSideApply default", func(t *testing.T) {
+	t.Run("Install without TakeOwnership keeps ServerSideApply enabled", func(t *testing.T) {
 		installAction := &action.Install{}
 		h.configureInstallAction(
 			installAction,
@@ -381,9 +381,7 @@ func TestServerSideApplyConfiguration(t *testing.T) {
 			nil,
 			dryRunConfig{DryRun: false},
 		)
-		// When TakeOwnership is false, ServerSideApply remains at its zero value (false)
-		// but it's not explicitly set, so Helm would use its default behavior
-		a.False(installAction.ServerSideApply)
+		a.True(installAction.ServerSideApply, "ServerSideApply should be true when TakeOwnership and ForceReplace are false")
 	})
 
 	t.Run("Upgrade uses auto mode for ServerSideApply", func(t *testing.T) {
@@ -492,6 +490,70 @@ func TestIsInDownstreamResources(t *testing.T) {
 
 	found5 := isInDownstreamResources("not-present", "Secret", opts)
 	a.False(found5, "expected not to find not-present in DownstreamResources")
+
+	// Test case-insensitive kind matching for the parameter
+	found6 := isInDownstreamResources("my-config", "configmap", opts)
+	a.True(found6, "expected to find my-config with lowercase kind 'configmap'")
+
+	found7 := isInDownstreamResources("my-config", "CONFIGMAP", opts)
+	a.True(found7, "expected to find my-config with uppercase kind 'CONFIGMAP'")
+
+	found8 := isInDownstreamResources("some-secret", "secret", opts)
+	a.True(found8, "expected to find some-secret with lowercase kind 'secret'")
+
+	found9 := isInDownstreamResources("some-secret", "SECRET", opts)
+	a.True(found9, "expected to find some-secret with uppercase kind 'SECRET'")
+
+	found10 := isInDownstreamResources("my-config", "CoNfIgMaP", opts)
+	a.True(found10, "expected to find my-config with mixed case kind 'CoNfIgMaP'")
+
+	found11 := isInDownstreamResources("not-present", "configmap", opts)
+	a.False(found11, "expected not to find not-present even with lowercase kind")
+
+	// Test case-insensitive kind matching for the DownstreamResources Kind field
+	optsLowercaseKind := fleet.BundleDeploymentOptions{
+		DownstreamResources: []fleet.DownstreamResource{
+			{Kind: "configmap", Name: "my-config-lower"},
+			{Kind: "secret", Name: "some-secret-lower"},
+		},
+	}
+
+	found12 := isInDownstreamResources("my-config-lower", "ConfigMap", optsLowercaseKind)
+	a.True(found12, "expected to find my-config-lower when DownstreamResource has lowercase 'configmap'")
+
+	found13 := isInDownstreamResources("my-config-lower", "CONFIGMAP", optsLowercaseKind)
+	a.True(found13, "expected to find my-config-lower with uppercase parameter and lowercase DownstreamResource kind")
+
+	found14 := isInDownstreamResources("some-secret-lower", "Secret", optsLowercaseKind)
+	a.True(found14, "expected to find some-secret-lower when DownstreamResource has lowercase 'secret'")
+
+	optsUppercaseKind := fleet.BundleDeploymentOptions{
+		DownstreamResources: []fleet.DownstreamResource{
+			{Kind: "CONFIGMAP", Name: "my-config-upper"},
+			{Kind: "SECRET", Name: "some-secret-upper"},
+		},
+	}
+
+	found15 := isInDownstreamResources("my-config-upper", "ConfigMap", optsUppercaseKind)
+	a.True(found15, "expected to find my-config-upper when DownstreamResource has uppercase 'CONFIGMAP'")
+
+	found16 := isInDownstreamResources("my-config-upper", "configmap", optsUppercaseKind)
+	a.True(found16, "expected to find my-config-upper with lowercase parameter and uppercase DownstreamResource kind")
+
+	found17 := isInDownstreamResources("some-secret-upper", "secret", optsUppercaseKind)
+	a.True(found17, "expected to find some-secret-upper with lowercase parameter and uppercase DownstreamResource kind")
+
+	optsMixedKind := fleet.BundleDeploymentOptions{
+		DownstreamResources: []fleet.DownstreamResource{
+			{Kind: "CoNfIgMaP", Name: "my-config-mixed"},
+		},
+	}
+
+	found18 := isInDownstreamResources("my-config-mixed", "ConfigMap", optsMixedKind)
+	a.True(found18, "expected to find my-config-mixed when DownstreamResource has mixed case 'CoNfIgMaP'")
+
+	found19 := isInDownstreamResources("my-config-mixed", "configmap", optsMixedKind)
+	a.True(found19, "expected to find my-config-mixed with lowercase parameter and mixed case DownstreamResource kind")
 }
 
 func TestValuesFromUsesDefaultNamespaceWhenResourceCopiedDownstream(t *testing.T) {
@@ -607,4 +669,101 @@ func TestValuesFromErrorWhenCopiedDownstreamButExperimentalDisabled(t *testing.T
 	r.Error(err)
 	// get will fail trying to read from provided-ns and should report not found
 	a.True(apierrors.IsNotFound(err), "expected a NotFound error when valuesFrom references resources and experimental feature is disabled")
+}
+
+func TestInstallActionCorrectDriftForce(t *testing.T) {
+	a := assert.New(t)
+	h := &Helm{}
+	testCfg := &action.Configuration{}
+
+	tests := []struct {
+		name                    string
+		helmForce               bool
+		driftForce              bool
+		takeOwnership           bool
+		expectedForceReplace    bool
+		expectedServerSideApply bool
+	}{
+		{
+			name:                    "both false, no ownership",
+			helmForce:               false,
+			driftForce:              false,
+			takeOwnership:           false,
+			expectedForceReplace:    false,
+			expectedServerSideApply: true,
+		},
+		{
+			name:                    "helm force true",
+			helmForce:               true,
+			driftForce:              false,
+			takeOwnership:           false,
+			expectedForceReplace:    true,
+			expectedServerSideApply: false,
+		},
+		{
+			name:                    "drift force true",
+			helmForce:               false,
+			driftForce:              true,
+			takeOwnership:           false,
+			expectedForceReplace:    true,
+			expectedServerSideApply: false,
+		},
+		{
+			name:                    "both forces true",
+			helmForce:               true,
+			driftForce:              true,
+			takeOwnership:           false,
+			expectedForceReplace:    true,
+			expectedServerSideApply: false,
+		},
+		{
+			name:                    "take ownership disables server-side apply",
+			helmForce:               false,
+			driftForce:              false,
+			takeOwnership:           true,
+			expectedForceReplace:    false,
+			expectedServerSideApply: false,
+		},
+		{
+			name:                    "take ownership with force",
+			helmForce:               true,
+			driftForce:              false,
+			takeOwnership:           true,
+			expectedForceReplace:    true,
+			expectedServerSideApply: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			installAction := &action.Install{}
+			opts := fleet.BundleDeploymentOptions{
+				Helm: &fleet.HelmOptions{
+					Force:         tt.helmForce,
+					TakeOwnership: tt.takeOwnership,
+				},
+			}
+			if tt.driftForce {
+				opts.CorrectDrift = &fleet.CorrectDrift{
+					Force: tt.driftForce,
+				}
+			}
+
+			h.configureInstallAction(
+				installAction,
+				testCfg,
+				"test-release",
+				"test-namespace",
+				time.Duration(0),
+				opts,
+				nil,
+				dryRunConfig{DryRun: false},
+			)
+
+			a.Equal(tt.expectedForceReplace, installAction.ForceReplace,
+				"ForceReplace should be set correctly based on Helm.Force and CorrectDrift.Force")
+			a.Equal(tt.expectedServerSideApply, installAction.ServerSideApply,
+				"ServerSideApply should be disabled when ForceReplace or TakeOwnership is true")
+		})
+	}
 }

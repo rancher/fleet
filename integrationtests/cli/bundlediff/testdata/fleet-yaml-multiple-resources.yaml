@@ -1,0 +1,17 @@
+diff:
+  comparePatches:
+  - apiVersion: v1
+    kind: ConfigMap
+    name: cm1
+    namespace: ns1
+    operations:
+    - op: add
+      path: /data/key1
+      value: '"val1"'
+  - apiVersion: v1
+    kind: Secret
+    name: secret1
+    namespace: ns2
+    operations:
+    - op: remove
+      path: /data/password

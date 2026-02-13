@@ -3,8 +3,6 @@ package bundlereader
 import (
 	"bufio"
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/base64"
 	"fmt"
 	"io/fs"
@@ -15,6 +13,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 	"unicode/utf8"
 
 	"github.com/hashicorp/go-getter/v2"
@@ -26,6 +25,15 @@ import (
 	"github.com/rancher/fleet/internal/helmupdater"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
+
+var (
+	gitHTTPSCloneMutex sync.Mutex
+)
+
+// Getter abstracts the go-getter client for testing.
+type Getter interface {
+	Get(ctx context.Context, req *getter.Request) (*getter.GetResult, error)
+}
 
 // ignoreTree represents a tree of ignored paths (read from .fleetignore files), each node being a directory.
 // It provides a means for ignored paths to be propagated down the tree, but not between subdirectories of a same
@@ -178,7 +186,7 @@ func loadDirectory(ctx context.Context, opts loadOpts, dir directory) ([]fleet.B
 		if opts.compress || !utf8.Valid(data) {
 			content, err := content.Base64GZ(data)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("decoding compressed base64 data: %w", err)
 			}
 			r.Content = content
 			r.Encoding = "base64+gz"
@@ -210,7 +218,7 @@ func GetContent(ctx context.Context, base, source, version string, auth Auth, di
 	if strings.HasPrefix(source, ociURLPrefix) {
 		source, err = downloadOCIChart(source, version, temp, auth)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("downloading OCI chart from %q: %w", orgSource, err)
 		}
 	}
 
@@ -253,28 +261,8 @@ func GetContent(ctx context.Context, base, source, version string, auth Auth, di
 		GetMode: getter.ModeDir,
 	}
 
-	if auth.CABundle != nil {
-		file, err := os.CreateTemp("", "cabundle-*")
-		if err != nil {
-			return nil, err
-		}
-		if _, err := file.Write(auth.CABundle); err != nil {
-			return nil, err
-		}
-		file.Close()
-		defer os.Remove(file.Name())
-
-		os.Setenv("GIT_SSL_CAINFO", file.Name())
-		defer os.Unsetenv("GIT_SSL_CAINFO")
-	}
-
-	if auth.InsecureSkipVerify {
-		os.Setenv("GIT_SSL_NO_VERIFY", "true")
-		defer os.Unsetenv("GIT_SSL_NO_VERIFY")
-	}
-
-	if _, err := client.Get(ctx, req); err != nil {
-		return nil, err
+	if err := get(ctx, client, req, auth); err != nil {
+		return nil, fmt.Errorf("retrieving file from %q: %w", source, err)
 	}
 
 	files := map[string][]byte{}
@@ -311,7 +299,7 @@ func GetContent(ctx context.Context, base, source, version string, auth Auth, di
 			// try to update possible dependencies.
 			if !disableDepsUpdate && helmupdater.ChartYAMLExists(path) {
 				if err = helmupdater.UpdateHelmDependencies(path); err != nil {
-					return err
+					return fmt.Errorf("updating helm dependencies: %w", err)
 				}
 			}
 			// Skip .fleetignore'd and hidden directories
@@ -430,9 +418,63 @@ func downloadOCIChart(name, version, path string, auth Auth) (string, error) {
 	return saved, nil
 }
 
+// get performs the actual get operation, handling the mutex and environment variables for git-over-HTTPS operations.
+func get(ctx context.Context, client Getter, req *getter.Request, auth Auth) error {
+	if needsGitSSLEnvVars(req) {
+		gitHTTPSCloneMutex.Lock()
+		defer gitHTTPSCloneMutex.Unlock()
+	}
+
+	if auth.CABundle != nil {
+		file, err := os.CreateTemp("", "cabundle-*")
+		if err != nil {
+			return err
+		}
+		defer func() {
+			file.Close()
+			os.Remove(file.Name())
+		}()
+
+		if _, err := file.Write(auth.CABundle); err != nil {
+			return err
+		}
+
+		os.Setenv("GIT_SSL_CAINFO", file.Name())
+		defer os.Unsetenv("GIT_SSL_CAINFO")
+	}
+
+	if auth.InsecureSkipVerify {
+		os.Setenv("GIT_SSL_NO_VERIFY", "true")
+		defer os.Unsetenv("GIT_SSL_NO_VERIFY")
+	}
+
+	_, err := client.Get(ctx, req)
+	return err
+}
+
+// needsGitSSLEnvVars checks whether the request will use git over HTTPS with custom TLS settings that require
+// environment variables (and thus mutex protection).
+func needsGitSSLEnvVars(req *getter.Request) bool {
+	src := req.Src
+
+	// Check for explicit git::https:// prefix
+	if strings.HasPrefix(src, "git::https://") {
+		return true
+	}
+
+	// Check for shorthand URLs that go-getter's {BitBucket,GitHub,GitLab}Detector will transform to git::https://
+	// internally. The GitGetter.Detect() method strips the "git::" prefix when storing back to req.Src, so we need to
+	// detect these patterns directly. These patterns match what go-getter's detectors recognize.
+	if strings.HasPrefix(src, "github.com/") || strings.HasPrefix(src, "gitlab.com/") || strings.HasPrefix(src, "bitbucket.org/") {
+		return true
+	}
+
+	return false
+}
+
 func newHttpGetter(auth Auth) *getter.HttpGetter {
 	httpGetter := &getter.HttpGetter{
-		Client: &http.Client{},
+		Client: getHTTPClient(auth),
 	}
 
 	if auth.Username != "" && auth.Password != "" {
@@ -440,25 +482,6 @@ func newHttpGetter(auth Auth) *getter.HttpGetter {
 		header.Add("Authorization", "Basic "+basicAuth(auth.Username, auth.Password))
 		httpGetter.Header = header
 	}
-
-	transport := http.DefaultTransport.(*http.Transport).Clone()
-	if auth.CABundle != nil {
-		pool, err := x509.SystemCertPool()
-		if err != nil {
-			pool = x509.NewCertPool()
-		}
-		pool.AppendCertsFromPEM(auth.CABundle)
-		transport.TLSClientConfig = &tls.Config{
-			RootCAs:            pool,
-			MinVersion:         tls.VersionTLS12,
-			InsecureSkipVerify: auth.InsecureSkipVerify, //nolint:gosec
-		}
-	} else if auth.InsecureSkipVerify {
-		transport.TLSClientConfig = &tls.Config{
-			InsecureSkipVerify: auth.InsecureSkipVerify, //nolint:gosec
-		}
-	}
-	httpGetter.Client.Transport = transport
 
 	return httpGetter
 }

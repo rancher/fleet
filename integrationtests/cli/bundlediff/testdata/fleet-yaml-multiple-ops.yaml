@@ -1,0 +1,12 @@
+diff:
+  comparePatches:
+  - apiVersion: apps/v1
+    kind: Deployment
+    name: my-deployment
+    namespace: test-ns
+    operations:
+    - op: replace
+      path: /spec/replicas
+      value: "3"
+    - op: remove
+      path: /spec/template/metadata/labels/old-label

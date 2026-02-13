@@ -362,7 +362,9 @@ type BundleDeploymentSpec struct {
 	// ValuesHash is the hash of the values used to deploy the bundle.
 	// +nullable
 	ValuesHash string `json:"valuesHash,omitempty"`
-
+	// DownstreamResourcesGeneration is used to track changes to DownstreamResources.
+	// It is incremented every time DownstreamResources are modified.
+	DownstreamResourcesGeneration int64 `json:"downstreamResourcesGeneration,omitempty"`
 	// OffSchedule specifies if the BundleDeployment can be updated.
 	// If set to true, will stop any BundleDeployments from being
 	// updated.
@@ -418,6 +420,10 @@ type BundleDeploymentStatus struct {
 	Resources []BundleDeploymentResource `json:"resources,omitempty"`
 	// ResourceCounts contains the number of resources in each state.
 	ResourceCounts ResourceCounts `json:"resourceCounts,omitempty"`
+	// DownstreamResourcesGeneration is used to track changes to DownstreamResources.
+	// It is incremented every time DownstreamResources are modified and reflects the value in the spec
+	// after it has been processed.
+	DownstreamResourcesGeneration int64 `json:"downstreamResourcesGeneration,omitempty"`
 }
 
 type BundleDeploymentDisplay struct {

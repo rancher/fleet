@@ -58,6 +58,18 @@ const (
 
 	// ImageScanGitRepoIndex is the name of the index for the gitrepo name in imagescans
 	ImageScanGitRepoIndex = "spec.gitrepoName"
+
+	// BundleDownstreamResourceIndex is the name of the index for downstream resources (secrets and configmaps) in bundles
+	BundleDownstreamResourceIndex = "spec.downstreamResources"
+
+	// GitRepoClientSecretNameIndex is the name of the index for the client secret name in gitrepos
+	GitRepoClientSecretNameIndex = "spec.clientSecretName" //nolint:gosec // not a credential
+
+	// GitRepoHelmSecretNameIndex is the name of the index for the helm secret name in gitrepos
+	GitRepoHelmSecretNameIndex = "spec.helmSecretName"
+
+	// GitRepoHelmSecretNameForPathsIndex is the name of the index for the helm secret name for paths in gitrepos
+	GitRepoHelmSecretNameForPathsIndex = "spec.helmSecretNameForPaths"
 )
 
 var (
@@ -146,8 +158,9 @@ type AgentWorkers struct {
 }
 
 type Bootstrap struct {
-	Namespace      string `json:"namespace,omitempty"`
-	AgentNamespace string `json:"agentNamespace,omitempty"`
+	Namespace      string            `json:"namespace,omitempty"`
+	AgentNamespace string            `json:"agentNamespace,omitempty"`
+	ClusterLabels  map[string]string `json:"clusterLabels,omitempty"`
 	// Repo to add at install time that will deploy to the local cluster. This allows
 	// one to fully bootstrap fleet, its configuration and all its downstream clusters
 	// in one shot.

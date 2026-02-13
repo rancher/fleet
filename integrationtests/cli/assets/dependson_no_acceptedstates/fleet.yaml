@@ -1,0 +1,5 @@
+defaultNamespace: test-dependson
+dependsOn:
+- name: my-dependency
+targets:
+- clusterSelector: {}

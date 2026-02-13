@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"helm.sh/helm/v4/pkg/release"
+	releasecommon "helm.sh/helm/v4/pkg/release/common"
 	releasev1 "helm.sh/helm/v4/pkg/release/v1"
 	"helm.sh/helm/v4/pkg/storage"
 )
@@ -69,4 +70,15 @@ func getLastRelease(store *storage.Storage, name string) (*releasev1.Release, er
 	}
 
 	return releaserToV1Release(releaser)
+}
+
+// patchReleaseStatus updates the status of a release in storage.
+// This is useful for transitioning releases from transient states like "pending-install"
+// to terminal states like "failed" to allow operations to proceed.
+func patchReleaseStatus(store *storage.Storage, rel *releasev1.Release, newStatus releasecommon.Status) error {
+	// Update the release status
+	rel.Info.Status = newStatus
+
+	// Update the release in storage
+	return store.Update(rel)
 }

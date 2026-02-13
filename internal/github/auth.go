@@ -19,13 +19,13 @@ const (
 var ErrNotGithubAppSecret = errors.New("not a GitHub App secret")
 
 type AppAuthGetter interface {
-	Get(appID, insID int64, pem []byte) (*httpgit.BasicAuth, error)
+	Get(repo string, appID, insID int64, pem []byte) (*httpgit.BasicAuth, error)
 }
 
 type DefaultAppAuthGetter struct{}
 
-func (DefaultAppAuthGetter) Get(appID, insID int64, pem []byte) (*httpgit.BasicAuth, error) {
-	tok, err := NewApp(appID, insID, pem).GetToken(context.Background())
+func (DefaultAppAuthGetter) Get(repo string, appID, insID int64, pem []byte) (*httpgit.BasicAuth, error) {
+	tok, err := NewApp(repo, appID, insID, pem).GetToken(context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("could not authenticate as GitHub App installation: %w", err)
 	}
@@ -36,7 +36,7 @@ func (DefaultAppAuthGetter) Get(appID, insID int64, pem []byte) (*httpgit.BasicA
 	}, nil
 }
 
-func GetGithubAppAuthFromSecret(creds *corev1.Secret, getter AppAuthGetter) (*httpgit.BasicAuth, error) {
+func GetGithubAppAuthFromSecret(repo string, creds *corev1.Secret, getter AppAuthGetter) (*httpgit.BasicAuth, error) {
 	idBytes, okID := creds.Data[GitHubAppAuthIDKey]
 	insBytes, okIns := creds.Data[GitHubAppAuthInstallationIDKey]
 	pemBytes, okPem := creds.Data[GitHubAppAuthPrivateKeyKey]
@@ -53,7 +53,7 @@ func GetGithubAppAuthFromSecret(creds *corev1.Secret, getter AppAuthGetter) (*ht
 		return nil, fmt.Errorf("github-app installation id is not numeric: %w", err)
 	}
 
-	auth, err := getter.Get(appID, insID, pemBytes)
+	auth, err := getter.Get(repo, appID, insID, pemBytes)
 	if err != nil {
 		return nil, err
 	}

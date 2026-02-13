@@ -190,7 +190,7 @@ var _ = Describe("HelmOp resource with polling of repo index", Label("infra-setu
 	})
 })
 
-var _ = Describe("HelmOp resource with polling of OCI registry", Label("infra-setup", "oci-registry"), func() {
+var _ = Describe("HelmOp resource with polling of OCI registry", Label("infra-setup", "oci-registry"), Ordered, func() {
 	var (
 		namespace    string
 		name         string
@@ -201,16 +201,8 @@ var _ = Describe("HelmOp resource with polling of OCI registry", Label("infra-se
 		k            kubectl.Command
 	)
 
-	BeforeEach(func() {
+	BeforeAll(func() {
 		k = env.Kubectl.Namespace(env.Namespace)
-	})
-
-	JustBeforeEach(func() {
-		namespace = testenv.NewNamespaceName(
-			name,
-			rand.New(rand.NewSource(time.Now().UnixNano())),
-		)
-
 		out, err := k.Create(
 			"secret", "generic", helmOpsSecretName,
 			"--from-literal=username="+os.Getenv("CI_OCI_USERNAME"),
@@ -220,8 +212,15 @@ var _ = Describe("HelmOp resource with polling of OCI registry", Label("infra-se
 			err = nil
 		}
 		Expect(err).ToNot(HaveOccurred(), out)
+	})
 
-		err = testenv.ApplyTemplate(k, testenv.AssetPath("helmop/helmop.yaml"), struct {
+	JustBeforeEach(func() {
+		namespace = testenv.NewNamespaceName(
+			name,
+			rand.New(rand.NewSource(time.Now().UnixNano())),
+		)
+
+		err := testenv.ApplyTemplate(k, testenv.AssetPath("helmop/helmop.yaml"), struct {
 			Name                  string
 			Namespace             string
 			Repo                  string
@@ -240,13 +239,16 @@ var _ = Describe("HelmOp resource with polling of OCI registry", Label("infra-se
 			insecure,
 			chartVersion,
 		})
-		Expect(err).ToNot(HaveOccurred(), out)
+		Expect(err).ToNot(HaveOccurred())
 	})
 
 	AfterEach(func() {
 		out, err := k.Delete("helmop", name)
 		Expect(err).ToNot(HaveOccurred(), out)
-		out, err = k.Delete("secret", helmOpsSecretName)
+	})
+
+	AfterAll(func() {
+		out, err := k.Delete("secret", helmOpsSecretName)
 		Expect(err).ToNot(HaveOccurred(), out)
 	})
 
@@ -438,7 +440,7 @@ var _ = Describe("HelmOp resource with polling of OCI registry", Label("infra-se
 	})
 })
 
-var _ = Describe("HelmOp resource tests with tarball source", Label("infra-setup", "helm-registry"), func() {
+var _ = Describe("HelmOp resource tests with tarball source", Label("infra-setup", "helm-registry"), Ordered, func() {
 	var (
 		namespace string
 		name      string
@@ -447,8 +449,17 @@ var _ = Describe("HelmOp resource tests with tarball source", Label("infra-setup
 		version   string
 	)
 
-	BeforeEach(func() {
+	BeforeAll(func() {
 		k = env.Kubectl.Namespace(env.Namespace)
+		out, err := k.Create(
+			"secret", "generic", helmOpsSecretName,
+			"--from-literal=username="+os.Getenv("CI_OCI_USERNAME"),
+			"--from-literal=password="+os.Getenv("CI_OCI_PASSWORD"),
+		)
+		if strings.Contains(out, "already exists") {
+			err = nil
+		}
+		Expect(err).ToNot(HaveOccurred(), out)
 	})
 
 	JustBeforeEach(func() {
@@ -457,14 +468,7 @@ var _ = Describe("HelmOp resource tests with tarball source", Label("infra-setup
 			rand.New(rand.NewSource(time.Now().UnixNano())),
 		)
 
-		out, err := k.Create(
-			"secret", "generic", helmOpsSecretName,
-			"--from-literal=username="+os.Getenv("CI_OCI_USERNAME"),
-			"--from-literal=password="+os.Getenv("CI_OCI_PASSWORD"),
-		)
-		Expect(err).ToNot(HaveOccurred(), out)
-
-		err = testenv.ApplyTemplate(k, testenv.AssetPath("helmop/helmop.yaml"), struct {
+		err := testenv.ApplyTemplate(k, testenv.AssetPath("helmop/helmop.yaml"), struct {
 			Name                  string
 			Namespace             string
 			Repo                  string
@@ -483,13 +487,16 @@ var _ = Describe("HelmOp resource tests with tarball source", Label("infra-setup
 			insecure,
 			version,
 		})
-		Expect(err).ToNot(HaveOccurred(), out)
+		Expect(err).ToNot(HaveOccurred())
 	})
 
 	AfterEach(func() {
 		out, err := k.Delete("helmop", name)
 		Expect(err).ToNot(HaveOccurred(), out)
-		out, err = k.Delete("secret", helmOpsSecretName)
+	})
+
+	AfterAll(func() {
+		out, err := k.Delete("secret", helmOpsSecretName)
 		Expect(err).ToNot(HaveOccurred(), out)
 	})
 

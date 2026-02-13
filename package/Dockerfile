@@ -1,7 +1,8 @@
-ARG BUILD_ENV=dapper
+ARG BUILD_ENV=docker
+ARG TARGETPLATFORM
 ARG ARCH
 
-FROM --platform=linux/$ARCH registry.suse.com/bci/bci-base:15.7 AS base
+FROM registry.suse.com/bci/bci-base:15.7 AS base
 COPY package/log.sh /usr/bin/
 RUN zypper rm -y container-suseconnect && \
     zypper ar --priority=500 https://download.opensuse.org/repositories/Virtualization:containers/5.5/Virtualization:containers.repo && \
@@ -11,7 +12,7 @@ RUN zypper rm -y container-suseconnect && \
     zypper -n clean -a && \
     rm -fr /var/log/zypp* /usr/share/doc
 
-FROM base AS copy_dapper
+FROM base AS copy_docker
 ONBUILD ARG ARCH
 ONBUILD COPY bin/fleetcontroller-linux-$ARCH /usr/bin/fleetcontroller
 ONBUILD COPY bin/fleet-linux-$ARCH /usr/bin/fleet
@@ -22,9 +23,9 @@ ONBUILD COPY bin/fleetcontroller-linux-$TARGETARCH /usr/bin/fleetcontroller
 ONBUILD COPY bin/fleet-linux-$TARGETARCH /usr/bin/fleet
 
 FROM base AS copy_goreleaser
-ONBUILD ARG ARCH
-ONBUILD COPY fleetcontroller-linux-$ARCH /usr/bin/fleetcontroller
-ONBUILD COPY fleet-linux-$ARCH /usr/bin/fleet
+ARG TARGETPLATFORM
+COPY ${TARGETPLATFORM}/fleetcontroller-linux-* /usr/bin/fleetcontroller
+COPY ${TARGETPLATFORM}/fleet-linux-* /usr/bin/fleet
 
 FROM copy_${BUILD_ENV}
 RUN useradd -u 1000 user

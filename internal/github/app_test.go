@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -59,7 +60,7 @@ func TestGitHubApp_GetToken_Success(t *testing.T) {
 	http.DefaultTransport = stub
 	t.Cleanup(func() { http.DefaultTransport = orig })
 
-	app := NewApp(123, 456, []byte(validRSA))
+	app := NewApp("https://github.com/foo/bar", 123, 456, []byte(validRSA))
 
 	token, err := app.GetToken(context.Background())
 	if err != nil {
@@ -73,8 +74,55 @@ func TestGitHubApp_GetToken_Success(t *testing.T) {
 	}
 }
 
+func TestGitHubApp_GetToken_NonGithubDotCom(t *testing.T) {
+	// This test case does not seek successful authentication, but rather to validate that a GitRepo's repo URL is used
+	// in authentication attempts, even if that URL does not feature host `github.com`.
+	cases := []struct {
+		name     string
+		repoURL  string
+		errRegex string
+	}{
+		{
+			name:     "default base URL",
+			repoURL:  "https://github.com/foo/bar",
+			errRegex: `received non 2xx response status.*when fetching https://api\.github\.com/app/installations/.*/access_tokens`,
+		},
+		{
+			name:     "non-github.com base URL",
+			repoURL:  "https://fleetverse.ghe.com/foo/bar",
+			errRegex: `could not refresh installation id.* lookup api\.fleetverse\.ghe\.com.* no such host`,
+		},
+		{
+			name:     "non-github.com base URL with API prefix",
+			repoURL:  "https://api.fleetverse.ghe.com/foo/bar",
+			errRegex: `could not refresh installation id.* lookup api\.fleetverse\.ghe\.com.* no such host`,
+		},
+		{
+			name:     "invalid URL",
+			repoURL:  "://not-a-valid-url",
+			errRegex: "failed to extract base Github App URL",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			app := NewApp(tc.repoURL, 123, 456, []byte(validRSA))
+
+			_, err := app.GetToken(context.Background())
+			if err == nil {
+				t.Fatal("expected error when getting token, got nil")
+			}
+
+			re := regexp.MustCompile(tc.errRegex)
+			if !re.MatchString(err.Error()) {
+				t.Fatalf("expected error to match string %q, got %q", tc.errRegex, err.Error())
+			}
+		})
+	}
+}
+
 func TestGitHubApp_GetToken_InvalidPEM(t *testing.T) {
-	app := NewApp(123, 456, []byte("definitely-not-a-PEM-block"))
+	app := NewApp("https://github.com/foo/bar", 123, 456, []byte("definitely-not-a-PEM-block"))
 
 	_, err := app.GetToken(context.Background())
 	if err == nil {
@@ -87,7 +135,7 @@ func TestGitHubApp_GetToken_InvalidPEM(t *testing.T) {
 }
 
 func TestGitHubApp_GetToken_NotRSA(t *testing.T) {
-	app := NewApp(123, 456, []byte(notRSA))
+	app := NewApp("https://github.com/foo/bar", 123, 456, []byte(notRSA))
 
 	_, err := app.GetToken(context.Background())
 	if err == nil {
@@ -100,7 +148,7 @@ func TestGitHubApp_GetToken_NotRSA(t *testing.T) {
 }
 
 func TestGitHubApp_GetToken_InvalidRSA(t *testing.T) {
-	app := NewApp(123, 456, []byte(invalidRSA))
+	app := NewApp("https://github.com/foo/bar", 123, 456, []byte(invalidRSA))
 
 	_, err := app.GetToken(context.Background())
 	if err == nil {

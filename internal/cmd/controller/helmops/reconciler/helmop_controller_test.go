@@ -1,4 +1,3 @@
-//go:generate mockgen --build_flags=--mod=mod -destination=../../../../mocks/client_mock.go -package=mocks sigs.k8s.io/controller-runtime/pkg/client Client,SubResourceWriter
 //go:generate mockgen --build_flags=--mod=mod -destination=../../../../mocks/scheduler_mock.go -package=mocks github.com/reugn/go-quartz/quartz Scheduler,ScheduledJob
 
 package reconciler
@@ -294,7 +293,7 @@ func TestReconcile_Validate(t *testing.T) {
 			client.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
 			client.EXPECT().Update(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
 
-			statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
+			statusClient := mocks.NewMockStatusWriter(mockCtrl)
 			client.EXPECT().Status().Return(statusClient)
 			statusClient.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any())
 
@@ -363,7 +362,7 @@ func TestReconcile_ErrorCreatingBundleIsShownInStatus(t *testing.T) {
 			},
 		)
 
-		statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
+		statusClient := mocks.NewMockStatusWriter(mockCtrl)
 		client.EXPECT().Status().Return(statusClient).Times(1)
 		statusClient.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Do(
 			func(ctx context.Context, helmop *fleet.HelmOp, patch crclient.Patch, opts ...interface{}) {
@@ -450,7 +449,7 @@ func TestReconcile_ErrorCreatingBundleIsShownInStatus(t *testing.T) {
 			},
 		)
 
-		statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
+		statusClient := mocks.NewMockStatusWriter(mockCtrl)
 		client.EXPECT().Status().Return(statusClient).Times(1)
 		statusClient.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Do(
 			func(ctx context.Context, helmop *fleet.HelmOp, patch crclient.Patch, opts ...interface{}) {
@@ -539,7 +538,7 @@ func TestReconcile_ErrorCreatingBundleIfBundleWithSameNameExists(t *testing.T) {
 	)
 
 	expectedErrorMsg := "non-helmops bundle already exists"
-	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
+	statusClient := mocks.NewMockStatusWriter(mockCtrl)
 	client.EXPECT().Status().Return(statusClient).Times(1)
 	statusClient.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Do(
 		func(ctx context.Context, helmop *fleet.HelmOp, patch crclient.Patch, opts ...interface{}) {
@@ -627,7 +626,7 @@ func TestReconcile_CreatesBundleAndUpdatesStatus(t *testing.T) {
 		},
 	)
 
-	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
+	statusClient := mocks.NewMockStatusWriter(mockCtrl)
 	client.EXPECT().Status().Return(statusClient).Times(1)
 	statusClient.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Do(
 		func(ctx context.Context, helmop *fleet.HelmOp, patch crclient.Patch, opts ...interface{}) {
@@ -1235,7 +1234,7 @@ func TestReconcile_ManagePollingJobs(t *testing.T) {
 			// Only expected in happy cases. If errors happen, only status updates are expected.
 			client.EXPECT().Update(gomock.Any(), matchesBundle(c.helmOp.Name, c.helmOp.Namespace), gomock.Any()).Return(nil).AnyTimes()
 
-			statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
+			statusClient := mocks.NewMockStatusWriter(mockCtrl)
 			statusClient.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 
 			client.EXPECT().Status().Return(statusClient).Times(1)

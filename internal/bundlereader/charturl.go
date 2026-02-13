@@ -2,14 +2,19 @@ package bundlereader
 
 import (
 	"context"
+	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/Masterminds/semver/v3"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -23,7 +28,16 @@ import (
 	"oras.land/oras-go/v2/registry/remote/errcode"
 )
 
-var concurrentIndexFetch singleflight.Group
+const (
+	// safety timeout to prevent unbounded requests
+	httpClientTimeout = 5 * time.Minute
+)
+
+var (
+	concurrentIndexFetch singleflight.Group
+	transportsCache      = map[string]http.RoundTripper{}
+	transportsCacheMutex sync.RWMutex
+)
 
 // ChartVersion returns the version of the helm chart from a helm repo server, by
 // inspecting the repo's index.yaml
@@ -228,27 +242,71 @@ func GetOCITag(ctx context.Context, r *remote.Repository, v string) (string, err
 }
 
 func getHTTPClient(auth Auth) *http.Client {
-	client := &http.Client{}
+	return &http.Client{
+		Transport: transportForAuth(auth.InsecureSkipVerify, auth.CABundle),
+		Timeout:   httpClientTimeout,
+	}
+}
 
-	transport := http.DefaultTransport.(*http.Transport).Clone()
-	transport.TLSClientConfig = &tls.Config{
-		InsecureSkipVerify: auth.InsecureSkipVerify, //nolint:gosec
+func transportHash(insecureSkipVerify bool, caBundle []byte) string {
+	hash := sha256.New()
+
+	// Write a length prefix for every field to avoid collisions
+	lenBuf := make([]byte, 8)
+	writeField := func(data []byte) {
+		binary.LittleEndian.PutUint64(lenBuf, uint64(len(data)))
+		hash.Write(lenBuf)
+		hash.Write(data)
 	}
 
-	if auth.CABundle != nil {
+	for _, v := range [][]byte{ // values to hash
+		caBundle,
+		{toByte(insecureSkipVerify)},
+	} {
+		writeField(v)
+	}
+
+	return hex.EncodeToString(hash.Sum(nil))
+}
+
+func transportForAuth(insecureSkipVerify bool, caBundle []byte) http.RoundTripper {
+	// We don't need the full hash
+	hash := transportHash(insecureSkipVerify, caBundle)
+
+	// Fast path: valid transport already exists
+	transportsCacheMutex.RLock()
+	rt, ok := transportsCache[hash]
+	transportsCacheMutex.RUnlock()
+	if ok {
+		return rt
+	}
+
+	transportsCacheMutex.Lock()
+	defer transportsCacheMutex.Unlock()
+
+	// Check again using write lock
+	if rt, ok := transportsCache[hash]; ok {
+		return rt
+	}
+
+	// Create new transport
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.TLSClientConfig = &tls.Config{
+		InsecureSkipVerify: insecureSkipVerify, //nolint:gosec
+	}
+	if caBundle != nil {
 		pool, err := x509.SystemCertPool()
 		if err != nil {
 			pool = x509.NewCertPool()
 		}
-		pool.AppendCertsFromPEM(auth.CABundle)
+		pool.AppendCertsFromPEM(caBundle)
 
 		transport.TLSClientConfig.RootCAs = pool
 		transport.TLSClientConfig.MinVersion = tls.VersionTLS12
 	}
 
-	client.Transport = transport
-
-	return client
+	transportsCache[hash] = transport
+	return transport
 }
 
 func isOCIChart(location fleet.HelmOptions, isHelmOps bool) (string, bool) {
