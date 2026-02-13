@@ -101,6 +101,26 @@ func TestMerge(t *testing.T) {
 			},
 		},
 		{
+			name: "dedupe identical MatchExpressions",
+			selectors: []*metav1.LabelSelector{
+				{
+					MatchExpressions: []metav1.LabelSelectorRequirement{
+						{Key: "tier", Operator: metav1.LabelSelectorOpIn, Values: []string{"frontend"}},
+					},
+				},
+				{
+					MatchExpressions: []metav1.LabelSelectorRequirement{
+						{Key: "tier", Operator: metav1.LabelSelectorOpIn, Values: []string{"frontend"}},
+					},
+				},
+			},
+			want: &metav1.LabelSelector{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{Key: "tier", Operator: metav1.LabelSelectorOpIn, Values: []string{"frontend"}},
+				},
+			},
+		},
+		{
 			name: "merge both MatchLabels and MatchExpressions",
 			selectors: []*metav1.LabelSelector{
 				{

@@ -194,8 +194,8 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		}
 
 		if !selector.Matches(labels.Set(ns.Labels)) {
-			err = fmt.Errorf("target namespace %s does not match AllowedTargetNamespaceSelector %v; namespace labels %v",
-				targetNamespace, bd.Spec.Options.AllowedTargetNamespaceSelector, ns.Labels)
+			err = fmt.Errorf("target namespace %s does not match AllowedTargetNamespaceSelector (%s); namespace labels %v",
+				targetNamespace, selector.String(), ns.Labels)
 			bd.Status = setCondition(bd.Status, err, monitor.Cond(fleetv1.BundleDeploymentConditionDeployed))
 			if statusErr := r.updateStatus(ctx, orig, bd); statusErr != nil {
 				return ctrl.Result{}, fmt.Errorf("%w; failed to update status: %w", err, statusErr)
