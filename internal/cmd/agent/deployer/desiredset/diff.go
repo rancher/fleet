@@ -2,8 +2,10 @@ package desiredset
 
 import (
 	"encoding/json"
+	"fmt"
 	"regexp"
 	"slices"
+	"strings"
 
 	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/go-logr/logr"
@@ -126,7 +128,9 @@ func Diff(logger logr.Logger, plan Plan, bd *fleet.BundleDeployment, ns string, 
 				continue
 			}
 
-			diffResult, err := diff.Diff(desiredObj.(*unstructured.Unstructured), actualObj.(*unstructured.Unstructured),
+			uActual := actualObj.(*unstructured.Unstructured)
+
+			diffResult, err := diff.Diff(desiredObj.(*unstructured.Unstructured), uActual,
 				diff.WithNormalizer(norms),
 				diff.IgnoreAggregatedRoles(true))
 			if err != nil {
@@ -142,9 +146,24 @@ func Diff(logger logr.Logger, plan Plan, bd *fleet.BundleDeployment, ns string, 
 				errs = append(errs, err)
 				continue
 			}
+
+			// Some normalization operations, unlike those called from Diff (vendored ArgoCD code), must only be applied
+			// to actual, in-cluster objects, not to desired ones.
+			emptied, err := normalizeActual(live, uActual, key, &patch)
+			if err != nil {
+				errs = append(errs, err)
+				continue
+			}
+
+			if emptied {
+				delete(plan.Update[gvk], key)
+				continue
+			}
+
 			// this will overwrite an existing entry in the Update map
 			plan.Update.Set(gvk, key.Namespace, key.Name, string(patch))
 		}
+
 		if len(errs) > 0 {
 			return plan, merr.NewErrors(errs...)
 		}
@@ -211,4 +230,167 @@ func newNormalizers(live objectset.ObjectByGVK, bd *fleet.BundleDeployment) (dif
 	}
 
 	return normalizers.New(live, ignoreNormalizer, knownTypesNorm, jsonPatchNorm), nil
+}
+
+// normalizeActual encapsulates patch normalization operations which are only run against a live object (uActual),
+// possibly requiring knowledge of other live resources.
+func normalizeActual(
+	live objectset.ObjectByGVK,
+	uActual *unstructured.Unstructured,
+	key objectset.ObjectKey,
+	patch *[]byte,
+) (bool, error) {
+	return normalizeReplicasPatch(live, uActual, key, patch)
+}
+
+// normalizeReplicasPatch handles removal of a diff patch's `.spec.replicas` field on a Deployment or a StatefulSet.
+// Processing involves checking whether live objects include HPAs referencing the object.
+// Both v1 and v2 of the autoscaling API are supported.
+// This can be called safely against any unstructured object: if the object turns out not to represent a Deployment nor a
+// StatefulSet, this function is a no-op.
+// Returns a boolean indicating whether the resulting patch is empty, and any error which may have happened in the
+// process.
+func normalizeReplicasPatch(
+	live objectset.ObjectByGVK,
+	uActual *unstructured.Unstructured,
+	key objectset.ObjectKey,
+	patch *[]byte,
+) (bool, error) {
+	actualGVK := uActual.GroupVersionKind()
+	if actualGVK.Group != "apps" {
+		return false, nil
+	}
+
+	if actualGVK.Kind != "Deployment" && actualGVK.Kind != "StatefulSet" {
+		return false, nil
+	}
+
+	var patchData map[string]any
+	if err := json.Unmarshal(*patch, &patchData); err != nil {
+		return false, fmt.Errorf("failed to unmarshal patch for %s/%s: %v: %w", key.Namespace, key.Name, *patch, err)
+	}
+
+	patchSpec, patchHasSpec := patchData["spec"]
+	if !patchHasSpec {
+		// No need to even check HPAs for replicas
+		return false, nil
+	}
+
+	// What differs between v1 and v2 is the set of supported metrics for scaling (with memory and custom metrics
+	// included in v2); this is irrelevant to the logic at play here: we are only interested in values of replica
+	// counts, not in what triggers their updates.
+	supportedVersions := []string{"v2", "v1"}
+
+	failFieldNotFound := func(k objectset.ObjectKey, fieldName string) error {
+		return fmt.Errorf("malformed HPA %s/%s: field %q not found", k.Namespace, k.Name, fieldName)
+	}
+
+	// a non-nil error would mean that the field has an unexpected type; this cannot happen as per the Deployment
+	// and StatefulSet APIs.
+	actualReplicas, found, _ := unstructured.NestedInt64(uActual.Object, "spec", "replicas")
+	if !found {
+		return false, failFieldNotFound(key, ".spec.replicas")
+	}
+
+	for _, v := range supportedVersions {
+		gvk := schema.GroupVersionKind{
+			Group:   "autoscaling",
+			Version: v,
+			Kind:    "HorizontalPodAutoscaler",
+		}
+
+		for k, o := range live[gvk] {
+			if k.Namespace != key.Namespace {
+				continue
+			}
+
+			un, ok := o.(*unstructured.Unstructured)
+			if !ok {
+				continue
+			}
+
+			// in each case of extraction of HPA fields below, a non-nil error would mean that the field has
+			// an unexpected type; this cannot happen as per the HPA API.
+			minRepField, found, _ := unstructured.NestedInt64(un.Object, "spec", "minReplicas")
+			if !found {
+				minRepField = 1
+			}
+
+			maxRepField, found, _ := unstructured.NestedInt64(un.Object, "spec", "maxReplicas")
+			if !found {
+				return false, failFieldNotFound(k, ".spec.maxReplicas")
+			}
+
+			refObjField, found, _ := unstructured.NestedMap(un.Object, "spec", "scaleTargetRef")
+			if !found {
+				return false, failFieldNotFound(k, ".spec.scaleTargetRef")
+			}
+
+			// apiVersion can be empty
+			refVersion, _, _ := unstructured.NestedString(refObjField, "apiVersion")
+
+			refKind, found, _ := unstructured.NestedString(refObjField, "kind")
+			if !found {
+				return false, failFieldNotFound(k, ".spec.scaleTargetRef.kind")
+			}
+
+			refName, found, _ := unstructured.NestedString(refObjField, "name")
+			if !found {
+				return false, failFieldNotFound(k, ".spec.scaleTargetRef.name")
+			}
+
+			if refVersion != "" {
+				groupVersion := strings.Split(refVersion, "/")
+				var group, version string
+				switch len(groupVersion) {
+				case 1:
+					version = groupVersion[0]
+				case 2:
+					group = groupVersion[0]
+					version = groupVersion[1]
+				default:
+					continue
+				}
+
+				if actualGVK.Version != version || actualGVK.Group != group {
+					continue
+				}
+			}
+
+			if actualGVK.Kind != refKind {
+				continue
+			}
+
+			if key.Name != refName {
+				continue
+			}
+
+			if actualReplicas < minRepField || actualReplicas > maxRepField {
+				return false, nil
+			}
+
+			// No need to check if the field actually exists, as we've been through that above.
+			spec, ok := patchSpec.(map[string]any)
+			if !ok {
+				return false, fmt.Errorf("malformed spec for %s %s/%s", refKind, k.Namespace, k.Name)
+			}
+			delete(spec, "replicas")
+
+			if len(patchData) == 1 /* spec only */ && len(spec) == 0 {
+				// no more fields in the diff
+				return true, nil
+			}
+
+			p, err := json.Marshal(patchData)
+			if err != nil {
+				return false, fmt.Errorf("failed to marshal patch after removing replicas field: %w", err)
+			}
+
+			*patch = p
+
+			return false, nil
+		}
+	}
+
+	return false, nil
 }
