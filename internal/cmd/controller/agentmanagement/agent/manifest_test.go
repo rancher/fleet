@@ -110,7 +110,6 @@ func TestManifestAgentTolerations(t *testing.T) {
 			agent := getAgentFromManifests(scope, testCase.getOpts())
 			if agent == nil {
 				t.Fatal("there were no deployments returned from the manifests")
-				return
 			}
 
 			if !cmp.Equal(agent.Spec.Template.Spec.Tolerations, testCase.expectedTolerations, cmpOpt) {
@@ -162,7 +161,6 @@ func TestManifestAgentHostNetwork(t *testing.T) {
 			agent := getAgentFromManifests(scope, testCase.getOpts())
 			if agent == nil {
 				t.Fatal("there were no deployments returned from the manifests")
-				return
 			}
 
 			if !cmp.Equal(agent.Spec.Template.Spec.HostNetwork, testCase.expectedNetwork) {
@@ -239,7 +237,6 @@ func TestManifestAgentAffinity(t *testing.T) {
 			agent := getAgentFromManifests("", testCase.getOpts())
 			if agent == nil {
 				t.Fatal("there were no deployments returned from the manifests")
-				return
 			}
 
 			if !cmp.Equal(agent.Spec.Template.Spec.Affinity, testCase.expectedAffinity) {
@@ -304,7 +301,6 @@ func TestManifestAgentResources(t *testing.T) {
 			agent := getAgentFromManifests("", testCase.getOpts())
 			if agent == nil {
 				t.Fatal("there were no deployments returned from the manifests")
-				return
 			}
 
 			if !reflect.DeepEqual(agent.Spec.Template.Spec.Containers[0].Resources, testCase.expectedResources) {
