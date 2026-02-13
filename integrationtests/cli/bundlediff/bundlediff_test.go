@@ -29,7 +29,6 @@ var _ = Describe("Fleet bundlediff", func() {
 
 	act := func(args []string, ns string) (*gbytes.Buffer, *gbytes.Buffer, error) {
 		cmd := cli.NewBundleDiff()
-		fmt.Printf("Using kubeconfig: %s\n", kubeconfigPath)
 		if ns != "" {
 			args = append([]string{"--kubeconfig", kubeconfigPath, "-n", ns}, args...)
 		} else {
@@ -717,7 +716,6 @@ var _ = Describe("Fleet bundlediff", func() {
 		})
 
 		It("should find BundleDeployments across all namespaces when no namespace specified", func() {
-			fmt.Println("\n=== TEST: Cross-Namespace Search (No -n flag) ===")
 			buf, _, err := act([]string{}, "")
 			Expect(err).NotTo(HaveOccurred())
 
@@ -729,7 +727,6 @@ var _ = Describe("Fleet bundlediff", func() {
 		})
 
 		It("should only find BundleDeployments in specified namespace", func() {
-			fmt.Println("\n=== TEST: Namespace-Restricted Search ===")
 			buf, _, err := act([]string{}, namespace)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -741,7 +738,6 @@ var _ = Describe("Fleet bundlediff", func() {
 		})
 
 		It("should find BundleDeployments from both namespaces in JSON format", func() {
-			fmt.Println("\n=== TEST: Cross-Namespace JSON Output ===")
 			buf, _, err := act([]string{"--json"}, "")
 			Expect(err).NotTo(HaveOccurred())
 
@@ -760,7 +756,6 @@ var _ = Describe("Fleet bundlediff", func() {
 		})
 
 		It("should find all BundleDeployments for a bundle across namespaces", func() {
-			fmt.Println("\n=== TEST: Bundle Filter Across Namespaces ===")
 			buf, _, err := act([]string{"--bundle", bundleName}, "")
 			Expect(err).NotTo(HaveOccurred())
 
