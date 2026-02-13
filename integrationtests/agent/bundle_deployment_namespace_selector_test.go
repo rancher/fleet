@@ -14,9 +14,9 @@ import (
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
-func hasCondition(bd *v1alpha1.BundleDeployment, condType string, status corev1.ConditionStatus) bool {
+func hasDeployedCondition(bd *v1alpha1.BundleDeployment, status corev1.ConditionStatus) bool {
 	for _, cond := range bd.Status.Conditions {
-		if cond.Type == condType && cond.Status == status {
+		if cond.Type == "Deployed" && cond.Status == status {
 			return true
 		}
 	}
@@ -105,6 +105,43 @@ var _ = Describe("BundleDeployment namespace selector validation", Ordered, func
 			err = k8sClient.Delete(context.TODO(), bd)
 			Expect(err).ToNot(HaveOccurred())
 		})
+
+		It("deploys successfully to a missing namespace", func() {
+			missingNamespace := namespace + "-missing-no-selector"
+			bd := &v1alpha1.BundleDeployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-no-selector-missing-namespace",
+					Namespace: clusterNS,
+				},
+				Spec: v1alpha1.BundleDeploymentSpec{
+					DeploymentID: "v1",
+					Options: v1alpha1.BundleDeploymentOptions{
+						DefaultNamespace: missingNamespace,
+					},
+				},
+			}
+
+			err := k8sClient.Create(context.TODO(), bd)
+			Expect(err).ToNot(HaveOccurred())
+
+			Eventually(func(g Gomega) {
+				err := k8sClient.Get(context.TODO(), types.NamespacedName{
+					Name:      bd.Name,
+					Namespace: bd.Namespace,
+				}, bd)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(hasDeployedCondition(bd, corev1.ConditionTrue) || bd.Status.Ready).To(BeTrue())
+			}).Should(Succeed())
+
+			Eventually(func(g Gomega) {
+				ns := &corev1.Namespace{}
+				err := k8sClient.Get(context.TODO(), types.NamespacedName{Name: missingNamespace}, ns)
+				g.Expect(err).NotTo(HaveOccurred())
+			}).Should(Succeed())
+
+			err = k8sClient.Delete(context.TODO(), bd)
+			Expect(err).ToNot(HaveOccurred())
+		})
 	})
 
 	When("BundleDeployment has namespace selector matching target namespace labels", func() {
@@ -137,7 +174,7 @@ var _ = Describe("BundleDeployment namespace selector validation", Ordered, func
 					Namespace: bd.Namespace,
 				}, bd)
 				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(hasCondition(bd, "Deployed", corev1.ConditionTrue) || bd.Status.Ready).To(BeTrue())
+				g.Expect(hasDeployedCondition(bd, corev1.ConditionTrue) || bd.Status.Ready).To(BeTrue())
 			}).Should(Succeed())
 
 			err = k8sClient.Delete(context.TODO(), bd)
@@ -175,7 +212,7 @@ var _ = Describe("BundleDeployment namespace selector validation", Ordered, func
 					Namespace: bd.Namespace,
 				}, bd)
 				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(hasCondition(bd, "Deployed", corev1.ConditionFalse)).To(BeTrue())
+				g.Expect(hasDeployedCondition(bd, corev1.ConditionFalse)).To(BeTrue())
 			}).Should(Succeed())
 
 			err = k8sClient.Get(context.TODO(), types.NamespacedName{
@@ -222,7 +259,7 @@ var _ = Describe("BundleDeployment namespace selector validation", Ordered, func
 					Namespace: bd.Namespace,
 				}, bd)
 				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(hasCondition(bd, "Deployed", corev1.ConditionFalse)).To(BeTrue())
+				g.Expect(hasDeployedCondition(bd, corev1.ConditionFalse)).To(BeTrue())
 			}).Should(Succeed())
 
 			err = k8sClient.Get(context.TODO(), types.NamespacedName{
