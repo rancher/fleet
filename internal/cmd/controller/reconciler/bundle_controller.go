@@ -92,6 +92,7 @@ func (r *BundleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 					predicate.AnnotationChangedPredicate{},
 					predicate.LabelChangedPredicate{},
 				),
+				sharding.FilterByShardID(r.ShardID),
 			),
 		).
 		// Note: Maybe improve with WatchesMetadata, does it have access to labels?
@@ -132,16 +133,21 @@ func (r *BundleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			// referenced in DownstreamResources changes.
 			&corev1.Secret{},
 			handler.EnqueueRequestsFromMapFunc(r.downstreamResourceMapFunc("Secret")),
-			builder.WithPredicates(dataChangedPredicate()),
+			builder.WithPredicates(
+				dataChangedPredicate(),
+				sharding.FilterByShardID(r.ShardID),
+			),
 		).
 		Watches(
 			// Fan out from configmap to bundle, reconcile bundles when a configmap
 			// referenced in DownstreamResources changes.
 			&corev1.ConfigMap{},
 			handler.EnqueueRequestsFromMapFunc(r.downstreamResourceMapFunc("ConfigMap")),
-			builder.WithPredicates(dataChangedPredicate()),
+			builder.WithPredicates(
+				dataChangedPredicate(),
+				sharding.FilterByShardID(r.ShardID),
+			),
 		).
-		WithEventFilter(sharding.FilterByShardID(r.ShardID)).
 		WithOptions(controller.Options{MaxConcurrentReconciles: r.Workers}).
 		Complete(r)
 }
