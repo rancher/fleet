@@ -125,8 +125,11 @@ func (d *Deployer) helmdeploy(ctx context.Context, logger logr.Logger, bd *fleet
 		}
 	}
 
-	// manifestID is used for manifest/OCI lookups
-	// DeploymentID format is "manifestID:optionsHash"
+	// manifestID is used for manifest/OCI lookups.
+	// DeploymentID format is "manifestID:optionsHash".
+	// When only options change (e.g., adding comparePatches for drift acceptance),
+	// the optionsHash changes but the manifestID remains the same. This allows
+	// options-only changes to be deployed without re-fetching the manifest.
 	manifestID := bd.Spec.DeploymentID
 	if specManifestID, _, found := strings.Cut(bd.Spec.DeploymentID, ":"); found {
 		manifestID = specManifestID
