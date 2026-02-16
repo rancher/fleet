@@ -56,17 +56,13 @@ var _ = Describe("Fleet bundlediff CLI", func() {
 			}, testenv.Timeout).Should(Succeed())
 
 			Eventually(func(g Gomega) {
-				out, err := k.Context("").Get("bundledeployments", "-A", "-l", "fleet.cattle.io/bundle-name="+bundleName, "-o", "jsonpath={.items[0].metadata.name}")
+				out, err := k.Get("bundledeployments", "-A", "-l", "fleet.cattle.io/bundle-name="+bundleName, "-o", "jsonpath={.items[0]['metadata.name','metadata.namespace']}")
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(out).ToNot(BeEmpty())
-				bundleDeploymentName = out
-			}, testenv.Timeout).Should(Succeed())
 
-			Eventually(func(g Gomega) {
-				out, err := k.Context("").Get("bundledeployments", "-A", "-l", "fleet.cattle.io/bundle-name="+bundleName, "-o", "jsonpath={.items[0].metadata.namespace}")
-				g.Expect(err).ToNot(HaveOccurred())
-				g.Expect(out).ToNot(BeEmpty())
-				bdNamespace = out
+				data := strings.Split(out, " ")
+				g.Expect(data).To(HaveLen(2))
+				bundleDeploymentName, bdNamespace = data[0], data[1]
 			}, testenv.Timeout).Should(Succeed())
 
 			Eventually(func(g Gomega) {
@@ -263,21 +259,15 @@ var _ = Describe("Fleet bundlediff CLI GitOps workflow", Label("gitrepo", "gitse
 		By("finding the BundleDeployment")
 		var bundleDeploymentName, bdNamespace string
 		Eventually(func(g Gomega) {
-			out, err := k.Context("").Get("bundledeployments", "-A", "-l",
+			out, err := k.Get("bundledeployments", "-A", "-l",
 				"fleet.cattle.io/repo-name="+gitRepoName,
-				"-o", "jsonpath={.items[0].metadata.name}")
+				"-o", "jsonpath={.items[0]['metadata.name','metadata.namespace']}")
 			g.Expect(err).ToNot(HaveOccurred())
 			g.Expect(out).ToNot(BeEmpty())
-			bundleDeploymentName = out
-		}, testenv.Timeout).Should(Succeed())
 
-		Eventually(func(g Gomega) {
-			out, err := k.Context("").Get("bundledeployments", "-A", "-l",
-				"fleet.cattle.io/repo-name="+gitRepoName,
-				"-o", "jsonpath={.items[0].metadata.namespace}")
-			g.Expect(err).ToNot(HaveOccurred())
-			g.Expect(out).ToNot(BeEmpty())
-			bdNamespace = out
+			data := strings.Split(out, " ")
+			g.Expect(data).To(HaveLen(2))
+			bundleDeploymentName, bdNamespace = data[0], data[1]
 		}, testenv.Timeout).Should(Succeed())
 
 		By("generating fleet.yaml diff snippet using bundlediff CLI")
