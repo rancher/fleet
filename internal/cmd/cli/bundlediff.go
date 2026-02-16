@@ -365,7 +365,6 @@ func (d *BundleDiff) printFleetYAML(ctx context.Context, k8sClient client.Client
 // outputFleetYAMLDiff outputs a fleet.yaml diff snippet that can be added to a GitRepo's fleet.yaml.
 // This allows users to integrate detected drift as permanent ignores in their GitOps workflow.
 func (d *BundleDiff) outputFleetYAMLDiff(ctx context.Context, k8sClient client.Client, out io.Writer, diff DiffOutput, comparePatches []fleet.ComparePatch) error {
-	// Get the Bundle to merge with existing comparePatches if any
 	var bd fleet.BundleDeployment
 	bdNamespace := diff.Namespace
 	if err := k8sClient.Get(ctx, client.ObjectKey{
@@ -383,6 +382,7 @@ func (d *BundleDiff) outputFleetYAMLDiff(ctx context.Context, k8sClient client.C
 		}
 	}
 
+	// Get the Bundle to merge with existing comparePatches if any
 	var bundle fleet.Bundle
 	err := k8sClient.Get(ctx, client.ObjectKey{
 		Namespace: bundleNamespace,
