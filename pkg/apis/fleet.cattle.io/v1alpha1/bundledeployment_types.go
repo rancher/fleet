@@ -147,24 +147,24 @@ type DiffOptions struct {
 
 // ComparePatch matches a resource and removes fields from the check for modifications.
 type ComparePatch struct {
-	// Kind is the kind of the resource to match.
-	// +nullable
-	Kind string `json:"kind,omitempty"`
 	// APIVersion is the apiVersion of the resource to match.
 	// +nullable
 	APIVersion string `json:"apiVersion,omitempty"`
-	// Namespace is the namespace of the resource to match.
+	// Kind is the kind of the resource to match.
 	// +nullable
-	Namespace string `json:"namespace,omitempty"`
+	Kind string `json:"kind,omitempty"`
 	// Name is the name of the resource to match.
 	// +nullable
 	Name string `json:"name,omitempty"`
-	// Operations remove a JSON path from the resource.
+	// Namespace is the namespace of the resource to match.
 	// +nullable
-	Operations []Operation `json:"operations,omitempty"`
+	Namespace string `json:"namespace,omitempty"`
 	// JSONPointers ignore diffs at a certain JSON path.
 	// +nullable
 	JsonPointers []string `json:"jsonPointers,omitempty"`
+	// Operations remove a JSON path from the resource.
+	// +nullable
+	Operations []Operation `json:"operations,omitempty"`
 }
 
 // Operation of a ComparePatch, usually:

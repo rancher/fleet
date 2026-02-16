@@ -399,35 +399,13 @@ func (d *BundleDiff) outputFleetYAMLDiff(ctx context.Context, k8sClient client.C
 	}
 	mergedPatches := mergeComparePatches(existingPatches, comparePatches)
 
-	// Keep yaml field order stable for readability and test fixtures.
-	type comparePatchYAML struct {
-		APIVersion   string            `json:"apiVersion,omitempty"`
-		Kind         string            `json:"kind,omitempty"`
-		Name         string            `json:"name,omitempty"`
-		Namespace    string            `json:"namespace,omitempty"`
-		JsonPointers []string          `json:"jsonPointers,omitempty"`
-		Operations   []fleet.Operation `json:"operations,omitempty"`
-	}
-
-	patches := make([]comparePatchYAML, 0, len(mergedPatches))
-	for _, patch := range mergedPatches {
-		patches = append(patches, comparePatchYAML{
-			APIVersion:   patch.APIVersion,
-			Kind:         patch.Kind,
-			Name:         patch.Name,
-			Namespace:    patch.Namespace,
-			JsonPointers: patch.JsonPointers,
-			Operations:   patch.Operations,
-		})
-	}
-
 	// Output just the diff section as a fleet.yaml snippet
 	// We marshal DiffOptions directly and add the "diff:" prefix manually
 	// to ensure lowercase field names matching fleet.yaml conventions
 	diffOptions := struct {
-		ComparePatches []comparePatchYAML `json:"comparePatches,omitempty"`
+		ComparePatches []fleet.ComparePatch `json:"comparePatches,omitempty"`
 	}{
-		ComparePatches: patches,
+		ComparePatches: mergedPatches,
 	}
 
 	yamlOutput, err := yaml.Marshal(&diffOptions)
