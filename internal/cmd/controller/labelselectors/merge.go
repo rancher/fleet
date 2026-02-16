@@ -1,6 +1,7 @@
 package labelselectors
 
 import (
+	"maps"
 	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -22,9 +23,7 @@ func Merge(selectors ...*metav1.LabelSelector) *metav1.LabelSelector {
 			if result.MatchLabels == nil {
 				result.MatchLabels = make(map[string]string)
 			}
-			for k, v := range selector.MatchLabels {
-				result.MatchLabels[k] = v
-			}
+			maps.Copy(result.MatchLabels, selector.MatchLabels)
 			result.MatchExpressions = mergeMatchExpressions(result.MatchExpressions, selector.MatchExpressions)
 		}
 	}
