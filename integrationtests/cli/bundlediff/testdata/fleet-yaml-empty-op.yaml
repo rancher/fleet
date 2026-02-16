@@ -1,9 +1,6 @@
 diff:
   comparePatches:
   - apiVersion: v1
-    jsonPointers:
-    - /data/key
-    - /data/valid
     kind: ConfigMap
     name: empty-op-cm
     namespace: test-ns

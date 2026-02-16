@@ -1,8 +1,6 @@
 diff:
   comparePatches:
   - apiVersion: apps/v1
-    jsonPointers:
-    - /spec/replicas
     kind: Deployment
     name: nginx-deploy
     namespace: test-ns
@@ -10,8 +8,6 @@ diff:
     - op: remove
       path: /spec/replicas
   - apiVersion: v1
-    jsonPointers:
-    - /data/key
     kind: ConfigMap
     name: config-map
     namespace: test-ns

@@ -271,15 +271,6 @@ func mergeComparePatches(existing, new []fleet.ComparePatch) []fleet.ComparePatc
 					merged.Operations = append(merged.Operations, op)
 				}
 			}
-			pointerSet := make(map[string]bool)
-			for _, pointer := range existingPatch.JsonPointers {
-				pointerSet[pointer] = true
-			}
-			for _, pointer := range newPatch.JsonPointers {
-				if !pointerSet[pointer] {
-					merged.JsonPointers = append(merged.JsonPointers, pointer)
-				}
-			}
 			patchMap[key] = merged
 		} else {
 			patchMap[key] = newPatch
@@ -326,14 +317,9 @@ func (d *BundleDiff) printFleetYAML(ctx context.Context, k8sClient client.Client
 			patchOps := convertMergePatchToRemoveOps(mergePatch, "")
 
 			operations := make([]fleet.Operation, 0, len(patchOps))
-			// Record JSON pointers so the ignore normalizer can skip these paths directly.
-			jsonPointers := make([]string, 0, len(patchOps))
 			for _, p := range patchOps {
 				if p.Op == "" {
 					continue
-				}
-				if p.Path != "" {
-					jsonPointers = append(jsonPointers, p.Path)
 				}
 
 				operations = append(operations, fleet.Operation{
@@ -344,12 +330,11 @@ func (d *BundleDiff) printFleetYAML(ctx context.Context, k8sClient client.Client
 
 			if len(operations) > 0 {
 				comparePatches = append(comparePatches, fleet.ComparePatch{
-					APIVersion:   mod.APIVersion,
-					Kind:         mod.Kind,
-					Name:         mod.Name,
-					Namespace:    mod.Namespace,
-					Operations:   operations,
-					JsonPointers: jsonPointers,
+					APIVersion: mod.APIVersion,
+					Kind:       mod.Kind,
+					Name:       mod.Name,
+					Namespace:  mod.Namespace,
+					Operations: operations,
 				})
 			}
 		}

@@ -15,9 +15,6 @@ func TestMergeComparePatches(t *testing.T) {
 			Name:       "app-config",
 			Namespace:  "default",
 			Operations: []fleet.Operation{{Op: "remove", Path: "/data/a"}},
-			JsonPointers: []string{
-				"/data/a",
-			},
 		},
 	}
 
@@ -28,9 +25,6 @@ func TestMergeComparePatches(t *testing.T) {
 			Name:       "app-config",
 			Namespace:  "default",
 			Operations: []fleet.Operation{{Op: "remove", Path: "/data/b"}},
-			JsonPointers: []string{
-				"/data/b",
-			},
 		},
 		{
 			APIVersion: "v1",
@@ -38,9 +32,6 @@ func TestMergeComparePatches(t *testing.T) {
 			Name:       "app-secret",
 			Namespace:  "default",
 			Operations: []fleet.Operation{{Op: "remove", Path: "/data/key"}},
-			JsonPointers: []string{
-				"/data/key",
-			},
 		},
 	}
 
@@ -54,10 +45,6 @@ func TestMergeComparePatches(t *testing.T) {
 				{Op: "remove", Path: "/data/a"},
 				{Op: "remove", Path: "/data/b"},
 			},
-			JsonPointers: []string{
-				"/data/a",
-				"/data/b",
-			},
 		},
 		{
 			APIVersion: "v1",
@@ -65,9 +52,6 @@ func TestMergeComparePatches(t *testing.T) {
 			Name:       "app-secret",
 			Namespace:  "default",
 			Operations: []fleet.Operation{{Op: "remove", Path: "/data/key"}},
-			JsonPointers: []string{
-				"/data/key",
-			},
 		},
 	}
 
