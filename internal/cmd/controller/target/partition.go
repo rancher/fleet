@@ -85,6 +85,8 @@ func updateDeploymentFromStaged(t *Target, bundleStatus *fleet.BundleStatus, par
 		t.Deployment.Spec.DeploymentID == t.Deployment.Spec.StagedDeploymentID &&
 		!reflect.DeepEqual(t.Deployment.Spec.Options.Diff, t.Deployment.Spec.StagedOptions.Diff) {
 		// Keep diff options in sync even when the DeploymentID is unchanged.
+		// This enables diff updates to be propagated downstream to resolve modified statuses
+		// (for instance after updating bundle diffs in a fleet.yaml).
 		t.Deployment.Spec.Options.Diff = t.Deployment.Spec.StagedOptions.Diff
 	}
 
