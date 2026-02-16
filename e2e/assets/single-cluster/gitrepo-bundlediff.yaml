@@ -6,5 +6,6 @@ metadata:
 spec:
   repo: {{.Repo}}
   branch: {{.Branch}}
+  pollingInterval: 5s
   paths:
   - {{.Path}}

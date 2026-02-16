@@ -107,32 +107,27 @@ var _ = Describe("Fleet bundlediff CLI", func() {
 			Expect(err).ToNot(HaveOccurred(), string(errBuf.Contents()))
 
 			diffSnippet := string(buf.Contents())
-			actualOutput := strings.TrimSpace(diffSnippet)
-			Expect(actualOutput).To(ContainSubstring("diff:"))
-			Expect(actualOutput).To(ContainSubstring("comparePatches:"))
-			Expect(actualOutput).To(ContainSubstring("apiVersion: v1"))
-			Expect(actualOutput).To(ContainSubstring("kind: ConfigMap"))
-			Expect(actualOutput).To(ContainSubstring("name: test-bundlediff-cm"))
-			Expect(actualOutput).To(ContainSubstring("operations:"))
-			Expect(actualOutput).To(SatisfyAny(
-				ContainSubstring("op: remove"),
-				ContainSubstring("op: replace"),
-			))
-			Expect(actualOutput).To(ContainSubstring("path: /data/key"))
-			Expect(actualOutput).To(SatisfyAny(
-				ContainSubstring("namespace: "+targetNs),
-				Not(ContainSubstring("namespace:")),
-			))
+			expectedBytes, err := os.ReadFile(testenv.AssetPath("single-cluster/bundlediff-fleet-snippet.yaml"))
+			Expect(err).ToNot(HaveOccurred())
+			expectedOutput := strings.ReplaceAll(string(expectedBytes), "${TARGET_NAMESPACE}", targetNs)
+
+			var actualYAML map[string]interface{}
+			err = yaml.Unmarshal([]byte(diffSnippet), &actualYAML)
+			Expect(err).ToNot(HaveOccurred())
+			var expectedYAML map[string]interface{}
+			err = yaml.Unmarshal([]byte(expectedOutput), &expectedYAML)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(actualYAML).To(Equal(expectedYAML))
 
 			By("verifying comparePatches hide the drift when applied to Bundle")
 			jsonBytes, err := yaml.YAMLToJSON([]byte(diffSnippet))
 			Expect(err).ToNot(HaveOccurred())
-			patchJSON := fmt.Sprintf(`{"spec":{"options":%s}}`, string(jsonBytes))
-			_, err = k.Namespace(bdNamespace).Patch("bundledeployment", bundleDeploymentName, "--type=merge", "-p", patchJSON)
+			patchJSON := fmt.Sprintf(`{"spec":%s}`, string(jsonBytes))
+			_, err = k.Patch("bundle", bundleName, "--type=merge", "-p", patchJSON)
 			Expect(err).ToNot(HaveOccurred())
 
-			forceSyncJSON := fmt.Sprintf(`{"spec":{"options":{"forceSyncGeneration":%d}}}`, time.Now().UnixNano())
-			_, err = k.Namespace(bdNamespace).Patch("bundledeployment", bundleDeploymentName, "--type=merge", "-p", forceSyncJSON)
+			forceSyncJSON := fmt.Sprintf(`{"spec":{"forceSyncGeneration":%d}}`, time.Now().UnixNano())
+			_, err = k.Patch("bundle", bundleName, "--type=merge", "-p", forceSyncJSON)
 			Expect(err).ToNot(HaveOccurred())
 
 			Eventually(func(g Gomega) {
@@ -311,10 +306,6 @@ var _ = Describe("Fleet bundlediff CLI GitOps workflow", Label("gitrepo", "gitse
 			g.Expect(err).ToNot(HaveOccurred())
 			g.Expect(out).ToNot(BeEmpty())
 		}, testenv.Timeout).Should(Succeed())
-
-		forceSyncJSON := fmt.Sprintf(`{"spec":{"options":{"forceSyncGeneration":%d}}}`, time.Now().UnixNano())
-		_, err = k.Namespace(bdNamespace).Patch("bundledeployment", bundleDeploymentName, "--type=merge", "-p", forceSyncJSON)
-		Expect(err).ToNot(HaveOccurred())
 
 		By("verifying the Bundle is no longer in Modified state after GitOps sync")
 		Eventually(func(g Gomega) {

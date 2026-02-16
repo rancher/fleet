@@ -3,7 +3,9 @@ diff:
   - apiVersion: v1
     kind: ConfigMap
     name: test-bundlediff-cm
-    namespace: TARGET_NS
+    namespace: ${TARGET_NAMESPACE}
+    jsonPointers:
+    - /data/key
     operations:
     - op: remove
       path: /data/key
