@@ -128,11 +128,11 @@ var _ = Describe("Fleet bundlediff CLI", func() {
 			jsonBytes, err := yaml.YAMLToJSON([]byte(diffSnippet))
 			Expect(err).ToNot(HaveOccurred())
 			patchJSON := fmt.Sprintf(`{"spec":{"options":%s}}`, string(jsonBytes))
-			_, err = k.Namespace(bdNamespace).Run("patch", "bundledeployment", bundleDeploymentName, "--type=merge", "-p", patchJSON)
+			_, err = k.Namespace(bdNamespace).Patch("bundledeployment", bundleDeploymentName, "--type=merge", "-p", patchJSON)
 			Expect(err).ToNot(HaveOccurred())
 
 			forceSyncJSON := fmt.Sprintf(`{"spec":{"options":{"forceSyncGeneration":%d}}}`, time.Now().UnixNano())
-			_, err = k.Namespace(bdNamespace).Run("patch", "bundledeployment", bundleDeploymentName, "--type=merge", "-p", forceSyncJSON)
+			_, err = k.Namespace(bdNamespace).Patch("bundledeployment", bundleDeploymentName, "--type=merge", "-p", forceSyncJSON)
 			Expect(err).ToNot(HaveOccurred())
 
 			Eventually(func(g Gomega) {
@@ -244,8 +244,8 @@ var _ = Describe("Fleet bundlediff CLI GitOps workflow", Label("gitrepo", "gitse
 
 	It("detects drift, generates fleet.yaml snippet, and resolves drift via Git commit", func() {
 		By("modifying the deployed configmap to trigger drift")
-		_, err := k.Namespace(targetNs).Run(
-			"patch", "configmap", "bundlediff-gitops-cm",
+		_, err := k.Namespace(targetNs).Patch(
+			"configmap", "bundlediff-gitops-cm",
 			"--type=merge", "-p", `{"data":{"key":"modified-value"}}`,
 		)
 		Expect(err).ToNot(HaveOccurred())
@@ -313,7 +313,7 @@ var _ = Describe("Fleet bundlediff CLI GitOps workflow", Label("gitrepo", "gitse
 		}, testenv.Timeout).Should(Succeed())
 
 		forceSyncJSON := fmt.Sprintf(`{"spec":{"options":{"forceSyncGeneration":%d}}}`, time.Now().UnixNano())
-		_, err = k.Namespace(bdNamespace).Run("patch", "bundledeployment", bundleDeploymentName, "--type=merge", "-p", forceSyncJSON)
+		_, err = k.Namespace(bdNamespace).Patch("bundledeployment", bundleDeploymentName, "--type=merge", "-p", forceSyncJSON)
 		Expect(err).ToNot(HaveOccurred())
 
 		By("verifying the Bundle is no longer in Modified state after GitOps sync")
