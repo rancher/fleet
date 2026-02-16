@@ -781,7 +781,9 @@ var _ = Describe("Fleet bundlediff", func() {
 				Spec: fleet.BundleSpec{
 					Resources: []fleet.BundleResource{
 						{
-							Name:    "simple-chart",
+							Name: "simple-chart",
+							// Base64-encoded gzip-compressed empty tar archive.
+							// Represents a minimal Helm chart for testing bundlediff fleet-yaml output.
 							Content: "H4sIFAAAAAAA/ydIzEsBAAAAAP//AQAA//8BAAABAAAAAA==",
 						},
 					},
