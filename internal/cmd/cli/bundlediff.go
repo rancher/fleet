@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"sort"
+	"strings"
 
 	"github.com/spf13/cobra"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -56,8 +57,9 @@ Examples:
   # Output in JSON format
   fleet bundlediff --json
 
-  # Output in fleet.yaml format (comparePatches)
-  fleet bundlediff --fleet-yaml
+  # Output as fleet.yaml diff snippet for a specific BundleDeployment
+  # This generates a diff section you can add to your fleet.yaml in Git
+  fleet bundlediff --fleet-yaml --bundle-deployment my-bundle-deployment -n cluster-fleet-local-local-abc123
 
   # Show diffs only in a specific namespace
   fleet bundlediff -n cluster-fleet-local-local-abc123`,
@@ -119,6 +121,10 @@ func (d *BundleDiff) Run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create k8s client: %w", err)
 	}
 
+	if d.FleetYAML && d.BundleDeployment == "" {
+		return fmt.Errorf("--fleet-yaml requires --bundle-deployment to be specified")
+	}
+
 	diffs := []DiffOutput{}
 
 	switch {
@@ -151,7 +157,7 @@ func (d *BundleDiff) Run(cmd *cobra.Command, args []string) error {
 			return d.encodeJSON(cmd.OutOrStdout(), diffs)
 		}
 		if d.FleetYAML {
-			return d.printFleetYAML(cmd.OutOrStdout(), diffs)
+			return d.printFleetYAML(ctx, k8sClient, cmd.OutOrStdout(), diffs)
 		}
 		return nil
 	}
@@ -161,7 +167,7 @@ func (d *BundleDiff) Run(cmd *cobra.Command, args []string) error {
 	}
 
 	if d.FleetYAML {
-		return d.printFleetYAML(cmd.OutOrStdout(), diffs)
+		return d.printFleetYAML(ctx, k8sClient, cmd.OutOrStdout(), diffs)
 	}
 
 	return d.printTextOutput(cmd.OutOrStdout(), diffs)
@@ -180,7 +186,125 @@ func (d *BundleDiff) encodeJSON(out io.Writer, diffs []DiffOutput) error {
 	return enc.Encode(output)
 }
 
-func (d *BundleDiff) printFleetYAML(out io.Writer, diffs []DiffOutput) error {
+// patchOperation represents a JSON Patch operation
+type patchOperation struct {
+	Op    string      `json:"op"`
+	Path  string      `json:"path"`
+	Value interface{} `json:"value,omitempty"`
+}
+
+// resourceKey returns a string representation of a resource for logging
+func resourceKey(kind, apiVersion, namespace, name string) string {
+	return fmt.Sprintf("%s.%s %s/%s", kind, apiVersion, namespace, name)
+}
+
+// escapeJSONPointerToken escapes a token for use in a JSON Pointer path.
+// According to RFC 6901, ~ must be escaped as ~0 and / must be escaped as ~1.
+func escapeJSONPointerToken(token string) string {
+	// Replace ~ first to avoid double-escaping
+	token = strings.ReplaceAll(token, "~", "~0")
+	token = strings.ReplaceAll(token, "/", "~1")
+	return token
+}
+
+// convertMergePatchToRemoveOps converts a JSON Merge Patch object to JSON Patch remove operations
+// This allows users to ignore drift on fields that differ between desired and deployed resources
+func convertMergePatchToRemoveOps(patch map[string]interface{}, basePath string) []patchOperation {
+	var ops []patchOperation
+
+	// Sort keys for deterministic output order
+	keys := make([]string, 0, len(patch))
+	for key := range patch {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	for _, key := range keys {
+		value := patch[key]
+		escapedKey := escapeJSONPointerToken(key)
+		path := basePath + "/" + escapedKey
+
+		if nested, ok := value.(map[string]interface{}); ok {
+			ops = append(ops, convertMergePatchToRemoveOps(nested, path)...)
+		} else {
+			// Both null and non-null values should generate remove operations
+			// Remove = "ignore this field in drift detection"
+			// This accepts any drift on this field, not just a specific value
+			ops = append(ops, patchOperation{
+				Op:   "remove",
+				Path: path,
+			})
+		}
+	}
+
+	return ops
+}
+
+// mergeComparePatches merges new comparePatches with existing ones, avoiding duplicates.
+// This preserves any user-configured comparePatches while adding new ones from drift detection.
+func mergeComparePatches(existing, new []fleet.ComparePatch) []fleet.ComparePatch {
+	patchMap := make(map[string]fleet.ComparePatch)
+
+	// Key function for resource identity
+	resourceKey := func(p fleet.ComparePatch) string {
+		return fmt.Sprintf("%s|%s|%s|%s", p.APIVersion, p.Kind, p.Namespace, p.Name)
+	}
+
+	for _, patch := range existing {
+		key := resourceKey(patch)
+		patchMap[key] = patch
+	}
+
+	// Merge new patches, combining operations for same resource
+	for _, newPatch := range new {
+		key := resourceKey(newPatch)
+		if existingPatch, found := patchMap[key]; found {
+			merged := existingPatch
+			opSet := make(map[string]bool)
+			for _, op := range existingPatch.Operations {
+				opKey := fmt.Sprintf("%s|%s|%s", op.Op, op.Path, op.Value)
+				opSet[opKey] = true
+			}
+			for _, op := range newPatch.Operations {
+				opKey := fmt.Sprintf("%s|%s|%s", op.Op, op.Path, op.Value)
+				if !opSet[opKey] {
+					merged.Operations = append(merged.Operations, op)
+				}
+			}
+			pointerSet := make(map[string]bool)
+			for _, pointer := range existingPatch.JsonPointers {
+				pointerSet[pointer] = true
+			}
+			for _, pointer := range newPatch.JsonPointers {
+				if !pointerSet[pointer] {
+					merged.JsonPointers = append(merged.JsonPointers, pointer)
+				}
+			}
+			patchMap[key] = merged
+		} else {
+			patchMap[key] = newPatch
+		}
+	}
+
+	// Convert map back to slice, sorted for deterministic output
+	var result []fleet.ComparePatch
+	keys := make([]string, 0, len(patchMap))
+	for k := range patchMap {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		result = append(result, patchMap[k])
+	}
+
+	return result
+}
+
+func (d *BundleDiff) printFleetYAML(ctx context.Context, k8sClient client.Client, out io.Writer, diffs []DiffOutput) error {
+	if len(diffs) != 1 || diffs[0].BundleName == "" {
+		return fmt.Errorf("failed to find bundle deployment %s", d.BundleDeployment)
+	}
+
 	comparePatches := []fleet.ComparePatch{}
 
 	for _, diff := range diffs {
@@ -189,49 +313,43 @@ func (d *BundleDiff) printFleetYAML(out io.Writer, diffs []DiffOutput) error {
 				continue
 			}
 
-			var patchOps []struct {
-				Op    string      `json:"op"`
-				Path  string      `json:"path"`
-				Value interface{} `json:"value,omitempty"`
-			}
-			if err := json.Unmarshal([]byte(mod.Patch), &patchOps); err != nil {
-				ctrl.Log.Error(err, "failed to parse patch JSON, skipping resource",
-					"resource", fmt.Sprintf("%s.%s %s/%s", mod.Kind, mod.APIVersion, mod.Namespace, mod.Name))
+			resKey := resourceKey(mod.Kind, mod.APIVersion, mod.Namespace, mod.Name)
+
+			// Fleet always produces JSON Merge Patch format from strategic merge or JSON merge patch
+			var mergePatch map[string]interface{}
+			if err := json.Unmarshal([]byte(mod.Patch), &mergePatch); err != nil {
+				ctrl.Log.Error(err, "failed to parse patch, skipping resource", "resource", resKey)
 				continue
 			}
 
+			// Convert JSON Merge Patch to JSON Patch remove operations
+			patchOps := convertMergePatchToRemoveOps(mergePatch, "")
+
 			operations := make([]fleet.Operation, 0, len(patchOps))
+			// Record JSON pointers so the ignore normalizer can skip these paths directly.
+			jsonPointers := make([]string, 0, len(patchOps))
 			for _, p := range patchOps {
 				if p.Op == "" {
 					continue
 				}
-
-				var valueStr string
-				if p.Value != nil {
-					if valueBytes, err := json.Marshal(p.Value); err != nil {
-						ctrl.Log.Error(err, "failed to marshal operation value, omitting value field",
-							"op", p.Op,
-							"path", p.Path,
-							"resource", fmt.Sprintf("%s.%s %s/%s", mod.Kind, mod.APIVersion, mod.Namespace, mod.Name))
-					} else {
-						valueStr = string(valueBytes)
-					}
+				if p.Path != "" {
+					jsonPointers = append(jsonPointers, p.Path)
 				}
 
 				operations = append(operations, fleet.Operation{
-					Op:    p.Op,
-					Path:  p.Path,
-					Value: valueStr,
+					Op:   p.Op,
+					Path: p.Path,
 				})
 			}
 
 			if len(operations) > 0 {
 				comparePatches = append(comparePatches, fleet.ComparePatch{
-					APIVersion: mod.APIVersion,
-					Kind:       mod.Kind,
-					Name:       mod.Name,
-					Namespace:  mod.Namespace,
-					Operations: operations,
+					APIVersion:   mod.APIVersion,
+					Kind:         mod.Kind,
+					Name:         mod.Name,
+					Namespace:    mod.Namespace,
+					Operations:   operations,
+					JsonPointers: jsonPointers,
 				})
 			}
 		}
@@ -241,20 +359,69 @@ func (d *BundleDiff) printFleetYAML(out io.Writer, diffs []DiffOutput) error {
 		return nil
 	}
 
-	output := struct {
-		Diff fleet.DiffOptions `json:"diff"`
-	}{
-		Diff: fleet.DiffOptions{
-			ComparePatches: comparePatches,
-		},
+	return d.outputFleetYAMLDiff(ctx, k8sClient, out, diffs[0], comparePatches)
+}
+
+// outputFleetYAMLDiff outputs a fleet.yaml diff snippet that can be added to a GitRepo's fleet.yaml.
+// This allows users to integrate detected drift as permanent ignores in their GitOps workflow.
+func (d *BundleDiff) outputFleetYAMLDiff(ctx context.Context, k8sClient client.Client, out io.Writer, diff DiffOutput, comparePatches []fleet.ComparePatch) error {
+	var bd fleet.BundleDeployment
+	bdNamespace := diff.Namespace
+	if err := k8sClient.Get(ctx, client.ObjectKey{
+		Namespace: bdNamespace,
+		Name:      diff.BundleDeploymentName,
+	}, &bd); err != nil {
+		return fmt.Errorf("failed to get BundleDeployment %s/%s: %w", bdNamespace, diff.BundleDeploymentName, err)
 	}
 
-	yamlOutput, err := yaml.Marshal(output)
+	bundleNamespace := bd.Labels[fleet.BundleNamespaceLabel]
+	if bundleNamespace == "" {
+		bundleNamespace = d.Namespace
+		if bundleNamespace == "" {
+			bundleNamespace = "fleet-local"
+		}
+	}
+
+	// Get the Bundle to merge with existing comparePatches if any
+	var bundle fleet.Bundle
+	err := k8sClient.Get(ctx, client.ObjectKey{
+		Namespace: bundleNamespace,
+		Name:      diff.BundleName,
+	}, &bundle)
 	if err != nil {
-		return fmt.Errorf("failed to marshal fleet.yaml format: %w", err)
+		return fmt.Errorf("failed to get Bundle %s/%s: %w", bundleNamespace, diff.BundleName, err)
 	}
 
-	fmt.Fprint(out, string(yamlOutput))
+	// Merge new comparePatches with existing ones from the Bundle
+	var existingPatches []fleet.ComparePatch
+	if bundle.Spec.Diff != nil && bundle.Spec.Diff.ComparePatches != nil {
+		existingPatches = bundle.Spec.Diff.ComparePatches
+	}
+	mergedPatches := mergeComparePatches(existingPatches, comparePatches)
+
+	// Output just the diff section as a fleet.yaml snippet
+	// We marshal DiffOptions directly and add the "diff:" prefix manually
+	// to ensure lowercase field names matching fleet.yaml conventions
+	diffOptions := struct {
+		ComparePatches []fleet.ComparePatch `json:"comparePatches,omitempty"`
+	}{
+		ComparePatches: mergedPatches,
+	}
+
+	yamlOutput, err := yaml.Marshal(&diffOptions)
+	if err != nil {
+		return fmt.Errorf("failed to marshal diff options: %w", err)
+	}
+
+	// Format as fleet.yaml snippet with proper indentation
+	output := "diff:\n"
+	for _, line := range strings.Split(string(yamlOutput), "\n") {
+		if line != "" {
+			output += "  " + line + "\n"
+		}
+	}
+
+	fmt.Fprint(out, output)
 	return nil
 }
 

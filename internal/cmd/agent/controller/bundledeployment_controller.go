@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"time"
 
@@ -80,7 +81,7 @@ func (r *BundleDeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				predicate.AnnotationChangedPredicate{},
 				predicate.LabelChangedPredicate{},
 				predicate.Funcs{
-					// except for changes to status.Refresh
+					// except for changes to Status.SyncGeneration, Spec.DeploymentID, or Spec.DownstreamResourcesGeneration
 					UpdateFunc: func(e event.UpdateEvent) bool {
 						n := e.ObjectNew.(*fleetv1.BundleDeployment)
 						o := e.ObjectOld.(*fleetv1.BundleDeployment)
@@ -88,6 +89,9 @@ func (r *BundleDeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 							return false
 						}
 						return n.Status.SyncGeneration != o.Status.SyncGeneration ||
+							n.Spec.DeploymentID != o.Spec.DeploymentID ||
+							// Ensure diff option changes requeue to clear drift ignores.
+							!reflect.DeepEqual(n.Spec.Options.Diff, o.Spec.Options.Diff) ||
 							(o.Spec.DownstreamResourcesGeneration != n.Spec.DownstreamResourcesGeneration)
 					},
 					DeleteFunc: func(e event.DeleteEvent) bool {

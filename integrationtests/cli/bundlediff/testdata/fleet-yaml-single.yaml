@@ -1,6 +1,8 @@
 diff:
   comparePatches:
   - apiVersion: v1
+    jsonPointers:
+    - /data
     kind: ConfigMap
     name: app-config
     namespace: bundle-diffs-example

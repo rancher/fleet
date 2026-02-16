@@ -1,0 +1,11 @@
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: {{.Name}}
+  namespace: {{.Namespace}}
+spec:
+  repo: {{.Repo}}
+  branch: {{.Branch}}
+  pollingInterval: 5s
+  paths:
+  - {{.Path}}
