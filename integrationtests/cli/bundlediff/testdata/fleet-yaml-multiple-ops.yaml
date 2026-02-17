@@ -1,9 +1,6 @@
 diff:
   comparePatches:
   - apiVersion: apps/v1
-    jsonPointers:
-    - /spec/replicas
-    - /spec/template/metadata/labels/old-label
     kind: Deployment
     name: my-deployment
     namespace: test-ns
