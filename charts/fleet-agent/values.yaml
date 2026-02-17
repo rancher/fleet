@@ -1,7 +1,7 @@
 image:
   os: "windows,linux"
   repository: rancher/fleet-agent
-  tag: v0.15.0-alpha.10
+  tag: v0.15.0-beta.1
 
 # The public URL of the Kubernetes API server running the Fleet Controller must be set here
 # Example: https://example.com:6443
@@ -18,6 +18,12 @@ agentTLSMode: "system-store"
 # The amount of time that agents will wait before they clean up old Helm releases.
 # A non-existent value or 0 will result in an interval of 15 minutes.
 garbageCollectionInterval: "15m"
+
+# http[s] proxy server
+# proxy: http://<username>:<password>@<url>:<port>
+
+# comma separated list of domains or ip addresses that will not use the proxy
+noProxy: 127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,.svc,.cluster.local
 
 # The cluster registration value
 token: ""

@@ -1,11 +1,11 @@
 image:
   repository: rancher/fleet
-  tag: v0.15.0-alpha.10
+  tag: v0.15.0-beta.1
   imagePullPolicy: IfNotPresent
 
 agentImage:
   repository: rancher/fleet-agent
-  tag: v0.15.0-alpha.10
+  tag: v0.15.0-beta.1
   imagePullPolicy: IfNotPresent
 
 # For cluster registration the public URL of the Kubernetes API server must be set here
@@ -36,7 +36,7 @@ ignoreClusterRegistrationLabels: false
 # clusterEnqueueDelay: 120s
 
 # http[s] proxy server
-# proxy: http://<username>@<password>:<url>:<port>
+# proxy: http://<username>:<password>@<url>:<port>
 
 # comma separated list of domains or ip addresses that will not use the proxy
 noProxy: 127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,.svc,.cluster.local
@@ -78,14 +78,29 @@ tolerations: []
 ## Pod affinity for the controllers.
 affinity: {}
 
-# Pod resource limits and requests for the controllers
+# Container resource limits and requests for the controllers
 resources: {}
+  ## Limits and requests for all fleet containers.
   # limits:
   #   cpu: 8000m
   #   memory: 8Gi
   # requests:
   #   cpu: 250m
   #   memory: 768Mi
+  #
+  ## Set per-component overrides here.
+  ## Set to empty object {} to use none rather than the default from above.
+  # fleetController:
+  #   limits:
+  #     cpu: 8000m
+  #     memory: 8Gi
+  #   requests:
+  #     cpu: 250m
+  #     memory: 768Mi
+  # fleetCleanup: {}  # none rather than default
+  # fleetAgentmanagement: {}  # none rather than default
+  # gitjob: {}  # none rather than default
+  # helmops: {}  # none rather than default
 
 ## PriorityClassName assigned to deployment.
 priorityClassName: ""
@@ -93,6 +108,11 @@ priorityClassName: ""
 ## Determines whether SSH operations (eg. cloning git repos, downloading Helm charts) could succeed if
 ## host verification fails. Insecure when set to true. Default: false.
 insecureSkipHostKeyChecks: false
+
+## Adds hosts to the known_hosts configmap if using a custom git provider for gitrepos
+additionalKnownHosts: []
+# Custom entries to be added in SSH known_hosts format (see charts/fleet/templates/configmap_known_hosts.yaml for examples):
+#   - <host>[:port] <key-algorithm> <fingerprint>
 
 gitops:
   enabled: true
