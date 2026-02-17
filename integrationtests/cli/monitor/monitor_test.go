@@ -2,7 +2,6 @@ package monitor
 
 import (
 	"encoding/json"
-	"fmt"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -22,7 +21,6 @@ var _ = Describe("Fleet monitor", func() {
 
 	act := func(args []string, ns string) (*gbytes.Buffer, *gbytes.Buffer, error) {
 		cmd := cli.NewMonitor()
-		fmt.Printf("Using kubeconfig: %s\n", kubeconfigPath)
 		args = append([]string{"--kubeconfig", kubeconfigPath, "-n", ns}, args...)
 		cmd.SetArgs(args)
 
