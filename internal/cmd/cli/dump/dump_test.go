@@ -625,7 +625,12 @@ func Test_addSecretsToArchive(t *testing.T) {
 			var buf bytes.Buffer
 			tw := tar.NewWriter(&buf)
 
-			err := addSecretsToArchive(ctx, fakeDynClient, mockClient, logger, tw, c.metadataOnly, nil, "", Options{FetchLimit: 0})
+			filterCfg, err := determineFilterConfig(ctx, fakeDynClient, logger, Options{FetchLimit: 0})
+			if err != nil {
+				t.Fatalf("failed to determine filter config: %v", err)
+			}
+
+			err = addSecretsToArchive(ctx, fakeDynClient, mockClient, logger, tw, c.metadataOnly, filterCfg, "", Options{FetchLimit: 0})
 
 			if (err == nil) != (c.expErrStr == "") {
 				t.Fatalf("expected err %s, \n\tgot %s", c.expErrStr, err)
@@ -727,7 +732,12 @@ func Test_addContentsToArchive(t *testing.T) {
 			var buf bytes.Buffer
 			tw := tar.NewWriter(&buf)
 
-			err := addContentsToArchive(ctx, fakeDynClient, logger, tw, c.metadataOnly, nil, Options{FetchLimit: 0})
+			filterCfg, err := determineFilterConfig(ctx, fakeDynClient, logger, Options{FetchLimit: 0})
+			if err != nil {
+				t.Fatalf("failed to determine filter config: %v", err)
+			}
+
+			err = addContentsToArchive(ctx, fakeDynClient, logger, tw, c.metadataOnly, filterCfg, Options{FetchLimit: 0})
 
 			if (err == nil) != (c.expErrStr == "") {
 				t.Fatalf("expected err %s, \n\tgot %s", c.expErrStr, err)
@@ -1016,6 +1026,11 @@ func Test_GitRepoFiltering(t *testing.T) {
 		t.Fatalf("expected 2 bundles for my-repo, got %d", len(bundleNames))
 	}
 
+	filterCfg, err := determineFilterConfig(ctx, fakeDynClient, logger, opt)
+	if err != nil {
+		t.Fatalf("failed to determine filter config: %v", err)
+	}
+
 	// Test addObjectsWithNameFilter for GitRepos
 	err = addObjectsWithNameFilter(ctx, fakeDynClient, logger, "gitrepos", tw, []string{"my-repo"}, opt)
 	if err != nil {
@@ -1029,7 +1044,7 @@ func Test_GitRepoFiltering(t *testing.T) {
 	}
 
 	// Test addBundleDeployments with bundle name filter
-	err = addBundleDeployments(ctx, fakeDynClient, logger, tw, bundleNames, opt)
+	err = addBundleDeployments(ctx, fakeDynClient, logger, tw, filterCfg, opt)
 	if err != nil {
 		t.Fatalf("failed to add bundledeployments: %v", err)
 	}
@@ -1230,6 +1245,11 @@ func Test_BundleFiltering(t *testing.T) {
 		Bundle:     "target-bundle",
 	}
 
+	filterCfg, err := determineFilterConfig(ctx, fakeDynClient, logger, opt)
+	if err != nil {
+		t.Fatalf("failed to determine filter config: %v", err)
+	}
+
 	// Verify bundle exists
 	exists, err := bundleExists(ctx, fakeDynClient, opt.Namespace, opt.Bundle)
 	if err != nil {
@@ -1249,7 +1269,7 @@ func Test_BundleFiltering(t *testing.T) {
 	}
 
 	// Test addBundleDeployments with bundle name filter
-	err = addBundleDeployments(ctx, fakeDynClient, logger, tw, bundleNames, opt)
+	err = addBundleDeployments(ctx, fakeDynClient, logger, tw, filterCfg, opt)
 	if err != nil {
 		t.Fatalf("failed to add bundledeployments: %v", err)
 	}
@@ -1489,6 +1509,11 @@ func Test_HelmOpFiltering(t *testing.T) {
 		t.Fatalf("failed to collect bundle names: %v", err)
 	}
 
+	filterCfg, err := determineFilterConfig(ctx, fakeDynClient, logger, opt)
+	if err != nil {
+		t.Fatalf("failed to determine filter config: %v", err)
+	}
+
 	if len(bundleNames) != 2 {
 		t.Fatalf("expected 2 bundles for my-helmop, got %d", len(bundleNames))
 	}
@@ -1506,7 +1531,7 @@ func Test_HelmOpFiltering(t *testing.T) {
 	}
 
 	// Test addBundleDeployments with bundle name filter
-	err = addBundleDeployments(ctx, fakeDynClient, logger, tw, bundleNames, opt)
+	err = addBundleDeployments(ctx, fakeDynClient, logger, tw, filterCfg, opt)
 	if err != nil {
 		t.Fatalf("failed to add bundledeployments: %v", err)
 	}

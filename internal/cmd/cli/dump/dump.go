@@ -144,17 +144,23 @@ func addContentsToArchive(
 	logger logr.Logger,
 	w *tar.Writer,
 	metadataOnly bool,
-	contentIDs []string, // nil means fetch all
+	filterCfg *filterConfig,
 	opt Options,
 ) error {
+	if filterCfg.useFiltering && filterCfg.contentIDs == nil {
+		// Filtering is active but no bundles were found, so there are no relevant contents to add.
+		// contentIDs is nil (not collected) precisely when bundleNames was empty.
+		return nil
+	}
+
 	// Convert to map for faster lookups
 	var contentIDMap map[string]bool
-	if contentIDs != nil {
-		contentIDMap = make(map[string]bool, len(contentIDs))
-		for _, id := range contentIDs {
+	if filterCfg.contentIDs != nil {
+		contentIDMap = make(map[string]bool, len(filterCfg.contentIDs))
+		for _, id := range filterCfg.contentIDs {
 			contentIDMap[id] = true
 		}
-		logger.Info("Filtering content resources", "contentIDs", len(contentIDs))
+		logger.Info("Filtering content resources", "contentIDs", len(filterCfg.contentIDs))
 	}
 
 	rID := schema.GroupVersionResource{
@@ -211,10 +217,15 @@ func addSecretsToArchive(
 	logger logr.Logger,
 	w *tar.Writer,
 	metadataOnly bool,
-	secretNames []string,
+	filterCfg *filterConfig,
 	namespace string,
 	opt Options,
 ) error {
+	if filterCfg.useFiltering && len(filterCfg.secretNames) == 0 {
+		// No secret names to filter, skip adding any secrets
+		return nil
+	}
+
 	nss, err := getNamespaces(ctx, dynamic, logger, opt)
 	if err != nil {
 		return fmt.Errorf("failed to get relevant namespaces for secrets: %w", err)
@@ -222,9 +233,9 @@ func addSecretsToArchive(
 
 	// Convert secretNames to map for efficient lookup
 	var secretNameMap map[string]bool
-	if secretNames != nil {
-		secretNameMap = make(map[string]bool, len(secretNames))
-		for _, name := range secretNames {
+	if filterCfg.secretNames != nil {
+		secretNameMap = make(map[string]bool, len(filterCfg.secretNames))
+		for _, name := range filterCfg.secretNames {
 			secretNameMap[name] = true
 		}
 	}
@@ -661,10 +672,16 @@ func createDialer(ctx context.Context, cfg *rest.Config, c client.Client, svc *c
 
 // filterConfig holds the filtering configuration determined from options
 type filterConfig struct {
-	bundleNames  []string
-	contentIDs   []string
-	secretNames  []string
-	namespace    string
+	bundleNames []string
+	contentIDs  []string
+	secretNames []string
+	namespace   string
+	// useFiltering indicates whether any filtering is active; It does so by checking if
+	// opt.Namespace is set (and not in all-namespaces mode). Filtering by GitRepo, Bundle or HelmOp
+	// also implies namespace filtering, so we don't need to check those separately here.
+	//
+	// If false, all bundles, contents, and secrets will be included. If true, it means at least a
+	// namespace, but not necessarily a GitRepo, Bundle or HelmOp has been specified.
 	useFiltering bool
 }
 
@@ -934,7 +951,7 @@ func CreateWithClients(ctx context.Context, cfg *rest.Config, d dynamic.Interfac
 	}
 
 	// BundleDeployments: filter by bundle-namespace label when filtering
-	if err := addBundleDeployments(ctx, d, logger, w, filterCfg.bundleNames, opt); err != nil {
+	if err := addBundleDeployments(ctx, d, logger, w, filterCfg, opt); err != nil {
 		return fmt.Errorf("failed to add bundledeployments to archive: %w", err)
 	}
 
@@ -946,7 +963,7 @@ func CreateWithClients(ctx context.Context, cfg *rest.Config, d dynamic.Interfac
 	// Add contents if requested
 	if opt.WithContent || opt.WithContentMetadata {
 		contentMetadataOnly := opt.WithContentMetadata && !opt.WithContent
-		if err := addContentsToArchive(ctx, d, logger, w, contentMetadataOnly, filterCfg.contentIDs, opt); err != nil {
+		if err := addContentsToArchive(ctx, d, logger, w, contentMetadataOnly, filterCfg, opt); err != nil {
 			return fmt.Errorf("failed to add contents to archive: %w", err)
 		}
 	}
@@ -954,7 +971,7 @@ func CreateWithClients(ctx context.Context, cfg *rest.Config, d dynamic.Interfac
 	// Add secrets if requested
 	if opt.WithSecrets || opt.WithSecretsMetadata {
 		secretsMetadataOnly := opt.WithSecretsMetadata && !opt.WithSecrets
-		if err := addSecretsToArchive(ctx, d, c, logger, w, secretsMetadataOnly, filterCfg.secretNames, filterCfg.namespace, opt); err != nil {
+		if err := addSecretsToArchive(ctx, d, c, logger, w, secretsMetadataOnly, filterCfg, filterCfg.namespace, opt); err != nil {
 			return fmt.Errorf("failed to add secrets to archive: %w", err)
 		}
 	}
@@ -1305,10 +1322,17 @@ func collectSecretNames(ctx context.Context, d dynamic.Interface, logger logr.Lo
 // addBundleDeployments adds bundledeployment resources to the archive.
 // When filtering by namespace, uses label selector for bundle-namespace.
 // When bundleNames is provided, additionally filters by bundle-name.
-func addBundleDeployments(ctx context.Context, d dynamic.Interface, logger logr.Logger, w *tar.Writer, bundleNames []string, opt Options) error {
+func addBundleDeployments(ctx context.Context, d dynamic.Interface, logger logr.Logger, w *tar.Writer, filterCfg *filterConfig, opt Options) error {
+	// If we are suppposed to filter by GitRepo/HelmOp/Bundle but ended up with no bundles, skip
+	// adding any bundledeployments since they should not exist.
+	if filterCfg.useFiltering && filterCfg.bundleNames == nil {
+		// No bundles to filter, skip adding any bundledeployments
+		return nil
+	}
+
 	// When filtering by namespace, use label selector for bundle-namespace
-	if !opt.AllNamespaces && opt.Namespace != "" {
-		selector, err := buildBundleNameSelector(opt.Namespace, bundleNames)
+	if filterCfg.useFiltering {
+		selector, err := buildBundleNameSelector(opt.Namespace, filterCfg.bundleNames)
 		if err != nil {
 			return fmt.Errorf("failed to build bundle name selector: %w", err)
 		}
