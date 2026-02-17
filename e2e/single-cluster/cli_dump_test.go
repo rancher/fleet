@@ -1035,6 +1035,7 @@ func extractResourcesFromArchive(archivePath string) map[string][]string {
 
 	gzr, err := gzip.NewReader(f)
 	Expect(err).ToNot(HaveOccurred())
+	defer gzr.Close()
 
 	tr := tar.NewReader(gzr)
 

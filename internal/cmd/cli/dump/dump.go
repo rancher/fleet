@@ -930,6 +930,7 @@ func CreateWithClients(ctx context.Context, cfg *rest.Config, d dynamic.Interfac
 	if err != nil {
 		return fmt.Errorf("failed to create %s: %w", path, err)
 	}
+	defer tgz.Close()
 
 	gz := gzip.NewWriter(tgz)
 	w := tar.NewWriter(gz)
