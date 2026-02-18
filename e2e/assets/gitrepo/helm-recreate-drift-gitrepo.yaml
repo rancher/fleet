@@ -1,0 +1,10 @@
+kind: GitRepo
+apiVersion: fleet.cattle.io/v1alpha1
+metadata:
+  name: {{ .Name }}
+spec:
+  repo: {{ .Repo }}
+  branch: {{ .Branch }}
+  clientSecretName: git-auth
+  paths:
+  - helm-recreate-drift
