@@ -77,8 +77,8 @@ var _ = Describe("Helm v4 Null Field Drift Detection", Label("infra-setup"), fun
 			// Create git auth secret
 			_, err := k.Create(
 				"secret", "generic", "git-auth", "--type", "kubernetes.io/basic-auth",
-				"--from-literal=username=fleet-ci",
-				"--from-literal=password=foo",
+				"--from-literal=username="+os.Getenv("GIT_HTTP_USER"),
+				"--from-literal=password="+os.Getenv("GIT_HTTP_PASSWORD"),
 			)
 			Expect(err).ToNot(HaveOccurred())
 
