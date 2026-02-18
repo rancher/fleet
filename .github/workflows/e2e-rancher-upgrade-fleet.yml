@@ -132,7 +132,8 @@ jobs:
             --k3s-arg '--kubelet-arg=eviction-hard=imagefs.available<1%,nodefs.available<1%@agent:*' \
             --k3s-arg '--kubelet-arg=eviction-minimum-reclaim=imagefs.available=1%,nodefs.available=1%@agent:*' \
             --network "nw01" \
-            --image docker.io/rancher/k3s:${{github.event.inputs.k3s_version}}
+            --image docker.io/rancher/k3s:${{github.event.inputs.k3s_version}} \
+            --k3s-arg "--cluster-init@server:0"
       -
         name: Set up Rancher
         env:
