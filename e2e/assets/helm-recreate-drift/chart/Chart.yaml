@@ -1,0 +1,6 @@
+apiVersion: v2
+name: helm-v4-drift-test-chart
+description: Test chart with RollingUpdate deployment strategy for Helm v4 drift detection
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
