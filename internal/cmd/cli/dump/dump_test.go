@@ -899,8 +899,8 @@ func Test_collectBundleNamesByGitRepo(t *testing.T) {
 
 			names, err := collectBundleNamesByGitRepo(ctx, fakeDynClient, tt.namespace, tt.gitrepo, tt.fetchLimit)
 
-			sortedNames  := append([]string(nil), names...)
-			sortedExpectedNames  := append([]string(nil), tt.expectedNames...)
+			sortedNames := append([]string(nil), names...)
+			sortedExpectedNames := append([]string(nil), tt.expectedNames...)
 			slices.Sort(sortedNames)
 			slices.Sort(sortedExpectedNames)
 
