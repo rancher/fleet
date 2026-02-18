@@ -1387,7 +1387,7 @@ func getSecretNames(ctx context.Context, d dynamic.Interface, logger logr.Logger
 // When filtering by namespace, uses label selector for bundle-namespace.
 // When bundleNames is provided, additionally filters by bundle-name.
 func addBundleDeployments(ctx context.Context, d dynamic.Interface, logger logr.Logger, w *tar.Writer, filterCfg *filterConfig, opt Options) error {
-	// If we are suppposed to filter by GitRepo/HelmOp/Bundle but ended up with no bundles, skip
+	// If we are posed to filter by GitRepo/HelmOp/Bundle but ended up with no bundles, skip
 	// adding any bundledeployments since they should not exist.
 	if filterCfg.useFiltering && filterCfg.bundleNames == nil {
 		// No bundles to filter, skip adding any bundledeployments
