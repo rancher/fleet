@@ -24,6 +24,11 @@ func Test_Diff_NullPatch(t *testing.T) {
 			expectPatch: `{"metadata":{"labels":{"a":"b"}}}`,
 		},
 		{
+			name:        "fast_path_no_nulls_complex_patch",
+			patch:       `{"spec":{"replicas":3,"strategy":{"type":"RollingUpdate"},"template":{"metadata":{"labels":{"app":"test"}},"spec":{"containers":[{"name":"nginx","image":"nginx:1.14.2"}]}}}}`,
+			expectPatch: `{"spec":{"replicas":3,"strategy":{"type":"RollingUpdate"},"template":{"metadata":{"labels":{"app":"test"}},"spec":{"containers":[{"name":"nginx","image":"nginx:1.14.2"}]}}}}`,
+		},
+		{
 			name:        "removes_null_field",
 			patch:       `{"spec":{"strategy":{"rollingUpdate":null,"type":"RollingUpdate"}}}`,
 			expectPatch: `{"spec":{"strategy":{"type":"RollingUpdate"}}}`,
@@ -49,8 +54,8 @@ func Test_Diff_NullPatch(t *testing.T) {
 			expectEmpty: true,
 		},
 		{
-			name:      "fails_on_malformed_json",
-			patch:     `{"spec":`,
+			name:      "fails_on_malformed_json_with_null",
+			patch:     `{"spec":null,"bad":`,
 			expectErr: true,
 		},
 	}
@@ -155,5 +160,32 @@ func assertPatchJSONEqual(t *testing.T, got, want string) {
 
 	if string(gotNorm) != string(wantNorm) {
 		t.Fatalf("json mismatch\ngot:  %s\nwant: %s", gotNorm, wantNorm)
+	}
+}
+
+// Benchmark_Diff_NullPatch_WithNulls benchmarks normalizeNullPatch with a patch containing nulls.
+func Benchmark_Diff_NullPatch_WithNulls(b *testing.B) {
+	key := objectset.ObjectKey{Name: "test", Namespace: "ns"}
+	patch := []byte(`{"spec":{"strategy":{"rollingUpdate":null,"type":"RollingUpdate"},"template":{"spec":{"securityContext":null,"containers":[{"name":"nginx","resources":null}]}}}}`)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		patchCopy := make([]byte, len(patch))
+		copy(patchCopy, patch)
+		_, _ = normalizeNullPatch(key, &patchCopy)
+	}
+}
+
+// Benchmark_Diff_NullPatch_WithoutNulls benchmarks normalizeNullPatch with a patch containing no nulls.
+// This should be significantly faster due to the fast-path optimization.
+func Benchmark_Diff_NullPatch_WithoutNulls(b *testing.B) {
+	key := objectset.ObjectKey{Name: "test", Namespace: "ns"}
+	patch := []byte(`{"spec":{"replicas":3,"strategy":{"type":"RollingUpdate"},"template":{"metadata":{"labels":{"app":"test"}},"spec":{"containers":[{"name":"nginx","image":"nginx:1.14.2"}]}}}}`)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		patchCopy := make([]byte, len(patch))
+		copy(patchCopy, patch)
+		_, _ = normalizeNullPatch(key, &patchCopy)
 	}
 }

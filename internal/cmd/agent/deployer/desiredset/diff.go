@@ -1,6 +1,7 @@
 package desiredset
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"regexp"
@@ -417,6 +418,12 @@ func normalizeNullPatch(
 	key objectset.ObjectKey,
 	patch *[]byte,
 ) (bool, error) {
+	// Fast-path: skip expensive processing if patch doesn't contain "null"
+	// This avoids unmarshal/walk/marshal overhead for patches with no nulls
+	if !bytes.Contains(*patch, []byte("null")) {
+		return false, nil
+	}
+
 	var patchData map[string]any
 	if err := json.Unmarshal(*patch, &patchData); err != nil {
 		// Format patch as string and truncate if too large for logging
