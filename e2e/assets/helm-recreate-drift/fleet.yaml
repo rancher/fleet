@@ -1,0 +1,7 @@
+namespace: helm-recreate-drift-test
+
+helm:
+  chart: chart
+  releaseName: recreate-strategy-test
+  values:
+    replicas: 1
