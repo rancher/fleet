@@ -33,7 +33,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -52,25 +51,13 @@ jobs:
           go-version: ${{ env.SETUP_GO_VERSION }}
       - name: Install controller-gen
         run: go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.17.2
-      - name: Read App Secrets
-        uses: rancher-eio/read-vault-secrets@main
-        with:
-          secrets: |
-            secret/data/github/repo/${{ github.repository }}/github/pr-actions-write-app/credentials appId | APP_ID ;
-            secret/data/github/repo/${{ github.repository }}/github/pr-actions-write-app/credentials privateKey | PRIVATE_KEY
-      - name: Create App Token
-        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
-        id: app-token
-        with:
-          app-id: ${{ env.APP_ID }}
-          private-key: ${{ env.PRIVATE_KEY }}
       - name: Run release script
         run: |
           export CHARTS_DIR="${GITHUB_WORKSPACE}/rancher"
           ./fleet/.github/scripts/release-against-rancher.sh ${{github.event.inputs.new_fleet}} ${{github.event.inputs.new_chart}} ${{github.event.inputs.should_bump_api}}
       - name: Create Pull Request
         env:
-          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          GITHUB_TOKEN: ${{ secrets.PUSH_TO_FORKS_SUBMIT_PRS }}
         working-directory: ./rancher/
         run: |
           ../fleet/.github/scripts/create-pr.sh ${{github.event.inputs.rancher_ref}} ${{github.event.inputs.new_fleet}} ${{github.event.inputs.new_chart}} rancher
