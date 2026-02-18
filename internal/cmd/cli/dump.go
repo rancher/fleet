@@ -54,36 +54,42 @@ func (d *Dump) PersistentPre(_ *cobra.Command, _ []string) error {
 	return nil
 }
 
-func (d *Dump) Run(cmd *cobra.Command, args []string) error {
+func (d *Dump) ValidateFilterOptions(cmd *cobra.Command) error {
 	if d.WithSecrets && d.WithSecretsMetadata {
 		return fmt.Errorf("--with-secrets and --with-secrets-metadata are mutually exclusive")
 	}
 	if d.WithContent && d.WithContentMetadata {
 		return fmt.Errorf("--with-content and --with-content-metadata are mutually exclusive")
 	}
-	if d.AllNamespaces && d.Namespace != "fleet-local" {
-		// Check if namespace was explicitly set to something other than default
-		if cmd.Flags().Changed("namespace") {
-			return fmt.Errorf("--namespace and --all-namespaces are mutually exclusive")
-		}
-	}
 	if d.Gitrepo != "" && d.Bundle != "" {
-		return fmt.Errorf("--bundle and --gitrepo are mutually exclusive")
+		return fmt.Errorf("--gitrepo and --bundle are mutually exclusive")
 	}
-	if d.Gitrepo != "" && !cmd.Flags().Changed("namespace") {
-		return fmt.Errorf("--gitrepo requires --namespace to be explicitly specified")
+	if d.Gitrepo != "" && d.Helmop != "" {
+		return fmt.Errorf("--gitrepo and --helmop are mutually exclusive")
 	}
-	if d.Bundle != "" && !cmd.Flags().Changed("namespace") {
-		return fmt.Errorf("--bundle requires --namespace to be explicitly specified")
+	if d.Bundle != "" && d.Helmop != "" {
+		return fmt.Errorf("--bundle and --helmop are mutually exclusive")
 	}
-	if d.Helmop != "" && d.Gitrepo != "" {
-		return fmt.Errorf("--helmop and --gitrepo are mutually exclusive")
+	if (d.Gitrepo != "" || d.Bundle != "" || d.Helmop != "") && !cmd.Flags().Changed("namespace") {
+		return fmt.Errorf("--gitrepo, --bundle, and --helmop filters require --namespace to be explicitly specified")
 	}
-	if d.Helmop != "" && d.Bundle != "" {
-		return fmt.Errorf("--helmop and --bundle are mutually exclusive")
+	// If --all-namespaces is set, --namespace cannot be set to a specific namespace. It can either
+	// be left as the default "fleet-local" (which will be treated as all namespaces), or set to ""
+	// to explicitly indicate all namespaces.
+	if d.AllNamespaces && d.Namespace != "fleet-local" && cmd.Flags().Changed("namespace") {
+		return fmt.Errorf("--namespace and --all-namespaces are mutually exclusive")
 	}
-	if d.Helmop != "" && !cmd.Flags().Changed("namespace") {
-		return fmt.Errorf("--helmop requires --namespace to be explicitly specified")
+	// If --all-namespaces is set and --namespace is not explicitly set, treat it as all namespaces
+	// by setting namespace to ""
+	if d.AllNamespaces && d.Namespace == "fleet-local" && !cmd.Flags().Changed("namespace") {
+		d.Namespace = ""
+	}
+	return nil
+}
+
+func (d *Dump) Run(cmd *cobra.Command, args []string) error {
+	if err := d.ValidateFilterOptions(cmd); err != nil {
+		return err
 	}
 
 	cfg, err := ctrl.GetConfig()

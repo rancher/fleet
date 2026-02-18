@@ -218,7 +218,6 @@ func addSecretsToArchive(
 	w *tar.Writer,
 	metadataOnly bool,
 	filterCfg *filterConfig,
-	namespace string,
 	opt Options,
 ) error {
 	if filterCfg.useFiltering && len(filterCfg.secretNames) == 0 {
@@ -253,7 +252,7 @@ func addSecretsToArchive(
 nss:
 	for _, ns := range nss {
 		// Determine if we should filter secrets in this namespace
-		shouldFilter := secretNameMap != nil && ns == namespace && !systemNamespaces[ns]
+		shouldFilter := secretNameMap != nil && ns == filterCfg.namespace && !systemNamespaces[ns]
 
 		var secrets corev1.SecretList
 		for {
@@ -616,7 +615,9 @@ func createDialer(ctx context.Context, cfg *rest.Config, c client.Client, svc *c
 
 	matchingLabels := client.MatchingLabels{
 		"app":    appLabel,
-		shardKey: shardValue,
+	}
+	if shardKey != "" {
+		matchingLabels[shardKey] = shardValue
 	}
 	var pods corev1.PodList
 	for {
@@ -675,7 +676,6 @@ type filterConfig struct {
 	bundleNames []string
 	contentIDs  []string
 	secretNames []string
-	namespace   string
 	// useFiltering indicates whether any filtering is active; It does so by checking if
 	// opt.Namespace is set (and not in all-namespaces mode). Filtering by GitRepo, Bundle or HelmOp
 	// also implies namespace filtering, so we don't need to check those separately here.
@@ -688,7 +688,6 @@ type filterConfig struct {
 // determineFilterConfig analyzes options and returns the appropriate filtering configuration
 func determineFilterConfig(ctx context.Context, d dynamic.Interface, logger logr.Logger, opt Options) (*filterConfig, error) {
 	cfg := &filterConfig{
-		namespace:    opt.Namespace,
 		useFiltering: !opt.AllNamespaces && opt.Namespace != "",
 	}
 
@@ -735,11 +734,11 @@ func determineFilterConfig(ctx context.Context, d dynamic.Interface, logger logr
 
 	// Collect secret names if secret options are enabled
 	if (opt.WithSecrets || opt.WithSecretsMetadata) && len(cfg.bundleNames) > 0 {
-		cfg.secretNames, err = collectSecretNames(ctx, d, logger, opt.Namespace, cfg.bundleNames, opt.FetchLimit)
+		cfg.secretNames, err = collectSecretNames(ctx, d, logger, opt.Namespace, cfg.bundleNames, opt.GitRepo, opt.Bundle, opt.HelmOp, opt.FetchLimit)
 		if err != nil {
 			return nil, fmt.Errorf("failed to collect secret names: %w", err)
 		}
-		logger.Info("Collected secret names from GitRepos/Bundles", "count", len(cfg.secretNames))
+		logger.Info("Collected secret names from GitRepos/Bundles/HelmOps", "count", len(cfg.secretNames))
 	}
 
 	return cfg, nil
@@ -972,7 +971,7 @@ func CreateWithClients(ctx context.Context, cfg *rest.Config, d dynamic.Interfac
 	// Add secrets if requested
 	if opt.WithSecrets || opt.WithSecretsMetadata {
 		secretsMetadataOnly := opt.WithSecretsMetadata && !opt.WithSecrets
-		if err := addSecretsToArchive(ctx, d, c, logger, w, secretsMetadataOnly, filterCfg, filterCfg.namespace, opt); err != nil {
+		if err := addSecretsToArchive(ctx, d, c, logger, w, secretsMetadataOnly, filterCfg, opt); err != nil {
 			return fmt.Errorf("failed to add secrets to archive: %w", err)
 		}
 	}
@@ -1194,60 +1193,120 @@ func collectContentIDs(ctx context.Context, d dynamic.Interface, namespace strin
 	return ids, nil
 }
 
-// collectSecretNames fetches secret names referenced by GitRepos and Bundles in the given namespace.
+// collectSecretNames collects secret names referenced by GitRepos, Bundles, and HelmOps in the specified namespace.
 // It queries GitRepos for spec.helmSecretName, spec.helmSecretNameForPaths, and spec.clientSecretName,
-// and Bundles for spec.helm.valuesFrom[].secretKeyRef.name.
-// When bundleNames is provided, filters Bundles to only those specific bundles.
-func collectSecretNames(ctx context.Context, d dynamic.Interface, logger logr.Logger, namespace string, bundleNames []string, fetchLimit int64) ([]string, error) {
+// Bundles for spec.helm.valuesFrom[].secretKeyRef.name, and HelmOps for spec.helmSecretName.
+//
+// Filtering behavior:
+// - When gitRepoName is provided: collects secrets from only that GitRepo and its bundles
+// - When bundleFilterName is provided: collects secrets from only that Bundle (skips GitRepos)
+// - When helmOpName is provided: collects secrets from only that HelmOp and its bundles
+// - When none are provided (namespace filter only): collects secrets from all GitRepos and all Bundles
+//
+// This ensures that when filtering by a specific resource, we only collect secrets referenced by
+// that resource and its dependencies, avoiding leaking secrets from unrelated resources in the same namespace.
+func collectSecretNames(ctx context.Context, d dynamic.Interface, logger logr.Logger, namespace string, bundleNames []string, gitRepoName, bundleFilterName, helmOpName string, fetchLimit int64) ([]string, error) {
 	secretNameMap := make(map[string]bool)
 
-	// Fetch GitRepos in the namespace
-	gitRepoRID := schema.GroupVersionResource{
-		Group:    "fleet.cattle.io",
-		Version:  "v1alpha1",
-		Resource: "gitrepos",
+	// Only fetch GitRepos if:
+	// - We're filtering by a specific GitRepo (gitRepoName is set), OR
+	// - We're filtering by namespace only (gitRepoName, bundleFilterName, and helmOpName are all empty)
+	// Don't fetch GitRepos when filtering by Bundle or HelmOp only, since those resources already exist independently
+	if gitRepoName != "" || (bundleFilterName == "" && helmOpName == "") {
+		gitRepoRID := schema.GroupVersionResource{
+			Group:    "fleet.cattle.io",
+			Version:  "v1alpha1",
+			Resource: "gitrepos",
+		}
+
+		lo := metav1.ListOptions{Limit: fetchLimit}
+		for {
+			list, err := d.Resource(gitRepoRID).Namespace(namespace).List(ctx, lo)
+			if err != nil {
+				return nil, fmt.Errorf("failed to list gitrepos: %w", err)
+			}
+
+			for _, item := range list.Items {
+				// Filter by GitRepo name if specified
+				if gitRepoName != "" && item.GetName() != gitRepoName {
+					continue
+				}
+
+				var gitRepo fleet.GitRepo
+				if err := runtime.DefaultUnstructuredConverter.FromUnstructured(item.Object, &gitRepo); err != nil {
+					logger.Error(
+						fmt.Errorf("resource %v", item),
+						"Skipping resource listed as gitrepo but with incompatible format; this should not happen",
+					)
+					continue
+				}
+
+				if gitRepo.Spec.HelmSecretName != "" {
+					secretNameMap[gitRepo.Spec.HelmSecretName] = true
+				}
+				if gitRepo.Spec.HelmSecretNameForPaths != "" {
+					secretNameMap[gitRepo.Spec.HelmSecretNameForPaths] = true
+				}
+				if gitRepo.Spec.ClientSecretName != "" {
+					secretNameMap[gitRepo.Spec.ClientSecretName] = true
+				}
+			}
+
+			if list.GetContinue() == "" {
+				break
+			}
+			lo.Continue = list.GetContinue()
+		}
 	}
 
-	lo := metav1.ListOptions{Limit: fetchLimit}
-	for {
-		list, err := d.Resource(gitRepoRID).Namespace(namespace).List(ctx, lo)
-		if err != nil {
-			return nil, fmt.Errorf("failed to list gitrepos: %w", err)
+	// Fetch HelmOps if helmOpName is specified
+	if helmOpName != "" {
+		helmOpRID := schema.GroupVersionResource{
+			Group:    "fleet.cattle.io",
+			Version:  "v1alpha1",
+			Resource: "helmops",
 		}
 
-		for _, item := range list.Items {
-			var gitRepo fleet.GitRepo
-			un, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&item)
+		lo := metav1.ListOptions{Limit: fetchLimit}
+		for {
+			list, err := d.Resource(helmOpRID).Namespace(namespace).List(ctx, lo)
 			if err != nil {
-				logger.Error(
-					fmt.Errorf("resource %v", item),
-					"Skipping resource listed as gitrepo but with incompatible format; this should not happen",
-				)
-				continue
-			}
-			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(un, &gitRepo); err != nil {
-				logger.Error(
-					fmt.Errorf("resource %v", item),
-					"Skipping resource listed as gitrepo but with incompatible format; this should not happen",
-				)
-				continue
+				return nil, fmt.Errorf("failed to list helmops: %w", err)
 			}
 
-			if gitRepo.Spec.HelmSecretName != "" {
-				secretNameMap[gitRepo.Spec.HelmSecretName] = true
-			}
-			if gitRepo.Spec.HelmSecretNameForPaths != "" {
-				secretNameMap[gitRepo.Spec.HelmSecretNameForPaths] = true
-			}
-			if gitRepo.Spec.ClientSecretName != "" {
-				secretNameMap[gitRepo.Spec.ClientSecretName] = true
-			}
-		}
+			for _, item := range list.Items {
+				// Filter by HelmOp name
+				if item.GetName() != helmOpName {
+					continue
+				}
 
-		if list.GetContinue() == "" {
-			break
+				var helmOp fleet.HelmOp
+				un, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&item)
+				if err != nil {
+					logger.Error(
+						fmt.Errorf("resource %v", item),
+						"Skipping resource listed as helmop but with incompatible format; this should not happen",
+					)
+					continue
+				}
+				if err := runtime.DefaultUnstructuredConverter.FromUnstructured(un, &helmOp); err != nil {
+					logger.Error(
+						fmt.Errorf("resource %v", item),
+						"Skipping resource listed as helmop but with incompatible format; this should not happen",
+					)
+					continue
+				}
+
+				if helmOp.Spec.HelmSecretName != "" {
+					secretNameMap[helmOp.Spec.HelmSecretName] = true
+				}
+			}
+
+			if list.GetContinue() == "" {
+				break
+			}
+			lo.Continue = list.GetContinue()
 		}
-		lo.Continue = list.GetContinue()
 	}
 
 	// Fetch Bundles in the namespace
@@ -1266,7 +1325,7 @@ func collectSecretNames(ctx context.Context, d dynamic.Interface, logger logr.Lo
 		}
 	}
 
-	lo = metav1.ListOptions{Limit: fetchLimit}
+	lo := metav1.ListOptions{Limit: fetchLimit}
 	for {
 		list, err := d.Resource(bundleRID).Namespace(namespace).List(ctx, lo)
 		if err != nil {
@@ -1342,17 +1401,12 @@ func addBundleDeployments(ctx context.Context, d dynamic.Interface, logger logr.
 	return addObjectsToArchive(ctx, d, logger, "bundledeployments", w, opt)
 }
 
-// addObjectsWithNameFilter fetches resources from a namespace and filters by resource names
+// addObjectsWithNameFilter fetches specific resources by name using individual Get calls.
+// This is more efficient than listing all resources and filtering client-side, especially
+// when the number of names is small (the common case for --gitrepo, --helmop, --bundle).
 func addObjectsWithNameFilter(ctx context.Context, d dynamic.Interface, logger logr.Logger, resource string, w *tar.Writer, names []string, opt Options) error {
 	if len(names) == 0 {
-		// No names to filter, don't add any resources
 		return nil
-	}
-
-	// Create a map for efficient name lookup
-	nameMap := make(map[string]bool, len(names))
-	for _, name := range names {
-		nameMap[name] = true
 	}
 
 	rID := schema.GroupVersionResource{
@@ -1361,45 +1415,27 @@ func addObjectsWithNameFilter(ctx context.Context, d dynamic.Interface, logger l
 		Resource: resource,
 	}
 
-	logger.V(1).Info("Fetching with name filter...", "resource", rID.String(), "names", len(names))
+	logger.V(1).Info("Fetching by name...", "resource", rID.String(), "names", len(names))
 
-	lo := metav1.ListOptions{Limit: opt.FetchLimit}
-	for {
-		var list *unstructured.UnstructuredList
-		var err error
-
-		if opt.Namespace != "" && !opt.AllNamespaces {
-			list, err = d.Resource(rID).Namespace(opt.Namespace).List(ctx, lo)
-		} else {
-			list, err = d.Resource(rID).List(ctx, lo)
-		}
-
+	for _, name := range names {
+		obj, err := d.Resource(rID).Namespace(opt.Namespace).Get(ctx, name, metav1.GetOptions{})
 		if err != nil {
-			return fmt.Errorf("failed to list %s: %w", resource, err)
-		}
-
-		for _, i := range list.Items {
-			// Filter by name
-			if !nameMap[i.GetName()] {
+			if apierrors.IsNotFound(err) {
+				logger.V(1).Info("Resource not found, skipping", "resource", resource, "name", name)
 				continue
 			}
-
-			g, err := yaml.Marshal(&i)
-			if err != nil {
-				return fmt.Errorf("failed to marshal %s: %w", resource, err)
-			}
-
-			fileName := fmt.Sprintf("%s_%s_%s", resource, i.GetNamespace(), i.GetName())
-			if err := addFileToArchive(g, fileName, w); err != nil {
-				return err
-			}
+			return fmt.Errorf("failed to get %s %q: %w", resource, name, err)
 		}
 
-		c := list.GetContinue()
-		if c == "" {
-			break
+		g, err := yaml.Marshal(obj)
+		if err != nil {
+			return fmt.Errorf("failed to marshal %s: %w", resource, err)
 		}
-		lo.Continue = c
+
+		fileName := fmt.Sprintf("%s_%s_%s", resource, obj.GetNamespace(), obj.GetName())
+		if err := addFileToArchive(g, fileName, w); err != nil {
+			return err
+		}
 	}
 
 	return nil

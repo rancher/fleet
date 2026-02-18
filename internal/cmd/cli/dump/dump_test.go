@@ -630,7 +630,7 @@ func Test_addSecretsToArchive(t *testing.T) {
 				t.Fatalf("failed to determine filter config: %v", err)
 			}
 
-			err = addSecretsToArchive(ctx, fakeDynClient, mockClient, logger, tw, c.metadataOnly, filterCfg, "", Options{FetchLimit: 0})
+			err = addSecretsToArchive(ctx, fakeDynClient, mockClient, logger, tw, c.metadataOnly, filterCfg, Options{FetchLimit: 0})
 
 			if (err == nil) != (c.expErrStr == "") {
 				t.Fatalf("expected err %s, \n\tgot %s", c.expErrStr, err)
@@ -899,12 +899,17 @@ func Test_collectBundleNamesByGitRepo(t *testing.T) {
 
 			names, err := collectBundleNamesByGitRepo(ctx, fakeDynClient, tt.namespace, tt.gitrepo, tt.fetchLimit)
 
+			sortedNames  := append([]string(nil), names...)
+			sortedExpectedNames  := append([]string(nil), tt.expectedNames...)
+			slices.Sort(sortedNames)
+			slices.Sort(sortedExpectedNames)
+
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("collectBundleNamesByGitRepo() error = %v, wantErr %v", err, tt.wantErr)
 			}
 
-			if len(names) != len(tt.expectedNames) {
-				t.Fatalf("expected %d bundle names, got %d: %v", len(tt.expectedNames), len(names), names)
+			if len(sortedNames) != len(sortedExpectedNames) {
+				t.Fatalf("expected %d bundle sortedNames, got %d: %v", len(sortedExpectedNames), len(sortedNames), sortedNames)
 			}
 
 			for i, name := range names {
