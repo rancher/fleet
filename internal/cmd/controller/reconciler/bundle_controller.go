@@ -913,7 +913,8 @@ func (r *BundleReconciler) maybeDeleteOCIArtifact(ctx context.Context, bundle *f
 			"DeleteOCIArtifact",
 			"deleting OCI artifact %q: %v",
 			bundle.Spec.ContentsID,
-			err.Error(),
+			"%v",
+			err,
 		)
 	}
 
