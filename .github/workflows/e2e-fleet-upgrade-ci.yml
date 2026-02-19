@@ -19,7 +19,7 @@ jobs:
       matrix:
         k3s:
           - name: k3s-new
-            version: v1.34.1-k3s1
+            version: v1.35.1-k3s1
     name: fleet-upgrade-test-${{ matrix.k3s.name }}
 
     steps:
@@ -77,7 +77,8 @@ jobs:
           k3d cluster create upstream --wait \
             --agents 1 \
             --network "nw01" \
-            --image docker.io/rancher/k3s:${{matrix.k3s.version}}
+            --image docker.io/rancher/k3s:${{matrix.k3s.version}} \
+            --k3s-arg "--cluster-init@server:0"
       -
         name: Deploy Latest Release
         run: |
