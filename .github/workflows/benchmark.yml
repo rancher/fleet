@@ -25,7 +25,7 @@ env:
   GOARCH: amd64
   CGO_ENABLED: 0
   SETUP_K3D_VERSION: "v5.8.3"
-  SETUP_K3S_VERSION: "v1.35.0-k3s1"
+  SETUP_K3S_VERSION: "v1.35.1-k3s1"
   # Defaults for both manual and scheduled runs
   BENCH_TIMEOUT: ${{ github.event.inputs.timeout || '2m' }}
   BENCH_NAMESPACE: ${{ github.event.inputs.namespace || 'fleet-local' }}
@@ -73,7 +73,7 @@ jobs:
           k3d cluster create upstream --wait \
             --agents 1 \
             --image docker.io/rancher/k3s:${{ env.SETUP_K3S_VERSION }} \
-
+            --k3s-arg "--cluster-init@server:0"
 
       - name: Import Images Into k3d
         run: |

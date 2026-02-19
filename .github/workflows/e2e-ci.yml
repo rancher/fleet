@@ -23,9 +23,9 @@ jobs:
           # k3d version list k3s | sed 's/+/-/' | sort -h
           # https://hub.docker.com/r/rancher/k3s/tags
           - name: k3s-new
-            version: v1.35.0-k3s1
+            version: v1.35.1-k3s1
           - name: k3s-old
-            version: v1.34.1-k3s1
+            version: v1.33.8-k3s1
         test_type:
           - name: default
           - name: sharding
