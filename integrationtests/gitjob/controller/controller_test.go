@@ -438,15 +438,15 @@ var _ = Describe("GitJob controller", func() {
 					g.Expect(events.Items[0].Reason).To(Equal("GotNewCommit"))
 					g.Expect(events.Items[0].Message).To(Equal("9ca3a0ad308ed8bffa6602572e2a1343af9c3d2e"))
 					g.Expect(events.Items[0].Type).To(Equal("Normal"))
-					g.Expect(events.Items[0].Source.Component).To(Equal("gitjob-controller"))
+					g.Expect(events.Items[0].ReportingController).To(Equal("gitjob-controller"))
 					g.Expect(events.Items[1].Reason).To(Equal("Created"))
 					g.Expect(events.Items[1].Message).To(Equal("GitJob was created"))
+					g.Expect(events.Items[1].ReportingController).To(Equal("gitjob-controller"))
 					g.Expect(events.Items[1].Type).To(Equal("Normal"))
-					g.Expect(events.Items[1].Source.Component).To(Equal("gitjob-controller"))
 					g.Expect(events.Items[2].Reason).To(Equal("JobDeleted"))
 					g.Expect(events.Items[2].Message).To(Equal("job deletion triggered because job succeeded"))
 					g.Expect(events.Items[2].Type).To(Equal("Normal"))
-					g.Expect(events.Items[2].Source.Component).To(Equal("gitjob-controller"))
+					g.Expect(events.Items[2].ReportingController).To(Equal("gitjob-controller"))
 				}).Should(Succeed())
 
 				// job should not be present
@@ -706,10 +706,12 @@ var _ = Describe("GitJob controller", func() {
 
 				return string(job.UID) != string(newJob.UID)
 			}).Should(BeTrue())
-			// it should log 3 events
+			// it should log 5 events:
 			// first one is to log the new commit from the poller
 			// second one is to inform that the job was created
 			// third one reports on the job being deleted because of ForceUpdateGeneration
+			// the fourth and fifth ones represent job re-creation and deletion after successful completion,
+			// respectively
 			Eventually(func(g Gomega) {
 				events, _ := k8sClientSet.CoreV1().Events(gitRepo.Namespace).List(context.TODO(),
 					metav1.ListOptions{
@@ -717,19 +719,27 @@ var _ = Describe("GitJob controller", func() {
 						TypeMeta:      metav1.TypeMeta{Kind: "GitRepo"},
 					})
 				g.Expect(events).ToNot(BeNil())
-				g.Expect(events.Items).To(HaveLen(3))
+				g.Expect(events.Items).To(HaveLen(5))
+
+				for _, e := range events.Items {
+					g.Expect(e.ReportingController).To(Equal("gitjob-controller"))
+					g.Expect(e.Type).To(Equal("Normal"))
+				}
+
 				g.Expect(events.Items[0].Reason).To(Equal("GotNewCommit"))
 				g.Expect(events.Items[0].Message).To(Equal("9ca3a0ad308ed8bffa6602572e2a1343af9c3d2e"))
-				g.Expect(events.Items[0].Type).To(Equal("Normal"))
-				g.Expect(events.Items[0].Source.Component).To(Equal("gitjob-controller"))
+
 				g.Expect(events.Items[1].Reason).To(Equal("Created"))
 				g.Expect(events.Items[1].Message).To(Equal("GitJob was created"))
-				g.Expect(events.Items[1].Type).To(Equal("Normal"))
-				g.Expect(events.Items[1].Source.Component).To(Equal("gitjob-controller"))
+
 				g.Expect(events.Items[2].Reason).To(Equal("JobDeleted"))
 				g.Expect(events.Items[2].Message).To(Equal("job deletion triggered because job succeeded"))
-				g.Expect(events.Items[2].Type).To(Equal("Normal"))
-				g.Expect(events.Items[2].Source.Component).To(Equal("gitjob-controller"))
+
+				g.Expect(events.Items[3].Reason).To(Equal("Created"))
+				g.Expect(events.Items[3].Message).To(Equal("GitJob was created"))
+
+				g.Expect(events.Items[4].Reason).To(Equal("JobDeleted"))
+				g.Expect(events.Items[4].Message).To(Equal("job deletion triggered because job succeeded"))
 			}).Should(Succeed())
 		})
 
