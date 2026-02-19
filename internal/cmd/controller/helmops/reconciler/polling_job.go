@@ -124,7 +124,8 @@ func (j *helmPollingJob) pollHelm(ctx context.Context) error {
 				corev1.EventTypeWarning,
 				eventReason,
 				eventAction,
-				origErr.Error(),
+				"%v",
+				origErr,
 			)
 		}
 
@@ -156,6 +157,7 @@ func (j *helmPollingJob) pollHelm(ctx context.Context) error {
 			corev1.EventTypeNormal,
 			"GotNewChartVersion",
 			"GetNewChartVersion",
+			"%s",
 			version,
 		)
 	}
