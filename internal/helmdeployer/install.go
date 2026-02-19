@@ -3,7 +3,6 @@ package helmdeployer
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -12,8 +11,6 @@ import (
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/release"
-	"helm.sh/helm/v3/pkg/storage"
-	"helm.sh/helm/v3/pkg/storage/driver"
 
 	"github.com/rancher/fleet/internal/experimental"
 	"github.com/rancher/fleet/internal/helmdeployer/render"
@@ -156,12 +153,6 @@ func (h *Helm) install(ctx context.Context, bundleID string, manifest *manifest.
 		return u.Run(chart, values)
 	}
 
-	// Before running upgrade, check if we're upgrading from a pending-install with no previous version.
-	// In this case, ensure any orphaned pending-install release is marked as failed so the upgrade can proceed cleanly.
-	if err := h.ensureForceOnOrphanedPendingInstall(ctx, &cfg, releaseName); err != nil {
-		return nil, err
-	}
-
 	u := action.NewUpgrade(&cfg)
 	u.TakeOwnership = true
 	u.EnableDNS = !options.Helm.DisableDNS
@@ -190,29 +181,6 @@ func (h *Helm) install(ctx context.Context, bundleID string, manifest *manifest.
 	}
 	rel, err := u.Run(releaseName, chart, values)
 	if err != nil && err.Error() == HelmUpgradeInterruptedError {
-		// Check if there's a previous version to rollback to
-		lastRelease, err := cfg.Releases.Last(releaseName)
-		if err != nil {
-			return nil, fmt.Errorf("cannot get last release for rollback: %w", err)
-		}
-
-		// Check if this is an orphaned release and patch if needed
-		patched, err := handleOrphanedRelease(ctx, &cfg, lastRelease, releaseName)
-		if err != nil {
-			return nil, err
-		}
-
-		if patched {
-			// Retry the upgrade after patching status
-			logger.Info("Retrying upgrade after patching release to failed")
-			rel, err := u.Run(releaseName, chart, values)
-			if err != nil {
-				return nil, fmt.Errorf("upgrade failed after patching release status: %w", err)
-			}
-			return rel, nil
-		}
-
-		// Previous version exists, proceed with rollback
 		logger.Info("Helm doing a rollback", "error", HelmUpgradeInterruptedError)
 		r := action.NewRollback(&cfg)
 		err = r.Run(releaseName)
@@ -232,91 +200,15 @@ func (h *Helm) mustUninstall(cfg *action.Configuration, releaseName string) (boo
 	if err != nil {
 		return false, nil
 	}
-	return r.Info.Status == release.StatusUninstalling, nil
+	return r.Info.Status == release.StatusUninstalling || r.Info.Status == release.StatusPendingInstall, err
 }
 
 func (h *Helm) mustInstall(cfg *action.Configuration, releaseName string) (bool, error) {
 	_, err := cfg.Releases.Deployed(releaseName)
 	if err != nil && strings.Contains(err.Error(), "has no deployed releases") {
-		_, err := cfg.Releases.Last(releaseName)
-		if err == nil {
-			// There is a release, but not deployed (e.g., failed install/upgrade)
-			return false, nil
-		}
 		return true, nil
 	}
 	return false, err
-}
-
-// ensureForceOnOrphanedPendingInstall checks if we're about to upgrade from a pending-install
-// release that has no previous version. This handles the case where:
-// 1. A release is stuck in pending-install status
-// 2. No previous successful version exists (lost history or initial install failure)
-// 3. Normal upgrade will fail with "another operation is in progress"
-// In this scenario, we patch the release status to "failed" to allow the upgrade to proceed.
-// This avoids an unnecessary upgrade attempt that would fail and require a retry.
-func (h *Helm) ensureForceOnOrphanedPendingInstall(ctx context.Context, cfg *action.Configuration, releaseName string) error {
-	// Get the last release to check its status
-	lastRelease, err := cfg.Releases.Last(releaseName)
-	if err != nil {
-		// If we can't get the last release, proceed normally
-		if errors.Is(err, driver.ErrReleaseNotFound) {
-			return nil
-		}
-		return err
-	}
-
-	// Only handle pending-install status
-	if lastRelease.Info.Status != release.StatusPendingInstall {
-		return nil
-	}
-
-	// Check if a previous version exists and patch if needed
-	_, err = handleOrphanedRelease(ctx, cfg, lastRelease, releaseName)
-	return err
-}
-
-// handleOrphanedRelease checks if a release has no valid previous version to rollback to
-// and patches its status to failed if needed. This handles cases where a release is stuck
-// in a transient state (like pending-install) but has no previous version to rollback to.
-// Returns true if the release was patched, false otherwise.
-func handleOrphanedRelease(ctx context.Context, cfg *action.Configuration, lastRelease *release.Release, releaseName string) (bool, error) {
-	logger := log.FromContext(ctx)
-
-	// Check if a previous version exists
-	previousVersion := lastRelease.Version - 1
-	if previousVersion < 1 {
-		// Version 1 with no v0 - patch status to failed
-		logger.Info("No previous version exists, patching release to failed",
-			"releaseName", releaseName,
-			"currentVersion", lastRelease.Version)
-
-		if err := patchReleaseStatus(cfg.Releases, lastRelease, release.StatusFailed); err != nil {
-			return false, fmt.Errorf("failed to patch release status: %w", err)
-		}
-		return true, nil
-	}
-
-	// Try to get the previous version
-	_, err := cfg.Releases.Get(releaseName, previousVersion)
-	if err != nil {
-		if errors.Is(err, driver.ErrReleaseNotFound) {
-			// Previous version doesn't exist - patch status to failed
-			logger.Info("Previous version missing, patching release to failed",
-				"releaseName", releaseName,
-				"currentVersion", lastRelease.Version,
-				"missingVersion", previousVersion)
-
-			if err := patchReleaseStatus(cfg.Releases, lastRelease, release.StatusFailed); err != nil {
-				return false, fmt.Errorf("failed to patch release status: %w", err)
-			}
-			return true, nil
-		}
-		return false, err
-	}
-
-	// Previous version exists, no patching needed
-	return false, nil
 }
 
 func (h *Helm) getValues(ctx context.Context, options fleet.BundleDeploymentOptions, defaultNamespace string) (map[string]interface{}, error) {
@@ -499,15 +391,4 @@ func getDryRunConfig(chart *chart.Chart, dryRun bool) dryRunConfig {
 	}
 
 	return cfg
-}
-
-// patchReleaseStatus updates the status of a release in storage.
-// This is useful for transitioning releases from transient states like "pending-install"
-// to terminal states like "failed" to allow operations to proceed.
-func patchReleaseStatus(store *storage.Storage, rel *release.Release, newStatus release.Status) error {
-	// Update the release status
-	rel.Info.Status = newStatus
-
-	// Update the release in storage
-	return store.Update(rel)
 }
