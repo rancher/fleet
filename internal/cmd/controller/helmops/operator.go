@@ -119,7 +119,7 @@ func (g *HelmOperator) Run(cmd *cobra.Command, args []string) error {
 		Scheduler: sched,
 		Workers:   workers,
 		ShardID:   g.ShardID,
-		Recorder:  mgr.GetEventRecorderFor(fmt.Sprintf("fleet-helmops%s", shardIDSuffix)),
+		Recorder:  mgr.GetEventRecorder(fmt.Sprintf("fleet-helmops%s", shardIDSuffix)),
 	}
 
 	helmOpStatusReconciler := &reconciler.HelmOpStatusReconciler{

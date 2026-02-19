@@ -12,7 +12,7 @@ import (
 	"go.uber.org/mock/gomock"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -27,7 +27,7 @@ func TestPollGitRepo(t *testing.T) {
 	type testcase struct {
 		name            string
 		gitrepo         *v1alpha1.GitRepo
-		setupMocks      func(*mocks.MockK8sClient, *mocks.MockStatusWriter, *gitmocks.MockGitFetcher, *record.FakeRecorder)
+		setupMocks      func(*mocks.MockK8sClient, *mocks.MockStatusWriter, *gitmocks.MockGitFetcher, *events.FakeRecorder)
 		patchErr        string
 		expectedErr     string
 		expectedEvents  []string
@@ -42,7 +42,7 @@ func TestPollGitRepo(t *testing.T) {
 				Spec:       v1alpha1.GitRepoSpec{Repo: repoURL, Branch: branch},
 				Status:     v1alpha1.GitRepoStatus{Commit: "old-commit"},
 			},
-			setupMocks: func(c *mocks.MockK8sClient, sw *mocks.MockStatusWriter, gf *gitmocks.MockGitFetcher, r *record.FakeRecorder) {
+			setupMocks: func(c *mocks.MockK8sClient, sw *mocks.MockStatusWriter, gf *gitmocks.MockGitFetcher, r *events.FakeRecorder) {
 				nsName := types.NamespacedName{Name: name, Namespace: namespace}
 				c.EXPECT().Get(gomock.Any(), nsName, gomock.Any()).Times(2).DoAndReturn(func(_ context.Context, _ types.NamespacedName, obj *v1alpha1.GitRepo, _ ...client.GetOption) error {
 					obj.Name = name
@@ -74,7 +74,7 @@ func TestPollGitRepo(t *testing.T) {
 				Spec:       v1alpha1.GitRepoSpec{Repo: repoURL, Branch: branch},
 				Status:     v1alpha1.GitRepoStatus{Commit: "same-commit"},
 			},
-			setupMocks: func(c *mocks.MockK8sClient, sw *mocks.MockStatusWriter, gf *gitmocks.MockGitFetcher, r *record.FakeRecorder) {
+			setupMocks: func(c *mocks.MockK8sClient, sw *mocks.MockStatusWriter, gf *gitmocks.MockGitFetcher, r *events.FakeRecorder) {
 				c.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).Times(2).DoAndReturn(func(_ context.Context, _ client.ObjectKey, obj *v1alpha1.GitRepo, _ ...client.GetOption) error {
 					obj.Name = name
 					obj.Namespace = namespace
@@ -99,7 +99,7 @@ func TestPollGitRepo(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
 				Spec:       v1alpha1.GitRepoSpec{Repo: repoURL, Branch: branch},
 			},
-			setupMocks: func(c *mocks.MockK8sClient, sw *mocks.MockStatusWriter, gf *gitmocks.MockGitFetcher, r *record.FakeRecorder) {
+			setupMocks: func(c *mocks.MockK8sClient, sw *mocks.MockStatusWriter, gf *gitmocks.MockGitFetcher, r *events.FakeRecorder) {
 				nsName := types.NamespacedName{Name: name, Namespace: namespace}
 				c.EXPECT().Get(gomock.Any(), nsName, gomock.Any()).Times(2).DoAndReturn(func(_ context.Context, _ client.ObjectKey, obj *v1alpha1.GitRepo, _ ...client.GetOption) error {
 					obj.Name = name
@@ -128,7 +128,7 @@ func TestPollGitRepo(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
 				Spec:       v1alpha1.GitRepoSpec{Repo: repoURL, Branch: branch},
 			},
-			setupMocks: func(c *mocks.MockK8sClient, sw *mocks.MockStatusWriter, gf *gitmocks.MockGitFetcher, r *record.FakeRecorder) {
+			setupMocks: func(c *mocks.MockK8sClient, sw *mocks.MockStatusWriter, gf *gitmocks.MockGitFetcher, r *events.FakeRecorder) {
 				nsName := types.NamespacedName{Name: name, Namespace: namespace}
 				c.EXPECT().Get(gomock.Any(), nsName, gomock.Any()).Times(3).DoAndReturn(func(_ context.Context, _ client.ObjectKey, obj *v1alpha1.GitRepo, _ ...client.GetOption) error {
 					obj.Name = name
@@ -154,7 +154,7 @@ func TestPollGitRepo(t *testing.T) {
 			mockClient := mocks.NewMockK8sClient(ctrl)
 			mockStatusWriter := mocks.NewMockStatusWriter(ctrl)
 			mockGitFetcher := gitmocks.NewMockGitFetcher(ctrl)
-			recorder := record.NewFakeRecorder(10)
+			recorder := events.NewFakeRecorder(10)
 
 			if tc.setupMocks != nil {
 				tc.setupMocks(mockClient, mockStatusWriter, mockGitFetcher, recorder)

@@ -24,7 +24,6 @@ import (
 	"github.com/rancher/fleet/internal/metrics"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/durations"
-	fleetevent "github.com/rancher/fleet/pkg/event"
 	"github.com/rancher/fleet/pkg/sharding"
 
 	"github.com/rancher/wrangler/v3/pkg/condition"
@@ -41,7 +40,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	errutil "k8s.io/apimachinery/pkg/util/errors"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/cli-utils/pkg/kstatus/status"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -141,7 +140,7 @@ type GitJobReconciler struct {
 	JobNodeSelector string
 	GitFetcher      GitFetcher
 	Clock           TimeGetter
-	Recorder        record.EventRecorder
+	Recorder        events.EventRecorder
 	SystemNamespace string
 	KnownHosts      KnownHostsGetter
 }
@@ -201,7 +200,15 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// Restrictions / Overrides, gitrepo reconciler is responsible for setting error in status
 	oldStatus := gitrepo.Status.DeepCopy()
 	if err := AuthorizeAndAssignDefaults(ctx, r.Client, gitrepo); err != nil {
-		r.Recorder.Event(gitrepo, fleetevent.Warning, "FailedToApplyRestrictions", err.Error())
+		r.Recorder.Eventf(
+			gitrepo,
+			nil,
+			corev1.EventTypeWarning,
+			"FailedToApplyRestrictions",
+			"ApplyGitRepoRestrictions",
+			err.Error(),
+		)
+
 		return ctrl.Result{}, updateErrorStatus(ctx, r.Client, req.NamespacedName, *oldStatus, err)
 	}
 
@@ -305,7 +312,14 @@ func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger,
 	}, &job)
 	if err != nil && !apierrors.IsNotFound(err) {
 		err = fmt.Errorf("error retrieving git job: %w", err)
-		r.Recorder.Event(gitrepo, fleetevent.Warning, "FailedToGetGitJob", err.Error())
+		r.Recorder.Eventf(
+			gitrepo,
+			nil,
+			corev1.EventTypeWarning,
+			"FailedToGetGitJob",
+			"GetGitJob",
+			err.Error(),
+		)
 
 		return ctrl.Result{}, err
 	}
@@ -313,7 +327,14 @@ func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger,
 	if apierrors.IsNotFound(err) {
 		clientSecretChanged, helmSecretChanged, err := r.hasReferencedSecretChanged(ctx, gitrepo)
 		if err != nil {
-			r.Recorder.Event(gitrepo, fleetevent.Warning, "FailedValidatingSecret", err.Error())
+			r.Recorder.Eventf(
+				gitrepo,
+				nil,
+				corev1.EventTypeWarning,
+				"FailedValidatingSecret",
+				"ValidateSecret",
+				err.Error(),
+			)
 			return ctrl.Result{}, fmt.Errorf("error validating external secrets: %w", err)
 		}
 
@@ -332,16 +353,37 @@ func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger,
 				gitrepo.Status.Commit = commit
 			}
 			if err != nil {
-				r.Recorder.Event(gitrepo, fleetevent.Warning, "Failed", err.Error())
+				r.Recorder.Eventf(
+					gitrepo,
+					nil,
+					corev1.EventTypeWarning,
+					"Failed",
+					"MonitorLatestCommit",
+					err.Error(),
+				)
 			} else if oldCommit != gitrepo.Status.Commit {
-				r.Recorder.Event(gitrepo, fleetevent.Normal, "GotNewCommit", gitrepo.Status.Commit)
+				r.Recorder.Eventf(
+					gitrepo,
+					nil,
+					corev1.EventTypeNormal,
+					"GotNewCommit",
+					"GetNewCommit",
+					gitrepo.Status.Commit,
+				)
 			}
 		}
 
 		if r.shouldCreateJob(gitrepo, oldCommit, helmSecretChanged) {
 			r.updateGenerationValuesIfNeeded(gitrepo)
 			if err := r.validateExternalSecretExist(ctx, gitrepo); err != nil {
-				r.Recorder.Event(gitrepo, fleetevent.Warning, "FailedValidatingSecret", err.Error())
+				r.Recorder.Eventf(
+					gitrepo,
+					nil,
+					corev1.EventTypeWarning,
+					"FailedValidatingSecret",
+					"ValidateSecret",
+					err.Error(),
+				)
 				return ctrl.Result{}, fmt.Errorf("error validating external secrets: %w", err)
 			}
 			if err := r.createJobAndResources(ctx, gitrepo, logger); err != nil {
@@ -578,7 +620,14 @@ func (r *GitJobReconciler) deleteJobIfNeeded(ctx context.Context, gitRepo *v1alp
 		if err := r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationBackground)); err != nil && !apierrors.IsNotFound(err) {
 			return err, false
 		}
-		r.Recorder.Event(gitRepo, fleetevent.Normal, "JobDeleted", jobDeletedMessage)
+		r.Recorder.Eventf(
+			gitRepo,
+			nil,
+			corev1.EventTypeNormal,
+			"JobDeleted",
+			"DeleteJob",
+			jobDeletedMessage,
+		)
 	}
 
 	// finally if there's a job and any of the secrets related to the gitrepo changed,
