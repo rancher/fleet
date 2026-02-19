@@ -95,7 +95,8 @@ func (j *gitPollingJob) pollGitRepo(ctx context.Context) error {
 			corev1.EventTypeWarning,
 			"FailedToCheckCommit",
 			"CheckCommit",
-			origErr.Error(),
+			"%v",
+			origErr,
 		)
 
 		return j.updateErrorStatus(ctx, gitrepo, pollingTimestamp, origErr)

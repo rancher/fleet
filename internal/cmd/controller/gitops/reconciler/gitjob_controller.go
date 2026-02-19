@@ -206,7 +206,8 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			corev1.EventTypeWarning,
 			"FailedToApplyRestrictions",
 			"ApplyGitRepoRestrictions",
-			err.Error(),
+			"%v",
+			err,
 		)
 
 		return ctrl.Result{}, updateErrorStatus(ctx, r.Client, req.NamespacedName, *oldStatus, err)
@@ -318,7 +319,8 @@ func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger,
 			corev1.EventTypeWarning,
 			"FailedToGetGitJob",
 			"GetGitJob",
-			err.Error(),
+			"%v",
+			err,
 		)
 
 		return ctrl.Result{}, err
@@ -333,7 +335,8 @@ func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger,
 				corev1.EventTypeWarning,
 				"FailedValidatingSecret",
 				"ValidateSecret",
-				err.Error(),
+				"%v",
+				err,
 			)
 			return ctrl.Result{}, fmt.Errorf("error validating external secrets: %w", err)
 		}
@@ -359,7 +362,8 @@ func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger,
 					corev1.EventTypeWarning,
 					"Failed",
 					"MonitorLatestCommit",
-					err.Error(),
+					"%v",
+					err,
 				)
 			} else if oldCommit != gitrepo.Status.Commit {
 				r.Recorder.Eventf(
@@ -382,7 +386,8 @@ func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger,
 					corev1.EventTypeWarning,
 					"FailedValidatingSecret",
 					"ValidateSecret",
-					err.Error(),
+					"%v",
+					err,
 				)
 				return ctrl.Result{}, fmt.Errorf("error validating external secrets: %w", err)
 			}

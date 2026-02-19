@@ -85,6 +85,24 @@ func (m gitRepoPointerMatcher) String() string {
 	return ""
 }
 
+// errorMatcher implements a gomock matcher on error message strings.
+type errorMatcher struct {
+	errMsg string
+}
+
+func (m errorMatcher) Matches(x interface{}) bool {
+	err, ok := x.(error)
+	if !ok {
+		return false
+	}
+
+	return err.Error() == m.errMsg
+}
+
+func (m errorMatcher) String() string {
+	return fmt.Sprintf("matches error %q", m.errMsg)
+}
+
 func TestReconcile_Error_WhenGitrepoRestrictionsAreNotMet(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
@@ -135,7 +153,8 @@ func TestReconcile_Error_WhenGitrepoRestrictionsAreNotMet(t *testing.T) {
 		corev1.EventTypeWarning,
 		"FailedToApplyRestrictions",
 		"ApplyGitRepoRestrictions",
-		"empty targetNamespace denied, because allowedTargetNamespaces restriction is present",
+		"%v",
+		errorMatcher{"empty targetNamespace denied, because allowedTargetNamespaces restriction is present"},
 	)
 
 	r := GitJobReconciler{
@@ -212,7 +231,8 @@ func TestReconcile_Error_WhenGetGitJobErrors(t *testing.T) {
 		corev1.EventTypeWarning,
 		"FailedToGetGitJob",
 		"GetGitJob",
-		"error retrieving git job: GITJOB ERROR",
+		"%v",
+		errorMatcher{"error retrieving git job: GITJOB ERROR"},
 	)
 
 	r := GitJobReconciler{
@@ -285,7 +305,8 @@ func TestReconcile_Error_WhenSecretDoesNotExist(t *testing.T) {
 		corev1.EventTypeWarning,
 		"FailedValidatingSecret",
 		"ValidateSecret",
-		"failed to look up HelmSecretNameForPaths, error: SECRET ERROR",
+		"%v",
+		errorMatcher{"failed to look up HelmSecretNameForPaths, error: SECRET ERROR"},
 	)
 
 	statusClient := mocks.NewMockStatusWriter(mockCtrl)
