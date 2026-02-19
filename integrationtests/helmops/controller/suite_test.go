@@ -88,7 +88,7 @@ var _ = BeforeSuite(func() {
 	err = (&reconciler.HelmOpReconciler{
 		Client:    mgr.GetClient(),
 		Scheme:    mgr.GetScheme(),
-		Recorder:  mgr.GetEventRecorderFor("helmops-controller"),
+		Recorder:  mgr.GetEventRecorder("helmops-controller"),
 		Scheduler: sched,
 		Workers:   50,
 	}).SetupWithManager(mgr)
