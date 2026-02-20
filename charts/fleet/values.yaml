@@ -160,6 +160,9 @@ helmops:
   enabled: true
   replicas: 1
 
+imagescan:
+  enabled: false
+
 ## Fleet agent configuration
 agent:
   replicas: 1

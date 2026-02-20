@@ -50,7 +50,9 @@ rules:
     resources:
       - "bundles"
       - "bundledeployments"
+{{- if .Values.imagescan.enabled }}
       - "imagescans"
+{{- end }}
       - "contents"
     verbs:
       - list

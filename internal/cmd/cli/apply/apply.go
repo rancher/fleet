@@ -94,6 +94,7 @@ type Options struct {
 	DrivenScanSeparator          string
 	JobNameEnvVar                string
 	BundleCreationMaxConcurrency int
+	ImagescanEnabled             bool
 }
 
 type bundleWithOpts struct {
@@ -441,6 +442,7 @@ func newBundle(ctx context.Context, name, baseDir string, opts Options) (*fleet.
 				Force:           opts.CorrectDriftForce,
 				KeepFailHistory: opts.CorrectDriftKeepFailHistory,
 			},
+			ImagescanEnabled: opts.ImagescanEnabled,
 		})
 		if err != nil {
 			return nil, nil, err

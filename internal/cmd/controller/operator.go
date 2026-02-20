@@ -3,6 +3,8 @@ package controller
 import (
 	"context"
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
 
 	"github.com/reugn/go-quartz/quartz"
@@ -159,18 +161,28 @@ func start(
 		return err
 	}
 
-	// imagescan controller
-	if err = (&reconciler.ImageScanReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+	imagescanEnabled := false
+	if v := os.Getenv("IMAGESCAN_ENABLED"); v != "" {
+		enabled, err := strconv.ParseBool(v)
+		if err != nil {
+			setupLog.Error(err, "failed to parse IMAGESCAN_ENABLED", "value", v)
+		}
+		imagescanEnabled = enabled
+	}
 
-		Scheduler: sched,
-		ShardID:   shardID,
+	if imagescanEnabled {
+		if err = (&reconciler.ImageScanReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
 
-		Workers: workersOpts.ImageScan,
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "ImageScan")
-		return err
+			Scheduler: sched,
+			ShardID:   shardID,
+
+			Workers: workersOpts.ImageScan,
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "ImageScan")
+			return err
+		}
 	}
 
 	if experimental.SchedulesEnabled() {
