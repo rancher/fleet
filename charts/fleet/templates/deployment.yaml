@@ -69,6 +69,10 @@ spec:
         - name: CATTLE_DEV_MODE
           value: "true"
         {{- end }}
+        {{- if $.Values.imagescan.enabled }}
+        - name: IMAGESCAN_ENABLED
+          value: {{ quote $.Values.imagescan.enabled }}
+        {{- end }}
         {{- if $.Values.controller.reconciler.workers.bundle }}
         - name: BUNDLE_RECONCILER_WORKERS
           value: {{ quote $.Values.controller.reconciler.workers.bundle }}
@@ -85,7 +89,7 @@ spec:
         - name: CLUSTERGROUP_RECONCILER_WORKERS
           value: {{ quote $.Values.controller.reconciler.workers.clustergroup }}
         {{- end }}
-        {{- if $.Values.controller.reconciler.workers.imagescan }}
+        {{- if and $.Values.imagescan.enabled $.Values.controller.reconciler.workers.imagescan }}
         - name: IMAGESCAN_RECONCILER_WORKERS
           value: {{ quote $.Values.controller.reconciler.workers.imagescan }}
         {{- end }}

@@ -37,6 +37,7 @@ type Options struct {
 	KeepResources    bool
 	DeleteNamespace  bool
 	CorrectDrift     *fleet.CorrectDrift
+	ImagescanEnabled bool
 }
 
 // NewBundle reads the fleet.yaml, from stdin, or basedir, or a file in basedir.
@@ -163,6 +164,10 @@ func bundleFromDir(ctx context.Context, name, baseDir string, bundleData []byte,
 	}
 
 	var scans []*fleet.ImageScan
+	if len(fy.ImageScans) > 0 && !opts.ImagescanEnabled {
+		return nil, nil, errors.New("imagescan is disabled; remove imagescans from your config files, or enable imagescan")
+	}
+
 	for i, scan := range fy.ImageScans {
 		if scan.Image == "" {
 			continue

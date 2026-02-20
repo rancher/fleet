@@ -102,6 +102,10 @@ spec:
             - name: GITREPO_RECONCILER_WORKERS
               value: {{ quote $.Values.controller.reconciler.workers.gitrepo }}
           {{- end }}
+          {{- if $.Values.imagescan.enabled }}
+            - name: IMAGESCAN_ENABLED
+              value: {{ quote $.Values.imagescan.enabled }}
+          {{- end }}
 {{- if $.Values.extraEnv }}
 {{ toYaml $.Values.extraEnv | indent 12}}
 {{- end }}
