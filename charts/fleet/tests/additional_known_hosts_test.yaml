@@ -110,3 +110,23 @@ tests:
       - notMatchRegex:
           path: data["known_hosts"]
           pattern: '\{\{-? range'
+
+  - it: should work correctly when additionalKnownHosts is completely undefined
+    # This tests the scenario on older release branches that don't have
+    # the additionalKnownHosts value defined in their values.yaml at all
+    template: configmap_known_hosts.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchRegex:
+          path: data["known_hosts"]
+          pattern: 'github\.com ssh-ed25519'
+      - matchRegex:
+          path: data["known_hosts"]
+          pattern: 'gitlab\.com ssh-rsa'
+      # no raw Helm template markers must leak into the rendered value
+      - notMatchRegex:
+          path: data["known_hosts"]
+          pattern: '\{\{-? range'
