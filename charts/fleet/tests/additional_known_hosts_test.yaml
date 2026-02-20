@@ -14,43 +14,54 @@ tests:
       # no assertions made on fingerprints of default entries, as those may evolve over time.
       - matchRegex:
           path: data["known_hosts"]
-          pattern: 'bitbucket.org ecdsa-sha2-nistp256'
+          pattern: 'bitbucket\.org ecdsa-sha2-nistp256'
       - matchRegex:
           path: data["known_hosts"]
-          pattern: 'bitbucket.org ssh-ed25519'
+          pattern: 'bitbucket\.org ssh-ed25519'
       - matchRegex:
           path: data["known_hosts"]
-          pattern: 'bitbucket.org ssh-rsa'
+          pattern: 'bitbucket\.org ssh-rsa'
       - matchRegex:
           path: data["known_hosts"]
-          pattern: 'github.com ecdsa-sha2-nistp256'
+          pattern: 'github\.com ecdsa-sha2-nistp256'
       - matchRegex:
           path: data["known_hosts"]
-          pattern: 'github.com ssh-ed25519'
+          pattern: 'github\.com ssh-ed25519'
       - matchRegex:
           path: data["known_hosts"]
-          pattern: 'github.com ssh-rsa'
+          pattern: 'github\.com ssh-rsa'
       - matchRegex:
           path: data["known_hosts"]
-          pattern: 'gitlab.com ecdsa-sha2-nistp256'
+          pattern: 'gitlab\.com ecdsa-sha2-nistp256'
       - matchRegex:
           path: data["known_hosts"]
-          pattern: 'gitlab.com ssh-ed25519'
+          pattern: 'gitlab\.com ssh-ed25519'
       - matchRegex:
           path: data["known_hosts"]
-          pattern: 'gitlab.com ssh-rsa'
+          pattern: 'gitlab\.com ssh-rsa'
       - matchRegex:
           path: data["known_hosts"]
-          pattern: 'ssh.dev.azure.com ssh-rsa'
+          pattern: 'ssh\.dev\.azure\.com ssh-rsa'
       - matchRegex:
           path: data["known_hosts"]
-          pattern: 'vs-ssh.visualstudio.com ssh-rsa'
+          pattern: 'vs-ssh\.visualstudio\.com ssh-rsa'
+      # custom entries must appear without leading whitespace
       - matchRegex:
           path: data["known_hosts"]
-          pattern: '[foo.bar.baz]'
+          pattern: '\[foo\.bar\.baz\]:2222 ecdsa-sha2-nistp256'
+      - notMatchRegex:
+          path: data["known_hosts"]
+          pattern: ' +\[foo\.bar\.baz\]'
       - matchRegex:
           path: data["known_hosts"]
-          pattern: 'my.custom.host ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl'
+          pattern: 'my\.custom\.host ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl'
+      - notMatchRegex:
+          path: data["known_hosts"]
+          pattern: ' +my\.custom\.host'
+      # no raw Helm template markers must leak into the rendered value
+      - notMatchRegex:
+          path: data["known_hosts"]
+          pattern: '\{\{-? range'
 
   - it: should leave the config map untouched if no additional entries are set
     set:
@@ -64,34 +75,38 @@ tests:
       # no assertions made on fingerprints of default entries, as those may evolve over time.
       - matchRegex:
           path: data["known_hosts"]
-          pattern: 'bitbucket.org ecdsa-sha2-nistp256'
+          pattern: 'bitbucket\.org ecdsa-sha2-nistp256'
       - matchRegex:
           path: data["known_hosts"]
-          pattern: 'bitbucket.org ssh-ed25519'
+          pattern: 'bitbucket\.org ssh-ed25519'
       - matchRegex:
           path: data["known_hosts"]
-          pattern: 'bitbucket.org ssh-rsa'
+          pattern: 'bitbucket\.org ssh-rsa'
       - matchRegex:
           path: data["known_hosts"]
-          pattern: 'github.com ecdsa-sha2-nistp256'
+          pattern: 'github\.com ecdsa-sha2-nistp256'
       - matchRegex:
           path: data["known_hosts"]
-          pattern: 'github.com ssh-ed25519'
+          pattern: 'github\.com ssh-ed25519'
       - matchRegex:
           path: data["known_hosts"]
-          pattern: 'github.com ssh-rsa'
+          pattern: 'github\.com ssh-rsa'
       - matchRegex:
           path: data["known_hosts"]
-          pattern: 'gitlab.com ecdsa-sha2-nistp256'
+          pattern: 'gitlab\.com ecdsa-sha2-nistp256'
       - matchRegex:
           path: data["known_hosts"]
-          pattern: 'gitlab.com ssh-ed25519'
+          pattern: 'gitlab\.com ssh-ed25519'
       - matchRegex:
           path: data["known_hosts"]
-          pattern: 'gitlab.com ssh-rsa'
+          pattern: 'gitlab\.com ssh-rsa'
       - matchRegex:
           path: data["known_hosts"]
-          pattern: 'ssh.dev.azure.com ssh-rsa'
+          pattern: 'ssh\.dev\.azure\.com ssh-rsa'
       - matchRegex:
           path: data["known_hosts"]
-          pattern: 'vs-ssh.visualstudio.com ssh-rsa'
+          pattern: 'vs-ssh\.visualstudio\.com ssh-rsa'
+      # no raw Helm template markers must leak into the rendered value
+      - notMatchRegex:
+          path: data["known_hosts"]
+          pattern: '\{\{-? range'
