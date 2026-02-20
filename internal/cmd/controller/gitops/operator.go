@@ -140,6 +140,15 @@ func (g *GitOperator) Run(cmd *cobra.Command, args []string) error {
 		workers = w
 	}
 
+	imagescanEnabled := false
+	if v := os.Getenv("IMAGESCAN_ENABLED"); v != "" {
+		enabled, err := strconv.ParseBool(v)
+		if err != nil {
+			setupLog.Error(err, "failed to parse IMAGESCAN_ENABLED", "value", v)
+		}
+		imagescanEnabled = enabled
+	}
+
 	kh := ssh.KnownHosts{EnforceHostKeyChecks: !g.SkipHostKeyChecks}
 
 	// Add an indexer for the Gitrepo name label as that will make accesses in the cache
@@ -150,7 +159,7 @@ func (g *GitOperator) Run(cmd *cobra.Command, args []string) error {
 
 	// Add an indexer for the GitRepo name field in ImageScans as that will make accesses in the cache
 	// faster
-	if err := AddImageScanGitRepoIndexer(ctx, mgr); err != nil {
+	if err := AddImageScanGitRepoIndexer(ctx, mgr, imagescanEnabled); err != nil {
 		return err
 	}
 
@@ -180,6 +189,7 @@ func (g *GitOperator) Run(cmd *cobra.Command, args []string) error {
 		Recorder:        mgr.GetEventRecorderFor(fmt.Sprintf("fleet-gitops%s", shardIDSuffix)),
 		SystemNamespace: namespace,
 		KnownHosts:      kh,
+		WithImagescan:   imagescanEnabled,
 	}
 
 	statusReconciler := &reconciler.StatusReconciler{
@@ -292,7 +302,11 @@ func AddRepoNameLabelIndexer(ctx context.Context, mgr manager.Manager) error {
 	)
 }
 
-func AddImageScanGitRepoIndexer(ctx context.Context, mgr manager.Manager) error {
+func AddImageScanGitRepoIndexer(ctx context.Context, mgr manager.Manager, enabled bool) error {
+	if !enabled {
+		return nil
+	}
+
 	return mgr.GetFieldIndexer().IndexField(
 		ctx,
 		&fleet.ImageScan{},

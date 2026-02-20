@@ -144,6 +144,7 @@ type GitJobReconciler struct {
 	Recorder        record.EventRecorder
 	SystemNamespace string
 	KnownHosts      KnownHostsGetter
+	WithImagescan   bool
 }
 
 func (r *GitJobReconciler) SetupWithManager(mgr ctrl.Manager) error {
@@ -421,16 +422,18 @@ func (r *GitJobReconciler) handleDelete(ctx context.Context, logger logr.Logger,
 	}
 
 	// remove the job scheduled by imagescan, if any
-	_ = r.Scheduler.DeleteJob(imagescan.GitCommitKey(gitrepo.Namespace, gitrepo.Name))
+	if r.WithImagescan {
+		_ = r.Scheduler.DeleteJob(imagescan.GitCommitKey(gitrepo.Namespace, gitrepo.Name))
 
-	images, err := r.listImageScansForGitrepo(ctx, gitrepo)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
+		images, err := r.listImageScansForGitrepo(ctx, gitrepo)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
 
-	if len(images.Items) > 0 {
-		logger.V(1).Info("GitRepo deleted, purging imagescans")
-		return ctrl.Result{RequeueAfter: requeueAfterResourceCleanup}, batchDeleteDependentResources(ctx, r.Client, images)
+		if len(images.Items) > 0 {
+			logger.V(1).Info("GitRepo deleted, purging imagescans")
+			return ctrl.Result{RequeueAfter: requeueAfterResourceCleanup}, batchDeleteDependentResources(ctx, r.Client, images)
+		}
 	}
 
 	// Delete the target namespace if DeleteNamespace is true

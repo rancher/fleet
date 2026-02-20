@@ -438,7 +438,16 @@ func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.Git
 
 	saName := names.SafeConcatName("git", gitrepo.Name)
 	logger := log.FromContext(ctx)
-	args, envs := argsAndEnvs(gitrepo, logger, CACertsFilePathOverride, r.KnownHosts, drivenScanSeparator, helmInsecure, helmBasicHTTP)
+	args, envs := argsAndEnvs(
+		gitrepo,
+		logger,
+		CACertsFilePathOverride,
+		r.KnownHosts,
+		drivenScanSeparator,
+		helmInsecure,
+		helmBasicHTTP,
+		r.WithImagescan,
+	)
 
 	zero := int32(0)
 
@@ -647,6 +656,7 @@ func argsAndEnvs(
 	drivenScanSeparator string,
 	helmInsecureSkipTLS bool,
 	helmBasicHTTP bool,
+	enableImagescan bool,
 ) ([]string, []corev1.EnvVar) {
 	args := []string{
 		"fleet",
@@ -670,6 +680,10 @@ func argsAndEnvs(
 		fmt.Sprintf("--paused=%v", gitrepo.Spec.Paused),
 		"--target-namespace", gitrepo.Spec.TargetNamespace,
 	)
+
+	if enableImagescan {
+		args = append(args, "--imagescan-enabled")
+	}
 
 	if gitrepo.Spec.KeepResources {
 		args = append(args, "--keep-resources")

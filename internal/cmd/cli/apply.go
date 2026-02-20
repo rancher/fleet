@@ -67,6 +67,7 @@ type Apply struct {
 	DrivenScan                   bool              `usage:"Use driven scan. Bundles are defined by the user" name:"driven-scan"`
 	DrivenScanSeparator          string            `usage:"Separator to use for bundle folder and options file" name:"driven-scan-sep" default:":"`
 	BundleCreationMaxConcurrency int               `usage:"Maximum number of concurrent bundle creation routines" name:"bundle-creation-max-concurrency" default:"4" env:"FLEET_BUNDLE_CREATION_MAX_CONCURRENCY"`
+	ImagescanEnabled             bool              `usage:"Enable imagescan. If disabled, found imagescans will lead to errors" name:"imagescan-enabled"`
 }
 
 func (r *Apply) PersistentPre(_ *cobra.Command, _ []string) error {
@@ -129,6 +130,7 @@ func (a *Apply) run(cmd *cobra.Command, args []string) error {
 		DrivenScanSeparator:          a.DrivenScanSeparator,
 		OCIRegistrySecret:            a.OCIRegistrySecret,
 		BundleCreationMaxConcurrency: a.BundleCreationMaxConcurrency,
+		ImagescanEnabled:             a.ImagescanEnabled,
 	}
 
 	knownHostsPath, err := writeTmpKnownHosts()
