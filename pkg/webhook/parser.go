@@ -11,6 +11,8 @@ import (
 	"github.com/go-playground/webhooks/v6/gitlab"
 	"github.com/go-playground/webhooks/v6/gogs"
 	corev1 "k8s.io/api/core/v1"
+
+	gerrit "github.com/rancher/fleet/pkg/webhook/gerrit"
 )
 
 const (
@@ -38,6 +40,9 @@ func parseWebhook(r *http.Request, secret *corev1.Secret) (interface{}, error) {
 		return parseBitbucketServer(r, secret)
 	case r.Header.Get("X-Vss-Activityid") != "" || r.Header.Get("X-Vss-Subscriptionid") != "":
 		return parseAzureDevops(r, secret)
+	// Gerrit does not provide any discernible headers to identify the event. So we need to put it at the end.
+	case r.Header.Get("x-origin-url") != "":
+		return parseGerrit(r, secret)
 	}
 
 	return nil, nil
@@ -76,6 +81,23 @@ func parseGogs(r *http.Request, secret *corev1.Secret) (interface{}, error) {
 	}
 
 	return hook.Parse(r, gogs.PushEvent)
+}
+
+func parseGerrit(r *http.Request, secret *corev1.Secret) (interface{}, error) {
+	var hook *gerrit.Webhook
+	var err error
+
+	if secret != nil {
+		// Gerrit does not support secrets.
+	}
+
+	hook, err = gerrit.New()
+
+	if err != nil {
+		return nil, err
+	}
+
+	return hook.Parse(r, gerrit.ChangeMergedEvent)
 }
 
 func parseGithub(r *http.Request, secret *corev1.Secret) (interface{}, error) {
