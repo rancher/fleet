@@ -51,6 +51,30 @@ func (a *BundleMatch) MatchTargetCustomizations(clusterName string, clusterGroup
 	return nil
 }
 
+// HasDoNotDeployTarget returns true if any target customization matching the given cluster
+// has DoNotDeploy set to true. Unlike MatchTargetCustomizations, this scans all matching
+// targets instead of stopping at the first match, so a doNotDeploy entry does not have to
+// appear before a broader matching entry in the target list.
+func (a *BundleMatch) HasDoNotDeployTarget(clusterName string, clusterGroups map[string]map[string]string, clusterLabels map[string]string) bool {
+	for _, tm := range a.matcher.matches {
+		if !tm.bundleTarget.DoNotDeploy {
+			continue
+		}
+		if len(clusterGroups) == 0 {
+			if criteriaWithoutRestrictions(tm, clusterName, "", nil, clusterLabels) {
+				return true
+			}
+		} else {
+			for cg, cgLabels := range clusterGroups {
+				if criteriaWithoutRestrictions(tm, clusterName, cg, cgLabels, clusterLabels) {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
 type targetMatch struct {
 	bundleTarget *fleet.BundleTarget
 	criteria     *ClusterMatcher

@@ -81,14 +81,21 @@ func (m *Manager) Targets(ctx context.Context, bundle *fleet.Bundle, manifestID 
 			if target == nil {
 				continue
 			}
+			// Check all matching targetCustomizations for doNotDeploy, not just the first match.
+			// This ensures that a doNotDeploy entry is honoured even when a broader-matching
+			// target appears before it in the target list (fixes first-match bypass).
+			if bm.HasDoNotDeployTarget(cluster.Name, ClusterGroupsToLabelMap(clusterGroups), cluster.Labels) {
+				logger.V(1).Info("BundleDeployment creation for Bundle was skipped because doNotDeploy is set to true.")
+				continue
+			}
+			if target.DoNotDeploy {
+				logger.V(1).Info("BundleDeployment creation for Bundle was skipped because doNotDeploy is set to true.")
+				continue
+			}
 			// check if there is any matching targetCustomization that should be applied
 			targetOpts := target.BundleDeploymentOptions
 			targetCustomized := bm.MatchTargetCustomizations(cluster.Name, ClusterGroupsToLabelMap(clusterGroups), cluster.Labels)
 			if targetCustomized != nil {
-				if targetCustomized.DoNotDeploy {
-					logger.V(1).Info("BundleDeployment creation for Bundle was skipped because doNotDeploy is set to true.")
-					continue
-				}
 				targetOpts = targetCustomized.BundleDeploymentOptions
 			}
 

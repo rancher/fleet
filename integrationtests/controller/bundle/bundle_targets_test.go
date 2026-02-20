@@ -459,6 +459,53 @@ var _ = Describe("Bundle targets", Ordered, func() {
 		})
 	})
 
+	// Regression test for https://github.com/rancher/fleet/issues/3580:
+	// When a broader-matching target appears before a doNotDeploy target in the list,
+	// the doNotDeploy target was previously bypassed due to first-match semantics.
+	When("a broader-matching targetCustomization appears before a doNotDeploy targetCustomization", func() {
+		BeforeEach(func() {
+			bundleName = "donot-deploy-after-broader-match"
+			bdLabels = map[string]string{
+				"fleet.cattle.io/bundle-name":      bundleName,
+				"fleet.cattle.io/bundle-namespace": namespace,
+			}
+			expectedNumberOfBundleDeployments = 0
+			// simulate targets in fleet.yaml:
+			// - first entry matches all clusters (broader match)
+			// - second entry matches cluster "one" with doNotDeploy=true
+			// With the old first-match logic, cluster "one" would match the first entry and
+			// the doNotDeploy entry would never be evaluated.
+			targets = []v1alpha1.BundleTarget{
+				{
+					BundleDeploymentOptions: v1alpha1.BundleDeploymentOptions{
+						Helm: &v1alpha1.HelmOptions{
+							Values: &v1alpha1.GenericMap{Data: map[string]interface{}{"replicas": "1"}},
+						},
+					},
+					ClusterGroup: "all",
+				},
+				{
+					ClusterGroup: "one",
+					DoNotDeploy:  true,
+				},
+			}
+			// simulate targets in GitRepo: only cluster group "one" is targeted
+			targetsInGitRepo := []v1alpha1.BundleTarget{
+				{
+					ClusterGroup: "one",
+				},
+			}
+			targetRestrictions = make([]v1alpha1.BundleTarget, len(targetsInGitRepo))
+			copy(targetRestrictions, targetsInGitRepo)
+			targets = append(targets, targetsInGitRepo...)
+		})
+
+		It("no BundleDeployments are created for cluster one", func() {
+			waitForBundleToBeReady(bundleName)
+			_ = verifyBundlesDeploymentsAreCreated(expectedNumberOfBundleDeployments, bdLabels, bundleName)
+		})
+	})
+
 	When("setting doNotDeploy to a target customization after the bundle has been deployed", func() {
 		BeforeEach(func() {
 			bundleName = "one-customized-do-not-deploy-two-later"
