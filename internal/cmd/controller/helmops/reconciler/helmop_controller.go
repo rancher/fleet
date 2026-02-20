@@ -14,7 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	errutil "k8s.io/apimachinery/pkg/util/errors"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -47,7 +47,7 @@ type HelmOpReconciler struct {
 	Scheduler quartz.Scheduler
 	Workers   int
 	ShardID   string
-	Recorder  record.EventRecorder
+	Recorder  events.EventRecorder
 }
 
 func (r *HelmOpReconciler) SetupWithManager(mgr ctrl.Manager) error {

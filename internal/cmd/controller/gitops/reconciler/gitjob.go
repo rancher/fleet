@@ -19,7 +19,6 @@ import (
 	ssh "github.com/rancher/fleet/internal/ssh"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/cert"
-	fleetevent "github.com/rancher/fleet/pkg/event"
 	"github.com/rancher/fleet/pkg/sharding"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -70,7 +69,14 @@ func (r *GitJobReconciler) createJobAndResources(ctx context.Context, gitrepo *v
 		return fmt.Errorf("error creating git job: %w", err)
 	}
 
-	r.Recorder.Event(gitrepo, fleetevent.Normal, "Created", "GitJob was created")
+	r.Recorder.Eventf(
+		gitrepo,
+		nil,
+		corev1.EventTypeNormal,
+		"Created",
+		"CreateGitJob",
+		"GitJob was created",
+	)
 	return nil
 }
 

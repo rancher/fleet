@@ -1,4 +1,5 @@
 //go:generate mockgen --build_flags=--mod=mod -destination=../../../../mocks/client_mock.go -package=mocks -mock_names=Client=MockK8sClient,SubResourceWriter=MockStatusWriter sigs.k8s.io/controller-runtime/pkg/client Client,SubResourceWriter
+//go:generate mockgen --build_flags=--mod=mod -destination=../../../../mocks/eventrecorder_mock.go -package=mocks k8s.io/client-go/tools/events EventRecorder
 
 package reconciler
 
@@ -22,7 +23,6 @@ import (
 	"github.com/rancher/wrangler/v3/pkg/genericcondition"
 	"go.uber.org/mock/gomock"
 
-	fleetevent "github.com/rancher/fleet/pkg/event"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -85,6 +85,24 @@ func (m gitRepoPointerMatcher) String() string {
 	return ""
 }
 
+// errorMatcher implements a gomock matcher on error message strings.
+type errorMatcher struct {
+	errMsg string
+}
+
+func (m errorMatcher) Matches(x interface{}) bool {
+	err, ok := x.(error)
+	if !ok {
+		return false
+	}
+
+	return err.Error() == m.errMsg
+}
+
+func (m errorMatcher) String() string {
+	return fmt.Sprintf("matches error %q", m.errMsg)
+}
+
 func TestReconcile_Error_WhenGitrepoRestrictionsAreNotMet(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
@@ -129,11 +147,14 @@ func TestReconcile_Error_WhenGitrepoRestrictionsAreNotMet(t *testing.T) {
 	)
 
 	recorderMock := mocks.NewMockEventRecorder(mockCtrl)
-	recorderMock.EXPECT().Event(
+	recorderMock.EXPECT().Eventf(
 		&gitRepoMatcher{gitRepo},
-		fleetevent.Warning,
+		nil,
+		corev1.EventTypeWarning,
 		"FailedToApplyRestrictions",
-		"empty targetNamespace denied, because allowedTargetNamespaces restriction is present",
+		"ApplyGitRepoRestrictions",
+		"%v",
+		errorMatcher{"empty targetNamespace denied, because allowedTargetNamespaces restriction is present"},
 	)
 
 	r := GitJobReconciler{
@@ -204,11 +225,14 @@ func TestReconcile_Error_WhenGetGitJobErrors(t *testing.T) {
 
 	recorderMock := mocks.NewMockEventRecorder(mockCtrl)
 
-	recorderMock.EXPECT().Event(
+	recorderMock.EXPECT().Eventf(
 		&gitRepoMatcher{gitRepo},
-		fleetevent.Warning,
+		nil,
+		corev1.EventTypeWarning,
 		"FailedToGetGitJob",
-		"error retrieving git job: GITJOB ERROR",
+		"GetGitJob",
+		"%v",
+		errorMatcher{"error retrieving git job: GITJOB ERROR"},
 	)
 
 	r := GitJobReconciler{
@@ -275,11 +299,14 @@ func TestReconcile_Error_WhenSecretDoesNotExist(t *testing.T) {
 
 	recorderMock := mocks.NewMockEventRecorder(mockCtrl)
 
-	recorderMock.EXPECT().Event(
+	recorderMock.EXPECT().Eventf(
 		&gitRepoMatcher{gitRepo},
-		fleetevent.Warning,
+		nil,
+		corev1.EventTypeWarning,
 		"FailedValidatingSecret",
-		"failed to look up HelmSecretNameForPaths, error: SECRET ERROR",
+		"ValidateSecret",
+		"%v",
+		errorMatcher{"failed to look up HelmSecretNameForPaths, error: SECRET ERROR"},
 	)
 
 	statusClient := mocks.NewMockStatusWriter(mockCtrl)
