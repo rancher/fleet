@@ -162,7 +162,7 @@ func getHelmRepoIndex(ctx context.Context, repoURL string, auth Auth) (helmRepoI
 
 	client := getHTTPClient(auth)
 
-	resp, err := client.Do(request)
+	resp, err := client.Do(request) //nolint:gosec // G704 false positive: URL is the user-configured Helm chart repository
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch %q: %w", indexURL, err)
 	}

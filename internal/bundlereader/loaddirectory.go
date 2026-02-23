@@ -432,7 +432,7 @@ func get(ctx context.Context, client Getter, req *getter.Request, auth Auth) err
 		}
 		defer func() {
 			file.Close()
-			os.Remove(file.Name())
+			os.Remove(file.Name()) //nolint:gosec // G703 false positive: path comes from os.CreateTemp, not user-controlled data
 		}()
 
 		if _, err := file.Write(auth.CABundle); err != nil {

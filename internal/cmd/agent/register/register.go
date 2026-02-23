@@ -301,7 +301,7 @@ func createClientConfigFromSecret(ctx context.Context, secret *corev1.Secret, tr
 		// NOTE(manno): client-go will use the system trust store even if a CA is configured. So, why do this?
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiServerURL, nil)
 		if err == nil {
-			if resp, err := http.DefaultClient.Do(req); err == nil {
+			if resp, err := http.DefaultClient.Do(req); err == nil { //nolint:gosec // G704 false positive: URL is the Kubernetes API server from admin-configured kubeconfig
 				resp.Body.Close()
 				apiServerCA = nil
 			}

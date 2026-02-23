@@ -84,7 +84,7 @@ func impersonationConfig(namespace, name string) clientcmdapi.Config {
 			},
 		},
 		AuthInfos: map[string]*clientcmdapi.AuthInfo{
-			"user": {
+			"user": { //nolint:gosec // G101 false positive: "user" is a kubeconfig AuthInfo identifier, not a hardcoded credential
 				TokenFile:   "/run/secrets/kubernetes.io/serviceaccount/token",
 				Impersonate: fmt.Sprintf("system:serviceaccount:%s:%s", namespace, name),
 			},

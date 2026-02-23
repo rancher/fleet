@@ -696,8 +696,8 @@ func (a *Analyze) compareFiles(cmd *cobra.Command, file1, file2 string) error {
 	}
 
 	printHeader(w, "COMPARING SNAPSHOTS")
-	fmt.Fprintf(w, "Before: %s (%s)\n", file1, before.Timestamp)
-	fmt.Fprintf(w, "After:  %s (%s)\n", file2, after.Timestamp)
+	fmt.Fprintf(w, "Before: %s (%s)\n", file1, before.Timestamp) //nolint:gosec // G705 false positive: w is a CLI stdout writer, not an HTTP ResponseWriter
+	fmt.Fprintf(w, "After:  %s (%s)\n", file2, after.Timestamp)  //nolint:gosec // G705 false positive: w is a CLI stdout writer, not an HTTP ResponseWriter
 
 	a.printSnapshotDiff(w, before, after)
 
@@ -742,7 +742,7 @@ func printCountChange(tw *tabwriter.Writer, label string, before, after int) {
 	} else if change < 0 {
 		icon = color.GreenString("↓")
 	}
-	fmt.Fprintf(tw, "  %s:\t%d → %d\t%s\n", label, before, after, icon)
+	fmt.Fprintf(tw, "  %s:\t%d → %d\t%s\n", label, before, after, icon) //nolint:gosec // G705 false positive: tw wraps a CLI stdout writer, not an HTTP ResponseWriter
 }
 
 func statusIcon(count int) string {

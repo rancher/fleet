@@ -34,7 +34,7 @@ const (
 type OCIOpts struct {
 	Reference       string
 	Username        string
-	Password        string
+	Password        string //nolint:gosec // G117 false positive: Password is an intentional field in the OCI registry config
 	AgentUsername   string
 	AgentPassword   string
 	BasicHTTP       bool
