@@ -39,6 +39,7 @@ var _ = Describe("HelmOp Metrics", Label("helmop"), func() {
 			kw,
 			namespace,
 			objName,
+			"",
 			"oci://ghcr.io/rancher/fleet-test-configmap-chart",
 			version,
 			shard,
