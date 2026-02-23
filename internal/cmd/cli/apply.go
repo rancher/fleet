@@ -320,12 +320,12 @@ func setEnv(knownHostsPath string) (func() error, error) {
 			continue
 		}
 
-		if _, err := newSSHCommand.WriteString(fmt.Sprintf(" -o %s", opt)); err != nil {
+		if _, err := fmt.Fprintf(&newSSHCommand, " -o %s", opt); err != nil {
 			return fail(err)
 		}
 	}
 
-	if _, err := newSSHCommand.WriteString(fmt.Sprintf(" -o %s=%s", flagName, knownHostsPath)); err != nil {
+	if _, err := fmt.Fprintf(&newSSHCommand, " -o %s=%s", flagName, knownHostsPath); err != nil {
 		return fail(err)
 	}
 
