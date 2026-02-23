@@ -145,11 +145,27 @@ func Test_ChartURL(t *testing.T) {
 			},
 			expected: "https://releases.rancher.com/server-charts/latest/rancher-2.13.0.tgz",
 		},
+		{
+			name: "OCI URL in helm.repo",
+			options: fleet.HelmOptions{
+				Repo:    "oci://ghcr.io/rancher/fleet-test-configmap-chart",
+				Version: "0.1.0",
+			},
+			expected: "oci://ghcr.io/rancher/fleet-test-configmap-chart",
+		},
+		{
+			name: "OCI URL in helm.chart (backwards compatibility)",
+			options: fleet.HelmOptions{
+				Chart:   "oci://ghcr.io/rancher/fleet-test-configmap-chart",
+				Version: "0.1.0",
+			},
+			expected: "oci://ghcr.io/rancher/fleet-test-configmap-chart",
+		},
 	}
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			url, err := bundlereader.ChartURL(context.Background(), c.options, bundlereader.Auth{}, false)
+			url, err := bundlereader.ChartURL(context.Background(), c.options, bundlereader.Auth{})
 			if err != nil {
 				t.Errorf("expected no error, got %v", err)
 			}

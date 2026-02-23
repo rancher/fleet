@@ -443,7 +443,7 @@ func createGitRepoDataForTest(baseDir, host, port, chart string) error {
 	}
 
 	chartURL := fmt.Sprintf("oci://%s:%s/%s\n", host, port, chart)
-	_, err = file.WriteString("  chart: " + chartURL)
+	_, err = file.WriteString("  repo: " + chartURL)
 	if err != nil {
 		return err
 	}

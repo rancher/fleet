@@ -34,9 +34,26 @@ var _ = Describe("Single Cluster Deployments", func() {
 	})
 
 	When("creating a gitrepo resource", func() {
-		Context("containing a public oci based helm chart", func() {
+		Context("containing a public oci based helm chart with helm.repo", func() {
 			BeforeEach(func() {
 				asset = "single-cluster/helm-oci.yaml"
+			})
+
+			AfterEach(func() {
+				_, _ = k.Delete("ns", "fleet-helm-oci-example")
+			})
+
+			It("deploys the helm chart", func() {
+				Eventually(func() string {
+					out, _ := k.Namespace("fleet-helm-oci-example").Get("configmaps")
+					return out
+				}).Should(ContainSubstring("fleet-test-configmap"))
+			})
+		})
+
+		Context("containing a public oci based helm chart with helm.chart (backwards compatibility)", func() {
+			BeforeEach(func() {
+				asset = "single-cluster/helm-oci-chart.yaml"
 			})
 
 			AfterEach(func() {
@@ -137,7 +154,7 @@ var _ = Describe("Single Cluster Deployments", func() {
 			})
 		})
 
-		Context("containing a gitrepo that defines bundles explicitly", func() {
+		Context("containing a gitrepo that defines bundles explicitly with helm.repo", func() {
 			BeforeEach(func() {
 				asset = "single-cluster/driven.yaml"
 			})
@@ -248,6 +265,26 @@ var _ = Describe("Single Cluster Deployments", func() {
 					out, _ := k.Get("ns")
 					g.Expect(out).ToNot(ContainSubstring("kustomize-prod"))
 				}, 5*time.Second, 1*time.Second).Should(Succeed())
+			})
+		})
+
+		Context("containing a gitrepo that defines bundles explicitly with helm.chart (backwards compatibility)", func() {
+			BeforeEach(func() {
+				asset = "single-cluster/driven-helm-chart.yaml"
+			})
+
+			AfterEach(func() {
+				_, _ = k.Delete("ns", "fleet-helm-oci-example")
+				_, _ = k.Delete("ns", "fleet-kustomize-example")
+				_, _ = k.Delete("ns", "kustomize-dev")
+				_, _ = k.Delete("ns", "kustomize-test")
+			})
+
+			It("deploys the helm bundle as expected", func() {
+				Eventually(func() string {
+					out, _ := k.Namespace("fleet-helm-oci-example").Get("configmaps")
+					return out
+				}).Should(ContainSubstring("fleet-test-configmap"))
 			})
 		})
 
