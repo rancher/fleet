@@ -149,6 +149,12 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 		return ctrl.Result{}, err
 	}
+	if bd.Spec.WaitingForValues {
+		logger.V(1).Info("BundleDeployment waiting for options secret to become available, skipping deployment")
+		err := r.DriftDetect.Clear(req.String())
+
+		return ctrl.Result{}, err
+	}
 
 	// load the bundledeployment options from the secret, if present
 	if bd.Spec.ValuesHash != "" {

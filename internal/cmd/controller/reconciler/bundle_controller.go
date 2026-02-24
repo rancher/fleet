@@ -26,6 +26,7 @@ import (
 	"github.com/rancher/fleet/internal/metrics"
 	"github.com/rancher/fleet/internal/ocistorage"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/durations"
 	fleetevent "github.com/rancher/fleet/pkg/event"
 	"github.com/rancher/fleet/pkg/sharding"
 	corev1 "k8s.io/api/core/v1"
@@ -63,7 +64,7 @@ type Store interface {
 }
 
 type TargetBuilder interface {
-	Targets(ctx context.Context, bundle *fleet.Bundle, manifestID string) ([]*target.Target, error)
+	Targets(ctx context.Context, bundle *fleet.Bundle, manifestID string) ([]*target.Target, bool, error)
 }
 
 // BundleReconciler reconciles a Bundle object
@@ -257,7 +258,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		}
 	}
 
-	matchedTargets, err := r.Builder.Targets(ctx, bundle, manifestID)
+	matchedTargets, secretsMissing, err := r.Builder.Targets(ctx, bundle, manifestID)
 	if err != nil {
 		return ctrl.Result{},
 			r.updateErrorStatus(
@@ -342,13 +343,20 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		bd.Spec.OCIContents = contentsInOCI
 		bd.Spec.HelmChartOptions = bundle.Spec.HelmOpOptions
 
-		valuesHash, optionsSecret, err := r.manageOptionsSecret(ctx, bd)
-		if err != nil {
-			return r.computeResult(ctx, logger, bundleOrig, bundle, "failed to initialize options secret", err)
-		}
+		var optionsSecret *corev1.Secret
+		// If the options secret was unavailable during Targets(). Preserve the
+		// existing ValuesHash (already present in bd.Spec from BundleDeployment())
+		// and skip writing the secret so we don't overwrite it with empty values.
+		if !bd.Spec.WaitingForValues {
+			var valuesHash string
+			valuesHash, optionsSecret, err = r.manageOptionsSecret(ctx, bd)
+			if err != nil {
+				return r.computeResult(ctx, logger, bundleOrig, bundle, "failed to initialize options secret", err)
+			}
 
-		// Changes in the values hash trigger a bundle deployment reconcile.
-		bd.Spec.ValuesHash = valuesHash
+			// Changes in the values hash trigger a bundle deployment reconcile.
+			bd.Spec.ValuesHash = valuesHash
+		}
 
 		// When content resources are stored in etcd, we need to keep track of the content resource so they
 		// are properly gargabe-collected by the content controller.
@@ -414,6 +422,13 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if err := r.updateStatus(ctx, bundleOrig, bundle); err != nil {
 		merr = append(merr, err)
 		return ctrl.Result{}, errutil.NewAggregate(merr)
+	}
+
+	if secretsMissing {
+		// At least one BundleDeployment had its options secret transiently
+		// unavailable. Requeue so we can retry loading those values; we cannot
+		// rely on an external event to re-trigger the reconcile.
+		return ctrl.Result{RequeueAfter: durations.DefaultRequeueAfter}, errutil.NewAggregate(merr)
 	}
 
 	return ctrl.Result{}, errutil.NewAggregate(merr)
