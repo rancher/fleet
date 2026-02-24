@@ -63,7 +63,7 @@ type Getter interface {
 type OCIRegistrySpec struct {
 	Reference       string
 	Username        string
-	Password        string
+	Password        string //nolint:gosec // G117 false positive: Password is an intentional field in the apply options
 	BasicHTTP       bool
 	InsecureSkipTLS bool
 }

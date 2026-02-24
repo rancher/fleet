@@ -30,8 +30,8 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20 # v9.2.0
         with:
-          # Required: the version of golangci-lint is required and must be specified without patch version: we always use the latest patch version.
-          version: v2.6.1
+          # Required: the version of golangci-lint is required; we pin a specific patch version for reproducible results.
+          version: v2.10.1
 
           args: --timeout=10m --config=.golangci.json
 

@@ -549,7 +549,7 @@ func (i *importHandler) restConfigFromKubeConfig(data []byte, agentTLSMode strin
 		if raw.Clusters[cluster] != nil {
 			req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, raw.Clusters[cluster].Server, nil)
 			if err == nil {
-				if resp, err := http.DefaultClient.Do(req); err == nil {
+				if resp, err := http.DefaultClient.Do(req); err == nil { //nolint:gosec // G704 false positive: URL is the Kubernetes API server from admin-configured kubeconfig
 					resp.Body.Close()
 					raw.Clusters[cluster].CertificateAuthorityData = nil
 				}

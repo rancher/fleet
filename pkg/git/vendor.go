@@ -75,7 +75,7 @@ func latestCommitFromCommitsURL(ctx context.Context, commitsUrl string, opts *op
 
 	req.Header.Set("Accept", "application/vnd.github.v3.sha")
 
-	resp, err := client.Do(req)
+	resp, err := client.Do(req) //nolint:gosec // G704 false positive: URL is derived from the user-configured Git repository
 	if err != nil {
 		return "", err
 	}

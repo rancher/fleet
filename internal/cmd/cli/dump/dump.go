@@ -531,7 +531,7 @@ func addMetricsToArchive(ctx context.Context, c client.Client, logger logr.Logge
 			return fmt.Errorf("failed to create request to metrics service: %w", err)
 		}
 
-		resp, err := httpCli.Do(req)
+		resp, err := httpCli.Do(req) //nolint:gosec // G704 false positive: URL always targets localhost via kubectl port-forward, not an arbitrary server
 		if err != nil {
 			return fmt.Errorf("failed to get response from metrics service: %w", err)
 		}

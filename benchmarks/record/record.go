@@ -182,10 +182,10 @@ func Nodes(ctx context.Context, experiment *gm.Experiment) {
 			}
 			images[name] = struct{}{}
 		}
-		sb.WriteString(fmt.Sprintf("%s, %s, %s\n",
+		fmt.Fprintf(&sb, "%s, %s, %s\n",
 			node.Status.Capacity.Cpu().String(),
 			node.Status.Capacity.Memory().String(),
-			node.Status.Capacity.Pods().String()))
+			node.Status.Capacity.Pods().String())
 	}
 	experiment.RecordNote(Header("Node Resources")+sb.String(), gm.Style("{{green}}"))
 	img := strings.Join(slices.Sorted(maps.Keys(images)), ", ")

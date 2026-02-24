@@ -164,8 +164,9 @@ type Bootstrap struct {
 	// Repo to add at install time that will deploy to the local cluster. This allows
 	// one to fully bootstrap fleet, its configuration and all its downstream clusters
 	// in one shot.
-	Repo   string `json:"repo,omitempty"`
-	Secret string `json:"secret,omitempty"` // gitrepo.ClientSecretName for agent from repo
+	Repo string `json:"repo,omitempty"`
+	// Secret is the gitrepo.ClientSecretName for agent from repo
+	Secret string `json:"secret,omitempty"` //nolint:gosec // G117 false positive: Secret is a Kubernetes resource name, not a credential value
 	Paths  string `json:"paths,omitempty"`
 	Branch string `json:"branch,omitempty"`
 }
