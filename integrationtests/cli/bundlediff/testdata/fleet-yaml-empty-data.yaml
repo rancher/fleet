@@ -1,0 +1,9 @@
+diff:
+  comparePatches:
+  - apiVersion: v1
+    kind: ConfigMap
+    name: simple-config
+    namespace: nginx
+    operations:
+    - op: remove
+      path: /data

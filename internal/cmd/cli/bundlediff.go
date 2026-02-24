@@ -223,7 +223,17 @@ func convertMergePatchToRemoveOps(patch map[string]interface{}, basePath string)
 		path := basePath + "/" + escapedKey
 
 		if nested, ok := value.(map[string]interface{}); ok {
-			ops = append(ops, convertMergePatchToRemoveOps(nested, path)...)
+			if len(nested) == 0 {
+				// An empty object {} means the entire field was cleared/emptied.
+				// Generate a remove operation for the field itself rather than
+				// recursing into an empty map that would produce nothing.
+				ops = append(ops, patchOperation{
+					Op:   "remove",
+					Path: path,
+				})
+			} else {
+				ops = append(ops, convertMergePatchToRemoveOps(nested, path)...)
+			}
 		} else {
 			// Both null and non-null values should generate remove operations
 			// Remove = "ignore this field in drift detection"
