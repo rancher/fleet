@@ -91,7 +91,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 
 	Expect(gitops.AddRepoNameLabelIndexer(ctx, mgr)).ToNot(HaveOccurred())
-	Expect(gitops.AddImageScanGitRepoIndexer(ctx, mgr)).ToNot(HaveOccurred())
+	Expect(gitops.AddImageScanGitRepoIndexer(ctx, mgr, true)).ToNot(HaveOccurred())
 	Expect(gitops.AddGitRepoClientSecretNameIndexer(ctx, mgr)).ToNot(HaveOccurred())
 	Expect(gitops.AddGitRepoHelmSecretNameIndexer(ctx, mgr)).ToNot(HaveOccurred())
 	Expect(gitops.AddGitRepoHelmSecretNameForPathsIndexer(ctx, mgr)).ToNot(HaveOccurred())

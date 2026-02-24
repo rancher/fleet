@@ -68,6 +68,7 @@ eventually helm upgrade --install fleet charts/fleet \
   $shards_settings \
   --set garbageCollectionInterval=1s \
   --set insecureSkipHostKeyChecks=false \
+  --set imagescan.enabled=true \
   --set-string extraEnv[0].name=EXPERIMENTAL_SCHEDULES \
   --set-string extraEnv[0].value=true \
   --set-string extraEnv[1].name=EXPERIMENTAL_COPY_RESOURCES_DOWNSTREAM \

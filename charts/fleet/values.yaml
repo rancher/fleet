@@ -160,6 +160,12 @@ helmops:
   enabled: true
   replicas: 1
 
+# When enabled, the imagescan controller will run to monitor image repositories.
+# If disabled, config files (e.g. fleet.yaml) containing non-empty imageScan fields will result in errors.
+# This option may be deprecated in a future release, and imagescan removed.
+imagescan:
+  enabled: false
+
 ## Fleet agent configuration
 agent:
   replicas: 1
