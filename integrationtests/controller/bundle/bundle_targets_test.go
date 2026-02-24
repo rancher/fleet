@@ -500,7 +500,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 			targets = append(targets, targetsInGitRepo...)
 		})
 
-		It("no BundleDeployments are created for cluster one", func() {
+		It("no BundleDeployments are created", func() {
 			waitForBundleToBeReady(bundleName)
 			_ = verifyBundlesDeploymentsAreCreated(expectedNumberOfBundleDeployments, bdLabels, bundleName)
 		})
