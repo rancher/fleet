@@ -149,15 +149,13 @@ func (d *BundleDiff) Run(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(diffs) == 0 {
-		if !d.JSON && !d.FleetYAML {
-			fmt.Fprintln(cmd.OutOrStdout(), "No modified resources found.")
-			return nil
-		}
 		if d.JSON {
 			return d.encodeJSON(cmd.OutOrStdout(), diffs)
 		}
 		if d.FleetYAML {
-			return d.printFleetYAML(ctx, k8sClient, cmd.OutOrStdout(), diffs)
+			fmt.Fprintln(cmd.ErrOrStderr(), "No modified resources found.")
+		} else {
+			fmt.Fprintln(cmd.OutOrStdout(), "No modified resources found.")
 		}
 		return nil
 	}

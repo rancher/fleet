@@ -394,6 +394,24 @@ var _ = Describe("Fleet bundlediff", func() {
 
 			Expect(output.BundleDeploymentDiffs).To(BeEmpty())
 		})
+
+		It("should indicate no modified resources found when querying a specific unmodified BundleDeployment", func() {
+			buf, _, err := act([]string{"--bundle-deployment", bundleDeploymentName}, namespace)
+			Expect(err).NotTo(HaveOccurred())
+
+			output := string(buf.Contents())
+			Expect(output).To(ContainSubstring("No modified resources found"))
+		})
+
+		It("should indicate no modified resources found with --fleet-yaml when BundleDeployment has no modifications", func() {
+			buf, errBuf, err := act([]string{"--bundle-deployment", bundleDeploymentName, "--fleet-yaml"}, namespace)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Message goes to stderr, stdout should be empty
+			Expect(string(buf.Contents())).To(BeEmpty())
+			errOutput := string(errBuf.Contents())
+			Expect(errOutput).To(ContainSubstring("No modified resources found"))
+		})
 	})
 
 	When("default view with multiple bundles having diffs", func() {
