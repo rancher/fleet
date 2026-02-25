@@ -13,6 +13,5 @@ export KUBEBUILDER_ASSETS
 # Group 1: Run specific packages (adjust these based on execution time analysis)
 ginkgo --github-output --trace\
   ./integrationtests/agent/... \
-  ./integrationtests/bundlereader/... \
   ./integrationtests/cli/... \
   ./integrationtests/controller/...
