@@ -1,11 +1,11 @@
 image:
   repository: rancher/fleet
-  tag: v0.15.0-beta.2
+  tag: v0.15.0-beta.3
   imagePullPolicy: IfNotPresent
 
 agentImage:
   repository: rancher/fleet-agent
-  tag: v0.15.0-beta.2
+  tag: v0.15.0-beta.3
   imagePullPolicy: IfNotPresent
 
 # For cluster registration the public URL of the Kubernetes API server must be set here
@@ -159,6 +159,12 @@ gitjob:
 helmops:
   enabled: true
   replicas: 1
+
+# When enabled, the imagescan controller will run to monitor image repositories.
+# If disabled, config files (e.g. fleet.yaml) containing non-empty imageScan fields will result in errors.
+# This option may be deprecated in a future release, and imagescan removed.
+imagescan:
+  enabled: false
 
 ## Fleet agent configuration
 agent:
