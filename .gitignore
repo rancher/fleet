@@ -19,3 +19,4 @@ env.multi-cluster
 env.single-cluster
 /fossa
 benchmarks/db
+*.test
