@@ -12,7 +12,6 @@ if [ -z "$GITHUB_TOKEN" ]; then
 fi
 
 # Configure git login
-git config --local --unset http.https://github.com/.extraheader ^AUTHORIZATION:
 gh auth setup-git
 
 # Create and push new branch
