@@ -110,6 +110,33 @@ var _ = Describe("Fleet bundlediff", func() {
 			Expect(output.BundleDeploymentDiffs[0].ModifiedResources).To(HaveLen(1))
 			Expect(output.BundleDeploymentDiffs[0].ModifiedResources[0].Name).To(Equal("my-service"))
 		})
+
+		It("should display empty object patches in text format", func() {
+			// Test that patches with empty objects like {"data":{}} display properly in text format
+			bd := &fleet.BundleDeployment{}
+			Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: bundleDeploymentName}, bd)).ToNot(HaveOccurred())
+
+			bd.Status.ModifiedStatus = []fleet.ModifiedStatus{
+				{
+					Kind:       "ConfigMap",
+					APIVersion: "v1",
+					Namespace:  "nginx",
+					Name:       "simple-config",
+					Patch:      `{"data":{}}`,
+				},
+			}
+			Expect(k8sClient.Status().Update(ctx, bd)).ToNot(HaveOccurred())
+
+			buf, _, err := act([]string{"--bundle-deployment", bundleDeploymentName}, namespace)
+			Expect(err).NotTo(HaveOccurred())
+
+			output := string(buf.Contents())
+			Expect(output).To(ContainSubstring("ConfigMap.v1 nginx/simple-config"))
+			Expect(output).To(ContainSubstring("Status: Modified"))
+			// The patch should be formatted and displayed
+			Expect(output).To(ContainSubstring(`"data"`))
+			Expect(output).To(ContainSubstring(`{}`))
+		})
 	})
 
 	When("a BundleDeployment has missing resources", func() {
@@ -1006,6 +1033,34 @@ var _ = Describe("Fleet bundlediff", func() {
 			output := string(buf.Contents())
 			// The path should have '/' escaped as '~1': /metadata/annotations/kubectl.kubernetes.io~1lastAppliedConfiguration
 			Expect(output).To(ContainSubstring("kubectl.kubernetes.io~1lastAppliedConfiguration"))
+		})
+
+		It("should generate remove op for empty object patch (e.g. ConfigMap data cleared to {})", func() {
+			// Reproduces the case where a ConfigMap's data field is deleted in the cluster,
+			// resulting in a patch of {"data":{}}.
+			// The --fleet-yaml output was previously empty because convertMergePatchToRemoveOps
+			// recursed into the empty map and produced no operations.
+			bd := &fleet.BundleDeployment{}
+			Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: bundleDeploymentName}, bd)).ToNot(HaveOccurred())
+
+			bd.Status.ModifiedStatus = []fleet.ModifiedStatus{
+				{
+					Kind:       "ConfigMap",
+					APIVersion: "v1",
+					Namespace:  "nginx",
+					Name:       "simple-config",
+					Patch:      `{"data":{}}`,
+				},
+			}
+			Expect(k8sClient.Status().Update(ctx, bd)).ToNot(HaveOccurred())
+
+			buf, _, err := act([]string{"--bundle-deployment", bundleDeploymentName, "--fleet-yaml"}, namespace)
+			Expect(err).NotTo(HaveOccurred())
+
+			expected, err := os.ReadFile(filepath.Join("testdata", "fleet-yaml-empty-data.yaml"))
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(strings.TrimSpace(string(buf.Contents()))).To(Equal(strings.TrimSpace(string(expected))))
 		})
 
 		It("should require --bundle-deployment when using --fleet-yaml", func() {
