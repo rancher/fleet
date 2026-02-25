@@ -93,7 +93,7 @@ jobs:
           tags: type=raw,value=1h
 
       - name: Build and push Fleet controller image
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        uses: docker/build-push-action@ee4ca427a2f43b6a16632044ca514c076267da23 # v6.19.0
         with:
           context: ./fleet
           file: ./fleet/package/Dockerfile
@@ -112,7 +112,7 @@ jobs:
           tags: type=raw,value=1h
 
       - name: Build and push Fleet agent image
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        uses: docker/build-push-action@ee4ca427a2f43b6a16632044ca514c076267da23 # v6.19.0
         with:
           context: ./fleet
           file: ./fleet/package/Dockerfile.agent
