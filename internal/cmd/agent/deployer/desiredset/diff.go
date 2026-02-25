@@ -45,32 +45,33 @@ func Diff(logger logr.Logger, plan Plan, bd *fleet.BundleDeployment, ns string, 
 			for _, op := range patch.Operations {
 				gvk := schema.FromAPIVersionAndKind(patch.APIVersion, patch.Kind)
 
-				if op.Op == fleet.IgnoreOp {
-					key := objectset.ObjectKey{
-						Name:      patch.Name,
-						Namespace: patch.Namespace,
-					}
-
-					if _, ok := toIgnore[gvk]; !ok {
-						toIgnore[gvk] = map[objectset.ObjectKey]*regexp.Regexp{}
-					}
-
-					re, err := regexp.Compile(key.Name)
-					if err != nil {
-						// XXX: enable detection of such issues earlier, for instance through CLI validating
-						// fleet.yaml syntax; see fleet#4533.
-						logger.V(1).Error(
-							err,
-							"Cannot compile bundle diff ignore regex, will discard it",
-							"namespace", key.Namespace,
-							"name pattern", key.Name,
-							"gvk", gvk.String(),
-						)
-						continue // this patch cannot be used
-					}
-
-					toIgnore[gvk][key] = re
+				if op.Op != fleet.IgnoreOp {
+					continue
 				}
+				key := objectset.ObjectKey{
+					Name:      patch.Name,
+					Namespace: patch.Namespace,
+				}
+
+				if _, ok := toIgnore[gvk]; !ok {
+					toIgnore[gvk] = map[objectset.ObjectKey]*regexp.Regexp{}
+				}
+
+				re, err := regexp.Compile(key.Name)
+				if err != nil {
+					// XXX: enable detection of such issues earlier, for instance through CLI validating
+					// fleet.yaml syntax; see fleet#4533.
+					logger.V(1).Error(
+						err,
+						"Cannot compile bundle diff ignore regex, will discard it",
+						"namespace", key.Namespace,
+						"name pattern", key.Name,
+						"gvk", gvk.String(),
+					)
+					continue // this patch cannot be used
+				}
+
+				toIgnore[gvk][key] = re
 			}
 		}
 

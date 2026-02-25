@@ -20,7 +20,7 @@ func GetRancherCABundle(ctx context.Context, c client.Client) ([]byte, error) {
 		return nil, err
 	}
 
-	caBundle, ok := secret.Data["cacerts.pem"] // TODO check that the path is right, with an actual Rancher install
+	caBundle, ok := secret.Data["cacerts.pem"]
 	if !errors.IsNotFound(err) && !ok {
 		return nil, fmt.Errorf("no field cacerts.pem found in secret tls-ca")
 	}
@@ -34,7 +34,7 @@ func GetRancherCABundle(ctx context.Context, c client.Client) ([]byte, error) {
 		return nil, err
 	}
 
-	field, ok := secret.Data["ca-additional.pem"] // TODO check that the path is right, with an actual Rancher install
+	field, ok := secret.Data["ca-additional.pem"]
 	if !ok {
 		return nil, fmt.Errorf("no field ca-additional.pem found in secret tls-ca-additional")
 	}
