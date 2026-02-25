@@ -24,6 +24,7 @@ import (
 	"github.com/go-playground/webhooks/v6/gogs"
 	"github.com/rancher/fleet/internal/mocks"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	gerrit "github.com/rancher/fleet/pkg/webhook/gerrit"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -780,5 +781,131 @@ func TestErrorReadingRequest(t *testing.T) {
 	// Verify the response status code is correct
 	if status := rr.Code; status != http.StatusInternalServerError {
 		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusInternalServerError)
+	}
+}
+
+func TestGerritWebhook(t *testing.T) {
+	const commit = "7681a9621922861f727d31fed11baa7dcbc18f89"
+	const repoURL = "https://gerrit.example.com/test-repo"
+	gitRepo := &v1alpha1.GitRepo{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test",
+		},
+		Spec: v1alpha1.GitRepoSpec{
+			Repo:   repoURL,
+			Branch: "main",
+		},
+	}
+	scheme := runtime.NewScheme()
+	utilruntime.Must(corev1.AddToScheme(scheme))
+	utilruntime.Must(v1alpha1.AddToScheme(scheme))
+
+	client := cfake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(gitRepo).WithStatusSubresource(gitRepo).Build()
+	w := &Webhook{client: client}
+	jsonBody := []byte(`{
+		"submitter": {
+			"name": "Administrator",
+			"email": "admin@example.com",
+			"username": "admin"
+		},
+		"newRev": "` + commit + `",
+		"patchSet": {
+			"number": 1,
+			"revision": "` + commit + `",
+			"parents": ["1a37d8b3045cdf9e45d5cb79849823609e27d6d0"],
+			"ref": "refs/changes/03/3/1",
+			"uploader": {
+				"name": "Administrator",
+				"email": "admin@example.com",
+				"username": "admin"
+			},
+			"createdOn": 1763201771,
+			"author": {
+				"name": "Administrator",
+				"email": "admin@example.com",
+				"username": "admin"
+			},
+			"kind": "REWORK",
+			"sizeInsertions": 10,
+			"sizeDeletions": 1
+		},
+		"change": {
+			"project": "test-repo",
+			"branch": "main",
+			"id": "I0bdc56353d26d6c113e3f57bd251af398580c698",
+			"number": 3,
+			"subject": "2nd commit",
+			"owner": {
+				"name": "Administrator",
+				"email": "admin@example.com",
+				"username": "admin"
+			},
+			"url": "http://gerrit.example.com/c/test-repo/+/3",
+			"commitMessage": "2nd commit\n\nChange-Id: I0bdc56353d26d6c113e3f57bd251af398580c698\n",
+			"createdOn": 1763201771,
+			"status": "MERGED"
+		},
+		"project": {
+			"name": "test-repo"
+		},
+		"refName": "refs/heads/main",
+		"changeKey": {
+			"key": "I0bdc56353d26d6c113e3f57bd251af398580c698"
+		},
+		"type": "change-merged",
+		"eventCreatedOn": 1763201787
+	}`)
+	bodyReader := bytes.NewReader(jsonBody)
+	req, err := http.NewRequest(http.MethodPost, repoURL, bodyReader)
+	if err != nil {
+		t.Errorf("unexpected err %v", err)
+	}
+	h := http.Header{}
+	h.Add("x-origin-url", "http://gerrit.example.com/")
+	req.Header = h
+
+	w.ServeHTTP(&responseWriter{}, req)
+
+	updatedGitRepo := &v1alpha1.GitRepo{}
+	err = client.Get(context.TODO(), types.NamespacedName{Name: gitRepo.Name, Namespace: gitRepo.Namespace}, updatedGitRepo)
+	if err != nil {
+		t.Errorf("unexpected err %v", err)
+	}
+	if updatedGitRepo.Status.WebhookCommit != commit {
+		t.Errorf("expected webhook commit %v, but got %v", commit, updatedGitRepo.Status.WebhookCommit)
+	}
+}
+
+func TestAuthErrorCodesGerrit(t *testing.T) {
+	tests := map[string]struct {
+		err               error
+		expectedErrorCode int
+	}{
+		"gerrit-invalid-http-method": {
+			err:               gerrit.ErrInvalidHTTPMethod,
+			expectedErrorCode: http.StatusMethodNotAllowed,
+		},
+		"gerrit-event-not-found": {
+			err:               gerrit.ErrEventNotFound,
+			expectedErrorCode: http.StatusInternalServerError,
+		},
+		"gerrit-missing-event": {
+			err:               gerrit.ErrMissingGerritEvent,
+			expectedErrorCode: http.StatusInternalServerError,
+		},
+		"gerrit-parsing-payload": {
+			err:               gerrit.ErrParsingPayload,
+			expectedErrorCode: http.StatusInternalServerError,
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			errCode := getErrorCodeFromErr(test.err)
+
+			if errCode != test.expectedErrorCode {
+				t.Errorf("expected error code does not match. Got %d, expected %d", errCode, test.expectedErrorCode)
+			}
+		})
 	}
 }
