@@ -20,7 +20,6 @@ import (
 	"github.com/go-playground/webhooks/v6/gitlab"
 	"github.com/go-playground/webhooks/v6/gogs"
 	gogsclient "github.com/gogits/go-gogs-client"
-	"github.com/gorilla/mux"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
@@ -188,12 +187,11 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 }
 
 func HandleHooks(ctx context.Context, namespace string, client client.Client, clientCache cache.Cache) (http.Handler, error) {
-	root := mux.NewRouter()
 	webhook, err := New(namespace, client)
 	if err != nil {
 		return nil, err
 	}
-	root.UseEncodedPath()
+	root := http.NewServeMux()
 	root.Handle("/", webhook)
 
 	return root, nil
