@@ -46,35 +46,37 @@ func New(client client.Client, reader client.Reader) *Manager {
 // The returned target structs contain merged BundleDeploymentOptions, which
 // includes the "TargetCustomizations" from fleet.yaml.
 // Finally all existing bundledeployments are added to the targets.
-func (m *Manager) Targets(ctx context.Context, bundle *fleet.Bundle, manifestID string) ([]*Target, error) {
+// The returned bool is true when at least one options secret was transiently
+// unavailable; the caller should requeue to retry those BundleDeployments.
+func (m *Manager) Targets(ctx context.Context, bundle *fleet.Bundle, manifestID string) ([]*Target, bool, error) {
 	logger := log.FromContext(ctx).WithName("targets")
 
 	namespaceSelector, err := m.getNamespaceSelectorForBundle(ctx, bundle)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get namespace selector: %w", err)
+		return nil, false, fmt.Errorf("failed to get namespace selector: %w", err)
 	}
 
 	bm, err := matcher.New(bundle)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	namespaces, err := m.getNamespacesForBundle(ctx, bundle)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	var targets []*Target
 	for _, namespace := range namespaces {
 		clusters := &fleet.ClusterList{}
 		err := m.client.List(ctx, clusters, client.InNamespace(namespace))
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		for _, cluster := range clusters.Items {
 			logger.V(4).Info("Cluster has namespace?", "cluster", cluster.Name, "namespace", cluster.Status.Namespace)
 			clusterGroups, err := m.clusterGroupsForCluster(ctx, &cluster)
 			if err != nil {
-				return nil, err
+				return nil, false, err
 			}
 
 			target := bm.Match(cluster.Name, ClusterGroupsToLabelMap(clusterGroups), cluster.Labels)
@@ -99,12 +101,12 @@ func (m *Manager) Targets(ctx context.Context, bundle *fleet.Bundle, manifestID 
 
 			err = preprocessHelmValues(logger, &opts, &cluster)
 			if err != nil {
-				return nil, fmt.Errorf("cluster %s in namespace %s: %w", cluster.Name, cluster.Namespace, err)
+				return nil, false, fmt.Errorf("cluster %s in namespace %s: %w", cluster.Name, cluster.Namespace, err)
 			}
 
 			deploymentID, err := options.DeploymentID(manifestID, opts)
 			if err != nil {
-				return nil, err
+				return nil, false, err
 			}
 
 			targets = append(targets, &Target{
@@ -128,9 +130,10 @@ func (m *Manager) Targets(ctx context.Context, bundle *fleet.Bundle, manifestID 
 		fleet.BundleNamespaceLabel: bundle.Namespace,
 	})
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
+	secretsMissing := false
 	byNamespace := map[string]*fleet.BundleDeployment{}
 	for _, bd := range bundleDeployments.Items {
 		bd := bd.DeepCopy()
@@ -141,29 +144,40 @@ func (m *Manager) Targets(ctx context.Context, bundle *fleet.Bundle, manifestID 
 			secret := &corev1.Secret{}
 			if err := m.reader.Get(ctx, client.ObjectKey{Namespace: bd.Namespace, Name: bd.Name}, secret); err != nil {
 				if apierrors.IsNotFound(err) {
-					logger.V(1).Info("failed to get options secret for bundledeployment %s/%s, this is likely temporary", bd.Namespace, bd.Name)
+					// The options secret is transiently unavailable. Mark the BD so
+					// the controller skips manageOptionsSecret (preventing corruption)
+					// and the agent skips deployment until values are loaded.
+					logger.V(1).Info("Options secret not found for bundledeployment, flagging as WaitingForValues",
+						"bundledeployment", bd.Namespace+"/"+bd.Name)
+					bd.Spec.WaitingForValues = true
+					secretsMissing = true
 					continue
 				}
-				return nil, err
+				return nil, false, err
 			}
 
 			h := helmvalues.HashOptions(secret.Data[helmvalues.ValuesKey], secret.Data[helmvalues.StagedValuesKey])
 			if h != bd.Spec.ValuesHash {
-				return nil, fmt.Errorf("retrying, hash mismatch between secret and bundledeployment: actual %s != expected %s", h, bd.Spec.ValuesHash)
+				return nil, false, fmt.Errorf("retrying, hash mismatch between secret and bundledeployment: actual %s != expected %s", h, bd.Spec.ValuesHash)
 			}
 
 			if err := helmvalues.SetOptions(bd, secret.Data); err != nil {
-				return nil, err
+				return nil, false, err
 			}
-		}
 
+			// Secret found successfully; clear any previous WaitingForValues flag.
+			bd.Spec.WaitingForValues = false
+		} else {
+			// No options secret should be needed, but just in case, clear any previous WaitingForValues flag.
+			bd.Spec.WaitingForValues = false
+		}
 	}
 
 	for _, target := range targets {
 		target.Deployment = byNamespace[target.Cluster.Status.Namespace]
 	}
 
-	return targets, err
+	return targets, secretsMissing, nil
 }
 
 // getNamespacesForBundle returns the namespaces that bundledeployments could
