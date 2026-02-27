@@ -93,6 +93,7 @@ func (r *BundleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 					predicate.AnnotationChangedPredicate{},
 					predicate.LabelChangedPredicate{},
 				),
+				sharding.FilterByShardID(r.ShardID),
 			),
 		).
 		// Note: Maybe improve with WatchesMetadata, does it have access to labels?
@@ -127,6 +128,8 @@ func (r *BundleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				return requests
 			}),
 			builder.WithPredicates(clusterChangedPredicate()),
+			// Deliberately skipping the sharding filter here: a bundle may live in the namespace of a cluster with both
+			// bearing distinct shard IDs.
 		).
 		Watches(
 			// Fan out from secret to bundle, reconcile bundles when a secret
@@ -142,7 +145,6 @@ func (r *BundleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			handler.EnqueueRequestsFromMapFunc(r.downstreamResourceMapFunc("ConfigMap")),
 			builder.WithPredicates(dataChangedPredicate()),
 		).
-		WithEventFilter(sharding.FilterByShardID(r.ShardID)).
 		WithOptions(controller.Options{MaxConcurrentReconciles: r.Workers}).
 		Complete(r)
 }

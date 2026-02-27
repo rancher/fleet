@@ -103,8 +103,9 @@ var _ = Describe("Bundle Status Fields", func() {
 		})
 	})
 
-	When("Cluster changes", func() {
-		BeforeEach(func() {
+	DescribeTable("A Cluster change triggers a bundle status fields update",
+		func(updatedClusterLabels map[string]string) {
+			By("creating the cluster and bundle")
 			cluster, err := utils.CreateCluster(ctx, k8sClient, "cluster", namespace, nil, namespace)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(cluster).To(Not(BeNil()))
@@ -120,30 +121,29 @@ var _ = Describe("Bundle Status Fields", func() {
 			bundle, err := utils.CreateBundle(ctx, k8sClient, "name", namespace, targets, targets)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(bundle).To(Not(BeNil()))
-		})
 
-		AfterEach(func() {
-			Expect(k8sClient.Delete(ctx, &v1alpha1.Bundle{ObjectMeta: metav1.ObjectMeta{
-				Name:      "name",
-				Namespace: namespace,
-			}})).NotTo(HaveOccurred())
+			defer func() {
+				Expect(k8sClient.Delete(ctx, &v1alpha1.Bundle{ObjectMeta: metav1.ObjectMeta{
+					Name:      "name",
+					Namespace: namespace,
+				}})).NotTo(HaveOccurred())
 
-		})
+			}()
 
-		It("updates the status fields", func() {
-			cluster := &v1alpha1.Cluster{}
-			err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "cluster"}, cluster)
+			By("checking that the bundle and cluster initially have 0 ready bundle deployments")
+			cluster = &v1alpha1.Cluster{}
+			err = k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "cluster"}, cluster)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(cluster.Status.Summary.Ready).To(Equal(0))
 
-			bundle := &v1alpha1.Bundle{}
+			bundle = &v1alpha1.Bundle{}
 			Eventually(func() bool {
 				err = k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "name"}, bundle)
 				Expect(err).NotTo(HaveOccurred())
 				return bundle.Status.Summary.Ready == 0
 			}).Should(BeTrue())
 
-			// prepare bundle deployment so it satisfies the status change
+			By("updating the bundle deployment's status to trigger a bundle status update to Ready")
 			bd := &v1alpha1.BundleDeployment{}
 			Eventually(func() error {
 				err = k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "name"}, bd)
@@ -178,16 +178,15 @@ var _ = Describe("Bundle Status Fields", func() {
 			Expect(cluster.Status.Summary.Pending).To(Equal(0))
 			Expect(cluster.Status.Display.ReadyBundles).To(Equal("1/1"))
 
-			By("Modifying labels will change cluster state")
-			modifiedLabels := map[string]string{"foo": "bar"}
+			By("updating the cluster's labels")
 			Eventually(func() error {
 				err = k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "cluster"}, cluster)
 				Expect(err).NotTo(HaveOccurred())
-				cluster.Labels = modifiedLabels
+				cluster.Labels = updatedClusterLabels
 				return k8sClient.Update(ctx, cluster)
 			}).ShouldNot(HaveOccurred())
 
-			// Change in cluster state results in a bundle deployment update
+			By("validating that the bundle is re-deployed")
 			Eventually(func(g Gomega) {
 				err = k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "name"}, bd)
 				g.Expect(err).NotTo(HaveOccurred())
@@ -199,6 +198,9 @@ var _ = Describe("Bundle Status Fields", func() {
 				g.Expect(bundle.Status.Display.ReadyClusters).To(Equal("1/1"))
 				g.Expect(bundle.Status.Display.State).To(BeEmpty()) // all resources ready
 			}).Should(Succeed())
-		})
-	})
+		},
+
+		Entry("cluster with default (empty) shard ID", map[string]string{"foo": "bar"}),
+		Entry("cluster with a different shard ID to the bundle's", map[string]string{"foo": "bar", "fleet.cattle.io/shard-ref": "non-default-shard"}),
+	)
 })
