@@ -19,6 +19,8 @@ import (
 	"github.com/rancher/fleet/internal/manifest"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
@@ -128,6 +130,22 @@ var _ = BeforeSuite(func() {
 		err = mgr.Start(ctx)
 		Expect(err).ToNot(HaveOccurred(), "failed to run manager")
 	}()
+
+	// Create Rancher-like namespace for CA bundle secrets
+	err = k8sClient.Create(ctx, &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "cattle-system",
+		},
+	})
+	Expect(err).ToNot(HaveOccurred())
+
+	DeferCleanup(func() {
+		_ = k8sClient.Delete(ctx, &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "cattle-system",
+			},
+		})
+	})
 })
 
 var _ = AfterSuite(func() {

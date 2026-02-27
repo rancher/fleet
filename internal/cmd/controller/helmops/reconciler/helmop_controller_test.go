@@ -24,6 +24,7 @@ import (
 	"github.com/reugn/go-quartz/quartz"
 
 	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -449,6 +450,9 @@ func TestReconcile_ErrorCreatingBundleIsShownInStatus(t *testing.T) {
 			},
 		)
 
+		// Fall-back CA bundle look-up (cattle-system/tls-ca and tls-ca-additional).
+		expectCABundleLookup(client)
+
 		statusClient := mocks.NewMockStatusWriter(mockCtrl)
 		client.EXPECT().Status().Return(statusClient).Times(1)
 		statusClient.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Do(
@@ -625,6 +629,9 @@ func TestReconcile_CreatesBundleAndUpdatesStatus(t *testing.T) {
 			return nil
 		},
 	)
+
+	// Fall-back CA bundle look-up (cattle-system/tls-ca and tls-ca-additional).
+	expectCABundleLookup(client)
 
 	statusClient := mocks.NewMockStatusWriter(mockCtrl)
 	client.EXPECT().Status().Return(statusClient).Times(1)
@@ -1234,6 +1241,9 @@ func TestReconcile_ManagePollingJobs(t *testing.T) {
 			// Only expected in happy cases. If errors happen, only status updates are expected.
 			client.EXPECT().Update(gomock.Any(), matchesBundle(c.helmOp.Name, c.helmOp.Namespace), gomock.Any()).Return(nil).AnyTimes()
 
+			// Fall-back CA bundle look-up (cattle-system/tls-ca and tls-ca-additional).
+			expectCABundleLookup(client)
+
 			statusClient := mocks.NewMockStatusWriter(mockCtrl)
 			statusClient.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 
@@ -1315,4 +1325,27 @@ func (tm *typeMatcher) Matches(x interface{}) bool {
 
 func (tm *typeMatcher) String() string {
 	return "is of type " + reflect.TypeOf(tm.t).String()
+}
+
+// expectCABundleLookup sets up narrow mock expectations for the two cattle-system
+// secrets read by GetRancherCABundle (tls-ca and tls-ca-additional), returning
+// NotFound for both. This avoids an overly broad matcher that would silently
+// absorb unrelated Secret Gets.
+func expectCABundleLookup(client *mocks.MockK8sClient) {
+	client.EXPECT().Get(
+		gomock.Any(),
+		types.NamespacedName{Namespace: "cattle-system", Name: "tls-ca"},
+		OfType(&corev1.Secret{}),
+		gomock.Any(),
+	).AnyTimes().DoAndReturn(func(_ context.Context, _ types.NamespacedName, _ *corev1.Secret, _ ...interface{}) error {
+		return k8serrors.NewNotFound(schema.GroupResource{}, "tls-ca")
+	})
+	client.EXPECT().Get(
+		gomock.Any(),
+		types.NamespacedName{Namespace: "cattle-system", Name: "tls-ca-additional"},
+		OfType(&corev1.Secret{}),
+		gomock.Any(),
+	).AnyTimes().DoAndReturn(func(_ context.Context, _ types.NamespacedName, _ *corev1.Secret, _ ...interface{}) error {
+		return k8serrors.NewNotFound(schema.GroupResource{}, "tls-ca-additional")
+	})
 }

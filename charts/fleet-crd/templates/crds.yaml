@@ -194,6 +194,20 @@ spec:
 
                     should be downloaded from a helm chart'
                   properties:
+                    helmOpCABundle:
+                      description: 'CABundle is a PEM encoded CA bundle used to validate
+                        TLS connections to
+
+                        the Helm registry. It is resolved by the controller (which
+                        has access to
+
+                        Rancher''s cattle-system CA secrets) and stored here so the
+                        agent can use
+
+                        it without requiring access to those secrets.'
+                      format: byte
+                      nullable: true
+                      type: string
                     helmOpInsecureSkipTLSVerify:
                       description: InsecureSkipTLSverify will use insecure HTTPS to
                         clone the helm app resource.
@@ -2067,6 +2081,20 @@ spec:
                     not a git repository.'
                   nullable: true
                   properties:
+                    helmOpCABundle:
+                      description: 'CABundle is a PEM encoded CA bundle used to validate
+                        TLS connections to
+
+                        the Helm registry. It is resolved by the controller (which
+                        has access to
+
+                        Rancher''s cattle-system CA secrets) and stored here so the
+                        agent can use
+
+                        it without requiring access to those secrets.'
+                      format: byte
+                      nullable: true
+                      type: string
                     helmOpInsecureSkipTLSVerify:
                       description: InsecureSkipTLSverify will use insecure HTTPS to
                         clone the helm app resource.
@@ -8269,6 +8297,20 @@ spec:
                     not a git repository.'
                   nullable: true
                   properties:
+                    helmOpCABundle:
+                      description: 'CABundle is a PEM encoded CA bundle used to validate
+                        TLS connections to
+
+                        the Helm registry. It is resolved by the controller (which
+                        has access to
+
+                        Rancher''s cattle-system CA secrets) and stored here so the
+                        agent can use
+
+                        it without requiring access to those secrets.'
+                      format: byte
+                      nullable: true
+                      type: string
                     helmOpInsecureSkipTLSVerify:
                       description: InsecureSkipTLSverify will use insecure HTTPS to
                         clone the helm app resource.

@@ -520,6 +520,91 @@ var _ = Describe("HelmOp resource tests with tarball source", Label("infra-setup
 	})
 })
 
+var _ = Describe("HelmOp resource falls back to Rancher CA bundle", Label("infra-setup", "helm-registry"), Ordered, func() {
+	// This test mirrors the GitOps E2E test "should succeed when not configuring any CA"
+	// in go_getter_custom_ca_test.go. The dev/create-secrets script places the root CA
+	// into cattle-system/tls-ca-additional. ChartMuseum is served with a cert signed by
+	// that root CA. A HelmOp with a credentials-only secret (no cacerts) and
+	// InsecureSkipTLSVerify=false must therefore succeed via the Rancher CA fallback.
+	const (
+		name       = "rancher-ca-fallback"
+		secretName = "helmop-rancher-ca-creds"
+	)
+
+	var (
+		namespace string
+		k         kubectl.Command
+	)
+
+	BeforeAll(func() {
+		k = env.Kubectl.Namespace(env.Namespace)
+		out, err := k.Create(
+			"secret", "generic", secretName,
+			"--from-literal=username="+os.Getenv("CI_OCI_USERNAME"),
+			"--from-literal=password="+os.Getenv("CI_OCI_PASSWORD"),
+			// no cacerts — TLS trust must come from cattle-system/tls-ca-additional
+		)
+		if strings.Contains(out, "already exists") {
+			err = nil
+		}
+		Expect(err).ToNot(HaveOccurred(), out)
+	})
+
+	JustBeforeEach(func() {
+		namespace = testenv.NewNamespaceName(
+			name,
+			rand.New(rand.NewSource(time.Now().UnixNano())),
+		)
+
+		// URL without embedded credentials so the secret is the only auth source.
+		repo := fmt.Sprintf("https://chartmuseum-service.%s.svc.cluster.local:8081", cmd.InfraNamespace)
+		err := testenv.ApplyTemplate(k, testenv.AssetPath("helmop/helmop.yaml"), struct {
+			Name                  string
+			Namespace             string
+			Repo                  string
+			Chart                 string
+			PollingInterval       time.Duration
+			HelmSecretName        string
+			InsecureSkipTLSVerify bool
+			Version               string
+		}{
+			name,
+			namespace,
+			repo,
+			"sleeper-chart",
+			5 * time.Second,
+			secretName,
+			false, // strict TLS — relies on Rancher CA bundle fallback
+			"0.1.0",
+		})
+		Expect(err).ToNot(HaveOccurred())
+	})
+
+	AfterAll(func() {
+		out, err := k.Delete("helmop", name)
+		Expect(err).ToNot(HaveOccurred(), out)
+		out, err = k.Delete("secret", secretName)
+		Expect(err).ToNot(HaveOccurred(), out)
+	})
+
+	It("deploys the chart using the Rancher CA bundle from cattle-system", func() {
+		Eventually(func(g Gomega) {
+			outPods, _ := k.Namespace(namespace).Get("pods")
+			g.Expect(outPods).To(ContainSubstring("sleeper-"))
+		}).Should(Succeed())
+		Eventually(func(g Gomega) {
+			outDeployments, _ := k.Namespace(namespace).Get("deployments")
+			g.Expect(outDeployments).To(ContainSubstring("sleeper"))
+		}).Should(Succeed())
+
+		By("setting the expected version in the helmop Status")
+		Eventually(func() string {
+			out, _ := k.Get("helmop", name, "-o=jsonpath={.status.version}")
+			return out
+		}).Should(Equal("0.1.0"))
+	})
+})
+
 // getExternalHelmAddr retrieves the external URL where our local Helm registry can be reached.
 func getExternalHelmAddr(k kubectl.Command) (string, error) {
 	if v := os.Getenv("external_ip"); v != "" {

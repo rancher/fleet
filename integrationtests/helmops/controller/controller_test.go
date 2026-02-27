@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"crypto/tls"
+	"encoding/pem"
 	"fmt"
 	"io"
 	"log"
@@ -228,6 +229,26 @@ func checkBundleIsAsExpected(g Gomega, bundle fleet.Bundle, helmop fleet.HelmOp,
 
 	// the bundle controller should add the finalizer
 	g.Expect(controllerutil.ContainsFinalizer(&bundle, finalize.BundleFinalizer)).To(BeTrue())
+}
+
+// createRancherCASecret creates a secret in cattle-system using the
+// certificate from svr and registers a DeferCleanup to delete it.
+func createRancherCASecret(svr *httptest.Server, secretName, dataKey string) {
+	certPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: svr.TLS.Certificates[0].Certificate[0],
+	})
+	secret := &v1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      secretName,
+			Namespace: "cattle-system",
+		},
+		Data: map[string][]byte{dataKey: certPEM},
+	}
+	Expect(k8sClient.Create(ctx, secret)).ToNot(HaveOccurred())
+	DeferCleanup(func() {
+		_ = k8sClient.Delete(ctx, secret)
+	})
 }
 
 func updateHelmOp(helmop fleet.HelmOp) error {
@@ -1262,6 +1283,74 @@ var _ = Describe("HelmOps controller", func() {
 					// latest in the test helm index.html
 					// set it here so the check passes and confirms
 					// the version obtained was 0.2.0
+					helmop.Spec.Helm.Version = "0.2.0"
+					checkBundleIsAsExpected(g, *bundle, helmop, t)
+				}).Should(Succeed())
+			})
+		})
+
+		When("connecting to a https server with a CA bundle from Rancher tls-ca secret", func() {
+			BeforeEach(func() {
+				targets = []fleet.BundleTarget{}
+				helmop = getRandomHelmOpWithTargets("test-rancher-tlsca", targets)
+				helmop.Spec.Helm.Version = ""
+				helmop.Spec.HelmSecretName = ""
+
+				svr := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusOK)
+					fmt.Fprint(w, helmRepoIndex)
+				}))
+				DeferCleanup(svr.Close)
+
+				helmop.Spec.Helm.Repo = svr.URL
+				helmop.Spec.Helm.Chart = "alpine"
+				helmop.Spec.InsecureSkipTLSverify = false
+				doAfterNamespaceCreated = func() {
+					createRancherCASecret(svr, "tls-ca", "cacerts.pem")
+				}
+			})
+
+			It("creates a bundle with the latest version it got from the index", func() {
+				Eventually(func(g Gomega) {
+					bundle := &fleet.Bundle{}
+					ns := types.NamespacedName{Name: helmop.Name, Namespace: helmop.Namespace}
+					err := k8sClient.Get(ctx, ns, bundle)
+					g.Expect(err).ToNot(HaveOccurred())
+					t := []fleet.BundleTarget{{Name: "default", ClusterGroup: "default"}}
+					helmop.Spec.Helm.Version = "0.2.0"
+					checkBundleIsAsExpected(g, *bundle, helmop, t)
+				}).Should(Succeed())
+			})
+		})
+
+		When("connecting to a https server with a CA bundle from Rancher tls-ca-additional secret", func() {
+			BeforeEach(func() {
+				targets = []fleet.BundleTarget{}
+				helmop = getRandomHelmOpWithTargets("test-rancher-tlsca-additional", targets)
+				helmop.Spec.Helm.Version = ""
+				helmop.Spec.HelmSecretName = ""
+
+				svr := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusOK)
+					fmt.Fprint(w, helmRepoIndex)
+				}))
+				DeferCleanup(svr.Close)
+
+				helmop.Spec.Helm.Repo = svr.URL
+				helmop.Spec.Helm.Chart = "alpine"
+				helmop.Spec.InsecureSkipTLSverify = false
+				doAfterNamespaceCreated = func() {
+					createRancherCASecret(svr, "tls-ca-additional", "ca-additional.pem")
+				}
+			})
+
+			It("creates a bundle with the latest version it got from the index", func() {
+				Eventually(func(g Gomega) {
+					bundle := &fleet.Bundle{}
+					ns := types.NamespacedName{Name: helmop.Name, Namespace: helmop.Namespace}
+					err := k8sClient.Get(ctx, ns, bundle)
+					g.Expect(err).ToNot(HaveOccurred())
+					t := []fleet.BundleTarget{{Name: "default", ClusterGroup: "default"}}
 					helmop.Spec.Helm.Version = "0.2.0"
 					checkBundleIsAsExpected(g, *bundle, helmop, t)
 				}).Should(Succeed())

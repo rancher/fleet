@@ -12,7 +12,7 @@ import (
 
 const rancherNS = "cattle-system"
 
-func GetRancherCABundle(ctx context.Context, c client.Client) ([]byte, error) {
+func GetRancherCABundle(ctx context.Context, c client.Reader) ([]byte, error) {
 	secret := &corev1.Secret{}
 
 	err := c.Get(ctx, types.NamespacedName{Namespace: rancherNS, Name: "tls-ca"}, secret)

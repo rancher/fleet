@@ -36,6 +36,7 @@ import (
 	ctrlquartz "github.com/rancher/fleet/internal/cmd/controller/quartz"
 	"github.com/rancher/fleet/internal/metrics"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/cert"
 	"github.com/rancher/fleet/pkg/durations"
 	"github.com/rancher/fleet/pkg/sharding"
 )
@@ -176,7 +177,17 @@ func (r *HelmOpReconciler) createUpdateBundle(ctx context.Context, helmop *fleet
 	// calculate the new representation of the helmop resource
 	bundle := r.calculateBundle(helmop)
 
-	if err := r.handleVersion(ctx, b, bundle, helmop); err != nil {
+	// Resolve the Rancher CA bundle in the controller and store it in HelmOpOptions so
+	// the agent (whose service account cannot read cattle-system secrets) can use it.
+	// The resolved bundle is also forwarded to handleVersion so getChartVersion can reuse
+	// it without a second cattle-system lookup.
+	cab, err := cert.GetRancherCABundle(ctx, r.Client)
+	if err != nil {
+		return nil, fmt.Errorf("could not get Rancher CA bundle: %w", err)
+	}
+	bundle.Spec.HelmOpOptions.CABundle = cab
+
+	if err := r.handleVersion(ctx, b, bundle, helmop, cab); err != nil {
 		return nil, err
 	}
 
@@ -251,7 +262,10 @@ func (r *HelmOpReconciler) calculateBundle(helmop *fleet.HelmOp) *fleet.Bundle {
 //
 // This is calculated in the upstream cluster so all downstream bundle deployments have the same
 // version. (Potentially we could be gathering the version at the very moment it is being updated, for example)
-func (r *HelmOpReconciler) handleVersion(ctx context.Context, oldBundle *fleet.Bundle, bundle *fleet.Bundle, helmop *fleet.HelmOp) error {
+//
+// caBundle is an optional pre-resolved CA bundle (may be nil). When non-nil it is forwarded to
+// getChartVersion so a second cattle-system secret lookup is avoided.
+func (r *HelmOpReconciler) handleVersion(ctx context.Context, oldBundle *fleet.Bundle, bundle *fleet.Bundle, helmop *fleet.HelmOp, caBundle []byte) error {
 	if helmop == nil {
 		return fmt.Errorf("the provided HelmOp is nil; this should not happen")
 	}
@@ -262,7 +276,7 @@ func (r *HelmOpReconciler) handleVersion(ctx context.Context, oldBundle *fleet.B
 		return nil
 	}
 
-	version, err := getChartVersion(ctx, r.Client, *helmop)
+	version, err := getChartVersion(ctx, r.Client, *helmop, caBundle)
 	if err != nil {
 		return err
 	}
@@ -518,7 +532,9 @@ func helmChartSpecChanged(o *fleet.HelmOptions, n *fleet.HelmOptions, statusVers
 
 // getChartVersion fetches the latest chart version from the Helm registry referenced by helmop, and returns it.
 // If this fails, it returns an empty version along with an error.
-func getChartVersion(ctx context.Context, c client.Client, helmop fleet.HelmOp) (string, error) {
+// caBundle is an optional pre-resolved Rancher CA bundle. When nil and no CA bundle is set in auth,
+// getChartVersion resolves the bundle itself via GetRancherCABundle.
+func getChartVersion(ctx context.Context, c client.Client, helmop fleet.HelmOp, caBundle []byte) (string, error) {
 	auth := bundlereader.Auth{}
 	if helmop.Spec.HelmSecretName != "" {
 		req := types.NamespacedName{Namespace: helmop.Namespace, Name: helmop.Spec.HelmSecretName}
@@ -529,6 +545,20 @@ func getChartVersion(ctx context.Context, c client.Client, helmop fleet.HelmOp) 
 		}
 	}
 	auth.InsecureSkipVerify = helmop.Spec.InsecureSkipTLSverify
+
+	// Fall back to a Rancher-configured CA bundle if no CA bundle is set.
+	// Use a pre-resolved bundle when available to avoid a redundant cattle-system lookup.
+	if len(auth.CABundle) == 0 {
+		if len(caBundle) > 0 {
+			auth.CABundle = caBundle
+		} else {
+			cab, err := cert.GetRancherCABundle(ctx, c)
+			if err != nil {
+				return "", fmt.Errorf("could not get Rancher CA bundle: %w", err)
+			}
+			auth.CABundle = cab
+		}
+	}
 
 	version, err := bundlereader.ChartVersion(ctx, *helmop.Spec.Helm, auth)
 	if err != nil {

@@ -32,6 +32,13 @@ func GetManifestFromHelmChart(ctx context.Context, c client.Reader, bd *fleet.Bu
 	}
 	auth.InsecureSkipVerify = bd.Spec.HelmChartOptions.InsecureSkipTLSverify
 
+	// Use the Rancher CA bundle that was pre-resolved by the controller and stored in
+	// HelmChartOptions.CABundle. The agent service account cannot read cattle-system
+	// secrets directly, so the controller must pass the bundle through.
+	if len(auth.CABundle) == 0 {
+		auth.CABundle = bd.Spec.HelmChartOptions.CABundle
+	}
+
 	chartURL, err := ChartURL(ctx, *helm, auth, true)
 	if err != nil {
 		return nil, err

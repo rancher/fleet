@@ -457,4 +457,11 @@ type BundleHelmOptions struct {
 
 	// InsecureSkipTLSverify will use insecure HTTPS to clone the helm app resource.
 	InsecureSkipTLSverify bool `json:"helmOpInsecureSkipTLSVerify,omitempty"`
+
+	// CABundle is a PEM encoded CA bundle used to validate TLS connections to
+	// the Helm registry. It is resolved by the controller (which has access to
+	// Rancher's cattle-system CA secrets) and stored here so the agent can use
+	// it without requiring access to those secrets.
+	// +nullable
+	CABundle []byte `json:"helmOpCABundle,omitempty"`
 }
