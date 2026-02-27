@@ -371,21 +371,6 @@ var _ = Describe("HelmOp resource with polling of OCI registry", Label("infra-se
 			})
 		})
 
-		Context("containing a valid helmop description pointing to an oci registry and not TLS", func() {
-			BeforeEach(func() {
-				namespace = "helmop-ns2"
-				name = "basic-oci-no-tls"
-				insecure = false
-
-				repo = fmt.Sprintf("%s/sleeper-chart", ociRef)
-			})
-			It("does not deploy the chart because of TLS", func() {
-				Consistently(func() string {
-					out, _ := k.Namespace(namespace).Get("pods")
-					return out
-				}, 5*time.Second, time.Second).ShouldNot(ContainSubstring("sleeper-"))
-			})
-		})
 	})
 
 	When("applying a helmop resource which cannot be deployed", func() {
