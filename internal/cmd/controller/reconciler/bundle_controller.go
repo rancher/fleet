@@ -101,7 +101,10 @@ func (r *BundleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			// Fan out from bundledeployment to bundle, this is useful to update the
 			// bundle's status fields.
 			&fleet.BundleDeployment{}, handler.EnqueueRequestsFromMapFunc(BundleDeploymentMapFunc(r)),
-			builder.WithPredicates(bundleDeploymentStatusChangedPredicate()),
+			builder.WithPredicates(
+				bundleDeploymentStatusChangedPredicate(),
+				sharding.FilterByShardID(r.ShardID),
+			),
 		).
 		Watches(
 			// Fan out from cluster to bundle, this is useful for targeting and templating.
