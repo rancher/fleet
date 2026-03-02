@@ -28,8 +28,8 @@ var _ = Describe("Schedule updates triggered by cluster updates", func() {
 		})
 	})
 
-	DescribeTable("A Cluster change triggers a schedule status fields update",
-		func(updatedClusterLabels map[string]string) {
+	When("a Cluster living in the same namespace as a schedule is updated to match the schedule's targets", func() {
+		It("schedules the cluster", func() {
 			By("creating the cluster and schedule")
 			cluster, err := utils.CreateCluster(ctx, k8sClient, "cluster", namespace, nil, namespace)
 			Expect(err).NotTo(HaveOccurred())
@@ -80,7 +80,7 @@ var _ = Describe("Schedule updates triggered by cluster updates", func() {
 			Eventually(func() error {
 				err = k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "cluster"}, cluster)
 				Expect(err).NotTo(HaveOccurred())
-				cluster.Labels = updatedClusterLabels
+				cluster.Labels = map[string]string{"can-be-scheduled": "yes"}
 				return k8sClient.Update(ctx, cluster)
 			}).ShouldNot(HaveOccurred())
 
@@ -90,7 +90,69 @@ var _ = Describe("Schedule updates triggered by cluster updates", func() {
 				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(cluster.Status.Scheduled).To(BeTrue())
 			}).Should(Succeed())
-		},
-		Entry("cluster with default (empty) shard ID", map[string]string{"can-be-scheduled": "yes"}),
-	)
+		})
+	})
+
+	When("another Cluster with a different shard ID and matching the schedule's targets is added into the same namespace", func() {
+		It("schedules the cluster", func() {
+			By("creating the cluster and schedule")
+			cluster, err := utils.CreateCluster(ctx, k8sClient, "cluster", namespace, nil, namespace)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(cluster).To(Not(BeNil()))
+
+			schedule := v1alpha1.Schedule{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "my-schedule",
+					Namespace: namespace,
+				},
+				Spec: v1alpha1.ScheduleSpec{
+					Schedule: "0 */1 * * * *", // Every minute
+					Duration: metav1.Duration{Duration: 30 * time.Second},
+					Targets: v1alpha1.ScheduleTargets{
+						Clusters: []v1alpha1.ScheduleTarget{
+							{
+								ClusterSelector: &metav1.LabelSelector{},
+							},
+						},
+					},
+				},
+			}
+			err = k8sClient.Create(ctx, &schedule)
+			Expect(err).NotTo(HaveOccurred())
+
+			Eventually(func(g Gomega) {
+				err = k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "my-schedule"}, &schedule)
+				g.Expect(err).NotTo(HaveOccurred())
+			}).Should(Succeed())
+
+			defer func() {
+				Expect(k8sClient.Delete(ctx, &v1alpha1.Schedule{ObjectMeta: metav1.ObjectMeta{
+					Name:      "my-schedule",
+					Namespace: namespace,
+				}})).NotTo(HaveOccurred())
+
+			}()
+
+			By("validating that the cluster is scheduled")
+			Eventually(func(g Gomega) {
+				err = k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "cluster"}, cluster)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(cluster.Status.Scheduled).To(BeTrue())
+			}).Should(Succeed())
+
+			By("adding another cluster with a different shard ID to the same namespace")
+			labels := map[string]string{"fleet.cattle.io/shard-ref": "different-shard"}
+			shardedCluster, err := utils.CreateCluster(ctx, k8sClient, "cluster2", namespace, labels, namespace)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(shardedCluster).To(Not(BeNil()))
+
+			By("validating that the cluster is scheduled")
+			Eventually(func(g Gomega) {
+				var shardedCluster v1alpha1.Cluster
+				err = k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "cluster2"}, &shardedCluster)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(shardedCluster.Status.Scheduled).To(BeTrue())
+			}).Should(Succeed())
+		})
+	})
 })

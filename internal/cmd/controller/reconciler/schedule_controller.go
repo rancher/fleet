@@ -54,14 +54,16 @@ func (r *ScheduleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&fleet.Schedule{},
 			builder.WithPredicates(
 				predicate.GenerationChangedPredicate{},
+				sharding.FilterByShardID(r.ShardID),
 			),
 		).
 		Watches(
 			&fleet.Cluster{},
 			handler.EnqueueRequestsFromMapFunc(r.mapClustersToSchedules),
 			builder.WithPredicates(clusterChangedPredicate()),
+			// Deliberately skipping the sharding filter here: a schedule may live in the namespace of a cluster with both
+			// bearing distinct shard IDs.
 		).
-		WithEventFilter(sharding.FilterByShardID(r.ShardID)).
 		WithOptions(controller.Options{MaxConcurrentReconciles: r.Workers}).
 		Complete(r)
 }
