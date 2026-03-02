@@ -161,10 +161,6 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		if err := helmvalues.SetOptions(bd, secret.Data); err != nil {
 			return ctrl.Result{}, err
 		}
-
-		fmt.Printf("XGMTEST ---- Successfully set options from secret for bundledeployment %s/%s\n", bd.Namespace, bd.Name)
-		fmt.Printf("XGMTEST ---- bd.Spec.Options.Helm.Values: %#v\n", bd.Spec.Options.Helm.Values)
-		fmt.Printf("XGMTEST ---- bd.Spec.StagedOptions.Helm.Values: %#v\n", bd.Spec.StagedOptions.Helm.Values)
 	}
 
 	forceDeploy, err := r.copyResourcesFromUpstream(ctx, bd, logger)
