@@ -9,6 +9,8 @@ import (
 
 	fleetutil "github.com/rancher/fleet/internal/cmd/controller/errorutil"
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
+	"github.com/rancher/fleet/internal/cmd/controller/target"
+	"github.com/rancher/fleet/internal/cmd/controller/target/matcher"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/sharding"
 	"github.com/rancher/wrangler/v3/pkg/condition"
@@ -160,11 +162,12 @@ func (r *ScheduleReconciler) mapClustersToSchedules(ctx context.Context, a clien
 	cluster := a.(*fleet.Cluster)
 
 	// check if the cluster is scheduled
-	schedules, err := getClusterSchedules(r.Scheduler, cluster.Name, cluster.Namespace)
+	schedules, err := getClusterSchedules(ctx, r.Client, r.Scheduler, cluster)
 	if err != nil {
 		logger.Error(err, "Failed to get cluster schedules")
 		return nil
 	}
+
 	requests := []ctrl.Request{}
 	for _, schedule := range schedules {
 		requests = append(requests, ctrl.Request{
@@ -353,13 +356,22 @@ func isClusterScheduled(scheduler quartz.Scheduler, cluster, namespace string) (
 }
 
 // getClusterSchedules returns all the fleet Schedules in which the given cluster is found as a matching target.
-func getClusterSchedules(scheduler quartz.Scheduler, cluster, namespace string) ([]*fleet.Schedule, error) {
-	keys, err := getClusterScheduleKeys(scheduler, cluster, namespace)
+// To this end, it looks at two sources of data:
+// * keys of already scheduled jobs
+// * schedules which targets match the cluster, to include schedules for which no job may have been scheduled yet.
+func getClusterSchedules(
+	ctx context.Context,
+	c client.Client,
+	scheduler quartz.Scheduler,
+	cluster *fleet.Cluster,
+) ([]*fleet.Schedule, error) {
+	keys, err := getClusterScheduleKeys(scheduler, cluster.Name, cluster.Namespace)
 	if err != nil {
 		return nil, err
 	}
 
 	schedules := []*fleet.Schedule{}
+	scheduleNames := map[string]struct{}{}
 	for _, key := range keys {
 		job, err := scheduler.GetScheduledJob(key)
 		if err != nil {
@@ -370,6 +382,36 @@ func getClusterSchedules(scheduler quartz.Scheduler, cluster, namespace string) 
 			return nil, fmt.Errorf("unexpected job type for key: %s", key.String())
 		}
 		schedules = append(schedules, cronDurationJob.Schedule)
+		scheduleNames[cronDurationJob.Schedule.Name] = struct{}{}
+	}
+
+	// Consider schedules which may exist but for which no job may have been created yet.
+	allSchedules := &fleet.ScheduleList{}
+	if err := c.List(ctx, allSchedules, client.InNamespace(cluster.Namespace)); err != nil {
+		return nil, fmt.Errorf("%w, listing schedules: %w", fleetutil.ErrRetryable, err)
+	}
+
+	groups, err := target.ClusterGroupsForCluster(ctx, c, cluster)
+	if err != nil {
+		return nil, fmt.Errorf("%w, getting cluster groups from clusters: %w", fleetutil.ErrRetryable, err)
+	}
+
+	cgs := target.ClusterGroupsToLabelMap(groups)
+
+	for i, s := range allSchedules.Items {
+		// Skip already found schedules, to prevent duplicates and unnecessary computations.
+		if _, alreadyFound := scheduleNames[s.Name]; alreadyFound {
+			continue
+		}
+
+		matcher, err := matcher.NewScheduleMatch(&s)
+		if err != nil {
+			return nil, err
+		}
+
+		if matcher.MatchCluster(cluster.Name, cgs, cluster.Labels) {
+			schedules = append(schedules, &allSchedules.Items[i])
+		}
 	}
 
 	return schedules, nil
