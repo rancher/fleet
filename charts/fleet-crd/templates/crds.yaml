@@ -6092,6 +6092,7 @@ spec:
                       type: object
                   type: object
                 agentSchedulingCustomization:
+                  nullable: true
                   properties:
                     podDisruptionBudget:
                       properties:
