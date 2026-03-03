@@ -1,0 +1,23 @@
+#!/bin/bash
+# Description: build fleet binary and image with debug flags
+
+set -euxo pipefail
+
+if [ ! -d ./cmd/fleetcontroller ]; then
+  echo "please change the current directory to the fleet repo checkout"
+  exit 1
+fi
+
+export GOARCH="${GOARCH:-amd64}"
+export CGO_ENABLED=0
+
+# re-generate code
+if ! git diff --quiet HEAD origin/main --  pkg/apis/fleet.cattle.io/v1alpha1; then
+  go generate
+fi
+
+export GOOS=linux
+
+# fleet-monitor
+go build -gcflags='all=-N -l' -o "bin/fleeteventmonitor-linux-$GOARCH" ./cmd/fleeteventmonitor
+docker build -f package/Dockerfile.event-monitor -t rancher/fleet-event-monitor:dev --build-arg="ARCH=$GOARCH"  .

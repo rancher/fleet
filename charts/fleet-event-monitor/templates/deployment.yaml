@@ -1,0 +1,243 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fleet-event-monitor{{- if .Values.shardID }}-shard-{{ .Values.shardID }}{{- end }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "fleet-event-monitor.labels" . | nindent 4 }}
+    {{- if .Values.shardID }}
+    fleet.cattle.io/shard-id: {{ .Values.shardID }}
+    {{- end }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "fleet-event-monitor.selectorLabels" . | nindent 6 }}
+      {{- if .Values.shardID }}
+      fleet.cattle.io/shard-id: {{ .Values.shardID }}
+      {{- end }}
+  template:
+    metadata:
+      labels:
+        {{- include "fleet-event-monitor.selectorLabels" . | nindent 8 }}
+        {{- if .Values.shardID }}
+        fleet.cattle.io/shard-id: {{ .Values.shardID }}
+        {{- end }}
+    spec:
+      serviceAccountName: fleet-event-monitor
+      {{- with .Values.securityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: fleet-event-monitor
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.imagePullPolicy }}
+        command:
+        - fleeteventmonitor
+        {{- if .Values.shardID }}
+        - --shard-id={{ .Values.shardID }}
+        {{- end }}
+        {{- if .Values.debug }}
+        - --debug
+        - --debug-level={{ .Values.debugLevel }}
+        {{- end }}
+        env:
+        - name: NAMESPACE
+          value: {{ .Values.namespace | quote }}
+        - name: ENABLE_BUNDLE_EVENT_MONITOR
+          value: {{ .Values.controllers.bundle | quote }}
+        - name: ENABLE_BUNDLEDEPLOYMENT_EVENT_MONITOR
+          value: {{ .Values.controllers.bundledeployment | quote }}
+        - name: ENABLE_CLUSTER_EVENT_MONITOR
+          value: {{ .Values.controllers.cluster | quote }}
+        - name: ENABLE_GITREPO_EVENT_MONITOR
+          value: {{ .Values.controllers.gitrepo | quote }}
+        - name: ENABLE_HELMOP_EVENT_MONITOR
+          value: {{ .Values.controllers.helmop | quote }}
+        - name: BUNDLE_RECONCILER_WORKERS
+          value: {{ .Values.workers.bundle | quote }}
+        - name: BUNDLEDEPLOYMENT_RECONCILER_WORKERS
+          value: {{ .Values.workers.bundledeployment | quote }}
+        - name: CLUSTER_RECONCILER_WORKERS
+          value: {{ .Values.workers.cluster | quote }}
+        - name: GITREPO_RECONCILER_WORKERS
+          value: {{ .Values.workers.gitrepo | quote }}
+        - name: HELMOP_RECONCILER_WORKERS
+          value: {{ .Values.workers.helmop | quote }}
+        {{- if .Values.debug }}
+        - name: CATTLE_DEV_MODE
+          value: "true"
+        {{- end }}
+        {{- if .Values.leaderElection.enabled }}
+        - name: CATTLE_ELECTION_LEASE_DURATION
+          value: {{ .Values.leaderElection.leaseDuration | quote }}
+        - name: CATTLE_ELECTION_RETRY_PERIOD
+          value: {{ .Values.leaderElection.retryPeriod | quote }}
+        - name: CATTLE_ELECTION_RENEW_DEADLINE
+          value: {{ .Values.leaderElection.renewDeadline | quote }}
+        {{- end }}
+        # Per-controller detailed logging flags
+        - name: FLEET_EVENT_MONITOR_BUNDLE_DETAILED
+          value: {{ .Values.logging.bundle.detailed | quote }}
+        - name: FLEET_EVENT_MONITOR_BUNDLEDEPLOYMENT_DETAILED
+          value: {{ .Values.logging.bundleDeployment.detailed | quote }}
+        - name: FLEET_EVENT_MONITOR_CLUSTER_DETAILED
+          value: {{ .Values.logging.cluster.detailed | quote }}
+        - name: FLEET_EVENT_MONITOR_GITREPO_DETAILED
+          value: {{ .Values.logging.gitRepo.detailed | quote }}
+        - name: FLEET_EVENT_MONITOR_HELMOP_DETAILED
+          value: {{ .Values.logging.helmOp.detailed | quote }}
+        # Bundle resource filters
+        - name: FLEET_EVENT_MONITOR_BUNDLE_RESOURCE_FILTER_NAMESPACE
+          value: {{ .Values.logging.bundle.resourceFilter.namespace | quote }}
+        - name: FLEET_EVENT_MONITOR_BUNDLE_RESOURCE_FILTER_NAME
+          value: {{ .Values.logging.bundle.resourceFilter.name | quote }}
+        # Bundle event filters
+        - name: FLEET_EVENT_MONITOR_BUNDLE_EVENT_GENERATION_CHANGE
+          value: {{ .Values.logging.bundle.eventFilters.generationChange | quote }}
+        - name: FLEET_EVENT_MONITOR_BUNDLE_EVENT_STATUS_CHANGE
+          value: {{ .Values.logging.bundle.eventFilters.statusChange | quote }}
+        - name: FLEET_EVENT_MONITOR_BUNDLE_EVENT_ANNOTATION_CHANGE
+          value: {{ .Values.logging.bundle.eventFilters.annotationChange | quote }}
+        - name: FLEET_EVENT_MONITOR_BUNDLE_EVENT_LABEL_CHANGE
+          value: {{ .Values.logging.bundle.eventFilters.labelChange | quote }}
+        - name: FLEET_EVENT_MONITOR_BUNDLE_EVENT_RESVER_CHANGE
+          value: {{ .Values.logging.bundle.eventFilters.resourceVersionChange | quote }}
+        - name: FLEET_EVENT_MONITOR_BUNDLE_EVENT_DELETION
+          value: {{ .Values.logging.bundle.eventFilters.deletion | quote }}
+        - name: FLEET_EVENT_MONITOR_BUNDLE_EVENT_NOT_FOUND
+          value: {{ .Values.logging.bundle.eventFilters.notFound | quote }}
+        - name: FLEET_EVENT_MONITOR_BUNDLE_EVENT_CREATE
+          value: {{ .Values.logging.bundle.eventFilters.create | quote }}
+        - name: FLEET_EVENT_MONITOR_BUNDLE_EVENT_TRIGGERED_BY
+          value: {{ .Values.logging.bundle.eventFilters.triggeredBy | quote }}
+        # BundleDeployment resource filters
+        - name: FLEET_EVENT_MONITOR_BUNDLEDEPLOYMENT_RESOURCE_FILTER_NAMESPACE
+          value: {{ .Values.logging.bundleDeployment.resourceFilter.namespace | quote }}
+        - name: FLEET_EVENT_MONITOR_BUNDLEDEPLOYMENT_RESOURCE_FILTER_NAME
+          value: {{ .Values.logging.bundleDeployment.resourceFilter.name | quote }}
+        # BundleDeployment event filters
+        - name: FLEET_EVENT_MONITOR_BD_EVENT_GENERATION_CHANGE
+          value: {{ .Values.logging.bundleDeployment.eventFilters.generationChange | quote }}
+        - name: FLEET_EVENT_MONITOR_BD_EVENT_STATUS_CHANGE
+          value: {{ .Values.logging.bundleDeployment.eventFilters.statusChange | quote }}
+        - name: FLEET_EVENT_MONITOR_BD_EVENT_ANNOTATION_CHANGE
+          value: {{ .Values.logging.bundleDeployment.eventFilters.annotationChange | quote }}
+        - name: FLEET_EVENT_MONITOR_BD_EVENT_LABEL_CHANGE
+          value: {{ .Values.logging.bundleDeployment.eventFilters.labelChange | quote }}
+        - name: FLEET_EVENT_MONITOR_BD_EVENT_RESVER_CHANGE
+          value: {{ .Values.logging.bundleDeployment.eventFilters.resourceVersionChange | quote }}
+        - name: FLEET_EVENT_MONITOR_BD_EVENT_DELETION
+          value: {{ .Values.logging.bundleDeployment.eventFilters.deletion | quote }}
+        - name: FLEET_EVENT_MONITOR_BD_EVENT_NOT_FOUND
+          value: {{ .Values.logging.bundleDeployment.eventFilters.notFound | quote }}
+        - name: FLEET_EVENT_MONITOR_BD_EVENT_CREATE
+          value: {{ .Values.logging.bundleDeployment.eventFilters.create | quote }}
+        - name: FLEET_EVENT_MONITOR_BD_EVENT_TRIGGERED_BY
+          value: {{ .Values.logging.bundleDeployment.eventFilters.triggeredBy | quote }}
+        # Cluster resource filters
+        - name: FLEET_EVENT_MONITOR_CLUSTER_RESOURCE_FILTER_NAMESPACE
+          value: {{ .Values.logging.cluster.resourceFilter.namespace | quote }}
+        - name: FLEET_EVENT_MONITOR_CLUSTER_RESOURCE_FILTER_NAME
+          value: {{ .Values.logging.cluster.resourceFilter.name | quote }}
+        # Cluster event filters
+        - name: FLEET_EVENT_MONITOR_CLUSTER_EVENT_GENERATION_CHANGE
+          value: {{ .Values.logging.cluster.eventFilters.generationChange | quote }}
+        - name: FLEET_EVENT_MONITOR_CLUSTER_EVENT_STATUS_CHANGE
+          value: {{ .Values.logging.cluster.eventFilters.statusChange | quote }}
+        - name: FLEET_EVENT_MONITOR_CLUSTER_EVENT_ANNOTATION_CHANGE
+          value: {{ .Values.logging.cluster.eventFilters.annotationChange | quote }}
+        - name: FLEET_EVENT_MONITOR_CLUSTER_EVENT_LABEL_CHANGE
+          value: {{ .Values.logging.cluster.eventFilters.labelChange | quote }}
+        - name: FLEET_EVENT_MONITOR_CLUSTER_EVENT_RESVER_CHANGE
+          value: {{ .Values.logging.cluster.eventFilters.resourceVersionChange | quote }}
+        - name: FLEET_EVENT_MONITOR_CLUSTER_EVENT_DELETION
+          value: {{ .Values.logging.cluster.eventFilters.deletion | quote }}
+        - name: FLEET_EVENT_MONITOR_CLUSTER_EVENT_NOT_FOUND
+          value: {{ .Values.logging.cluster.eventFilters.notFound | quote }}
+        - name: FLEET_EVENT_MONITOR_CLUSTER_EVENT_CREATE
+          value: {{ .Values.logging.cluster.eventFilters.create | quote }}
+        - name: FLEET_EVENT_MONITOR_CLUSTER_EVENT_TRIGGERED_BY
+          value: {{ .Values.logging.cluster.eventFilters.triggeredBy | quote }}
+        # GitRepo resource filters
+        - name: FLEET_EVENT_MONITOR_GITREPO_RESOURCE_FILTER_NAMESPACE
+          value: {{ .Values.logging.gitRepo.resourceFilter.namespace | quote }}
+        - name: FLEET_EVENT_MONITOR_GITREPO_RESOURCE_FILTER_NAME
+          value: {{ .Values.logging.gitRepo.resourceFilter.name | quote }}
+        # GitRepo event filters
+        - name: FLEET_EVENT_MONITOR_GITREPO_EVENT_GENERATION_CHANGE
+          value: {{ .Values.logging.gitRepo.eventFilters.generationChange | quote }}
+        - name: FLEET_EVENT_MONITOR_GITREPO_EVENT_STATUS_CHANGE
+          value: {{ .Values.logging.gitRepo.eventFilters.statusChange | quote }}
+        - name: FLEET_EVENT_MONITOR_GITREPO_EVENT_ANNOTATION_CHANGE
+          value: {{ .Values.logging.gitRepo.eventFilters.annotationChange | quote }}
+        - name: FLEET_EVENT_MONITOR_GITREPO_EVENT_LABEL_CHANGE
+          value: {{ .Values.logging.gitRepo.eventFilters.labelChange | quote }}
+        - name: FLEET_EVENT_MONITOR_GITREPO_EVENT_RESVER_CHANGE
+          value: {{ .Values.logging.gitRepo.eventFilters.resourceVersionChange | quote }}
+        - name: FLEET_EVENT_MONITOR_GITREPO_EVENT_DELETION
+          value: {{ .Values.logging.gitRepo.eventFilters.deletion | quote }}
+        - name: FLEET_EVENT_MONITOR_GITREPO_EVENT_NOT_FOUND
+          value: {{ .Values.logging.gitRepo.eventFilters.notFound | quote }}
+        - name: FLEET_EVENT_MONITOR_GITREPO_EVENT_CREATE
+          value: {{ .Values.logging.gitRepo.eventFilters.create | quote }}
+        - name: FLEET_EVENT_MONITOR_GITREPO_EVENT_TRIGGERED_BY
+          value: {{ .Values.logging.gitRepo.eventFilters.triggeredBy | quote }}
+        # HelmOp resource filters
+        - name: FLEET_EVENT_MONITOR_HELMOP_RESOURCE_FILTER_NAMESPACE
+          value: {{ .Values.logging.helmOp.resourceFilter.namespace | quote }}
+        - name: FLEET_EVENT_MONITOR_HELMOP_RESOURCE_FILTER_NAME
+          value: {{ .Values.logging.helmOp.resourceFilter.name | quote }}
+        # HelmOp event filters
+        - name: FLEET_EVENT_MONITOR_HELMOP_EVENT_GENERATION_CHANGE
+          value: {{ .Values.logging.helmOp.eventFilters.generationChange | quote }}
+        - name: FLEET_EVENT_MONITOR_HELMOP_EVENT_STATUS_CHANGE
+          value: {{ .Values.logging.helmOp.eventFilters.statusChange | quote }}
+        - name: FLEET_EVENT_MONITOR_HELMOP_EVENT_ANNOTATION_CHANGE
+          value: {{ .Values.logging.helmOp.eventFilters.annotationChange | quote }}
+        - name: FLEET_EVENT_MONITOR_HELMOP_EVENT_LABEL_CHANGE
+          value: {{ .Values.logging.helmOp.eventFilters.labelChange | quote }}
+        - name: FLEET_EVENT_MONITOR_HELMOP_EVENT_RESVER_CHANGE
+          value: {{ .Values.logging.helmOp.eventFilters.resourceVersionChange | quote }}
+        - name: FLEET_EVENT_MONITOR_HELMOP_EVENT_DELETION
+          value: {{ .Values.logging.helmOp.eventFilters.deletion | quote }}
+        - name: FLEET_EVENT_MONITOR_HELMOP_EVENT_NOT_FOUND
+          value: {{ .Values.logging.helmOp.eventFilters.notFound | quote }}
+        - name: FLEET_EVENT_MONITOR_HELMOP_EVENT_CREATE
+          value: {{ .Values.logging.helmOp.eventFilters.create | quote }}
+        - name: FLEET_EVENT_MONITOR_HELMOP_EVENT_TRIGGERED_BY
+          value: {{ .Values.logging.helmOp.eventFilters.triggeredBy | quote }}
+        # Summary configuration
+        - name: FLEET_EVENT_MONITOR_SUMMARY_INTERVAL
+          value: {{ .Values.logging.summary.interval | quote }}
+        - name: FLEET_EVENT_MONITOR_SUMMARY_RESET
+          value: {{ .Values.logging.summary.resetOnPrint | quote }}
+        {{- with .Values.extraEnv }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
