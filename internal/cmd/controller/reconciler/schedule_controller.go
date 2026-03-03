@@ -62,7 +62,8 @@ func (r *ScheduleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			handler.EnqueueRequestsFromMapFunc(r.mapClustersToSchedules),
 			builder.WithPredicates(clusterChangedPredicate()),
 			// Deliberately skipping the sharding filter here: a schedule may live in the namespace of a cluster with both
-			// bearing distinct shard IDs.
+			// bearing distinct shard IDs. Instead, mapClustersToSchedules maps clusters to schedules in the
+			// current shard only.
 		).
 		WithOptions(controller.Options{MaxConcurrentReconciles: r.Workers}).
 		Complete(r)
@@ -156,7 +157,7 @@ func (r *ScheduleReconciler) handleDelete(ctx context.Context, schedule *fleet.S
 }
 
 // mapClustersToSchedules is a mapping function used to trigger a reconciliation of Schedules
-// when a targeted Cluster changes. It finds all schedules that target the cluster
+// when a targeted Cluster changes. It finds all schedules in r's shard that target the cluster
 // and enqueues a reconcile request for each of them.
 func (r *ScheduleReconciler) mapClustersToSchedules(ctx context.Context, a client.Object) []ctrl.Request {
 	ns := a.GetNamespace()
@@ -164,7 +165,7 @@ func (r *ScheduleReconciler) mapClustersToSchedules(ctx context.Context, a clien
 	cluster := a.(*fleet.Cluster)
 
 	// check if the cluster is scheduled
-	schedules, err := getClusterSchedules(ctx, r.Client, r.Scheduler, cluster)
+	schedules, err := getClusterSchedules(ctx, r.Client, r.Scheduler, cluster, r.ShardID)
 	if err != nil {
 		logger.Error(err, "Failed to get cluster schedules")
 		return nil
@@ -357,8 +358,8 @@ func isClusterScheduled(scheduler quartz.Scheduler, cluster, namespace string) (
 	return len(keys) != 0, nil
 }
 
-// getClusterSchedules returns all the fleet Schedules in which the given cluster is found as a matching target.
-// To this end, it looks at two sources of data:
+// getClusterSchedules returns all the fleet Schedules with a matching shardID, in which the given cluster is found as a
+// matching target. To this end, it looks at two sources of data:
 // * keys of already scheduled jobs
 // * schedules which targets match the cluster, to include schedules for which no job may have been scheduled yet.
 func getClusterSchedules(
@@ -366,6 +367,7 @@ func getClusterSchedules(
 	c client.Client,
 	scheduler quartz.Scheduler,
 	cluster *fleet.Cluster,
+	shardID string,
 ) ([]*fleet.Schedule, error) {
 	keys, err := getClusterScheduleKeys(scheduler, cluster.Name, cluster.Namespace)
 	if err != nil {
@@ -383,6 +385,11 @@ func getClusterSchedules(
 		if !ok {
 			return nil, fmt.Errorf("unexpected job type for key: %s", key.String())
 		}
+
+		if !sharding.ShouldProcess(cronDurationJob.Schedule, shardID) {
+			continue
+		}
+
 		schedules = append(schedules, cronDurationJob.Schedule)
 		scheduleNames[cronDurationJob.Schedule.Name] = struct{}{}
 	}
@@ -401,6 +408,10 @@ func getClusterSchedules(
 	cgs := target.ClusterGroupsToLabelMap(groups)
 
 	for i, s := range allSchedules.Items {
+		if !sharding.ShouldProcess(&s, shardID) {
+			continue
+		}
+
 		// Skip already found schedules, to prevent duplicates and unnecessary computations.
 		if _, alreadyFound := scheduleNames[s.Name]; alreadyFound {
 			continue
