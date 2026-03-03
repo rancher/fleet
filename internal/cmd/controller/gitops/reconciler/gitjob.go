@@ -461,6 +461,7 @@ func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.Git
 				Volumes: volumes,
 				SecurityContext: &corev1.PodSecurityContext{
 					RunAsUser: &[]int64{1000}[0],
+					FSGroup:   &[]int64{1000}[0],
 				},
 				ServiceAccountName: saName,
 				RestartPolicy:      corev1.RestartPolicyNever,
