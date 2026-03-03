@@ -101,7 +101,7 @@ func (t *Target) Run(cmd *cobra.Command, args []string) error {
 	}
 
 	builder := target.New(client, client)
-	matchedTargets, err := builder.Targets(ctx, bundle, manifestID)
+	matchedTargets, _, err := builder.Targets(ctx, bundle, manifestID)
 	if err != nil {
 		return err
 	}

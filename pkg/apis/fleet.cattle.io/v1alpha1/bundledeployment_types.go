@@ -365,6 +365,12 @@ type BundleDeploymentSpec struct {
 	// If true, BundleDeployments will be marked as out of sync
 	// when changes are detected.
 	OffSchedule bool `json:"offSchedule,omitempty"`
+	// WaitingForValues is set to true by the bundle controller when the
+	// options secret for this BundleDeployment could not be found (e.g.
+	// due to transient API server pressure). While true, the agent skips
+	// reconciliation to avoid deploying with missing Helm values. The
+	// controller clears this flag once the secret is successfully loaded.
+	WaitingForValues bool `json:"waitingForValues,omitempty"`
 }
 
 // BundleDeploymentResource contains the metadata of a deployed resource.
