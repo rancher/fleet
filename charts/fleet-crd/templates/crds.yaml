@@ -1144,6 +1144,18 @@ spec:
                     the bundle.
                   nullable: true
                   type: string
+                waitingForValues:
+                  description: 'WaitingForValues is set to true by the bundle controller
+                    when the
+
+                    options secret for this BundleDeployment could not be found (e.g.
+
+                    due to transient API server pressure). While true, the agent skips
+
+                    reconciliation to avoid deploying with missing Helm values. The
+
+                    controller clears this flag once the secret is successfully loaded.'
+                  type: boolean
               type: object
             status:
               properties:
@@ -6080,6 +6092,7 @@ spec:
                       type: object
                   type: object
                 agentSchedulingCustomization:
+                  nullable: true
                   properties:
                     podDisruptionBudget:
                       properties:
