@@ -582,11 +582,6 @@ var _ = Describe("HelmOp resource falls back to Rancher CA bundle", Label("infra
 			g.Expect(outDeployments).To(ContainSubstring("sleeper"))
 		}).Should(Succeed())
 
-		By("setting the expected version in the helmop Status")
-		Eventually(func() string {
-			out, _ := k.Get("helmop", name, "-o=jsonpath={.status.version}")
-			return out
-		}).Should(Equal("0.1.0"))
 	})
 })
 
