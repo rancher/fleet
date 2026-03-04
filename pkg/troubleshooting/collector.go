@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -647,8 +648,7 @@ func (col *Collector) checkAPIConsistency(ctx context.Context, c client.Client) 
 // getRecentEvents retrieves recent Fleet-related Kubernetes events
 func (col *Collector) getRecentEvents(ctx context.Context, c client.Client) ([]corev1.Event, error) {
 	eventList := &corev1.EventList{}
-	err := c.List(ctx, eventList)
-	if err != nil {
+	if err := c.List(ctx, eventList); err != nil {
 		return nil, err
 	}
 
@@ -660,10 +660,33 @@ func (col *Collector) getRecentEvents(ctx context.Context, c client.Client) ([]c
 		}
 	}
 
-	// Return last 20 events
-	if len(fleetEvents) > RecentEventsCount {
-		fleetEvents = fleetEvents[len(fleetEvents)-RecentEventsCount:]
+	if len(fleetEvents) <= RecentEventsCount {
+		return fleetEvents, nil
 	}
+
+	// Ensure the latest events appear last in the list before truncating it.
+	slices.SortFunc(fleetEvents, func(one, other corev1.Event) int {
+		if one.EventTime.Before(&other.EventTime) {
+			return -1
+		}
+
+		if !one.EventTime.Equal(&other.EventTime) {
+			return 1
+		}
+
+		if one.LastTimestamp.Before(&other.LastTimestamp) {
+			return -1
+		}
+
+		if !one.LastTimestamp.Equal(&other.LastTimestamp) {
+			return 1
+		}
+
+		return 0
+	})
+
+	// Return last 20 events
+	fleetEvents = fleetEvents[len(fleetEvents)-RecentEventsCount:]
 
 	return fleetEvents, nil
 }
