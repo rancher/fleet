@@ -773,19 +773,20 @@ func (col *Collector) detectStuckBundleDeployments(bundleDeployments []fleet.Bun
 // detectGitRepoBundleInconsistencies finds bundles with outdated commits or forceSyncGeneration
 func (col *Collector) detectGitRepoBundleInconsistencies(gitRepos []fleet.GitRepo, bundles []fleet.Bundle) []fleet.Bundle {
 	var inconsistentBundles []fleet.Bundle
+
+	// Build map of GitRepos for faster retrieval from iterations over bundles.
+	gitReposByNameAndNS := make(map[string]*fleet.GitRepo, len(gitRepos))
+	for _, r := range gitRepos {
+		gitReposByNameAndNS[fmt.Sprintf("%s/%s", r.Namespace, r.Name)] = &r
+	}
+
 	for _, bundle := range bundles {
 		repoName, ok := bundle.Labels[fleet.RepoLabel]
 		if !ok {
 			continue
 		}
-		var gitRepo *fleet.GitRepo
-		for _, r := range gitRepos {
-			if r.Name == repoName && r.Namespace == bundle.Namespace {
-				gitRepo = &r
-				break
-			}
-		}
-		if gitRepo == nil {
+		gitRepo, ok := gitReposByNameAndNS[fmt.Sprintf("%s/%s", bundle.Namespace, repoName)]
+		if !ok {
 			continue
 		}
 
