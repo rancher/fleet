@@ -8,6 +8,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+const defaultMaxNew = 50
+
 type partition struct {
 	Status  fleet.PartitionStatus
 	Targets []*Target
@@ -17,6 +19,12 @@ type partition struct {
 // It creates Deployments in allTargets if they are missing.
 // It updates Deployments in allTargets if they are out of sync (DeploymentID != StagedDeploymentID).
 func UpdatePartitions(status *fleet.BundleStatus, allTargets []*Target) (err error) {
+	rollout := getRollout(allTargets)
+	maxNew := defaultMaxNew
+	if rollout.MaxNew != nil {
+		maxNew = *rollout.MaxNew
+	}
+
 	partitions, err := partitions(allTargets)
 	if err != nil {
 		return err
@@ -30,8 +38,8 @@ func UpdatePartitions(status *fleet.BundleStatus, allTargets []*Target) (err err
 
 	for _, partition := range partitions {
 		for _, target := range partition.Targets {
-			// for a new bundledeployment, only stage the first maxNew (50) targets
-			if target.Deployment == nil && status.NewlyCreated < status.MaxNew {
+			// for a new bundledeployment, only stage the first maxNew targets
+			if target.Deployment == nil && status.NewlyCreated < maxNew {
 				status.NewlyCreated++
 				target.Deployment = &fleet.BundleDeployment{
 					ObjectMeta: metav1.ObjectMeta{

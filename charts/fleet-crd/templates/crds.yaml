@@ -2226,6 +2226,18 @@ spec:
                         default: 200'
                       nullable: true
                       type: integer
+                    maxNew:
+                      description: 'MaxNew is the maximum number of new BundleDeployments
+                        that can be created
+
+                        in a single reconciliation. This limits the rate at which
+                        new deployments
+
+                        are staged when a bundle is first applied to many clusters.
+
+                        default: 50'
+                      nullable: true
+                      type: integer
                     maxUnavailable:
                       anyOf:
                         - type: integer
@@ -3282,10 +3294,13 @@ spec:
                       type: string
                   type: object
                 maxNew:
-                  description: 'MaxNew is always 50. A bundle change can only stage
-                    50
+                  description: 'MaxNew is the maximum number of BundleDeployments
+                    that can be created
 
-                    bundledeployments at a time.'
+                    in a single reconciliation. Defaults to 50. Can be configured
+                    via
+
+                    rolloutStrategy.maxNew in the Bundle spec.'
                   type: integer
                 maxUnavailable:
                   description: 'MaxUnavailable is the maximum number of unavailable
@@ -8451,6 +8466,18 @@ spec:
                         partition.
 
                         default: 200'
+                      nullable: true
+                      type: integer
+                    maxNew:
+                      description: 'MaxNew is the maximum number of new BundleDeployments
+                        that can be created
+
+                        in a single reconciliation. This limits the rate at which
+                        new deployments
+
+                        are staged when a bundle is first applied to many clusters.
+
+                        default: 50'
                       nullable: true
                       type: integer
                     maxUnavailable:

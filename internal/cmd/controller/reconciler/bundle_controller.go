@@ -292,7 +292,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 	logger = logger.WithValues("manifestID", manifestID)
 
-	if err := resetStatus(&bundle.Status, matchedTargets); err != nil {
+	if err := resetStatus(&bundle.Status, matchedTargets, bundle.Spec.RolloutStrategy); err != nil {
 		err = fmt.Errorf("failed to reset bundle status from targets: %w", err)
 
 		return ctrl.Result{}, r.updateErrorStatus(ctx, bundleOrig, bundle, err)
