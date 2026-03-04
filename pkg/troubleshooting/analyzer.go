@@ -3,8 +3,10 @@ package troubleshooting
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 	"text/tabwriter"
 
@@ -42,6 +44,14 @@ func ReadSnapshots(input io.Reader) ([]*Snapshot, error) {
 
 // OutputSummary writes a summary of the given snapshot to w.
 func OutputSummary(w io.Writer, snapshot *Snapshot) error {
+	if snapshot == nil {
+		return errors.New("nil snapshot; nothing to summarize")
+	}
+
+	if w == nil {
+		return errors.New("nil writer; unable to output data")
+	}
+
 	printHeader(w, "FLEET MONITORING SUMMARY - "+snapshot.Timestamp)
 
 	fmt.Fprintln(w)
@@ -73,6 +83,10 @@ func OutputSummary(w io.Writer, snapshot *Snapshot) error {
 
 // OutputAll writes a summary of all snapshots to w.
 func OutputAll(w io.Writer, snapshots []*Snapshot) error {
+	if w == nil {
+		return errors.New("nil writer; unable to output data")
+	}
+
 	printHeader(w, fmt.Sprintf("Analyzing %d snapshots", len(snapshots)))
 
 	for i, snapshot := range snapshots {
@@ -89,6 +103,14 @@ func OutputAll(w io.Writer, snapshots []*Snapshot) error {
 
 // OutputDiff writes changes between consecutive snapshots to w.
 func OutputDiff(w io.Writer, snapshots []*Snapshot) error {
+	if w == nil {
+		return errors.New("nil writer; unable to output data")
+	}
+
+	snapshots = slices.DeleteFunc(snapshots, func(s *Snapshot) bool {
+		return s == nil
+	})
+
 	if len(snapshots) < 2 {
 		return fmt.Errorf("need at least 2 snapshots to show diff")
 	}
@@ -117,7 +139,19 @@ func OutputDiff(w io.Writer, snapshots []*Snapshot) error {
 //
 //nolint:gocyclo
 func OutputIssues(w io.Writer, snapshots []*Snapshot) error {
+	if w == nil {
+		return errors.New("nil writer; unable to output data")
+	}
+
+	if len(snapshots) == 0 {
+		return errors.New("at least one snapshot is needed to output issues")
+	}
+
 	snapshot := snapshots[len(snapshots)-1]
+
+	if snapshot == nil {
+		return errors.New("nil snapshot; no issues to output")
+	}
 
 	printHeader(w, "ISSUES DETECTED - "+snapshot.Timestamp)
 
@@ -265,6 +299,10 @@ func OutputIssues(w io.Writer, snapshots []*Snapshot) error {
 
 // OutputDetailed writes a detailed analysis of the latest snapshot to w.
 func OutputDetailed(w io.Writer, snapshots []*Snapshot) error {
+	if len(snapshots) == 0 {
+		return errors.New("at least one snapshot is needed to output detailed issues")
+	}
+
 	snapshot := snapshots[len(snapshots)-1]
 
 	// First show summary
@@ -343,6 +381,10 @@ func OutputJSON(w io.Writer, snapshots []*Snapshot, showAll bool) error {
 		SnapshotCount int         `json:"snapshotCount"`
 		Latest        *Snapshot   `json:"latest"`
 		All           []*Snapshot `json:"all,omitempty"`
+	}
+
+	if len(snapshots) == 0 {
+		return errors.New("at least one snapshot is needed to output JSON")
 	}
 
 	output := Output{
