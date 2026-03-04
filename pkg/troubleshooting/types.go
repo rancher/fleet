@@ -4,7 +4,7 @@ import "time"
 
 // Snapshot contains a point-in-time snapshot of Fleet resource diagnostic data.
 type Snapshot struct {
-	// Timestamp is an UTC timestamp of when the snapshot was created.
+	// Timestamp is a UTC timestamp of when the snapshot was created.
 	Timestamp         string                 `json:"timestamp"`
 	Controller        []ControllerInfo       `json:"controller,omitempty"`
 	GitRepos          []GitRepoInfo          `json:"gitrepos,omitempty"`
