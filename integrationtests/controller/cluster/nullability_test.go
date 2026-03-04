@@ -142,4 +142,33 @@ var _ = Describe("Cluster agentSchedulingCustomization nullability", func() {
 		Expect(cleared.Spec.AgentSchedulingCustomization).To(BeNil(),
 			"agentSchedulingCustomization should be nil after being cleared via null merge patch")
 	})
+
+	It("is normalized from empty struct to nil by the controller", func() {
+		// This simulates what Rancher's provisioning layer does: it initializes
+		// AgentSchedulingCustomization as a non-nil empty struct, which gets
+		// serialized as agentSchedulingCustomization: {} in etcd.  The Fleet
+		// cluster controller should detect the empty struct and clear it to nil
+		// so OpenAPI-aware UIs do not show it uncommented.
+		namespace = newNamespace()
+		cluster := &v1alpha1.Cluster{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-nullable-normalize",
+				Namespace: namespace,
+			},
+			Spec: v1alpha1.ClusterSpec{
+				AgentSchedulingCustomization: &v1alpha1.AgentSchedulingCustomization{},
+			},
+		}
+		Expect(k8sClient.Create(ctx, cluster)).ToNot(HaveOccurred())
+		DeferCleanup(func() {
+			Expect(k8sClient.Delete(ctx, cluster)).ToNot(HaveOccurred())
+		})
+
+		Eventually(func(g Gomega) {
+			normalized := &v1alpha1.Cluster{}
+			g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: cluster.Name, Namespace: namespace}, normalized)).ToNot(HaveOccurred())
+			g.Expect(normalized.Spec.AgentSchedulingCustomization).To(BeNil(),
+				"controller should normalize agentSchedulingCustomization: {} to nil")
+		}).Should(Succeed())
+	})
 })
