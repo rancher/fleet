@@ -529,7 +529,7 @@ func Test_UpdatePartitions_MaxNew(t *testing.T) {
 			name:             "nil maxNew uses default of 50",
 			maxNew:           nil,
 			targetCount:      100,
-			wantNewlyCreated: defaultMaxNew,
+			wantNewlyCreated: DefaultMaxNew,
 		},
 	}
 	for _, tt := range tests {

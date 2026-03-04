@@ -389,10 +389,6 @@ type BundleStatus struct {
 	// percentage of unavailable partitions.
 	// +optional
 	MaxUnavailablePartitions int `json:"maxUnavailablePartitions"`
-	// MaxNew is the maximum number of BundleDeployments that can be created
-	// in a single reconciliation. Defaults to 50. Can be configured via
-	// rolloutStrategy.maxNew in the Bundle spec.
-	MaxNew int `json:"maxNew,omitempty"`
 	// PartitionStatus lists the status of each partition.
 	PartitionStatus []PartitionStatus `json:"partitions,omitempty"`
 	// Display contains the number of ready, desiredready clusters and a

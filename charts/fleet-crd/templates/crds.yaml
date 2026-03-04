@@ -3293,15 +3293,6 @@ spec:
                       nullable: true
                       type: string
                   type: object
-                maxNew:
-                  description: 'MaxNew is the maximum number of BundleDeployments
-                    that can be created
-
-                    in a single reconciliation. Defaults to 50. Can be configured
-                    via
-
-                    rolloutStrategy.maxNew in the Bundle spec.'
-                  type: integer
                 maxUnavailable:
                   description: 'MaxUnavailable is the maximum number of unavailable
                     deployments. See
