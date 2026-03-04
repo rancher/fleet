@@ -12,6 +12,7 @@ import (
 
 	"github.com/rancher/fleet/internal/cmd/cli"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/troubleshooting"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -116,8 +117,8 @@ var _ = Describe("Fleet analyze", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			var result struct {
-				SnapshotCount int           `json:"snapshotCount"`
-				Latest        *cli.Snapshot `json:"latest"`
+				SnapshotCount int                       `json:"snapshotCount"`
+				Latest        *troubleshooting.Snapshot `json:"latest"`
 			}
 			err = json.Unmarshal(buf.Contents(), &result)
 			Expect(err).NotTo(HaveOccurred())
@@ -299,7 +300,7 @@ var _ = Describe("Fleet analyze", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			var result struct {
-				Latest *cli.Snapshot `json:"latest"`
+				Latest *troubleshooting.Snapshot `json:"latest"`
 			}
 			err = json.Unmarshal(buf.Contents(), &result)
 			Expect(err).NotTo(HaveOccurred())

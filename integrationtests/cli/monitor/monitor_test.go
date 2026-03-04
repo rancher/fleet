@@ -9,6 +9,7 @@ import (
 
 	"github.com/rancher/fleet/internal/cmd/cli"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/troubleshooting"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -60,7 +61,7 @@ var _ = Describe("Fleet monitor", func() {
 			buf, _, err := act([]string{}, namespace)
 			Expect(err).NotTo(HaveOccurred())
 
-			var resources cli.Snapshot
+			var resources troubleshooting.Snapshot
 			err = json.Unmarshal(buf.Contents(), &resources)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -92,7 +93,7 @@ var _ = Describe("Fleet monitor", func() {
 			buf, _, err := act([]string{}, namespace)
 			Expect(err).NotTo(HaveOccurred())
 
-			var resources cli.Snapshot
+			var resources troubleshooting.Snapshot
 			err = json.Unmarshal(buf.Contents(), &resources)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -141,7 +142,7 @@ var _ = Describe("Fleet monitor", func() {
 			buf, _, err := act([]string{}, namespace)
 			Expect(err).NotTo(HaveOccurred())
 
-			var resources cli.Snapshot
+			var resources troubleshooting.Snapshot
 			err = json.Unmarshal(buf.Contents(), &resources)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -190,7 +191,7 @@ var _ = Describe("Fleet monitor", func() {
 			buf, _, err := act([]string{}, namespace)
 			Expect(err).NotTo(HaveOccurred())
 
-			var resources cli.Snapshot
+			var resources troubleshooting.Snapshot
 			err = json.Unmarshal(buf.Contents(), &resources)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -244,7 +245,7 @@ var _ = Describe("Fleet monitor", func() {
 			buf, _, err := act([]string{}, namespace)
 			Expect(err).NotTo(HaveOccurred())
 
-			var resources cli.Snapshot
+			var resources troubleshooting.Snapshot
 			err = json.Unmarshal(buf.Contents(), &resources)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -282,7 +283,7 @@ var _ = Describe("Fleet monitor", func() {
 			buf, _, err := act([]string{}, namespace)
 			Expect(err).NotTo(HaveOccurred())
 
-			var resources cli.Snapshot
+			var resources troubleshooting.Snapshot
 			err = json.Unmarshal(buf.Contents(), &resources)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -312,7 +313,7 @@ var _ = Describe("Fleet monitor", func() {
 			buf, _, err := act([]string{}, namespace)
 			Expect(err).NotTo(HaveOccurred())
 
-			var resources cli.Snapshot
+			var resources troubleshooting.Snapshot
 			err = json.Unmarshal(buf.Contents(), &resources)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -346,7 +347,7 @@ var _ = Describe("Fleet monitor", func() {
 			buf, _, err := act([]string{}, namespace)
 			Expect(err).NotTo(HaveOccurred())
 
-			var resources cli.Snapshot
+			var resources troubleshooting.Snapshot
 			err = json.Unmarshal(buf.Contents(), &resources)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -366,7 +367,7 @@ var _ = Describe("Fleet monitor", func() {
 			buf, _, err := act([]string{}, namespace)
 			Expect(err).NotTo(HaveOccurred())
 
-			var resources cli.Snapshot
+			var resources troubleshooting.Snapshot
 			err = json.Unmarshal(buf.Contents(), &resources)
 			Expect(err).NotTo(HaveOccurred())
 
