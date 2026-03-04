@@ -34,7 +34,7 @@ func GetManifestFromHelmChart(ctx context.Context, c client.Reader, bd *fleet.Bu
 
 	// Use the Rancher CA bundle that was pre-resolved by the controller and stored in
 	// HelmChartOptions.CABundle. The agent service account cannot read cattle-system
-	// secrets directly, so the controller must pass the bundle through.
+	// secrets directly, so the controller must pass the CA bundle through.
 	if len(auth.CABundle) == 0 {
 		auth.CABundle = bd.Spec.HelmChartOptions.CABundle
 	}

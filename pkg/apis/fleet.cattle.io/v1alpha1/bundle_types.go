@@ -460,7 +460,7 @@ type BundleHelmOptions struct {
 
 	// CABundle is a PEM encoded CA bundle used to validate TLS connections to
 	// the Helm registry. It is resolved by the controller (which has access to
-	// Rancher's cattle-system CA secrets) and stored here so the agent can use
+	// Rancher's cattle-system CA secrets, if any) and stored here so the agent can use
 	// it without requiring access to those secrets.
 	// +nullable
 	CABundle []byte `json:"helmOpCABundle,omitempty"`
