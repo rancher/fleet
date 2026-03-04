@@ -179,15 +179,13 @@ func (r *HelmOpReconciler) createUpdateBundle(ctx context.Context, helmop *fleet
 
 	// Resolve the Rancher CA bundle in the controller and store it in HelmOpOptions so
 	// the agent (whose service account cannot read cattle-system secrets) can use it.
-	// The resolved bundle is also forwarded to handleVersion so getChartVersion can reuse
-	// it without a second cattle-system lookup.
 	cab, err := cert.GetRancherCABundle(ctx, r.Client)
 	if err != nil {
 		return nil, fmt.Errorf("could not get Rancher CA bundle: %w", err)
 	}
 	bundle.Spec.HelmOpOptions.CABundle = cab
 
-	if err := r.handleVersion(ctx, b, bundle, helmop, cab); err != nil {
+	if err := r.handleVersion(ctx, b, bundle, helmop); err != nil {
 		return nil, err
 	}
 
@@ -262,10 +260,7 @@ func (r *HelmOpReconciler) calculateBundle(helmop *fleet.HelmOp) *fleet.Bundle {
 //
 // This is calculated in the upstream cluster so all downstream bundle deployments have the same
 // version. (Potentially we could be gathering the version at the very moment it is being updated, for example)
-//
-// caBundle is an optional pre-resolved CA bundle (may be nil). When non-nil it is forwarded to
-// getChartVersion so a second cattle-system secret lookup is avoided.
-func (r *HelmOpReconciler) handleVersion(ctx context.Context, oldBundle *fleet.Bundle, bundle *fleet.Bundle, helmop *fleet.HelmOp, caBundle []byte) error {
+func (r *HelmOpReconciler) handleVersion(ctx context.Context, oldBundle *fleet.Bundle, bundle *fleet.Bundle, helmop *fleet.HelmOp) error {
 	if helmop == nil {
 		return fmt.Errorf("the provided HelmOp is nil; this should not happen")
 	}
@@ -276,7 +271,7 @@ func (r *HelmOpReconciler) handleVersion(ctx context.Context, oldBundle *fleet.B
 		return nil
 	}
 
-	version, err := getChartVersion(ctx, r.Client, *helmop, caBundle)
+	version, err := getChartVersion(ctx, r.Client, *helmop, bundle.Spec.HelmOpOptions.CABundle)
 	if err != nil {
 		return err
 	}
