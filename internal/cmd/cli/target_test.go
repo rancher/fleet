@@ -92,7 +92,7 @@ func Test_stageAllTargets_overwritesExistingMaxNew(t *testing.T) {
 }
 
 func Test_stageAllTargets_preservesExistingRolloutStrategy(t *testing.T) {
-	ten  := 10
+	ten := 10
 	existing := &fleet.RolloutStrategy{
 		AutoPartitionThreshold: &ten,
 	}
