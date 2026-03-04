@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -354,6 +355,16 @@ func createGogsContainerWithHTTPS() (testcontainers.Container, error) {
 	err := cp.Copy("assets/gitserver", tmpDir)
 	if err != nil {
 		return nil, err
+	}
+	// The .ssh directory may end up group-writable depending on the system
+	// umask, which causes OpenSSH StrictModes to reject authorized_keys.
+	err = os.Chmod(filepath.Join(tmpDir, "git"), 0700)
+	if err != nil {
+		return nil, fmt.Errorf("failed to change permissions for .ssh directory: %w", err)
+	}
+	err = os.Chmod(filepath.Join(tmpDir, "git", ".ssh"), 0700)
+	if err != nil {
+		return nil, fmt.Errorf("failed to change permissions for .ssh directory: %w", err)
 	}
 	req := testcontainers.ContainerRequest{
 		Image:        "gogs/gogs:0.13",
