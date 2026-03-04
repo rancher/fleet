@@ -8,12 +8,15 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
-const (
-	maxNew = 50
-)
+// defaultMaxNew mirrors the default in the target package, kept in sync for
+// the status field which reflects the configured value.
+const defaultMaxNew = 50
 
-func resetStatus(status *fleet.BundleStatus, allTargets []*target.Target) (err error) {
-	status.MaxNew = maxNew
+func resetStatus(status *fleet.BundleStatus, allTargets []*target.Target, rollout *fleet.RolloutStrategy) (err error) {
+	status.MaxNew = defaultMaxNew
+	if rollout != nil && rollout.MaxNew != nil {
+		status.MaxNew = *rollout.MaxNew
+	}
 	status.Summary = fleet.BundleSummary{}
 	status.PartitionStatus = nil
 	status.Unavailable = 0

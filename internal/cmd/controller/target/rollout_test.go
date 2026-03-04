@@ -141,6 +141,29 @@ func intPtr(i int) *int {
 	return &i
 }
 
+// createNewTargets creates targets without existing Deployments, simulating
+// clusters that do not yet have a BundleDeployment.
+func createNewTargets(count int) []*Target {
+	targets := make([]*Target, count)
+	for i := range count {
+		targets[i] = &Target{
+			Cluster: &fleet.Cluster{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "default",
+					Name:      "cluster-" + strconv.Itoa(i+1),
+				},
+			},
+			Bundle: &fleet.Bundle{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "bundle-1",
+				},
+			},
+			DeploymentID: "deployment-" + strconv.Itoa(i+1),
+		}
+	}
+	return targets
+}
+
 func Test_autoPartition(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -472,6 +495,63 @@ func Test_manualPartition(t *testing.T) {
 				fmt.Printf("got: %+v\n", got)
 				fmt.Printf("want: %+v\n", tt.want)
 				t.Errorf("manualPartition(): %v", err)
+			}
+		})
+	}
+}
+
+func Test_UpdatePartitions_MaxNew(t *testing.T) {
+	tests := []struct {
+		name             string
+		maxNew           *int
+		targetCount      int
+		wantNewlyCreated int
+	}{
+		{
+			name:             "maxNew configured on rollout strategy limits newly created deployments",
+			maxNew:           intPtr(10),
+			targetCount:      100,
+			wantNewlyCreated: 10,
+		},
+		{
+			name:             "maxNew larger than target count creates all deployments",
+			maxNew:           intPtr(200),
+			targetCount:      20,
+			wantNewlyCreated: 20,
+		},
+		{
+			name:             "maxNew of 0 creates no new deployments",
+			maxNew:           intPtr(0),
+			targetCount:      10,
+			wantNewlyCreated: 0,
+		},
+		{
+			name:             "nil maxNew uses default of 50",
+			maxNew:           nil,
+			targetCount:      100,
+			wantNewlyCreated: defaultMaxNew,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			targets := createNewTargets(tt.targetCount)
+			for _, tgt := range targets {
+				tgt.Bundle.Spec.RolloutStrategy = &fleet.RolloutStrategy{
+					MaxNew: tt.maxNew,
+				}
+			}
+			if err := UpdatePartitions(&fleet.BundleStatus{}, targets); err != nil {
+				t.Fatalf("UpdatePartitions() failed: %v", err)
+			}
+			// Verify the right number of targets got a Deployment assigned
+			deploymentCount := 0
+			for _, tgt := range targets {
+				if tgt.Deployment != nil {
+					deploymentCount++
+				}
+			}
+			if deploymentCount != tt.wantNewlyCreated {
+				t.Errorf("targets with Deployment = %d, want %d", deploymentCount, tt.wantNewlyCreated)
 			}
 		})
 	}
