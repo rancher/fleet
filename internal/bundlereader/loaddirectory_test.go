@@ -36,7 +36,26 @@ func TestGetContent(t *testing.T) {
 		expectedErr        *regexp.Regexp
 	}{
 		{
-			name: "ensure panic doesn't occur when InsecureSkipVerify is set to false (#3782)",
+			name: "ensure panic doesn't occur when InsecureSkipVerify is set to false (#3782), oci url in helm.repo",
+			directoryStructure: fsNode{
+				name: "fleet.yaml",
+				contents: `namespace: fleet-helm-oci-with-auth-example
+		 helm:
+		   repo: "oci://ghcr.io/fleetqa/fleet-qa-examples/fleet-test-configmap-chart"
+		   version: "0.1.0"
+		   values:
+		     replicas: 2`,
+			},
+			source: "oci://foo/bar/baz",
+			auth: bundlereader.Auth{
+				Username: "foo",
+				Password: "bar",
+				// InsecureSkipVerify is false by default
+			},
+			expectedErr: regexp.MustCompile("(no such host|server misbehaving)"),
+		},
+		{
+			name: "ensure panic doesn't occur when InsecureSkipVerify is set to false (#3782), oci url in helm.chart",
 			directoryStructure: fsNode{
 				name: "fleet.yaml",
 				contents: `namespace: fleet-helm-oci-with-auth-example
