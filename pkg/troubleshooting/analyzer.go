@@ -545,7 +545,7 @@ func printCountChange(tw *tabwriter.Writer, label string, before, after int) {
 	} else if change < 0 {
 		icon = color.GreenString("↓")
 	}
-	fmt.Fprintf(tw, "  %s:\t%d → %d\t%s\n", label, before, after, icon) //nolint:gosec // G705 false positive: tw wraps a CLI stdout writer, not an HTTP ResponseWriter
+	fmt.Fprintf(tw, "  %s:\t%d → %d\t%s\n", label, before, after, icon)
 }
 
 func statusIcon(count int) string {

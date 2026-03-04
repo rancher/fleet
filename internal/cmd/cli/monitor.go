@@ -14,8 +14,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	command "github.com/rancher/fleet/internal/cmd"
 	"github.com/rancher/fleet/pkg/troubleshooting"
+
+	command "github.com/rancher/fleet/internal/cmd"
 )
 
 // Monitor provides diagnostic monitoring of Fleet resources to identify issues with bundle deployments.
@@ -275,4 +276,3 @@ func (m *Monitor) collectAndOutput(ctx context.Context, c client.Client, cmd *co
 	fmt.Fprintln(cmd.OutOrStdout(), string(output))
 	return nil
 }
-
