@@ -9,6 +9,34 @@ import (
 	"github.com/rancher/fleet/pkg/troubleshooting"
 )
 
+func Test_ReadSnapshots(t *testing.T) {
+	testCases := []struct {
+		name              string
+		input             io.Reader
+		expectedSnapshots []*troubleshooting.Snapshot
+		expectedErrMsg    string
+	}{
+		{
+			name:           "nil input",
+			expectedErrMsg: "empty input",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := troubleshooting.ReadSnapshots(tc.input)
+
+			if err == nil && tc.expectedErrMsg == "" {
+				return
+			}
+
+			if !strings.Contains(err.Error(), tc.expectedErrMsg) {
+				t.Fatalf("expected error matching %q, got: %v", tc.expectedErrMsg, err)
+			}
+		})
+	}
+}
+
 func Test_OutputSummary(t *testing.T) {
 	testCases := []struct {
 		name           string

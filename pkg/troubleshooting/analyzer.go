@@ -15,6 +15,10 @@ import (
 
 // ReadSnapshots reads newline-delimited JSON snapshots from an io.Reader.
 func ReadSnapshots(input io.Reader) ([]*Snapshot, error) {
+	if input == nil {
+		return nil, errors.New("empty input; cannot read snapshots")
+	}
+
 	var snapshots []*Snapshot
 	scanner := bufio.NewScanner(input)
 
