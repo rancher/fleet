@@ -1,0 +1,8 @@
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepoRestriction
+metadata:
+  name: ns-selector-restriction
+  namespace: fleet-default
+allowedTargetNamespaceSelector:
+  matchLabels:
+    team: frontend
