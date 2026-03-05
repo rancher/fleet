@@ -18,7 +18,7 @@ require (
 	github.com/onsi/ginkgo/v2 v2.28.1
 	github.com/onsi/gomega v1.39.0
 	github.com/otiai10/copy v1.14.1
-	github.com/rancher/fleet v0.0.0-00010101000000-000000000000
+	github.com/rancher/fleet v0.14.3
 	github.com/rancher/fleet/pkg/apis v0.14.2
 	github.com/rancher/wrangler/v3 v3.4.0
 	github.com/reugn/go-quartz v0.15.2
