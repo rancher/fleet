@@ -389,7 +389,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			// bundledeployments, but retry the whole reconcile
 			// afterwards.
 			merr = append(merr, fmt.Errorf("failed to create bundle deployment: %w", err))
-			logger.Info(fmt.Sprintf("failed to create a bundledeployment, skipping and requeuing: %v", err))
+			logger.Info(fmt.Sprintf("failed to create a bundledeployment %s/%s, skipping and requeuing: %v", bd.Namespace, bd.Name, err))
 			continue
 		}
 		bundleDeploymentUIDs.Insert(bd.UID)
@@ -509,6 +509,13 @@ func (r *BundleReconciler) createBundleDeployment(
 		return nil
 	})
 	if err != nil {
+		if apierrors.IsAlreadyExists(err) {
+			// In this case CreateOrUpdate returned NotFound when running Get but
+			// because the BundleDeployment was being created and was still not in sync in the
+			// cache it got AlreadyExists when trying to Create it.
+			// Consider this as a non error and return OperationCreated.
+			return controllerutil.OperationResultCreated, bd, nil
+		}
 		logger.Error(err, "Reconcile failed to create or update bundledeployment", "operation", op)
 		return controllerutil.OperationResultNone, nil, err
 	}
