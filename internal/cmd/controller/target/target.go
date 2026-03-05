@@ -26,6 +26,11 @@ var (
 )
 
 const (
+	// DefaultMaxNew is the default value for RolloutStrategy.MaxNew.
+	DefaultMaxNew = 50
+)
+
+const (
 	maxTemplateRecursionDepth = 50
 	clusterLabelPrefix        = "global.fleet.clusterLabels."
 	byBundleIndexerName       = "fleet.byBundle"
