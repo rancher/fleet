@@ -20,3 +20,4 @@ env.single-cluster
 /fossa
 benchmarks/db
 *.test
+go.work.sum
