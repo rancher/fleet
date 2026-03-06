@@ -376,7 +376,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			// bundledeployments, but retry the whole reconcile
 			// afterwards.
 			merr = append(merr, fmt.Errorf("failed to create bundle deployment: %w", err))
-			logger.Info(fmt.Sprintf("failed to create a bundledeployment %s/%s, skipping and requeuing: %v", bd.Namespace, bd.Name, err))
+			logger.Info(fmt.Sprintf("failed to create a bundledeployment, skipping and requeuing: %v", err))
 			continue
 		}
 		bundleDeploymentUIDs.Insert(bd.UID)
