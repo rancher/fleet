@@ -69,8 +69,9 @@ type TargetBuilder interface {
 // BundleReconciler reconciles a Bundle object
 type BundleReconciler struct {
 	client.Client
-	Scheme   *runtime.Scheme
-	Recorder record.EventRecorder
+	Scheme    *runtime.Scheme
+	Recorder  record.EventRecorder
+	APIReader client.Reader
 
 	Builder TargetBuilder
 	Store   Store
@@ -490,7 +491,7 @@ func (r *BundleReconciler) createBundleDeployment(
 	l logr.Logger,
 	bd *fleet.BundleDeployment,
 ) (controllerutil.OperationResult, *fleet.BundleDeployment, error) {
-	logger := l.WithValues("deploymentID", bd.Spec.DeploymentID)
+	logger := l.WithValues("deploymentID", bd.Spec.DeploymentID, "namespace", bd.Namespace, "name", bd.Name)
 
 	updated := bd.DeepCopy()
 	op, err := controllerutil.CreateOrUpdate(ctx, r.Client, bd, func() error {
@@ -505,6 +506,21 @@ func (r *BundleReconciler) createBundleDeployment(
 		return nil
 	})
 	if err != nil {
+		if apierrors.IsAlreadyExists(err) {
+			// In this case CreateOrUpdate returned NotFound when running Get but
+			// because the BundleDeployment was being created and was still not in sync in the
+			// cache it got AlreadyExists when trying to Create it.
+			// Consider this as a non error and return OperationCreated.
+			// We need to get the BundleDeployment from the API server (bypassing the cache)
+			// to obtain its UID, which is required for setting the owner reference on the
+			// options secret for garbage collection.
+			fetched := &fleet.BundleDeployment{}
+			if err := r.APIReader.Get(ctx, client.ObjectKeyFromObject(bd), fetched); err != nil {
+				logger.Error(err, "Reconcile failed to fetch bundledeployment from API server after AlreadyExists")
+				return controllerutil.OperationResultNone, nil, err
+			}
+			return controllerutil.OperationResultCreated, fetched, nil
+		}
 		logger.Error(err, "Reconcile failed to create or update bundledeployment", "operation", op)
 		return controllerutil.OperationResultNone, nil, err
 	}
