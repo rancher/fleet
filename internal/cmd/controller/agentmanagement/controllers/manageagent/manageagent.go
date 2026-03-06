@@ -331,6 +331,10 @@ func (h *handler) newAgentBundle(ns string, cluster *fleet.Cluster) (runtime.Obj
 		priorityClassName = scheduling.FleetAgentPriorityClassName
 	}
 
+	if cfg.AgentCheckinInterval.Seconds() == 0 {
+		return nil, fmt.Errorf("agent check-in interval cannot be 0")
+	}
+
 	if cluster.Spec.AgentTolerations != nil {
 		sortTolerations(cluster.Spec.AgentTolerations)
 	}
