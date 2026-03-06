@@ -143,6 +143,82 @@ var _ = Describe("Cluster agentSchedulingCustomization nullability", func() {
 			"agentSchedulingCustomization should be nil after being cleared via null merge patch")
 	})
 
+	It("is not normalized when PriorityClass is set", func() {
+		// A non-empty agentSchedulingCustomization (PriorityClass configured)
+		// must not be patched to nil by the controller.
+		namespace = newNamespace()
+		cluster := &v1alpha1.Cluster{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-nullable-priorityclass",
+				Namespace: namespace,
+			},
+			Spec: v1alpha1.ClusterSpec{
+				AgentSchedulingCustomization: &v1alpha1.AgentSchedulingCustomization{
+					PriorityClass: &v1alpha1.PriorityClassSpec{Value: 100},
+				},
+			},
+		}
+		Expect(k8sClient.Create(ctx, cluster)).ToNot(HaveOccurred())
+		DeferCleanup(func() {
+			Expect(k8sClient.Delete(ctx, cluster)).ToNot(HaveOccurred())
+		})
+
+		// Wait for the finalizer to appear — this confirms the controller has
+		// completed at least one reconcile and reached the normalization step.
+		Eventually(func(g Gomega) {
+			fetched := &v1alpha1.Cluster{}
+			g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: cluster.Name, Namespace: namespace}, fetched)).ToNot(HaveOccurred())
+			g.Expect(fetched.Finalizers).To(ContainElement("fleet.cattle.io/cluster-finalizer"))
+		}).Should(Succeed())
+
+		Consistently(func(g Gomega) {
+			fetched := &v1alpha1.Cluster{}
+			g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: cluster.Name, Namespace: namespace}, fetched)).ToNot(HaveOccurred())
+			g.Expect(fetched.Spec.AgentSchedulingCustomization).ToNot(BeNil(),
+				"controller must not normalize a non-empty agentSchedulingCustomization")
+			g.Expect(fetched.Spec.AgentSchedulingCustomization.PriorityClass).ToNot(BeNil())
+			g.Expect(fetched.Spec.AgentSchedulingCustomization.PriorityClass.Value).To(Equal(100))
+		}).Should(Succeed())
+	})
+
+	It("is not normalized when PodDisruptionBudget is set", func() {
+		// A non-empty agentSchedulingCustomization (PodDisruptionBudget configured)
+		// must not be patched to nil by the controller.
+		namespace = newNamespace()
+		cluster := &v1alpha1.Cluster{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-nullable-pdb",
+				Namespace: namespace,
+			},
+			Spec: v1alpha1.ClusterSpec{
+				AgentSchedulingCustomization: &v1alpha1.AgentSchedulingCustomization{
+					PodDisruptionBudget: &v1alpha1.PodDisruptionBudgetSpec{MinAvailable: "1"},
+				},
+			},
+		}
+		Expect(k8sClient.Create(ctx, cluster)).ToNot(HaveOccurred())
+		DeferCleanup(func() {
+			Expect(k8sClient.Delete(ctx, cluster)).ToNot(HaveOccurred())
+		})
+
+		// Wait for the finalizer to appear — this confirms the controller has
+		// completed at least one reconcile and reached the normalization step.
+		Eventually(func(g Gomega) {
+			fetched := &v1alpha1.Cluster{}
+			g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: cluster.Name, Namespace: namespace}, fetched)).ToNot(HaveOccurred())
+			g.Expect(fetched.Finalizers).To(ContainElement("fleet.cattle.io/cluster-finalizer"))
+		}).Should(Succeed())
+
+		Consistently(func(g Gomega) {
+			fetched := &v1alpha1.Cluster{}
+			g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: cluster.Name, Namespace: namespace}, fetched)).ToNot(HaveOccurred())
+			g.Expect(fetched.Spec.AgentSchedulingCustomization).ToNot(BeNil(),
+				"controller must not normalize a non-empty agentSchedulingCustomization")
+			g.Expect(fetched.Spec.AgentSchedulingCustomization.PodDisruptionBudget).ToNot(BeNil())
+			g.Expect(fetched.Spec.AgentSchedulingCustomization.PodDisruptionBudget.MinAvailable).To(Equal("1"))
+		}).Should(Succeed())
+	})
+
 	It("is normalized from empty struct to nil by the controller", func() {
 		// This simulates what Rancher's provisioning layer does: it initializes
 		// AgentSchedulingCustomization as a non-nil empty struct, which gets
