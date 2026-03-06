@@ -151,6 +151,7 @@ type ClusterSpec struct {
 	HostNetwork *bool `json:"hostNetwork,omitempty"`
 
 	// +nullable
+	// +optional
 	AgentSchedulingCustomization *AgentSchedulingCustomization `json:"agentSchedulingCustomization,omitempty"`
 }
 
