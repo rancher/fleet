@@ -866,6 +866,137 @@ func TestReconcile_DownstreamObjectsHandlingError(t *testing.T) {
 	}
 }
 
+func TestReconcile_CreateBundleDeployment_AlreadyExists(t *testing.T) {
+	bdUID := types.UID("existing-bd-uid")
+
+	cases := []struct {
+		name             string
+		apiReaderGetErr  error
+		expectReconciles bool // true = reconcile completes successfully
+		expectedErrMsg   string
+	}{
+		{
+			name:             "API reader Get succeeds, returns fetched BD with UID",
+			apiReaderGetErr:  nil,
+			expectReconciles: true,
+		},
+		{
+			name:            "API reader Get fails, error is propagated",
+			apiReaderGetErr: errors.New("api server unreachable"),
+			expectedErrMsg:  "failed to create bundle deployment",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			mockCtrl := gomock.NewController(t)
+			defer mockCtrl.Finish()
+			scheme := runtime.NewScheme()
+			utilruntime.Must(batchv1.AddToScheme(scheme))
+			utilruntime.Must(fleetv1.AddToScheme(scheme))
+
+			bundle := fleetv1.Bundle{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "my-bundle",
+					Namespace: "default",
+				},
+				Spec: fleetv1.BundleSpec{
+					RolloutStrategy: nil,
+				},
+			}
+
+			namespacedName := types.NamespacedName{Name: bundle.Name, Namespace: bundle.Namespace}
+
+			mockClient := mocks.NewMockK8sClient(mockCtrl)
+			expectGetWithFinalizer(mockClient, bundle)
+
+			// CreateOrUpdate: Get returns NotFound (cache miss), then Create returns AlreadyExists (race condition)
+			mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.BundleDeployment{}), gomock.Any()).
+				Return(&k8serrors.StatusError{ErrStatus: metav1.Status{Code: http.StatusNotFound, Reason: metav1.StatusReasonNotFound}})
+			mockClient.EXPECT().Create(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.BundleDeployment{}), gomock.Any()).
+				Return(&k8serrors.StatusError{ErrStatus: metav1.Status{Code: http.StatusConflict, Reason: metav1.StatusReasonAlreadyExists}})
+
+			// APIReader: bypass cache to fetch the real BD
+			apiReader := mocks.NewMockReader(mockCtrl)
+			if c.apiReaderGetErr != nil {
+				apiReader.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.BundleDeployment{}), gomock.Any()).
+					Return(c.apiReaderGetErr)
+			} else {
+				apiReader.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.BundleDeployment{}), gomock.Any()).
+					DoAndReturn(func(ctx context.Context, key types.NamespacedName, bd *fleetv1.BundleDeployment, opts ...client.GetOption) error {
+						bd.Name = key.Name
+						bd.Namespace = key.Namespace
+						bd.UID = bdUID
+						return nil
+					})
+			}
+
+			// Options secret: deletion (no values hash → delete if exists)
+			mockClient.EXPECT().Delete(gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{}), gomock.Any()).
+				Return(&k8serrors.StatusError{ErrStatus: metav1.Status{Code: http.StatusNotFound, Reason: metav1.StatusReasonNotFound}})
+
+			// cleanupOrphanedBundleDeployments: List BundleDeployments
+			mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.BundleDeploymentList{}), gomock.Any()).
+				Return(nil)
+
+			// updateStatus: status patch
+			statusClient := mocks.NewMockStatusWriter(mockCtrl)
+			mockClient.EXPECT().Status().Return(statusClient).Times(1)
+			statusClient.EXPECT().Patch(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Bundle{}), gomock.Any()).Return(nil)
+
+			recorderMock := mocks.NewMockEventRecorder(mockCtrl)
+
+			matchedTargets := []*target.Target{
+				{
+					Bundle: &bundle,
+					Cluster: &fleetv1.Cluster{
+						ObjectMeta: metav1.ObjectMeta{
+							Namespace: "my-ns",
+							Name:      "my-cluster",
+						},
+					},
+					Deployment: &fleetv1.BundleDeployment{
+						ObjectMeta: metav1.ObjectMeta{
+							Namespace: "my-bd", // non-empty
+						},
+					},
+					DeploymentID: "foo",
+				},
+			}
+			targetBuilderMock := mocks.NewMockTargetBuilder(mockCtrl)
+			targetBuilderMock.EXPECT().Targets(gomock.Any(), gomock.Any(), gomock.Any()).Return(matchedTargets, false, nil)
+
+			storeMock := mocks.NewMockStore(mockCtrl)
+			storeMock.EXPECT().Store(gomock.Any(), gomock.Any()).Return(nil)
+
+			r := reconciler.BundleReconciler{
+				Client:    mockClient,
+				Scheme:    scheme,
+				Recorder:  recorderMock,
+				APIReader: apiReader,
+				Builder:   targetBuilderMock,
+				Store:     storeMock,
+			}
+
+			ctx := context.TODO()
+			_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: namespacedName})
+
+			if c.expectReconciles {
+				if err != nil {
+					t.Errorf("expected no error, got: %v", err)
+				}
+			} else {
+				if err == nil {
+					t.Fatalf("expected error, got nil")
+				}
+				if !strings.Contains(err.Error(), c.expectedErrMsg) {
+					t.Errorf("expected error containing %q, got: %v", c.expectedErrMsg, err)
+				}
+			}
+		})
+	}
+}
+
 func TestReconcile_AccessSecretsHandlingError(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
@@ -1651,10 +1782,11 @@ func setupBundleRaceTest(t *testing.T, reader client.Reader, helmValues map[stri
 	}
 
 	rec := &reconciler.BundleReconciler{
-		Client:  fc,
-		Scheme:  scheme,
-		Builder: target.New(fc, reader),
-		Store:   storeMock,
+		Client:    fc,
+		Scheme:    scheme,
+		APIReader: fc,
+		Builder:   target.New(fc, reader),
+		Store:     storeMock,
 	}
 
 	return fc, rec, ctrl.Request{
