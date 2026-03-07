@@ -124,15 +124,21 @@ func (j *helmPollingJob) pollHelm(ctx context.Context) error {
 		return j.updateErrorStatus(ctx, h, pollingTimestamp, origErr)
 	}
 
-	version, err := getChartVersion(ctx, j.client, *h)
-	if err != nil {
-		return fail(err, "FailedToGetNewChartVersion")
+	// Fetch the bundle first so we can pass its stored CA bundle to
+	// getChartVersion and avoid a redundant cattle-system secret lookup.
+	b := &fleet.Bundle{}
+	if err := j.client.Get(ctx, nsName, b); err != nil {
+		return fail(fmt.Errorf("could not get bundle before polling: %w", err), "FailedToGetBundle")
 	}
 
-	b := &fleet.Bundle{}
+	var storedCABundle []byte
+	if b.Spec.HelmOpOptions != nil {
+		storedCABundle = b.Spec.HelmOpOptions.CABundle
+	}
 
-	if err := j.client.Get(ctx, nsName, b); err != nil {
-		return fail(fmt.Errorf("could not get bundle before patching its version: %w", err), "FailedToGetBundle")
+	version, err := getChartVersion(ctx, j.client, *h, storedCABundle)
+	if err != nil {
+		return fail(err, "FailedToGetNewChartVersion")
 	}
 
 	orig := b.DeepCopy()
