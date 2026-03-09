@@ -15,6 +15,20 @@
   ],
   "packageRules": [
     {
+      "description": "Update indirect dependencies in integrationtests/go.mod only when the same dependency is updated elsewhere in the workspace",
+      "matchManagers": [
+        "gomod"
+      ],
+      "matchDepTypes": [
+        "indirect"
+      ],
+      "matchFileNames": [
+        "integrationtests/go.mod"
+      ],
+      "enabled": true,
+      "minimumGroupSize": 2
+    },
+    {
       "matchBaseBranches": [
         "release/v0.14"
       ],
