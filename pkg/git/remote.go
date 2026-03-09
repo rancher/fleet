@@ -42,6 +42,7 @@ type GoGitRemoteLister struct {
 	Auth            transport.AuthMethod
 	CABundle        []byte
 	InsecureSkipTLS bool
+	ProxyOptions    transport.ProxyOptions
 }
 
 func (g *GoGitRemoteLister) List(appendPeeled bool) ([]*RemoteRef, error) {
@@ -52,6 +53,7 @@ func (g *GoGitRemoteLister) List(appendPeeled bool) ([]*RemoteRef, error) {
 		Auth:            g.Auth,
 		CABundle:        g.CABundle,
 		InsecureSkipTLS: g.InsecureSkipTLS,
+		ProxyOptions:    g.ProxyOptions,
 	}
 	if appendPeeled {
 		opts.PeelingOption = gogit.AppendPeeled
@@ -97,6 +99,7 @@ func NewRemote(url string, opts *options) (*Remote, error) {
 			Auth:            auth,
 			CABundle:        opts.CABundle,
 			InsecureSkipTLS: opts.InsecureTLSVerify,
+			ProxyOptions:    ProxyOptsFromEnvironment(url),
 		},
 	}, nil
 }
