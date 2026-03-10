@@ -1,0 +1,6 @@
+apiVersion: v2
+name: offline-bundle-stuck
+description: A minimal chart used to reproduce issue 594 (stale error after offline cluster)
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

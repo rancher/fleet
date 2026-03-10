@@ -136,13 +136,26 @@ func (t *Target) state() fleet.BundleState {
 	case nil:
 		return fleet.Pending
 	default:
-		return summary.GetDeploymentState(t.Deployment)
+		return summary.GetDeploymentState(t.effectiveDeployment())
 	}
 }
 
 // message returns a relevant message from the target (pure function)
 func (t *Target) message() string {
-	return summary.MessageFromDeployment(t.Deployment)
+	return summary.MessageFromDeployment(t.effectiveDeployment())
+}
+
+// effectiveDeployment returns t.Deployment with Spec.DeploymentID overridden
+// to t.DeploymentID, or t.Deployment unchanged when the IDs already match.
+// Status is computed (via state and message) before the reconciler writes the
+// new BD spec, so the cached Spec.DeploymentID lags at that point.
+func (t *Target) effectiveDeployment() *fleet.BundleDeployment {
+	if t.Deployment == nil || t.DeploymentID == t.Deployment.Spec.DeploymentID {
+		return t.Deployment
+	}
+	bd := *t.Deployment
+	bd.Spec.DeploymentID = t.DeploymentID
+	return &bd
 }
 
 // initialiseOptionsMaps initialises options and staged options maps of namespace labels and annotations on bd, if

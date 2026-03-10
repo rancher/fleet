@@ -1,0 +1,2 @@
+helm:
+  releaseName: offline-bundle-stuck
