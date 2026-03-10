@@ -766,6 +766,107 @@ func TestGitHubSecretAndCommitUpdated(t *testing.T) {
 	}
 }
 
+func TestGitRepoURLMatch(t *testing.T) {
+	ctlr := gomock.NewController(t)
+	mockClient := mocks.NewMockK8sClient(ctlr)
+
+	expectedCommit := "af69d162de5a276abc86e0686b2b44033cd3f442"
+
+	gitRepos := []v1alpha1.GitRepo{
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "intended-gitrepo",
+				Namespace: "my-namespace",
+			},
+			Spec: v1alpha1.GitRepoSpec{
+				Repo: "https://github.com/example/repo",
+			},
+			Status: v1alpha1.GitRepoStatus{
+				WebhookCommit: "12345abcdef", // different from expectedCommit
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "gitrepo-which-should-be-ignored",
+				Namespace: "my-namespace",
+			},
+			Spec: v1alpha1.GitRepoSpec{
+				Repo: "https://github.com/example/repo-with-suffix",
+			},
+			Status: v1alpha1.GitRepoStatus{
+				WebhookCommit: "12345abcdef", // different from expectedCommit
+			},
+		},
+	}
+
+	// List GitRepos mock call
+	mockClient.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(
+		func(ctx context.Context, list *v1alpha1.GitRepoList, opts ...client.ListOption) error {
+			list.Items = append(list.Items, gitRepos...)
+
+			return nil
+		},
+	)
+
+	nn := types.NamespacedName{Name: webhookSecretName, Namespace: "my-namespace"}
+	// The following calls should happen only _once_, for the GitRepo with the exact URL match, hence the explicit
+	// `.Times(1)` calls.
+	mockClient.EXPECT().Get(gomock.Any(), nn, gomock.Any()).Return(errors.NewNotFound(schema.GroupResource{}, "")).Times(1)
+
+	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		func(ctx context.Context, name types.NamespacedName, gitrepo *v1alpha1.GitRepo, _ ...interface{}) error {
+			// check that the GitRepo is the expected one
+			if name.Name != "intended-gitrepo" {
+				t.Errorf("wrong gitrepo matched: expected 'intended-gitrepo', got %s", name.Name)
+			}
+
+			return nil
+		},
+	).Times(1)
+	statusClient := mocks.NewMockStatusWriter(ctlr)
+	mockClient.EXPECT().Status().Return(statusClient).Times(1)
+	statusClient.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any()).Do(
+		func(ctx context.Context, repo *v1alpha1.GitRepo, _ client.Patch, opts ...interface{}) {
+			// check that the commit is the expected one
+			if repo.Status.WebhookCommit != expectedCommit {
+				t.Errorf("expecting gitrepo webhook commit %s, got %s", expectedCommit, repo.Status.WebhookCommit)
+			}
+			if repo.Spec.PollingInterval.Duration != time.Hour {
+				t.Errorf("expecting gitrepo polling interval 1h, got %s", repo.Spec.PollingInterval.Duration)
+			}
+		},
+	).Times(1)
+
+	// we set only the values that we're going to use in the push event to make things simple
+	jsonBody := []byte(fmt.Sprintf(`
+		{
+		  "ref":"refs/heads/main",
+		  "after":"%s",
+		  "repository":{
+			"html_url":"https://github.com/example/repo"
+		  }
+		}`, expectedCommit))
+
+	// Request creation
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "/", bytes.NewReader(jsonBody))
+	if err != nil {
+		t.Fatalf("Failed to create HTTP request: %v", err)
+	}
+	req.Header.Set("X-Github-Event", "push")
+
+	rr := httptest.NewRecorder()
+	w := &Webhook{
+		client:    mockClient,
+		namespace: "my-namespace",
+	}
+	w.ServeHTTP(rr, req)
+
+	// Verify the response status code is correct
+	if status := rr.Code; status != http.StatusOK {
+		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
+	}
+}
+
 func TestErrorReadingRequest(t *testing.T) {
 	ctlr := gomock.NewController(t)
 	mockClient := mocks.NewMockK8sClient(ctlr)
