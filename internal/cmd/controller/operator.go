@@ -120,7 +120,7 @@ func start(
 	if err = (&reconciler.BundleReconciler{
 		Client:    mgr.GetClient(),
 		Scheme:    mgr.GetScheme(),
-		Recorder:  mgr.GetEventRecorderFor(fmt.Sprintf("fleet-bundle-ctrl%s", shardIDSuffix)), //nolint:staticcheck // GetEventRecorderFor is deprecated
+		Recorder:  mgr.GetEventRecorder(fmt.Sprintf("fleet-bundle-ctrl%s", shardIDSuffix)),
 		APIReader: mgr.GetAPIReader(),
 
 		Builder: builder,
@@ -190,7 +190,7 @@ func start(
 		if err = (&reconciler.ScheduleReconciler{
 			Client:   mgr.GetClient(),
 			Scheme:   mgr.GetScheme(),
-			Recorder: mgr.GetEventRecorderFor(fmt.Sprintf("fleet-schedule-ctrl%s", shardIDSuffix)),
+			Recorder: mgr.GetEventRecorder(fmt.Sprintf("fleet-schedule-ctrl%s", shardIDSuffix)),
 			ShardID:  shardID,
 
 			Workers:   workersOpts.Schedule,
