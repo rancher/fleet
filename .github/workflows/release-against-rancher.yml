@@ -2,31 +2,22 @@ name: Release Fleet against rancher/rancher
 on:
   workflow_dispatch:
     inputs:
-      rancher_ref:
-        description: "Submit PR against the following rancher/rancher branch (e.g. release/v2.13 or main if there is no according release branch yet)"
+      fleet_branch:
+        description: "Fleet branch to release from (main = next unreleased minor version)"
         required: true
         default: "main"
-      new_fleet:
-        description: "New Fleet version (e.g. 0.14.0-rc.1)"
-        required: true
-        default: ""
-      new_chart:
-        description: "New Rancher Chart version (e.g. 108.0.0)"
-        required: true
-        default: ""
-      should_bump_api:
-        description: "Should the Fleet api be bumped in the Rancher repo? (If the API in github.com/rancher/fleet/pkg/apis has changed or the release is for a final release, then the API needs to be bumped (set to true ), otherwise use false .)"
-        required: true
-        default: "false"
-      go_version:
-        description: "Go version used for bumping the api. This should be the same version as in the go.mod file of the project."
-        required: true
-        default: '1.25.*'
+        type: choice
+        options:
+          - main
+          - release/v0.15
+          - release/v0.14
+          - release/v0.13
+          - release/v0.12
+          - release/v0.11
 
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
-  SETUP_GO_VERSION: ${{github.event.inputs.go_version}}
 
 jobs:
   create-rancher-pr:
@@ -40,26 +31,44 @@ jobs:
           fetch-depth: 0
           path: fleet
           persist-credentials: false
+
+      - name: Compute versions
+        id: versions
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FLEET_BRANCH: ${{ inputs.fleet_branch }}
+        run: fleet/.github/scripts/compute-rancher-versions.sh
+
       - name: Checkout rancher/rancher
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
           repository: rancher/rancher
-          ref: ${{github.event.inputs.rancher_ref}}
+          ref: ${{ steps.versions.outputs.rancher_ref }}
           path: rancher
           persist-credentials: false
+
       - uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
-          go-version: ${{ env.SETUP_GO_VERSION }}
+          go-version-file: ./rancher/go.mod
+          cache-dependency-path: ./rancher/go.sum
+
       - name: Install controller-gen
         run: go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.17.2
+
       - name: Run release script
         run: |
-          export CHARTS_DIR="${GITHUB_WORKSPACE}/rancher"
-          ./fleet/.github/scripts/release-against-rancher.sh ${{github.event.inputs.new_fleet}} ${{github.event.inputs.new_chart}} ${{github.event.inputs.should_bump_api}}
+          ./fleet/.github/scripts/release-against-rancher.sh \
+            "${{ steps.versions.outputs.new_fleet }}" \
+            "${{ steps.versions.outputs.new_chart }}"
+
       - name: Create Pull Request
         env:
           GITHUB_TOKEN: ${{ secrets.PUSH_TO_FORKS_SUBMIT_PRS }}
         working-directory: ./rancher/
         run: |
-          ../fleet/.github/scripts/create-pr.sh ${{github.event.inputs.rancher_ref}} ${{github.event.inputs.new_fleet}} ${{github.event.inputs.new_chart}} rancher
+          ../fleet/.github/scripts/create-pr.sh \
+            "${{ steps.versions.outputs.rancher_ref }}" \
+            "${{ steps.versions.outputs.new_fleet }}" \
+            "${{ steps.versions.outputs.new_chart }}" \
+            rancher
