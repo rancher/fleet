@@ -398,7 +398,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 			targets = append(targets, targetsInGitRepo...)
 		})
 
-		It("no BundleDeployments are created", func() {
+		It("does not create any BundleDeployments", func() {
 			waitForBundleToBeReady(bundleName)
 			_ = verifyBundlesDeploymentsAreCreated(expectedNumberOfBundleDeployments, bdLabels, bundleName)
 		})
@@ -592,6 +592,9 @@ var _ = Describe("Bundle targets", Ordered, func() {
 
 func verifyBundlesDeploymentsAreCreated(numBundleDeployments int, bdLabels map[string]string, bundleName string) *v1alpha1.BundleDeploymentList {
 	var bdList *v1alpha1.BundleDeploymentList
+	if bdLabels == nil {
+		bdLabels = map[string]string{}
+	}
 	bdLabels["fleet.cattle.io/bundle-name"] = bundleName
 	Eventually(func() int {
 		bdList = &v1alpha1.BundleDeploymentList{}
