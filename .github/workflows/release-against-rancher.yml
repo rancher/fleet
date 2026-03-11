@@ -44,7 +44,7 @@ jobs:
           repository: rancher/rancher
           ref: ${{github.event.inputs.rancher_ref}}
           path: rancher
-      - uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6
+      - uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version: ${{ env.SETUP_GO_VERSION }}
       - name: Install controller-gen
