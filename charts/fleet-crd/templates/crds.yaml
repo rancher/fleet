@@ -4360,10 +4360,7 @@ spec:
                                       and labelSelector.
 
                                       Also, matchLabelKeys cannot be set when labelSelector
-                                      isn''t set.
-
-                                      This is a beta field and requires enabling MatchLabelKeysInPodAffinity
-                                      feature gate (enabled by default).'
+                                      isn''t set.'
                                     items:
                                       type: string
                                     type: array
@@ -4392,10 +4389,7 @@ spec:
                                       and labelSelector.
 
                                       Also, mismatchLabelKeys cannot be set when labelSelector
-                                      isn''t set.
-
-                                      This is a beta field and requires enabling MatchLabelKeysInPodAffinity
-                                      feature gate (enabled by default).'
+                                      isn''t set.'
                                     items:
                                       type: string
                                     type: array
@@ -4645,10 +4639,7 @@ spec:
                                   and labelSelector.
 
                                   Also, matchLabelKeys cannot be set when labelSelector
-                                  isn''t set.
-
-                                  This is a beta field and requires enabling MatchLabelKeysInPodAffinity
-                                  feature gate (enabled by default).'
+                                  isn''t set.'
                                 items:
                                   type: string
                                 type: array
@@ -4676,10 +4667,7 @@ spec:
                                   and labelSelector.
 
                                   Also, mismatchLabelKeys cannot be set when labelSelector
-                                  isn''t set.
-
-                                  This is a beta field and requires enabling MatchLabelKeysInPodAffinity
-                                  feature gate (enabled by default).'
+                                  isn''t set.'
                                 items:
                                   type: string
                                 type: array
@@ -4919,10 +4907,7 @@ spec:
                                       and labelSelector.
 
                                       Also, matchLabelKeys cannot be set when labelSelector
-                                      isn''t set.
-
-                                      This is a beta field and requires enabling MatchLabelKeysInPodAffinity
-                                      feature gate (enabled by default).'
+                                      isn''t set.'
                                     items:
                                       type: string
                                     type: array
@@ -4951,10 +4936,7 @@ spec:
                                       and labelSelector.
 
                                       Also, mismatchLabelKeys cannot be set when labelSelector
-                                      isn''t set.
-
-                                      This is a beta field and requires enabling MatchLabelKeysInPodAffinity
-                                      feature gate (enabled by default).'
+                                      isn''t set.'
                                     items:
                                       type: string
                                     type: array
@@ -5204,10 +5186,7 @@ spec:
                                   and labelSelector.
 
                                   Also, matchLabelKeys cannot be set when labelSelector
-                                  isn''t set.
-
-                                  This is a beta field and requires enabling MatchLabelKeysInPodAffinity
-                                  feature gate (enabled by default).'
+                                  isn''t set.'
                                 items:
                                   type: string
                                 type: array
@@ -5235,10 +5214,7 @@ spec:
                                   and labelSelector.
 
                                   Also, mismatchLabelKeys cannot be set when labelSelector
-                                  isn''t set.
-
-                                  This is a beta field and requires enabling MatchLabelKeysInPodAffinity
-                                  feature gate (enabled by default).'
+                                  isn''t set.'
                                 items:
                                   type: string
                                 type: array
