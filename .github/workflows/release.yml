@@ -115,7 +115,7 @@ jobs:
       - name: Run unit tests
         if: ${{ !inputs.skip_tests }}
         continue-on-error: ${{ contains(github.ref, 'rc') }}
-        run: go test -cover -tags=test $(go list ./... | grep -v -e /e2e -e /integrationtests -e /benchmarks)
+        run: go list ./... | grep -v -e /e2e -e /integrationtests -e /benchmarks | xargs go test -cover -tags=test
 
       - name: Run integration tests
         if: ${{ !inputs.skip_tests }}
@@ -276,7 +276,7 @@ jobs:
 
           find charts/ -maxdepth 1 -mindepth 1 -type d -exec helm package --version="$version" --app-version="$version" -d ./dist {} \;
 
-          find dist/ -name '*.tgz' -exec gh release upload $tag {} +
+          find dist/ -name '*.tgz' -exec gh release upload "$tag" {} +
 
       - name: Add charts to branch
         if: ${{ env.IS_HOTFIX == 'false' }}
@@ -315,5 +315,5 @@ jobs:
           git add charts/**/*
           git commit -m "Update charts to version $version"
 
-          git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git
+          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git"
           git push origin "$charts_branch"
