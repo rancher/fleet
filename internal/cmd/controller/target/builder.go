@@ -79,14 +79,16 @@ func (m *Manager) Targets(ctx context.Context, bundle *fleet.Bundle, manifestID 
 				return nil, false, err
 			}
 
-			target := bm.Match(cluster.Name, ClusterGroupsToLabelMap(clusterGroups), cluster.Labels)
+			clusterGroupsAsLabelMap := ClusterGroupsToLabelMap(clusterGroups)
+
+			target := bm.Match(cluster.Name, clusterGroupsAsLabelMap, cluster.Labels)
 			if target == nil {
 				continue
 			}
 			// Check all matching targetCustomizations for doNotDeploy, not just the first match.
 			// This ensures that a doNotDeploy entry is honoured even when a broader-matching
 			// target appears before it in the target list (fixes first-match bypass).
-			doNotDeploy := target.DoNotDeploy || bm.HasDoNotDeployTarget(cluster.Name, ClusterGroupsToLabelMap(clusterGroups), cluster.Labels)
+			doNotDeploy := target.DoNotDeploy || bm.HasDoNotDeployTarget(cluster.Name, clusterGroupsAsLabelMap, cluster.Labels)
 			if doNotDeploy {
 				logger.V(1).Info("Skipping BundleDeployment creation because doNotDeploy is set to true.",
 					"bundle", bundle.Name,
@@ -99,7 +101,7 @@ func (m *Manager) Targets(ctx context.Context, bundle *fleet.Bundle, manifestID 
 			}
 			// check if there is any matching targetCustomization that should be applied
 			targetOpts := target.BundleDeploymentOptions
-			targetCustomized := bm.MatchTargetCustomizations(cluster.Name, ClusterGroupsToLabelMap(clusterGroups), cluster.Labels)
+			targetCustomized := bm.MatchTargetCustomizations(cluster.Name, clusterGroupsAsLabelMap, cluster.Labels)
 			if targetCustomized != nil {
 				targetOpts = targetCustomized.BundleDeploymentOptions
 			}
