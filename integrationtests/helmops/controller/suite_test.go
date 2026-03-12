@@ -90,7 +90,7 @@ var _ = BeforeSuite(func() {
 	err = (&reconciler.HelmOpReconciler{
 		Client:    mgr.GetClient(),
 		Scheme:    mgr.GetScheme(),
-		Recorder:  mgr.GetEventRecorderFor("helmops-controller"),
+		Recorder:  mgr.GetEventRecorder("helmops-controller"),
 		Scheduler: sched,
 		Workers:   50,
 	}).SetupWithManager(mgr)
@@ -108,12 +108,13 @@ var _ = BeforeSuite(func() {
 	store := manifest.NewStore(mgr.GetClient())
 	builder := target.New(mgr.GetClient(), mgr.GetAPIReader())
 	err = (&ctrlreconciler.BundleReconciler{
-		Client:  mgr.GetClient(),
-		Scheme:  mgr.GetScheme(),
-		Builder: builder,
-		Store:   store,
-		Query:   builder,
-		Workers: 50,
+		Client:    mgr.GetClient(),
+		Scheme:    mgr.GetScheme(),
+		APIReader: mgr.GetAPIReader(),
+		Builder:   builder,
+		Store:     store,
+		Query:     builder,
+		Workers:   50,
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred(), "failed to set up manager")
 

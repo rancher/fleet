@@ -26,7 +26,7 @@ import (
 	"github.com/rancher/fleet/internal/metrics"
 	"github.com/rancher/fleet/internal/ocistorage"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	fleetevent "github.com/rancher/fleet/pkg/event"
+	"github.com/rancher/fleet/pkg/durations"
 	"github.com/rancher/fleet/pkg/sharding"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -35,7 +35,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	errutil "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -63,14 +63,15 @@ type Store interface {
 }
 
 type TargetBuilder interface {
-	Targets(ctx context.Context, bundle *fleet.Bundle, manifestID string) ([]*target.Target, error)
+	Targets(ctx context.Context, bundle *fleet.Bundle, manifestID string) ([]*target.Target, bool, error)
 }
 
 // BundleReconciler reconciles a Bundle object
 type BundleReconciler struct {
 	client.Client
-	Scheme   *runtime.Scheme
-	Recorder record.EventRecorder
+	Scheme    *runtime.Scheme
+	Recorder  events.EventRecorder
+	APIReader client.Reader
 
 	Builder TargetBuilder
 	Store   Store
@@ -257,7 +258,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		}
 	}
 
-	matchedTargets, err := r.Builder.Targets(ctx, bundle, manifestID)
+	matchedTargets, secretsMissing, err := r.Builder.Targets(ctx, bundle, manifestID)
 	if err != nil {
 		return ctrl.Result{},
 			r.updateErrorStatus(
@@ -342,13 +343,20 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		bd.Spec.OCIContents = contentsInOCI
 		bd.Spec.HelmChartOptions = bundle.Spec.HelmOpOptions
 
-		valuesHash, optionsSecret, err := r.manageOptionsSecret(ctx, bd)
-		if err != nil {
-			return r.computeResult(ctx, logger, bundleOrig, bundle, "failed to initialize options secret", err)
-		}
+		var optionsSecret *corev1.Secret
+		// If the options secret was unavailable during Targets(). Preserve the
+		// existing ValuesHash (already present in bd.Spec from BundleDeployment())
+		// and skip writing the secret so we don't overwrite it with empty values.
+		if !bd.Spec.WaitingForValues {
+			var valuesHash string
+			valuesHash, optionsSecret, err = r.manageOptionsSecret(ctx, bd)
+			if err != nil {
+				return r.computeResult(ctx, logger, bundleOrig, bundle, "failed to initialize options secret", err)
+			}
 
-		// Changes in the values hash trigger a bundle deployment reconcile.
-		bd.Spec.ValuesHash = valuesHash
+			// Changes in the values hash trigger a bundle deployment reconcile.
+			bd.Spec.ValuesHash = valuesHash
+		}
 
 		// When content resources are stored in etcd, we need to keep track of the content resource so they
 		// are properly gargabe-collected by the content controller.
@@ -416,6 +424,13 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, errutil.NewAggregate(merr)
 	}
 
+	if secretsMissing {
+		// At least one BundleDeployment had its options secret transiently
+		// unavailable. Requeue so we can retry loading those values; we cannot
+		// rely on an external event to re-trigger the reconcile.
+		return ctrl.Result{RequeueAfter: durations.DefaultRequeueAfter}, errutil.NewAggregate(merr)
+	}
+
 	return ctrl.Result{}, errutil.NewAggregate(merr)
 }
 
@@ -479,7 +494,7 @@ func (r *BundleReconciler) createBundleDeployment(
 	l logr.Logger,
 	bd *fleet.BundleDeployment,
 ) (controllerutil.OperationResult, *fleet.BundleDeployment, error) {
-	logger := l.WithValues("deploymentID", bd.Spec.DeploymentID)
+	logger := l.WithValues("deploymentID", bd.Spec.DeploymentID, "namespace", bd.Namespace, "name", bd.Name)
 
 	updated := bd.DeepCopy()
 	op, err := controllerutil.CreateOrUpdate(ctx, r.Client, bd, func() error {
@@ -494,6 +509,21 @@ func (r *BundleReconciler) createBundleDeployment(
 		return nil
 	})
 	if err != nil {
+		if apierrors.IsAlreadyExists(err) {
+			// In this case CreateOrUpdate returned NotFound when running Get but
+			// because the BundleDeployment was being created and was still not in sync in the
+			// cache it got AlreadyExists when trying to Create it.
+			// Consider this as a non error and return OperationCreated.
+			// We need to get the BundleDeployment from the API server (bypassing the cache)
+			// to obtain its UID, which is required for setting the owner reference on the
+			// options secret for garbage collection.
+			fetched := &fleet.BundleDeployment{}
+			if err := r.APIReader.Get(ctx, client.ObjectKeyFromObject(bd), fetched); err != nil {
+				logger.Error(err, "Reconcile failed to fetch bundledeployment from API server after AlreadyExists")
+				return controllerutil.OperationResultNone, nil, err
+			}
+			return controllerutil.OperationResultCreated, fetched, nil
+		}
 		logger.Error(err, "Reconcile failed to create or update bundledeployment", "operation", op)
 		return controllerutil.OperationResultNone, nil, err
 	}
@@ -875,7 +905,17 @@ func (r *BundleReconciler) maybeDeleteOCIArtifact(ctx context.Context, bundle *f
 	}
 	err = ocistorage.NewOCIWrapper().DeleteManifest(ctx, opts, bundle.Spec.ContentsID)
 	if err != nil {
-		r.Recorder.Event(bundle, fleetevent.Warning, "FailedToDeleteOCIArtifact", fmt.Sprintf("deleting OCI artifact %q: %v", bundle.Spec.ContentsID, err.Error()))
+		r.Recorder.Eventf(
+			bundle,
+			nil,
+			corev1.EventTypeWarning,
+			"FailedToDeleteOCIArtifact",
+			"DeleteOCIArtifact",
+			"deleting OCI artifact %q: %v",
+			bundle.Spec.ContentsID,
+			"%v",
+			err,
+		)
 	}
 
 	// In case there's an error deleting from the OCI registry,

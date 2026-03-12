@@ -166,7 +166,7 @@ var _ = BeforeSuite(func() {
 		Scheduler:       sched,
 		GitFetcher:      fetcherMock,
 		Clock:           reconciler.RealClock{},
-		Recorder:        mgr.GetEventRecorderFor("gitjob-controller"),
+		Recorder:        mgr.GetEventRecorder("gitjob-controller"),
 		Workers:         50,
 		SystemNamespace: "default",
 		KnownHosts:      ssh.KnownHosts{},
@@ -185,12 +185,13 @@ var _ = BeforeSuite(func() {
 	store := manifest.NewStore(mgr.GetClient())
 	builder := target.New(mgr.GetClient(), mgr.GetAPIReader())
 	err = (&ctrlreconciler.BundleReconciler{
-		Client:  mgr.GetClient(),
-		Scheme:  mgr.GetScheme(),
-		Builder: builder,
-		Store:   store,
-		Query:   builder,
-		Workers: 50,
+		Client:    mgr.GetClient(),
+		Scheme:    mgr.GetScheme(),
+		APIReader: mgr.GetAPIReader(),
+		Builder:   builder,
+		Store:     store,
+		Query:     builder,
+		Workers:   50,
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred(), "failed to set up manager")
 

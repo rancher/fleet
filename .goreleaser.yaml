@@ -5,6 +5,7 @@ project_name: fleet
 
 env:
   - CGO_ENABLED=0
+  - GOWORK=off
   - IS_HOTFIX={{ if isEnvSet "IS_HOTFIX"}}{{ .Env.IS_HOTFIX }}{{else}}false{{end}}
 
 release:

@@ -118,9 +118,10 @@ func start(
 		shardIDSuffix = fmt.Sprintf("-%s", shardID)
 	}
 	if err = (&reconciler.BundleReconciler{
-		Client:   mgr.GetClient(),
-		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor(fmt.Sprintf("fleet-bundle-ctrl%s", shardIDSuffix)),
+		Client:    mgr.GetClient(),
+		Scheme:    mgr.GetScheme(),
+		Recorder:  mgr.GetEventRecorder(fmt.Sprintf("fleet-bundle-ctrl%s", shardIDSuffix)),
+		APIReader: mgr.GetAPIReader(),
 
 		Builder: builder,
 		Store:   store,
@@ -189,7 +190,7 @@ func start(
 		if err = (&reconciler.ScheduleReconciler{
 			Client:   mgr.GetClient(),
 			Scheme:   mgr.GetScheme(),
-			Recorder: mgr.GetEventRecorderFor(fmt.Sprintf("fleet-schedule-ctrl%s", shardIDSuffix)),
+			Recorder: mgr.GetEventRecorder(fmt.Sprintf("fleet-schedule-ctrl%s", shardIDSuffix)),
 			ShardID:  shardID,
 
 			Workers:   workersOpts.Schedule,

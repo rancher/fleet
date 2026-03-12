@@ -44,12 +44,13 @@ func (m *MockTargetBuilder) EXPECT() *MockTargetBuilderMockRecorder {
 }
 
 // Targets mocks base method.
-func (m *MockTargetBuilder) Targets(ctx context.Context, bundle *v1alpha1.Bundle, manifestID string) ([]*target.Target, error) {
+func (m *MockTargetBuilder) Targets(arg0 context.Context, arg1 *v1alpha1.Bundle, arg2 string) ([]*target.Target, bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Targets", ctx, bundle, manifestID)
+	ret := m.ctrl.Call(m, "Targets", arg0, arg1, arg2)
 	ret0, _ := ret[0].([]*target.Target)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret1, _ := ret[1].(bool)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // Targets indicates an expected call of Targets.
