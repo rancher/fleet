@@ -48,6 +48,44 @@ jobs:
           path: rancher
           persist-credentials: false
 
+      - name: Pre-flight checks
+        env:
+          NEW_FLEET: ${{ steps.versions.outputs.new_fleet }}
+        run: |
+          set -euo pipefail
+
+          # Skip all checks for pre-releases.
+          if [[ "${NEW_FLEET}" =~ - ]]; then
+            echo "Pre-release version ${NEW_FLEET}; skipping pre-flight checks"
+            exit 0
+          fi
+
+          # For a new final minor version, pkg/apis must be tagged in the fleet repo.
+          if [[ "${NEW_FLEET}" =~ \.0$ ]]; then
+            if ! git -C fleet tag -l "pkg/apis/v${NEW_FLEET}" | grep -q .; then
+              {
+                printf 'ERROR: pkg/apis/v%s tag not found in the fleet repo!\n' "${NEW_FLEET}"
+                printf 'For a new final minor version, pkg/apis must be bumped first.\n'
+                printf 'Please create the tag: git tag pkg/apis/v%s\n' "${NEW_FLEET}"
+              } >&2
+              exit 1
+            fi
+          fi
+
+          # For any final version, rancher/rancher must not reference a pre-release Fleet API
+          # so there must be a Fleet `pkg/apis/v<VERSION>` tag that the api is bumped in this action
+          if ! git -C fleet tag -l "pkg/apis/v${NEW_FLEET}" | grep -q .; then
+            # Tag doesn't exist; check if rancher/rancher has a pre-release version that does not need to be bumped.
+            RANCHER_FLEET_API_VERSION=$(grep 'github.com/rancher/fleet/pkg/apis' rancher/pkg/apis/go.mod | awk '{print $NF}')
+            if [[ "${RANCHER_FLEET_API_VERSION:-}" =~ - ]]; then
+              {
+                printf 'ERROR: rancher/rancher uses pre-release Fleet API %s, but pkg/apis/v%s tag not found\n' "${RANCHER_FLEET_API_VERSION}" "${NEW_FLEET}"
+                printf 'Please create the tag: git tag pkg/apis/v%s\n' "${NEW_FLEET}"
+              } >&2
+              exit 1
+            fi
+          fi
+
       - uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version-file: ./rancher/go.mod
