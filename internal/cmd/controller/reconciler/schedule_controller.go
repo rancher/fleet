@@ -9,6 +9,8 @@ import (
 
 	fleetutil "github.com/rancher/fleet/internal/cmd/controller/errorutil"
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
+	"github.com/rancher/fleet/internal/cmd/controller/target"
+	"github.com/rancher/fleet/internal/cmd/controller/target/matcher"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/sharding"
 	"github.com/rancher/wrangler/v3/pkg/condition"
@@ -52,14 +54,17 @@ func (r *ScheduleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&fleet.Schedule{},
 			builder.WithPredicates(
 				predicate.GenerationChangedPredicate{},
+				sharding.FilterByShardID(r.ShardID),
 			),
 		).
 		Watches(
 			&fleet.Cluster{},
 			handler.EnqueueRequestsFromMapFunc(r.mapClustersToSchedules),
 			builder.WithPredicates(clusterChangedPredicate()),
+			// Deliberately skipping the sharding filter here: a schedule may live in the namespace of a cluster with both
+			// bearing distinct shard IDs. Instead, mapClustersToSchedules maps clusters to schedules in the
+			// current shard only.
 		).
-		WithEventFilter(sharding.FilterByShardID(r.ShardID)).
 		WithOptions(controller.Options{MaxConcurrentReconciles: r.Workers}).
 		Complete(r)
 }
@@ -152,7 +157,7 @@ func (r *ScheduleReconciler) handleDelete(ctx context.Context, schedule *fleet.S
 }
 
 // mapClustersToSchedules is a mapping function used to trigger a reconciliation of Schedules
-// when a targeted Cluster changes. It finds all schedules that target the cluster
+// when a targeted Cluster changes. It finds all schedules in r's shard that target the cluster
 // and enqueues a reconcile request for each of them.
 func (r *ScheduleReconciler) mapClustersToSchedules(ctx context.Context, a client.Object) []ctrl.Request {
 	ns := a.GetNamespace()
@@ -160,11 +165,12 @@ func (r *ScheduleReconciler) mapClustersToSchedules(ctx context.Context, a clien
 	cluster := a.(*fleet.Cluster)
 
 	// check if the cluster is scheduled
-	schedules, err := getClusterSchedules(r.Scheduler, cluster.Name, cluster.Namespace)
+	schedules, err := getClusterSchedules(ctx, r.Client, r.Scheduler, cluster, r.ShardID)
 	if err != nil {
 		logger.Error(err, "Failed to get cluster schedules")
 		return nil
 	}
+
 	requests := []ctrl.Request{}
 	for _, schedule := range schedules {
 		requests = append(requests, ctrl.Request{
@@ -352,14 +358,24 @@ func isClusterScheduled(scheduler quartz.Scheduler, cluster, namespace string) (
 	return len(keys) != 0, nil
 }
 
-// getClusterSchedules returns all the fleet Schedules in which the given cluster is found as a matching target.
-func getClusterSchedules(scheduler quartz.Scheduler, cluster, namespace string) ([]*fleet.Schedule, error) {
-	keys, err := getClusterScheduleKeys(scheduler, cluster, namespace)
+// getClusterSchedules returns all the fleet Schedules with a matching shardID, in which the given cluster is found as a
+// matching target. To this end, it looks at two sources of data:
+// * keys of already scheduled jobs
+// * schedules which targets match the cluster, to include schedules for which no job may have been scheduled yet.
+func getClusterSchedules(
+	ctx context.Context,
+	c client.Client,
+	scheduler quartz.Scheduler,
+	cluster *fleet.Cluster,
+	shardID string,
+) ([]*fleet.Schedule, error) {
+	keys, err := getClusterScheduleKeys(scheduler, cluster.Name, cluster.Namespace)
 	if err != nil {
 		return nil, err
 	}
 
 	schedules := []*fleet.Schedule{}
+	scheduleNames := map[string]struct{}{}
 	for _, key := range keys {
 		job, err := scheduler.GetScheduledJob(key)
 		if err != nil {
@@ -369,7 +385,46 @@ func getClusterSchedules(scheduler quartz.Scheduler, cluster, namespace string) 
 		if !ok {
 			return nil, fmt.Errorf("unexpected job type for key: %s", key.String())
 		}
+
+		if !sharding.ShouldProcess(cronDurationJob.Schedule, shardID) {
+			continue
+		}
+
 		schedules = append(schedules, cronDurationJob.Schedule)
+		scheduleNames[cronDurationJob.Schedule.Name] = struct{}{}
+	}
+
+	// Consider schedules which may exist but for which no job may have been created yet.
+	allSchedules := &fleet.ScheduleList{}
+	if err := c.List(ctx, allSchedules, client.InNamespace(cluster.Namespace)); err != nil {
+		return nil, fmt.Errorf("%w, listing schedules: %w", fleetutil.ErrRetryable, err)
+	}
+
+	groups, err := target.ClusterGroupsForCluster(ctx, c, cluster)
+	if err != nil {
+		return nil, fmt.Errorf("%w, getting cluster groups from clusters: %w", fleetutil.ErrRetryable, err)
+	}
+
+	cgs := target.ClusterGroupsToLabelMap(groups)
+
+	for i, s := range allSchedules.Items {
+		if !sharding.ShouldProcess(&s, shardID) {
+			continue
+		}
+
+		// Skip already found schedules, to prevent duplicates and unnecessary computations.
+		if _, alreadyFound := scheduleNames[s.Name]; alreadyFound {
+			continue
+		}
+
+		matcher, err := matcher.NewScheduleMatch(&s)
+		if err != nil {
+			return nil, err
+		}
+
+		if matcher.MatchCluster(cluster.Name, cgs, cluster.Labels) {
+			schedules = append(schedules, &allSchedules.Items[i])
+		}
 	}
 
 	return schedules, nil
