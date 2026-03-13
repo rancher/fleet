@@ -55,6 +55,8 @@ type MonitorOptions struct {
 	EnableHelmOp           bool
 	Workers                MonitorReconcilerWorkers
 
+	LeaderElectionEnabled bool
+
 	// Per-controller logging configuration
 	ControllerLogging ControllerLoggingConfig
 
@@ -107,17 +109,20 @@ func start(
 		leaderElectionSuffix = fmt.Sprintf("-%s", shardID)
 	}
 
-	mgr, err := ctrl.NewManager(config, ctrl.Options{
+	managerOpts := ctrl.Options{
 		Scheme:                  scheme,
 		Metrics:                 metricServerOptions,
 		HealthProbeBindAddress:  "0", // No health probes
-		LeaderElection:          true,
+		LeaderElection:          monitorOpts.LeaderElectionEnabled,
 		LeaderElectionID:        fmt.Sprintf("fleet-event-monitor-leader-election-shard%s", leaderElectionSuffix),
 		LeaderElectionNamespace: systemNamespace,
-		LeaseDuration:           &leaderOpts.LeaseDuration,
-		RenewDeadline:           &leaderOpts.RenewDeadline,
-		RetryPeriod:             &leaderOpts.RetryPeriod,
-	})
+	}
+	if monitorOpts.LeaderElectionEnabled {
+		managerOpts.LeaseDuration = &leaderOpts.LeaseDuration
+		managerOpts.RenewDeadline = &leaderOpts.RenewDeadline
+		managerOpts.RetryPeriod = &leaderOpts.RetryPeriod
+	}
+	mgr, err := ctrl.NewManager(config, managerOpts)
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
 		return err
@@ -271,6 +276,11 @@ func logResourceFilters(cfg *ControllerLoggingConfig) {
 
 // startSummaryPrinter periodically prints statistics summary
 func startSummaryPrinter(ctx context.Context, interval time.Duration, reset bool) {
+	const defaultInterval = 30 * time.Second
+	if interval <= 0 {
+		setupLog.Info("summary interval is zero or negative, using default", "default", defaultInterval)
+		interval = defaultInterval
+	}
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 

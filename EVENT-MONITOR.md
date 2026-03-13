@@ -459,7 +459,7 @@ logging:
       statusChange: false
       annotationChange: false
       labelChange: false
-      resourceVersionChange: true
+      resourceVersionChange: false
       deletion: false
       notFound: false
       create: false

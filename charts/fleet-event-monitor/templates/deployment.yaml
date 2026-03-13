@@ -69,6 +69,8 @@ spec:
         - name: CATTLE_DEV_MODE
           value: "true"
         {{- end }}
+        - name: FLEET_LEADER_ELECTION_ENABLED
+          value: {{ .Values.leaderElection.enabled | quote }}
         {{- if .Values.leaderElection.enabled }}
         - name: CATTLE_ELECTION_LEASE_DURATION
           value: {{ .Values.leaderElection.leaseDuration | quote }}

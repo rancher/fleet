@@ -129,9 +129,29 @@ func (f *FleetMonitor) Run(cmd *cobra.Command, args []string) error {
 	kubeconfig := ctrl.GetConfigOrDie()
 	workersOpts := MonitorReconcilerWorkers{}
 
-	leaderOpts, err := command.NewLeaderElectionOptions()
-	if err != nil {
-		return err
+	// The wrangler command framework does not reliably parse boolean env vars,
+	// so all boolean env vars are parsed manually here. The struct fields
+	// above intentionally omit env: tags to avoid a dual source of truth.
+	parseBoolEnv := func(key string, defaultValue bool) bool {
+		if val := os.Getenv(key); val != "" {
+			b, err := strconv.ParseBool(val)
+			if err != nil {
+				setupLog.Error(err, "failed to parse boolean env var", "key", key, "value", val)
+				return defaultValue
+			}
+			return b
+		}
+		return defaultValue
+	}
+
+	leaderElectionEnabled := parseBoolEnv("FLEET_LEADER_ELECTION_ENABLED", true)
+	var leaderOpts command.LeaderElectionOptions
+	if leaderElectionEnabled {
+		var err error
+		leaderOpts, err = command.NewLeaderElectionOptions()
+		if err != nil {
+			return err
+		}
 	}
 
 	if d := os.Getenv("BUNDLE_RECONCILER_WORKERS"); d != "" {
@@ -172,21 +192,6 @@ func (f *FleetMonitor) Run(cmd *cobra.Command, args []string) error {
 			setupLog.Error(err, "failed to parse HELMOP_RECONCILER_WORKERS", "value", d)
 		}
 		workersOpts.HelmOp = w
-	}
-
-	// The wrangler command framework does not reliably parse boolean env vars,
-	// so all boolean env vars are parsed manually here. The struct fields
-	// above intentionally omit env: tags to avoid a dual source of truth.
-	parseBoolEnv := func(key string, defaultValue bool) bool {
-		if val := os.Getenv(key); val != "" {
-			b, err := strconv.ParseBool(val)
-			if err != nil {
-				setupLog.Error(err, "failed to parse boolean env var", "key", key, "value", val)
-				return defaultValue
-			}
-			return b
-		}
-		return defaultValue
 	}
 
 	// Parse controller enable flags
@@ -312,6 +317,7 @@ func (f *FleetMonitor) Run(cmd *cobra.Command, args []string) error {
 		EnableGitRepo:          enableGitRepo,
 		EnableHelmOp:           enableHelmOp,
 		Workers:                workersOpts,
+		LeaderElectionEnabled:  leaderElectionEnabled,
 
 		// Per-controller logging configuration
 		ControllerLogging: ControllerLoggingConfig{
