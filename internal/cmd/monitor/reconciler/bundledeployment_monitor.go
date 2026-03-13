@@ -54,7 +54,7 @@ func (r *BundleDeploymentMonitorReconciler) Reconcile(ctx context.Context, req c
 
 	logger := log.FromContext(ctx).WithName("bundledeployment-monitor")
 	logger = logger.WithValues(
-		"bundledeployment", req.NamespacedName.String(),
+		"bundledeployment", req.String(),
 	)
 	ctx = log.IntoContext(ctx, logger)
 

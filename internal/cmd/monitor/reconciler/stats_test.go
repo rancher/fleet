@@ -206,7 +206,7 @@ func TestSummary_ToJSONIndent(t *testing.T) {
 func TestResourceStats_MarshalJSON(t *testing.T) {
 	rs := &ResourceStats{
 		Counts: map[EventType]int64{
-			EventTypeCreate:      3,
+			EventTypeCreate:       3,
 			EventTypeStatusChange: 1,
 		},
 		TriggeredBy: map[string]int64{

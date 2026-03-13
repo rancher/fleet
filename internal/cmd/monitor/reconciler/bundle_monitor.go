@@ -200,7 +200,7 @@ func (r *BundleMonitorReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 	logger := log.FromContext(ctx).WithName("bundle-monitor")
 	logger = logger.WithValues(
-		"bundle", req.NamespacedName.String(),
+		"bundle", req.String(),
 		"mode", LogMode(r.DetailedLogs),
 	)
 	ctx = log.IntoContext(ctx, logger)

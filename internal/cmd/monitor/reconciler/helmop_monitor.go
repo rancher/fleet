@@ -64,7 +64,7 @@ func (r *HelmOpMonitorReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 	logger := log.FromContext(ctx).WithName("helmop-monitor")
 	logger = logger.WithValues(
-		"helmop", req.NamespacedName.String(),
+		"helmop", req.String(),
 	)
 	ctx = log.IntoContext(ctx, logger)
 

@@ -5,8 +5,8 @@ package reconciler
 import (
 	"context"
 
-	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/internal/cmd/controller/target/matcher"
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -80,7 +80,6 @@ func (q *bundleQueryImpl) getBundlesInScopeForCluster(ctx context.Context, clust
 		return nil, err
 	}
 	for _, b := range bundles.Items {
-		b := b
 		if b.Annotations["objectset.rio.cattle.io/id"] == "fleet-manage-agent" {
 			if b.Name == "fleet-agent-"+cluster.Name {
 				bundleSet.insertSingle(&b)
@@ -99,7 +98,6 @@ func (q *bundleQueryImpl) getBundlesInScopeForCluster(ctx context.Context, clust
 
 	logger := log.FromContext(ctx).WithName("bundle-query")
 	for _, mapping := range mappings.Items {
-		mapping := mapping
 		matcher, err := newBundleMapping(&mapping)
 		if err != nil {
 			logger.Error(err, "invalid BundleNamespaceMapping, skipping", "namespace", mapping.Namespace, "name", mapping.Name)
@@ -127,7 +125,6 @@ func (q *bundleQueryImpl) clusterGroupsForCluster(ctx context.Context, cluster *
 
 	logger := log.FromContext(ctx).WithName("bundle-query")
 	for _, cg := range cgs.Items {
-		cg := cg
 		if cg.Spec.Selector == nil {
 			continue
 		}

@@ -218,7 +218,7 @@ func TestNonSecretAnnotationChangedPredicate(t *testing.T) {
 	t.Run("Update with secret hash and regular annotation change returns true", func(t *testing.T) {
 		old := &fleet.GitRepo{ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{
 			"fleet.cattle.io/client-secret-hash": "old-hash",
-			"app": "v1",
+			"app":                                "v1",
 		}}}
 		new := old.DeepCopy()
 		new.Annotations["fleet.cattle.io/client-secret-hash"] = "new-hash"

@@ -99,7 +99,7 @@ func (r *ClusterMonitorReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 
 	logger := log.FromContext(ctx).WithName("cluster-monitor")
 	logger = logger.WithValues(
-		"cluster", req.NamespacedName.String(),
+		"cluster", req.String(),
 	)
 	ctx = log.IntoContext(ctx, logger)
 

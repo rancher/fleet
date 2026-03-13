@@ -233,19 +233,19 @@ func start(
 // Returns error if any pattern is invalid
 func compileResourceFilters(cfg *ControllerLoggingConfig) error {
 	if err := cfg.Bundle.ResourceFilter.Compile(); err != nil {
-		return fmt.Errorf("Bundle resource filter: %w", err)
+		return fmt.Errorf("bundle resource filter: %w", err)
 	}
 	if err := cfg.BundleDeployment.ResourceFilter.Compile(); err != nil {
-		return fmt.Errorf("BundleDeployment resource filter: %w", err)
+		return fmt.Errorf("bundleDeployment resource filter: %w", err)
 	}
 	if err := cfg.Cluster.ResourceFilter.Compile(); err != nil {
-		return fmt.Errorf("Cluster resource filter: %w", err)
+		return fmt.Errorf("cluster resource filter: %w", err)
 	}
 	if err := cfg.GitRepo.ResourceFilter.Compile(); err != nil {
-		return fmt.Errorf("GitRepo resource filter: %w", err)
+		return fmt.Errorf("gitRepo resource filter: %w", err)
 	}
 	if err := cfg.HelmOp.ResourceFilter.Compile(); err != nil {
-		return fmt.Errorf("HelmOp resource filter: %w", err)
+		return fmt.Errorf("helmOp resource filter: %w", err)
 	}
 	return nil
 }

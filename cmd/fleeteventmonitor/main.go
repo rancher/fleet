@@ -2,8 +2,6 @@
 package main
 
 import (
-	_ "net/http/pprof"
-
 	"github.com/rancher/wrangler/v3/pkg/signals"
 	"github.com/sirupsen/logrus"
 

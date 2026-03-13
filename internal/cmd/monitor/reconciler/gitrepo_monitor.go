@@ -5,8 +5,8 @@ package reconciler
 import (
 	"context"
 
-	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/internal/config"
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/sharding"
 
 	batchv1 "k8s.io/api/batch/v1"
@@ -153,7 +153,7 @@ func (r *GitRepoMonitorReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 
 	logger := log.FromContext(ctx).WithName("gitrepo-monitor")
 	logger = logger.WithValues(
-		"gitrepo", req.NamespacedName.String(),
+		"gitrepo", req.String(),
 		"mode", LogMode(r.DetailedLogs))
 	ctx = log.IntoContext(ctx, logger)
 
@@ -172,8 +172,6 @@ func (r *GitRepoMonitorReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	if gitrepo.Labels[fleet.RepoLabel] != "" {
 		logger = logger.WithValues("repo", gitrepo.Labels[fleet.RepoLabel])
 	}
-	ctx = log.IntoContext(ctx, logger)
-
 	// Check for deletion
 	if !gitrepo.DeletionTimestamp.IsZero() {
 		logDeletion(logger, r.DetailedLogs, r.EventFilters, "GitRepo", gitrepo.Namespace, gitrepo.Name, gitrepo.DeletionTimestamp.String())
