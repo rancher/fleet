@@ -14,6 +14,7 @@ FLEET_REPO_DIR="${FLEET_REPO_DIR:-./fleet}"
 
 # Derive the Fleet minor version from the branch name.
 # For main, compute it as (highest release branch minor) + 1.
+# NOTE: Update 'v0.*' pattern if Fleet has a major version bump (e.g., search for 'v1.*').
 if [ "$FLEET_BRANCH" = "main" ]; then
     highest_minor=$(git -C "$FLEET_REPO_DIR" ls-remote --heads origin 'refs/heads/release/v0.*' \
         | grep -oE 'v0\.[0-9]+' | cut -d. -f2 | sort -n | tail -1)
@@ -26,7 +27,10 @@ else
     fleet_minor=$(printf '%s' "$FLEET_BRANCH" | grep -oE '[0-9]+$')
 fi
 
+# Calculate Rancher minor version based on Fleet minor.
+# NOTE: Update this formula if the version relationship changes (currently Fleet minor - 1).
 rancher_minor=$((fleet_minor - 1))
+# NOTE: Update '2' to '3' (or next major version) if Rancher has a major version bump.
 charts_branch="dev-v2.${rancher_minor}"
 
 # Fetch the Fleet chart directory listing from the rancher/charts dev branch.
@@ -52,6 +56,7 @@ new_fleet="${latest_chart##*+up}"
 new_chart="${latest_chart%%+*}"
 
 # Target the Rancher release branch when it exists; fall back to main.
+# NOTE: Update '2' to '3' (or next major version) if Rancher has a major version bump.
 rancher_ref="release/v2.${rancher_minor}"
 http_status=$(curl -s -o /dev/null -w "%{http_code}" \
     -H "Authorization: Bearer ${GH_TOKEN}" \
