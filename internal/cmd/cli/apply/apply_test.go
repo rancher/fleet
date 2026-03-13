@@ -82,7 +82,7 @@ data:
 			}
 
 			if or != tc.expectedOutput {
-				t.Fatalf("expected OverwrittenResource\n\t%v,got\n\t%v", tc.expectedOutput, or)
+				t.Fatalf("expected OverwrittenResource\n\t%v, got\n\t%v", tc.expectedOutput, or)
 			}
 		})
 	}
