@@ -2,7 +2,7 @@ module github.com/rancher/fleet
 
 go 1.25.6
 
-toolchain go1.25.7
+toolchain go1.25.8
 
 replace (
 	github.com/imdario/mergo => github.com/imdario/mergo v1.0.2
@@ -25,7 +25,7 @@ require (
 	github.com/gobwas/glob v0.2.3
 	github.com/gogits/go-gogs-client v0.0.0-20210131175652-1d7215cd8d85
 	github.com/google/go-cmp v0.7.0
-	github.com/google/go-containerregistry v0.21.1
+	github.com/google/go-containerregistry v0.21.2
 	github.com/hashicorp/go-getter/v2 v2.2.3
 	github.com/jpillora/backoff v1.0.0
 	github.com/onsi/ginkgo/v2 v2.28.1
@@ -47,7 +47,7 @@ require (
 	go.uber.org/mock v0.6.0
 	go.uber.org/zap v1.27.1
 	golang.org/x/crypto v0.48.0
-	golang.org/x/sync v0.19.0
+	golang.org/x/sync v0.20.0
 	gonum.org/v1/gonum v0.17.0
 	gotest.tools v2.2.0+incompatible
 	helm.sh/helm/v4 v4.1.1
@@ -62,7 +62,7 @@ require (
 	k8s.io/utils v0.0.0-20260108192941-914a6e750570
 	oras.land/oras-go/v2 v2.6.0
 	sigs.k8s.io/cli-utils v0.37.2
-	sigs.k8s.io/controller-runtime v0.23.1
+	sigs.k8s.io/controller-runtime v0.23.3
 	sigs.k8s.io/controller-tools v0.20.1
 	sigs.k8s.io/kustomize/api v0.21.1
 	sigs.k8s.io/kustomize/kyaml v0.21.1

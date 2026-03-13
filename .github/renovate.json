@@ -5,6 +5,7 @@
   ],
   "baseBranchPatterns": [
     "main",
+    "release/v0.15",
     "release/v0.14",
     "release/v0.13",
     "release/v0.12",
@@ -27,6 +28,14 @@
       ],
       "enabled": true,
       "minimumGroupSize": 2
+    },
+    {
+      "matchBaseBranches": [
+        "release/v0.15"
+      ],
+      "extends": [
+        "github>rancher/renovate-config//rancher-2.14#release"
+      ]
     },
     {
       "matchBaseBranches": [
