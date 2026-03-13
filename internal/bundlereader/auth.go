@@ -15,7 +15,7 @@ import (
 
 type Auth struct {
 	Username           string `json:"username,omitempty"`
-	Password           string `json:"password,omitempty"` //nolint:gosec // G117 false positive: Password is an intentional field in the Helm chart auth config
+	Password           string `json:"password,omitempty"`
 	CABundle           []byte `json:"caBundle,omitempty"`
 	SSHPrivateKey      []byte `json:"sshPrivateKey,omitempty"`
 	InsecureSkipVerify bool   `json:"insecureSkipVerify,omitempty"`

@@ -153,5 +153,5 @@ sidebar_label: "%s"
 }
 
 func usage() {
-	fmt.Fprintln(os.Stdout, "Usage: ", os.Args[0], " <directory>") //nolint:gosec // G705 false positive: output goes to stdout, not an HTTP response writer
+	fmt.Fprintln(os.Stdout, "Usage: ", os.Args[0], " <directory>")
 }
