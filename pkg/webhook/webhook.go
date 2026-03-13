@@ -199,8 +199,7 @@ func HandleHooks(ctx context.Context, namespace string, client client.Client, cl
 
 func (w *Webhook) logAndReturn(rw http.ResponseWriter, err error) {
 	w.log.Error(err, "Webhook processing failed")
-	rw.WriteHeader(getErrorCodeFromErr(err))
-	_, _ = rw.Write([]byte(err.Error()))
+	http.Error(rw, "Webhook processing failed", getErrorCodeFromErr(err))
 }
 
 func (w *Webhook) getSecret(ctx context.Context, gitrepo fleet.GitRepo) (*corev1.Secret, error) {

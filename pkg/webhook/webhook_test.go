@@ -874,7 +874,7 @@ func TestErrorReadingRequest(t *testing.T) {
 		client:    mockClient,
 		namespace: "default",
 	}
-	testRequest := httptest.NewRequest(http.MethodPost, "/something", errReader(0))
+	testRequest := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/something", errReader(0))
 	rr := httptest.NewRecorder()
 	w.ServeHTTP(rr, testRequest)
 

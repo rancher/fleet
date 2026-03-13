@@ -91,7 +91,7 @@ func (r *ScreeningLocalReader) Read() ([]*yaml.RNode, error) {
 
 		// To check for the token, I need the file contents. This
 		// assumes the file is encoded as UTF8.
-		filebytes, err := os.ReadFile(p)
+		filebytes, err := os.ReadFile(p) //nolint:gosec // G122: path is from WalkDir over an admin-configured directory
 		if err != nil {
 			return fmt.Errorf("reading YAML file: %w", err)
 		}
