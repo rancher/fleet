@@ -319,7 +319,7 @@ func GetContent(ctx context.Context, base, source, version string, auth Auth, di
 			return nil
 		}
 
-		content, err := os.ReadFile(path)
+		content, err := os.ReadFile(path) //nolint:gosec // G122: path is from WalkDir over a go-getter controlled temp directory
 		if err != nil {
 			return err
 		}
@@ -432,7 +432,7 @@ func get(ctx context.Context, client Getter, req *getter.Request, auth Auth) err
 		}
 		defer func() {
 			file.Close()
-			os.Remove(file.Name()) //nolint:gosec // G703 false positive: path comes from os.CreateTemp, not user-controlled data
+			os.Remove(file.Name())
 		}()
 
 		if _, err := file.Write(auth.CABundle); err != nil {

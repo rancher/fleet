@@ -13,15 +13,15 @@ import (
 	"golang.org/x/sync/semaphore"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	fleetevent "github.com/rancher/fleet/pkg/event"
 
 	"github.com/rancher/wrangler/v3/pkg/condition"
 	"github.com/rancher/wrangler/v3/pkg/kstatus"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	errutil "k8s.io/apimachinery/pkg/util/errors"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -40,12 +40,12 @@ type helmPollingJob struct {
 	chart   string
 	version string
 
-	recorder record.EventRecorder
+	recorder events.EventRecorder
 }
 
 func newHelmPollingJob(
 	c client.Client,
-	r record.EventRecorder,
+	r events.EventRecorder,
 	namespace,
 	name string,
 	helmRef fleet.HelmOptions,
@@ -116,9 +116,17 @@ func (j *helmPollingJob) pollHelm(ctx context.Context) error {
 	// Even if it fails, this timestamp will be updated in the HelmOp status.
 	pollingTimestamp := time.Now().UTC()
 
-	fail := func(origErr error, eventReason string) error {
+	fail := func(origErr error, eventReason, eventAction string) error {
 		if eventReason != "" {
-			j.recorder.Event(h, fleetevent.Warning, eventReason, origErr.Error())
+			j.recorder.Eventf(
+				h,
+				nil,
+				corev1.EventTypeWarning,
+				eventReason,
+				eventAction,
+				"%v",
+				origErr,
+			)
 		}
 
 		return j.updateErrorStatus(ctx, h, pollingTimestamp, origErr)
@@ -126,20 +134,32 @@ func (j *helmPollingJob) pollHelm(ctx context.Context) error {
 
 	version, err := getChartVersion(ctx, j.client, *h)
 	if err != nil {
-		return fail(err, "FailedToGetNewChartVersion")
+		return fail(err, "FailedToGetNewChartVersion", "GetNewChartVersion")
 	}
 
 	b := &fleet.Bundle{}
 
 	if err := j.client.Get(ctx, nsName, b); err != nil {
-		return fail(fmt.Errorf("could not get bundle before patching its version: %w", err), "FailedToGetBundle")
+		return fail(
+			fmt.Errorf("could not get bundle before patching its version: %w", err),
+			"FailedToGetBundle",
+			"GetBundle",
+		)
 	}
 
 	orig := b.DeepCopy()
 	b.Spec.Helm.Version = version
 
 	if version != h.Status.Version {
-		j.recorder.Event(h, fleetevent.Normal, "GotNewChartVersion", version)
+		j.recorder.Eventf(
+			h,
+			nil,
+			corev1.EventTypeNormal,
+			"GotNewChartVersion",
+			"GetNewChartVersion",
+			"%s",
+			version,
+		)
 	}
 
 	patch := client.MergeFrom(orig)
@@ -149,7 +169,11 @@ func (j *helmPollingJob) pollHelm(ctx context.Context) error {
 	}
 
 	if err := j.client.Patch(ctx, b, patch); err != nil {
-		return fail(fmt.Errorf("could not patch bundle to set the resolved version: %w", err), "FailedToPatchBundle")
+		return fail(
+			fmt.Errorf("could not patch bundle to set the resolved version: %w", err),
+			"FailedToPatchBundle",
+			"PatchBundle",
+		)
 	}
 
 	nsn := types.NamespacedName{Name: h.Name, Namespace: h.Namespace}
@@ -180,6 +204,7 @@ func (j *helmPollingJob) pollHelm(ctx context.Context) error {
 		return fail(
 			fmt.Errorf("could not update HelmOp status with polling timestamp: %w", err),
 			"FailedToUpdateHelmOpStatus",
+			"UpdateHelmOpStatus",
 		)
 	}
 

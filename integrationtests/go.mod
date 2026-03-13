@@ -2,7 +2,7 @@ module github.com/rancher/fleet/integrationtests
 
 go 1.25.6
 
-toolchain go1.25.7
+toolchain go1.25.8
 
 replace (
 	github.com/rancher/fleet => ../
@@ -31,7 +31,7 @@ require (
 	k8s.io/apimachinery v0.35.2
 	k8s.io/client-go v0.35.2
 	k8s.io/kubectl v0.35.2
-	sigs.k8s.io/controller-runtime v0.23.1
+	sigs.k8s.io/controller-runtime v0.23.3
 	sigs.k8s.io/yaml v1.6.0
 )
 

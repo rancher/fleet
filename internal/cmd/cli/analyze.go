@@ -206,8 +206,8 @@ func (a *Analyze) compareFiles(cmd *cobra.Command, file1, file2 string) error {
 	}
 
 	troubleshooting.PrintHeader(w, "COMPARING SNAPSHOTS")
-	fmt.Fprintf(w, "Before: %s (%s)\n", file1, before.Timestamp) //nolint:gosec // G705 false positive: w is a CLI stdout writer, not an HTTP ResponseWriter
-	fmt.Fprintf(w, "After:  %s (%s)\n", file2, after.Timestamp)  //nolint:gosec // G705 false positive: w is a CLI stdout writer, not an HTTP ResponseWriter
+	fmt.Fprintf(w, "Before: %s (%s)\n", file1, before.Timestamp)
+	fmt.Fprintf(w, "After:  %s (%s)\n", file2, after.Timestamp)
 
 	troubleshooting.PrintSnapshotDiff(w, before, after)
 

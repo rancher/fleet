@@ -109,7 +109,7 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		path := strings.Replace(u.EscapedPath()[1:], "/_git/", "(/_git)?/", 1)
 
 		regexpStr := `(?i)(http://|https://|\w+@|ssh://(\w+@)?|git@(ssh\.)?)` + u.Hostname() +
-			"(:[0-9]+|)[:/](v\\d/)?" + path + "(\\.git)?"
+			"(:[0-9]+|)[:/](v\\d/)?" + path + "(\\.git)?$"
 		repoRegexp, err := regexp.Compile(regexpStr)
 		if err != nil {
 			w.logAndReturn(rw, err)
@@ -199,8 +199,7 @@ func HandleHooks(ctx context.Context, namespace string, client client.Client, cl
 
 func (w *Webhook) logAndReturn(rw http.ResponseWriter, err error) {
 	w.log.Error(err, "Webhook processing failed")
-	rw.WriteHeader(getErrorCodeFromErr(err))
-	_, _ = rw.Write([]byte(err.Error()))
+	http.Error(rw, "Webhook processing failed", getErrorCodeFromErr(err))
 }
 
 func (w *Webhook) getSecret(ctx context.Context, gitrepo fleet.GitRepo) (*corev1.Secret, error) {

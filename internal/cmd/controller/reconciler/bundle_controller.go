@@ -27,7 +27,6 @@ import (
 	"github.com/rancher/fleet/internal/ocistorage"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/durations"
-	fleetevent "github.com/rancher/fleet/pkg/event"
 	"github.com/rancher/fleet/pkg/sharding"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -36,7 +35,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	errutil "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -71,7 +70,7 @@ type TargetBuilder interface {
 type BundleReconciler struct {
 	client.Client
 	Scheme    *runtime.Scheme
-	Recorder  record.EventRecorder
+	Recorder  events.EventRecorder
 	APIReader client.Reader
 
 	Builder TargetBuilder
@@ -94,6 +93,7 @@ func (r *BundleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 					predicate.AnnotationChangedPredicate{},
 					predicate.LabelChangedPredicate{},
 				),
+				sharding.FilterByShardID(r.ShardID),
 			),
 		).
 		// Note: Maybe improve with WatchesMetadata, does it have access to labels?
@@ -101,7 +101,10 @@ func (r *BundleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			// Fan out from bundledeployment to bundle, this is useful to update the
 			// bundle's status fields.
 			&fleet.BundleDeployment{}, handler.EnqueueRequestsFromMapFunc(BundleDeploymentMapFunc(r)),
-			builder.WithPredicates(bundleDeploymentStatusChangedPredicate()),
+			builder.WithPredicates(
+				bundleDeploymentStatusChangedPredicate(),
+				sharding.FilterByShardID(r.ShardID),
+			),
 		).
 		Watches(
 			// Fan out from cluster to bundle, this is useful for targeting and templating.
@@ -128,6 +131,8 @@ func (r *BundleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				return requests
 			}),
 			builder.WithPredicates(clusterChangedPredicate()),
+			// Deliberately skipping the sharding filter here: a bundle may live in the namespace of a cluster with both
+			// bearing distinct shard IDs.
 		).
 		Watches(
 			// Fan out from secret to bundle, reconcile bundles when a secret
@@ -143,7 +148,6 @@ func (r *BundleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			handler.EnqueueRequestsFromMapFunc(r.downstreamResourceMapFunc("ConfigMap")),
 			builder.WithPredicates(dataChangedPredicate()),
 		).
-		WithEventFilter(sharding.FilterByShardID(r.ShardID)).
 		WithOptions(controller.Options{MaxConcurrentReconciles: r.Workers}).
 		Complete(r)
 }
@@ -906,7 +910,17 @@ func (r *BundleReconciler) maybeDeleteOCIArtifact(ctx context.Context, bundle *f
 	}
 	err = ocistorage.NewOCIWrapper().DeleteManifest(ctx, opts, bundle.Spec.ContentsID)
 	if err != nil {
-		r.Recorder.Event(bundle, fleetevent.Warning, "FailedToDeleteOCIArtifact", fmt.Sprintf("deleting OCI artifact %q: %v", bundle.Spec.ContentsID, err.Error()))
+		r.Recorder.Eventf(
+			bundle,
+			nil,
+			corev1.EventTypeWarning,
+			"FailedToDeleteOCIArtifact",
+			"DeleteOCIArtifact",
+			"deleting OCI artifact %q: %v",
+			bundle.Spec.ContentsID,
+			"%v",
+			err,
+		)
 	}
 
 	// In case there's an error deleting from the OCI registry,
