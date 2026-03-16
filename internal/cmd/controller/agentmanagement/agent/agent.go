@@ -133,7 +133,7 @@ func getToken(ctx context.Context, controllerNamespace, tokenName string, client
 		return nil, fmt.Errorf("failed to find \"values\" on secret %s/%s", client.Namespace, secretName)
 	}
 
-	data := map[string]interface{}{}
+	data := map[string]any{}
 	if err := yaml.NewYAMLToJSONDecoder(bytes.NewBuffer(values)).Decode(&data); err != nil {
 		return nil, err
 	}

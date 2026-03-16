@@ -106,7 +106,7 @@ func GetDeploymentState(bundleDeployment *fleet.BundleDeployment) fleet.BundleSt
 
 // SetReadyConditions expects a status object as obj and updates its ready conditions according to summary
 // as per ReadyMessage
-func SetReadyConditions(obj interface{}, referencedKind string, summary fleet.BundleSummary) {
+func SetReadyConditions(obj any, referencedKind string, summary fleet.BundleSummary) {
 	if reflect.ValueOf(obj).Kind() != reflect.Ptr {
 		panic("obj passed must be a pointer")
 	}

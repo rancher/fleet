@@ -936,7 +936,7 @@ func GetBundleCreationMaxConcurrency() (int, error) {
 
 type k8sWithNS struct {
 	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.ObjectMeta `json:"metadata"`
 }
 
 func getKindNS(br fleet.BundleResource, bundleName string) (fleet.OverwrittenResource, error) {

@@ -296,7 +296,7 @@ func TestGitHubPingWebhook(t *testing.T) {
 	}
 
 	// JSON payload for the ping event
-	jsonBody := []byte(fmt.Sprintf(`{
+	jsonBody := fmt.Appendf(nil, `{
 		"zen": "%s",
 		"hook_id": %d,
 		"hook": {
@@ -318,7 +318,7 @@ func TestGitHubPingWebhook(t *testing.T) {
 			"test_url": "https://api.github.com/repos/example/repo/hooks/%d/test",
 			"ping_url": "https://api.github.com/repos/example/repo/hooks/%d/pings"
 		}
-	}`, zenMessage, hookID, hookID, hookID, hookID, hookID))
+	}`, zenMessage, hookID, hookID, hookID, hookID, hookID)
 
 	// Request creation
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "/", bytes.NewReader(jsonBody))
@@ -663,7 +663,7 @@ func TestGitHubSecretAndCommitUpdated(t *testing.T) {
 
 		// call for secret
 		mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-			func(ctx context.Context, name types.NamespacedName, secret *corev1.Secret, _ ...interface{}) error {
+			func(ctx context.Context, name types.NamespacedName, secret *corev1.Secret, _ ...any) error {
 				// check that we're calling Get with the expected name and Namespace
 				if tt.gitrepoSecret {
 					if name.Name != gitrepoSecretName {
@@ -701,14 +701,14 @@ func TestGitHubSecretAndCommitUpdated(t *testing.T) {
 		// Status().Update() mock call
 		if tt.expectedCommitUpdate {
 			mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-				func(ctx context.Context, name types.NamespacedName, gitrepo *v1alpha1.GitRepo, _ ...interface{}) error {
+				func(ctx context.Context, name types.NamespacedName, gitrepo *v1alpha1.GitRepo, _ ...any) error {
 					return nil
 				})
 			statusClient := mocks.NewMockStatusWriter(ctlr)
 
 			mockClient.EXPECT().Status().Return(statusClient).Times(1)
 			statusClient.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any()).Do(
-				func(ctx context.Context, repo *v1alpha1.GitRepo, _ client.Patch, opts ...interface{}) {
+				func(ctx context.Context, repo *v1alpha1.GitRepo, _ client.Patch, opts ...any) {
 					// check that the commit is the expected one
 					if repo.Status.WebhookCommit != expectedCommit {
 						t.Errorf("expecting gitrepo webhook commit %s, got %s", expectedCommit, repo.Status.WebhookCommit)
@@ -726,14 +726,14 @@ func TestGitHubSecretAndCommitUpdated(t *testing.T) {
 		}
 
 		// we set only the values that we're going to use in the push event to make things simple
-		jsonBody := []byte(fmt.Sprintf(`
+		jsonBody := fmt.Appendf(nil, `
 		{
 		  "ref":"refs/heads/main",
 		  "after":"%s",
 		  "repository":{
 			"html_url":"https://github.com/example/repo"
 		  }
-		}`, expectedCommit))
+		}`, expectedCommit)
 
 		// Request creation
 		req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "/", bytes.NewReader(jsonBody))
@@ -815,7 +815,7 @@ func TestGitRepoURLMatch(t *testing.T) {
 	mockClient.EXPECT().Get(gomock.Any(), nn, gomock.Any()).Return(apierrors.NewNotFound(schema.GroupResource{}, "")).Times(1)
 
 	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-		func(ctx context.Context, name types.NamespacedName, gitrepo *v1alpha1.GitRepo, _ ...interface{}) error {
+		func(ctx context.Context, name types.NamespacedName, gitrepo *v1alpha1.GitRepo, _ ...any) error {
 			// check that the GitRepo is the expected one
 			if name.Name != "intended-gitrepo" {
 				t.Errorf("wrong gitrepo matched: expected 'intended-gitrepo', got %s", name.Name)
@@ -827,7 +827,7 @@ func TestGitRepoURLMatch(t *testing.T) {
 	statusClient := mocks.NewMockStatusWriter(ctlr)
 	mockClient.EXPECT().Status().Return(statusClient).Times(1)
 	statusClient.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any()).Do(
-		func(ctx context.Context, repo *v1alpha1.GitRepo, _ client.Patch, opts ...interface{}) {
+		func(ctx context.Context, repo *v1alpha1.GitRepo, _ client.Patch, opts ...any) {
 			// check that the commit is the expected one
 			if repo.Status.WebhookCommit != expectedCommit {
 				t.Errorf("expecting gitrepo webhook commit %s, got %s", expectedCommit, repo.Status.WebhookCommit)
@@ -839,14 +839,14 @@ func TestGitRepoURLMatch(t *testing.T) {
 	).Times(1)
 
 	// we set only the values that we're going to use in the push event to make things simple
-	jsonBody := []byte(fmt.Sprintf(`
+	jsonBody := fmt.Appendf(nil, `
 		{
 		  "ref":"refs/heads/main",
 		  "after":"%s",
 		  "repository":{
 			"html_url":"https://github.com/example/repo"
 		  }
-		}`, expectedCommit))
+		}`, expectedCommit)
 
 	// Request creation
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "/", bytes.NewReader(jsonBody))

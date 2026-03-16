@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"sort"
 
 	"github.com/rancher/fleet/internal/cmd/controller/labelselectors"
@@ -96,10 +97,8 @@ func isAllowed(currentValue, defaultValue string, allowedValues []string) (strin
 	if len(allowedValues) == 0 {
 		return currentValue, nil
 	}
-	for _, allowedValue := range allowedValues {
-		if allowedValue == currentValue {
-			return currentValue, nil
-		}
+	if slices.Contains(allowedValues, currentValue) {
+		return currentValue, nil
 	}
 
 	return currentValue, fmt.Errorf("%s not in allowed set %v", currentValue, allowedValues)

@@ -25,6 +25,7 @@
       "makezero",
       "misspell",
       "mirror",
+      "modernize",
       "nakedret",
       "nilerr",
       "noctx",
@@ -92,6 +93,16 @@
         {
           "linters": ["gosec"],
           "path": "benchmarks"
+        },
+        {
+          "linters": ["staticcheck"],
+          "text": "SA1019",
+          "path": "internal/cmd/agent/deployer/internal/diff/"
+        },
+        {
+          "linters": ["staticcheck"],
+          "text": "SA5011",
+          "path": "_test.go"
         }
       ]
     },

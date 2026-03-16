@@ -1082,7 +1082,7 @@ func Test_GitRepoFiltering(t *testing.T) {
 		}
 
 		// Verify it can be unmarshaled
-		var obj map[string]interface{}
+		var obj map[string]any
 		if err := yaml.Unmarshal(data, &obj); err != nil {
 			t.Fatalf("failed to unmarshal %s: %v", header.Name, err)
 		}
@@ -1307,7 +1307,7 @@ func Test_BundleFiltering(t *testing.T) {
 		}
 
 		// Verify it can be unmarshaled
-		var obj map[string]interface{}
+		var obj map[string]any
 		if err := yaml.Unmarshal(data, &obj); err != nil {
 			t.Fatalf("failed to unmarshal %s: %v", header.Name, err)
 		}
@@ -1568,7 +1568,7 @@ func Test_HelmOpFiltering(t *testing.T) {
 			t.Fatalf("failed to read tar content: %v", err)
 		}
 
-		var obj map[string]interface{}
+		var obj map[string]any
 		if err := yaml.Unmarshal(data, &obj); err != nil {
 			t.Fatalf("failed to unmarshal %s: %v", header.Name, err)
 		}

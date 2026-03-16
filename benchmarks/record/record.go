@@ -278,22 +278,18 @@ func extractFromMetricFamilies(res map[string]float64, controllers []string, mfs
 	mf := mfs["controller_runtime_reconcile_total"]
 	for _, m := range mf.Metric {
 		l := m.GetLabel()
-		for _, c := range controllers {
-			if l[0].GetValue() == c {
-				v := m.Counter.GetValue()
-				switch l[1].GetValue() {
-				case "error":
-					res["ReconcileErrors"] += v
-				case "requeue":
-					res["ReconcileRequeue"] += v
-				case "requeue_after":
-					res["ReconcileRequeueAfter"] += v
-				case "success":
-					res["ReconcileSuccess"] += v
+		if slices.Contains(controllers, l[0].GetValue()) {
+			v := m.Counter.GetValue()
+			switch l[1].GetValue() {
+			case "error":
+				res["ReconcileErrors"] += v
+			case "requeue":
+				res["ReconcileRequeue"] += v
+			case "requeue_after":
+				res["ReconcileRequeueAfter"] += v
+			case "success":
+				res["ReconcileSuccess"] += v
 
-				}
-
-				break
 			}
 		}
 	}

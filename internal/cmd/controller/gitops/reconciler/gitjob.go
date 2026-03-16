@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"slices"
 	"strconv"
@@ -441,9 +442,7 @@ func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.Git
 			return nil, fmt.Errorf("could not decode shard node selector: %w", err)
 		}
 
-		for k, v := range shardNodeSelector {
-			nodeSelector[k] = v
-		}
+		maps.Copy(nodeSelector, shardNodeSelector)
 	}
 
 	saName := names.SafeConcatName("git", gitrepo.Name)

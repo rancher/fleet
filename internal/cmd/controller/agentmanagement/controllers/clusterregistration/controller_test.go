@@ -88,7 +88,7 @@ var _ = Describe("ClusterRegistration OnChange", func() {
 
 		When("cluster creation works", func() {
 			BeforeEach(func() {
-				clusterClient.EXPECT().Create(gomock.Any()).Return(nil, nil).Do(func(obj interface{}) {
+				clusterClient.EXPECT().Create(gomock.Any()).Return(nil, nil).Do(func(obj any) {
 					switch cluster := obj.(type) {
 					case *fleet.Cluster:
 						Expect(cluster.Spec.ClientID).To(Equal("client-id"))

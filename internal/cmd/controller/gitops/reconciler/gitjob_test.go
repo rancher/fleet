@@ -61,7 +61,7 @@ type gitRepoMatcher struct {
 	gitrepo fleetv1.GitRepo
 }
 
-func (m gitRepoMatcher) Matches(x interface{}) bool {
+func (m gitRepoMatcher) Matches(x any) bool {
 	gitrepo, ok := x.(*fleetv1.GitRepo)
 	if !ok {
 		return false
@@ -76,7 +76,7 @@ func (m gitRepoMatcher) String() string {
 type gitRepoPointerMatcher struct {
 }
 
-func (m gitRepoPointerMatcher) Matches(x interface{}) bool {
+func (m gitRepoPointerMatcher) Matches(x any) bool {
 	_, ok := x.(*fleetv1.GitRepo)
 	return ok
 }
@@ -90,7 +90,7 @@ type errorMatcher struct {
 	errMsg string
 }
 
-func (m errorMatcher) Matches(x interface{}) bool {
+func (m errorMatcher) Matches(x any) bool {
 	err, ok := x.(error)
 	if !ok {
 		return false
@@ -127,7 +127,7 @@ func TestReconcile_Error_WhenGitrepoRestrictionsAreNotMet(t *testing.T) {
 	)
 
 	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), &gitRepoPointerMatcher{}, gomock.Any()).Times(2).DoAndReturn(
-		func(ctx context.Context, req types.NamespacedName, gitrepo *fleetv1.GitRepo, opts ...interface{}) error {
+		func(ctx context.Context, req types.NamespacedName, gitrepo *fleetv1.GitRepo, opts ...any) error {
 			gitrepo.Name = gitRepo.Name
 			gitrepo.Namespace = gitRepo.Namespace
 			return nil
@@ -136,7 +136,7 @@ func TestReconcile_Error_WhenGitrepoRestrictionsAreNotMet(t *testing.T) {
 	statusClient := mocks.NewMockStatusWriter(mockCtrl)
 	mockClient.EXPECT().Status().Times(1).Return(statusClient)
 	statusClient.EXPECT().Update(gomock.Any(), gomock.Any(), gomock.Any()).Do(
-		func(ctx context.Context, repo *fleetv1.GitRepo, opts ...interface{}) {
+		func(ctx context.Context, repo *fleetv1.GitRepo, opts ...any) {
 			if len(repo.Status.Conditions) == 0 {
 				t.Errorf("expecting to have Conditions, got none")
 			}
@@ -193,7 +193,7 @@ func TestReconcile_Error_WhenGetGitJobErrors(t *testing.T) {
 	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.GitRepo{}), gomock.Any()).
 		Times(3).
 		DoAndReturn(
-			func(ctx context.Context, req types.NamespacedName, gitrepo *fleetv1.GitRepo, opts ...interface{}) error {
+			func(ctx context.Context, req types.NamespacedName, gitrepo *fleetv1.GitRepo, opts ...any) error {
 				gitrepo.Name = gitRepo.Name
 				gitrepo.Namespace = gitRepo.Namespace
 				gitrepo.Spec.Repo = "repo"
@@ -204,7 +204,7 @@ func TestReconcile_Error_WhenGetGitJobErrors(t *testing.T) {
 		)
 
 	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
-		func(ctx context.Context, req types.NamespacedName, job *batchv1.Job, opts ...interface{}) error {
+		func(ctx context.Context, req types.NamespacedName, job *batchv1.Job, opts ...any) error {
 			return errors.New("GITJOB ERROR")
 		},
 	)
@@ -212,7 +212,7 @@ func TestReconcile_Error_WhenGetGitJobErrors(t *testing.T) {
 	statusClient := mocks.NewMockStatusWriter(mockCtrl)
 	mockClient.EXPECT().Status().Times(1).Return(statusClient)
 	statusClient.EXPECT().Update(gomock.Any(), gomock.Any(), gomock.Any()).Do(
-		func(ctx context.Context, repo *fleetv1.GitRepo, opts ...interface{}) {
+		func(ctx context.Context, repo *fleetv1.GitRepo, opts ...any) {
 			c, found := getCondition(repo, fleetv1.GitRepoAcceptedCondition)
 			if !found {
 				t.Errorf("expecting to find the %s condition and could not find it.", fleetv1.GitRepoAcceptedCondition)
@@ -269,7 +269,7 @@ func TestReconcile_Error_WhenSecretDoesNotExist(t *testing.T) {
 	mockClient.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
 
 	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), &gitRepoPointerMatcher{}, gomock.Any()).Times(3).DoAndReturn(
-		func(ctx context.Context, req types.NamespacedName, gitrepo *fleetv1.GitRepo, opts ...interface{}) error {
+		func(ctx context.Context, req types.NamespacedName, gitrepo *fleetv1.GitRepo, opts ...any) error {
 			gitrepo.Name = gitRepo.Name
 			gitrepo.Namespace = gitRepo.Namespace
 			gitrepo.Spec.Repo = "repo"
@@ -286,13 +286,13 @@ func TestReconcile_Error_WhenSecretDoesNotExist(t *testing.T) {
 	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&batchv1.Job{}), gomock.Any()).
 		Times(1).
 		DoAndReturn(
-			func(ctx context.Context, req types.NamespacedName, job *batchv1.Job, opts ...interface{}) error {
+			func(ctx context.Context, req types.NamespacedName, job *batchv1.Job, opts ...any) error {
 				return apierrors.NewNotFound(schema.GroupResource{}, "TEST ERROR")
 			},
 		).Times(2)
 
 	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
-		func(ctx context.Context, req types.NamespacedName, job *corev1.Secret, opts ...interface{}) error {
+		func(ctx context.Context, req types.NamespacedName, job *corev1.Secret, opts ...any) error {
 			return errors.New("SECRET ERROR")
 		},
 	)
@@ -312,7 +312,7 @@ func TestReconcile_Error_WhenSecretDoesNotExist(t *testing.T) {
 	statusClient := mocks.NewMockStatusWriter(mockCtrl)
 	mockClient.EXPECT().Status().Times(1).Return(statusClient)
 	statusClient.EXPECT().Update(gomock.Any(), gomock.Any(), gomock.Any()).Do(
-		func(ctx context.Context, repo *fleetv1.GitRepo, opts ...interface{}) {
+		func(ctx context.Context, repo *fleetv1.GitRepo, opts ...any) {
 			c, found := getCondition(repo, fleetv1.GitRepoAcceptedCondition)
 			if !found {
 				t.Errorf("expecting to find the %s condition and could not find it.", fleetv1.GitRepoAcceptedCondition)

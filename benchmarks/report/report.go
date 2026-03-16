@@ -98,7 +98,7 @@ func New(r ginkgo.Report) (*Summary, bool) {
 	return s, true
 }
 
-func prettyPrint(i interface{}) string {
+func prettyPrint(i any) string {
 	s, _ := json.MarshalIndent(i, "", "\t")
 	return string(s)
 }

@@ -36,8 +36,8 @@ func TestValuesFrom(t *testing.T) {
 
 	configMapPayload := fmt.Sprintf("replication: \"true\"%sreplicas: \"2\"%sserviceType: NodePort", newline, newline)
 	secretPayload := fmt.Sprintf("replication: \"false\"%sreplicas: \"3\"%sserviceType: NodePort%sfoo: bar", newline, newline, newline)
-	totalValues := map[string]interface{}{"beforeMerge": "value"}
-	expected := map[string]interface{}{
+	totalValues := map[string]any{"beforeMerge": "value"}
+	expected := map[string]any{
 		"beforeMerge": "value",
 		"replicas":    "2",
 		"replication": "true",

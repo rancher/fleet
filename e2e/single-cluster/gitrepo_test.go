@@ -414,7 +414,7 @@ func matchGitRepoStatus(expected fleet.GitRepoStatus) types.GomegaMatcher {
 	return &gitRepoStatusMatcher{expected: expected}
 }
 
-func (matcher *gitRepoStatusMatcher) Match(actual interface{}) (success bool, err error) {
+func (matcher *gitRepoStatusMatcher) Match(actual any) (success bool, err error) {
 	got, ok := actual.(fleet.GitRepoStatus)
 	if !ok {
 		return false, errors.New("gitRepoStatusMatcher expects a GitRepoStatus")
@@ -454,10 +454,10 @@ func (matcher *gitRepoStatusMatcher) Match(actual interface{}) (success bool, er
 		nil
 }
 
-func (matcher *gitRepoStatusMatcher) FailureMessage(actual interface{}) (message string) {
+func (matcher *gitRepoStatusMatcher) FailureMessage(actual any) (message string) {
 	return fmt.Sprintf("Expected\n\t%#v\nto match status\n\t%#v", actual, matcher.expected)
 }
 
-func (matcher *gitRepoStatusMatcher) NegatedFailureMessage(actual interface{}) (message string) {
+func (matcher *gitRepoStatusMatcher) NegatedFailureMessage(actual any) (message string) {
 	return fmt.Sprintf("Expected\n\t%#v\nnot to match status\n\t%#v", actual, matcher.expected)
 }

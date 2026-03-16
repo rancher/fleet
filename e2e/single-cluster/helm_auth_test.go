@@ -381,7 +381,7 @@ helm:
 	Expect(err).ToNot(HaveOccurred())
 
 	fleetYamlPath := path.Join(gitrepoFolder, "fleet.yaml")
-	err = os.WriteFile(fleetYamlPath, []byte(fmt.Sprintf(fleetYAML, ip)), 0644)
+	err = os.WriteFile(fleetYamlPath, fmt.Appendf(nil, fleetYAML, ip), 0644)
 	Expect(err).ToNot(HaveOccurred())
 
 	return tmpFolder

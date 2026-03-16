@@ -72,7 +72,7 @@ var _ = Describe("Filtering events by shard", Label("sharding"), func() {
 					g.Expect(pods).ToNot(BeEmpty(), "no pod in namespace fleet-local")
 
 					var podNodeSelector string
-					for _, pod := range strings.Split(pods, "\n") {
+					for pod := range strings.SplitSeq(pods, "\n") {
 						fields := strings.Split(pod, "\t")
 						podName := fields[0]
 						if strings.HasPrefix(podName, "sharding-test") {

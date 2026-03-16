@@ -46,8 +46,6 @@ func LessEndpointAddress(a, b *v1.EndpointAddress) bool {
 // use it returns the input slice.
 // Note: EndpointSubset is part of the deprecated Endpoints API (core/v1).
 // The successor is EndpointSlice (discovery.k8s.io/v1).
-//
-//nolint:staticcheck // EndpointSubset is deprecated but still supported; see fleet#3760.
 func SortSubsets(subsets []v1.EndpointSubset) []v1.EndpointSubset {
 	for i := range subsets {
 		ss := &subsets[i]
@@ -59,7 +57,7 @@ func SortSubsets(subsets []v1.EndpointSubset) []v1.EndpointSubset {
 	return subsets
 }
 
-func hashObject(hasher hash.Hash, obj interface{}) []byte {
+func hashObject(hasher hash.Hash, obj any) []byte {
 	hashutil.DeepHashObject(hasher, obj)
 	return hasher.Sum(nil)
 }

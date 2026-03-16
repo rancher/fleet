@@ -415,7 +415,7 @@ func TestCheckErrors(t *testing.T) {
 
 func newCondition(conditionType, status, reason, message string) Condition {
 	return Condition{
-		Object: map[string]interface{}{
+		Object: map[string]any{
 			"type":    conditionType,
 			"status":  status,
 			"reason":  reason,
@@ -428,9 +428,9 @@ var _ = Describe("Summary", func() {
 	When("testing kStatusSummarizer", func() {
 		newObj := func(message string) data.Object {
 			return data.Object{
-				"status": map[string]interface{}{
-					"conditions": []interface{}{
-						map[string]interface{}{
+				"status": map[string]any{
+					"conditions": []any{
+						map[string]any{
 							"type":    "Ready",
 							"status":  "False",
 							"message": message,

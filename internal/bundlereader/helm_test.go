@@ -316,7 +316,7 @@ func TestGetManifestFromHelmChart(t *testing.T) {
 			},
 			readerCalls: func(c *mocks.MockReader) {
 				c.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-					func(_ context.Context, _ types.NamespacedName, secret *corev1.Secret, _ ...interface{}) error {
+					func(_ context.Context, _ types.NamespacedName, secret *corev1.Secret, _ ...any) error {
 						secret.Data = make(map[string][]byte)
 						secret.Data[corev1.BasicAuthUsernameKey] = []byte(authUsername)
 						secret.Data[corev1.BasicAuthPasswordKey] = []byte("bad password")

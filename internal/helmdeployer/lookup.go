@@ -2,6 +2,7 @@ package helmdeployer
 
 import (
 	"reflect"
+	"slices"
 	"strings"
 	"text/template"
 	"text/template/parse"
@@ -20,7 +21,7 @@ func hasLookupFunction(ch *chartv2.Chart) bool {
 		).Option(
 			"missingkey=zero",
 		).Funcs(
-			map[string]interface{}{"lookup": func() error { return nil }},
+			map[string]any{"lookup": func() error { return nil }},
 		).Parse(string(tpl.Data))
 		if err != nil {
 			// Some templates might not parse correctly if they depend on values
@@ -70,10 +71,8 @@ func containsLookup(node parse.Node) bool { //nolint:gocyclo // recursive logic
 		return false
 	case parse.NodeList:
 		if n, ok := node.(*parse.ListNode); ok && n != nil {
-			for _, subNode := range n.Nodes {
-				if containsLookup(subNode) {
-					return true
-				}
+			if slices.ContainsFunc(n.Nodes, containsLookup) {
+				return true
 			}
 		}
 		return false

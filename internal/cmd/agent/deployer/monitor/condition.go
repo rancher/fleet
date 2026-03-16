@@ -14,7 +14,7 @@ type Cond string
 
 var ErrSkip = controller.ErrIgnore
 
-func (c Cond) SetError(obj interface{}, reason string, err error) {
+func (c Cond) SetError(obj any, reason string, err error) {
 	if err == nil || errors.Is(err, ErrSkip) {
 		c.True(obj)
 		c.Message(obj, "")
@@ -29,28 +29,28 @@ func (c Cond) SetError(obj interface{}, reason string, err error) {
 	c.Reason(obj, reason)
 }
 
-func (c Cond) True(obj interface{}) {
+func (c Cond) True(obj any) {
 	setStatus(obj, string(c), "True")
 }
 
-func (c Cond) IsTrue(obj interface{}) bool {
+func (c Cond) IsTrue(obj any) bool {
 	return getStatus(obj, string(c)) == "True"
 }
 
-func (c Cond) False(obj interface{}) {
+func (c Cond) False(obj any) {
 	setStatus(obj, string(c), "False")
 }
 
-func (c Cond) IsFalse(obj interface{}) bool {
+func (c Cond) IsFalse(obj any) bool {
 	return getStatus(obj, string(c)) == "False"
 }
 
-func (c Cond) Reason(obj interface{}, reason string) {
+func (c Cond) Reason(obj any, reason string) {
 	cond := findOrCreateCond(obj, string(c))
 	getFieldValue(cond, "Reason").SetString(reason)
 }
 
-func (c Cond) GetReason(obj interface{}) string {
+func (c Cond) GetReason(obj any) string {
 	cond := findOrNotCreateCond(obj, string(c))
 	if cond == nil {
 		return ""
@@ -58,12 +58,12 @@ func (c Cond) GetReason(obj interface{}) string {
 	return getFieldValue(*cond, "Reason").String()
 }
 
-func (c Cond) Message(obj interface{}, message string) {
+func (c Cond) Message(obj any, message string) {
 	cond := findOrCreateCond(obj, string(c))
 	setValue(cond, "Message", message)
 }
 
-func (c Cond) GetMessage(obj interface{}) string {
+func (c Cond) GetMessage(obj any) string {
 	cond := findOrNotCreateCond(obj, string(c))
 	if cond == nil {
 		return ""
@@ -76,7 +76,7 @@ func touchTS(value reflect.Value) {
 	getFieldValue(value, "LastUpdateTime").SetString(now)
 }
 
-func getStatus(obj interface{}, condName string) string {
+func getStatus(obj any, condName string) string {
 	cond := findOrNotCreateCond(obj, condName)
 	if cond == nil {
 		return ""
@@ -84,7 +84,7 @@ func getStatus(obj interface{}, condName string) string {
 	return getFieldValue(*cond, "Status").String()
 }
 
-func setStatus(obj interface{}, condName, status string) {
+func setStatus(obj any, condName, status string) {
 	if reflect.TypeOf(obj).Kind() != reflect.Ptr {
 		panic("obj passed must be a pointer")
 	}
@@ -100,7 +100,7 @@ func setValue(cond reflect.Value, fieldName, newValue string) {
 	}
 }
 
-func findOrNotCreateCond(obj interface{}, condName string) *reflect.Value {
+func findOrNotCreateCond(obj any, condName string) *reflect.Value {
 	condSlice := getValue(obj, "Status", "Conditions")
 	if !condSlice.IsValid() {
 		condSlice = getValue(obj, "Conditions")
@@ -108,7 +108,7 @@ func findOrNotCreateCond(obj interface{}, condName string) *reflect.Value {
 	return findCond(obj, condSlice, condName)
 }
 
-func findOrCreateCond(obj interface{}, condName string) reflect.Value {
+func findOrCreateCond(obj any, condName string) reflect.Value {
 	condSlice := getValue(obj, "Status", "Conditions")
 	if !condSlice.IsValid() {
 		condSlice = getValue(obj, "Conditions")
@@ -125,7 +125,7 @@ func findOrCreateCond(obj interface{}, condName string) reflect.Value {
 	return *findCond(obj, condSlice, condName)
 }
 
-func findCond(obj interface{}, val reflect.Value, name string) *reflect.Value {
+func findCond(obj any, val reflect.Value, name string) *reflect.Value {
 	defer func() {
 		if recover() != nil {
 			logrus.Fatalf("failed to find .Status.Conditions field on %v", reflect.TypeOf(obj))
@@ -143,7 +143,7 @@ func findCond(obj interface{}, val reflect.Value, name string) *reflect.Value {
 	return nil
 }
 
-func getValue(obj interface{}, name ...string) reflect.Value {
+func getValue(obj any, name ...string) reflect.Value {
 	if obj == nil || len(name) == 0 {
 		return reflect.Value{}
 	}

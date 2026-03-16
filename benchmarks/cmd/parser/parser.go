@@ -33,7 +33,7 @@ type Experiment struct {
 type Measurement struct {
 	Value           float64            `json:"value,omitempty"`
 	Type            gm.MeasurementType `json:"type,omitempty"`
-	PrecisionBundle gm.PrecisionBundle `json:"precision_bundle,omitempty"`
+	PrecisionBundle gm.PrecisionBundle `json:"precision_bundle,omitzero"`
 	Style           string             `json:"style,omitempty"`
 	Units           string             `json:"units,omitempty"`
 }
@@ -94,7 +94,7 @@ func NewSetup(specReports types.SpecReports, result map[string]Measurement) (str
 					result[name] = tmp
 				} else if m.Type == gm.MeasurementTypeNote {
 					description.WriteByte('\n')
-					for _, line := range strings.Split(strings.Trim(m.Note, "\n"), "\n") {
+					for line := range strings.SplitSeq(strings.Trim(m.Note, "\n"), "\n") {
 						description.WriteString(line)
 						description.WriteByte('\n')
 					}
@@ -203,10 +203,10 @@ func Extract(m gm.Measurement) (string, float64) {
 		v = stat.Mean(m.Values, nil)
 	} else if beforeAfterName(name) {
 		if strings.HasSuffix(m.Name, "Before") {
-			name = strings.TrimSuffix(m.Name, "Before")
+			name, _ = strings.CutSuffix(m.Name, "Before")
 			v = -v
 		} else {
-			name = strings.TrimSuffix(m.Name, "After")
+			name, _ = strings.CutSuffix(m.Name, "After")
 		}
 	}
 

@@ -40,7 +40,7 @@ func TestCleanupReleases(t *testing.T) {
 	mockClient := mocks.NewMockK8sClient(mockCtrl)
 	bd := &fleet.BundleDeployment{}
 	mockClient.EXPECT().Get(gomock.Any(), types.NamespacedName{Namespace: fleetNS, Name: "ID1"}, bd).DoAndReturn(
-		func(_ context.Context, _ types.NamespacedName, bd *fleet.BundleDeployment, _ ...interface{}) error {
+		func(_ context.Context, _ types.NamespacedName, bd *fleet.BundleDeployment, _ ...any) error {
 			bd.Spec.Options.TargetNamespace = defaultNS
 			bd.Spec.Options.Helm = &fleet.HelmOptions{
 				ReleaseName: "TestRelease1", // will be kept
@@ -51,7 +51,7 @@ func TestCleanupReleases(t *testing.T) {
 	)
 
 	mockClient.EXPECT().Get(gomock.Any(), types.NamespacedName{Namespace: fleetNS, Name: "ID2"}, bd).DoAndReturn(
-		func(_ context.Context, _ types.NamespacedName, bd *fleet.BundleDeployment, _ ...interface{}) error {
+		func(_ context.Context, _ types.NamespacedName, bd *fleet.BundleDeployment, _ ...any) error {
 			bd.Spec.Options.TargetNamespace = defaultNS
 			bd.Spec.Options.Helm = &fleet.HelmOptions{
 				ReleaseName: "TestRelease2-old", // will be deleted
@@ -62,7 +62,7 @@ func TestCleanupReleases(t *testing.T) {
 	)
 
 	mockClient.EXPECT().Get(gomock.Any(), types.NamespacedName{Namespace: fleetNS, Name: "ID3"}, bd).DoAndReturn(
-		func(_ context.Context, _ types.NamespacedName, bd *fleet.BundleDeployment, _ ...interface{}) error {
+		func(_ context.Context, _ types.NamespacedName, bd *fleet.BundleDeployment, _ ...any) error {
 			bd.Spec.Options.TargetNamespace = defaultNS + "-old" // will be deleted
 			bd.Spec.Options.Helm = &fleet.HelmOptions{
 				ReleaseName: "TestRelease3",

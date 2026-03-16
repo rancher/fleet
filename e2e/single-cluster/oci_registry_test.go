@@ -103,8 +103,8 @@ func checkEnvVariable(k kubectl.Command, component string, env string) (string, 
 	ns := "cattle-fleet-system"
 	out, err := k.Namespace(ns).Run("set", "env", component, "--list")
 	Expect(err).ToNot(HaveOccurred())
-	lines := strings.Split(out, "\n")
-	for _, line := range lines {
+	lines := strings.SplitSeq(out, "\n")
+	for line := range lines {
 		if strings.Contains(line, env) {
 			keyValue := strings.Split(line, "=")
 			Expect(keyValue).To(HaveLen(2))
