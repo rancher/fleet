@@ -800,16 +800,22 @@ func addOtherNamespaceResources(ctx context.Context, d dynamic.Interface, logger
 }
 
 // addFilteredHelmOps adds HelmOps with appropriate filtering.
-// HelmOps are namespace-scoped resources like GitRepos, so they use namespace filtering only.
+// HelmOps are namespace-scoped resources like GitRepos. They are:
+//   - excluded entirely when filtering by GitRepo or Bundle,
+//   - name-filtered when a specific HelmOp is requested, and
+//   - otherwise included using namespace filtering only.
 func addFilteredHelmOps(ctx context.Context, d dynamic.Interface, logger logr.Logger, w *tar.Writer, opt Options) error {
 	switch {
+	case opt.GitRepo != "" || opt.Bundle != "":
+		// When filtering by GitRepo or Bundle, HelmOps are unrelated resources and must not be included.
+		return nil
 	case opt.HelmOp != "":
 		// Add only the specific HelmOp
 		if err := addObjectsWithNameFilter(ctx, d, logger, "helmops", w, []string{opt.HelmOp}, opt); err != nil {
 			return fmt.Errorf("failed to add helmops to archive: %w", err)
 		}
 	default:
-		// HelmOps are namespace-scoped like GitRepos, use namespace filtering
+		// In unfiltered mode, HelmOps are namespace-scoped like GitRepos and use namespace filtering only.
 		if err := addObjectsToArchive(ctx, d, logger, "helmops", w, opt); err != nil {
 			return fmt.Errorf("failed to add helmops to archive: %w", err)
 		}

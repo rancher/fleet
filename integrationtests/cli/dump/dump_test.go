@@ -631,6 +631,91 @@ var _ = Describe("Fleet dump", func() {
 			Expect(c.SHA256Sum).To(Equal("abc123def456"))
 		})
 	})
+
+	When("the cluster contains a GitRepo and a HelmOp in the same namespace", func() {
+		BeforeEach(func() {
+			testGitRepo := fleet.GitRepo{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "my-gitrepo",
+					Namespace: "test-gitrepo-filter",
+				},
+				Spec: fleet.GitRepoSpec{
+					Repo: "http://example.com/myrepo",
+				},
+			}
+
+			testBundle := fleet.Bundle{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "my-bundle",
+					Namespace: "test-gitrepo-filter",
+					Labels: map[string]string{
+						"fleet.cattle.io/repo-name": "my-gitrepo",
+					},
+				},
+			}
+
+			testHelmOp := fleet.HelmOp{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "my-helmop",
+					Namespace: "test-gitrepo-filter",
+				},
+			}
+
+			objs = []client.Object{&testGitRepo, &testBundle, &testHelmOp}
+		})
+
+		It("excludes HelmOp resources when filtering by --gitrepo", func() {
+			tgzPath := "test_gitrepo_filter.tgz"
+			opts := dump.Options{
+				Namespace: "test-gitrepo-filter",
+				GitRepo:   "my-gitrepo",
+			}
+			Expect(fleetDumpWithOptions(tgzPath, opts)).ToNot(HaveOccurred())
+			defer func() {
+				Expect(os.RemoveAll(tgzPath)).ToNot(HaveOccurred())
+			}()
+
+			found, _, err := findFileInArchive(tgzPath, "helmops_")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(found).To(BeFalse(), "HelmOp resources must not appear when filtering by --gitrepo")
+		})
+	})
+
+	When("the cluster contains a Bundle and a HelmOp in the same namespace", func() {
+		BeforeEach(func() {
+			testBundle := fleet.Bundle{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "my-bundle",
+					Namespace: "test-bundle-filter",
+				},
+			}
+
+			testHelmOp := fleet.HelmOp{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "my-helmop",
+					Namespace: "test-bundle-filter",
+				},
+			}
+
+			objs = []client.Object{&testBundle, &testHelmOp}
+		})
+
+		It("excludes HelmOp resources when filtering by --bundle", func() {
+			tgzPath := "test_bundle_filter.tgz"
+			opts := dump.Options{
+				Namespace: "test-bundle-filter",
+				Bundle:    "my-bundle",
+			}
+			Expect(fleetDumpWithOptions(tgzPath, opts)).ToNot(HaveOccurred())
+			defer func() {
+				Expect(os.RemoveAll(tgzPath)).ToNot(HaveOccurred())
+			}()
+
+			found, _, err := findFileInArchive(tgzPath, "helmops_")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(found).To(BeFalse(), "HelmOp resources must not appear when filtering by --bundle")
+		})
+	})
 })
 
 // areEqual checks if objects a and e are equal, by namespace, name, metadata (labels and annotations) and Spec or
