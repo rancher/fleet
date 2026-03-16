@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -105,7 +106,7 @@ func (d *BundleDiff) PersistentPre(_ *cobra.Command, _ []string) error {
 
 func (d *BundleDiff) Run(cmd *cobra.Command, args []string) error {
 	if d.JSON && d.FleetYAML {
-		return fmt.Errorf("cannot specify both --json and --fleet-yaml")
+		return errors.New("cannot specify both --json and --fleet-yaml")
 	}
 
 	cfg, err := ctrl.GetConfig()
@@ -122,7 +123,7 @@ func (d *BundleDiff) Run(cmd *cobra.Command, args []string) error {
 	}
 
 	if d.FleetYAML && d.BundleDeployment == "" {
-		return fmt.Errorf("--fleet-yaml requires --bundle-deployment to be specified")
+		return errors.New("--fleet-yaml requires --bundle-deployment to be specified")
 	}
 
 	diffs := []DiffOutput{}
@@ -408,11 +409,13 @@ func (d *BundleDiff) outputFleetYAMLDiff(ctx context.Context, k8sClient client.C
 
 	// Format as fleet.yaml snippet with proper indentation
 	output := "diff:\n"
+	var outputSb411 strings.Builder
 	for _, line := range strings.Split(string(yamlOutput), "\n") {
 		if line != "" {
-			output += "  " + line + "\n"
+			outputSb411.WriteString("  " + line + "\n")
 		}
 	}
+	output += outputSb411.String()
 
 	fmt.Fprint(out, output)
 	return nil

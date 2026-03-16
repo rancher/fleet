@@ -1,7 +1,7 @@
 package cleanup
 
 import (
-	"fmt"
+	"errors"
 
 	command "github.com/rancher/fleet/internal/cmd"
 	"github.com/rancher/fleet/pkg/version"
@@ -22,7 +22,7 @@ func (c *CleanUp) HelpFunc(cmd *cobra.Command, strings []string) {
 
 func (c *CleanUp) Run(cmd *cobra.Command, args []string) error {
 	if c.Namespace == "" {
-		return fmt.Errorf("--namespace or env NAMESPACE is required to be set")
+		return errors.New("--namespace or env NAMESPACE is required to be set")
 	}
 	return start(cmd.Context(), c.Kubeconfig, c.Namespace)
 }

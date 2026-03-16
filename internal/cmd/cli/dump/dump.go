@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand"
@@ -194,7 +195,7 @@ func addContentsToArchive(
 				return fmt.Errorf("failed to marshal content: %w", err)
 			}
 
-			fileName := fmt.Sprintf("contents_%s", i.GetName())
+			fileName := "contents_" + i.GetName()
 			if err := addFileToArchive(g, fileName, w); err != nil {
 				return err
 			}
@@ -456,7 +457,7 @@ func addEventsToArchive(
 
 			// Write tar header
 			if err := w.WriteHeader(&tar.Header{
-				Name:     fmt.Sprintf("events_%s", ns),
+				Name:     "events_" + ns,
 				Mode:     0644,
 				Typeflag: tar.TypeReg,
 				ModTime:  time.Unix(0, 0),
@@ -552,7 +553,7 @@ func addMetricsToArchive(ctx context.Context, c client.Client, logger logr.Logge
 
 		logger.Info("Extracted metrics", "service", svc.Name)
 
-		if err := addFileToArchive(body, fmt.Sprintf("metrics_%s", svc.Name), w); err != nil {
+		if err := addFileToArchive(body, "metrics_"+svc.Name, w); err != nil {
 			return fmt.Errorf("failed to write metrics to archive from service %s: %w", svc.Name, err)
 		}
 	}
@@ -1083,7 +1084,7 @@ func collectBundleNamesByGitRepo(ctx context.Context, d dynamic.Interface, names
 	var names []string
 	lo := metav1.ListOptions{
 		Limit:         fetchLimit,
-		LabelSelector: fmt.Sprintf("fleet.cattle.io/repo-name=%s", gitrepo),
+		LabelSelector: "fleet.cattle.io/repo-name=" + gitrepo,
 	}
 
 	for {
@@ -1116,7 +1117,7 @@ func collectBundleNamesByHelmOp(ctx context.Context, d dynamic.Interface, namesp
 	var names []string
 	lo := metav1.ListOptions{
 		Limit:         fetchLimit,
-		LabelSelector: fmt.Sprintf("fleet.cattle.io/fleet-helm-name=%s", helmop),
+		LabelSelector: "fleet.cattle.io/fleet-helm-name=" + helmop,
 	}
 
 	for {
@@ -1205,7 +1206,7 @@ func collectContentIDs(ctx context.Context, d dynamic.Interface, namespace strin
 // that resource and its dependencies, avoiding leaking secrets from unrelated resources in the same namespace.
 func collectSecretNames(ctx context.Context, d dynamic.Interface, logger logr.Logger, namespace string, bundleNames []string, gitRepoName, bundleFilterName, helmOpName string, fetchLimit int64) ([]string, error) {
 	if namespace == "" {
-		return nil, fmt.Errorf("namespace must be set when collecting secret names")
+		return nil, errors.New("namespace must be set when collecting secret names")
 	}
 
 	secretNameMap, err := getSecretNames(ctx, d, logger, namespace, gitRepoName, bundleFilterName, helmOpName, fetchLimit)
@@ -1325,7 +1326,7 @@ func collectSecretNames(ctx context.Context, d dynamic.Interface, logger logr.Lo
 
 func getSecretNames(ctx context.Context, d dynamic.Interface, logger logr.Logger, namespace string, gitRepoName, bundleFilterName, helmOpName string, fetchLimit int64) (map[string]bool, error) {
 	if namespace == "" {
-		return nil, fmt.Errorf("namespace must be set when collecting secret names")
+		return nil, errors.New("namespace must be set when collecting secret names")
 	}
 
 	secretNameMap := make(map[string]bool)

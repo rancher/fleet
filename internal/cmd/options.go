@@ -45,19 +45,19 @@ func NewLeaderElectionOptionsWithPrefix(prefix string) (LeaderElectionOptions, e
 		name       string
 	)
 
-	name = fmt.Sprintf("%s_ELECTION_LEASE_DURATION", prefix)
+	name = prefix + "_ELECTION_LEASE_DURATION"
 	leaderOpts.LeaseDuration, err = parseEnvDuration(name)
 	if err != nil {
 		return leaderOpts, err
 	}
 
-	name = fmt.Sprintf("%s_ELECTION_RENEW_DEADLINE", prefix)
+	name = prefix + "_ELECTION_RENEW_DEADLINE"
 	leaderOpts.RenewDeadline, err = parseEnvDuration(name)
 	if err != nil {
 		return leaderOpts, err
 	}
 
-	name = fmt.Sprintf("%s_ELECTION_RETRY_PERIOD", prefix)
+	name = prefix + "_ELECTION_RETRY_PERIOD"
 	leaderOpts.RetryPeriod, err = parseEnvDuration(name)
 	if err != nil {
 		return leaderOpts, err

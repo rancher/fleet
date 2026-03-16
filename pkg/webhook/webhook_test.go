@@ -6,11 +6,12 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"time"
 
 	"go.uber.org/mock/gomock"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -40,7 +41,7 @@ import (
 type errReader int
 
 func (errReader) Read(p []byte) (n int, err error) {
-	return 0, fmt.Errorf("ERROR READING")
+	return 0, errors.New("ERROR READING")
 }
 
 func TestGetBranchTagFromRef(t *testing.T) {
@@ -464,7 +465,7 @@ func TestGitHubWrongSecret(t *testing.T) {
 	mac256 := hmac.New(sha256.New, []byte("supersecretvalue"))
 	mac256.Write(jsonBody)
 	sha256Signature := hex.EncodeToString(mac256.Sum(nil))
-	req.Header.Set("X-Hub-Signature-256", fmt.Sprintf("sha256=%s", sha256Signature))
+	req.Header.Set("X-Hub-Signature-256", "sha256="+sha256Signature)
 
 	// request execution
 	rr := httptest.NewRecorder()
@@ -694,7 +695,7 @@ func TestGitHubSecretAndCommitUpdated(t *testing.T) {
 				}
 
 				// if no secret
-				return errors.NewNotFound(schema.GroupResource{}, "")
+				return apierrors.NewNotFound(schema.GroupResource{}, "")
 			}).Times(1)
 
 		// Status().Update() mock call
@@ -745,7 +746,7 @@ func TestGitHubSecretAndCommitUpdated(t *testing.T) {
 		mac256 := hmac.New(sha256.New, []byte(tt.secretValueInRequest))
 		_, _ = mac256.Write(jsonBody)
 		expectedMAC256 := hex.EncodeToString(mac256.Sum(nil))
-		req.Header.Set("X-Hub-Signature-256", fmt.Sprintf("sha256=%s", expectedMAC256))
+		req.Header.Set("X-Hub-Signature-256", "sha256="+expectedMAC256)
 
 		// request execution
 		rr := httptest.NewRecorder()
@@ -811,7 +812,7 @@ func TestGitRepoURLMatch(t *testing.T) {
 	nn := types.NamespacedName{Name: webhookSecretName, Namespace: "my-namespace"}
 	// The following calls should happen only _once_, for the GitRepo with the exact URL match, hence the explicit
 	// `.Times(1)` calls.
-	mockClient.EXPECT().Get(gomock.Any(), nn, gomock.Any()).Return(errors.NewNotFound(schema.GroupResource{}, "")).Times(1)
+	mockClient.EXPECT().Get(gomock.Any(), nn, gomock.Any()).Return(apierrors.NewNotFound(schema.GroupResource{}, "")).Times(1)
 
 	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
 		func(ctx context.Context, name types.NamespacedName, gitrepo *v1alpha1.GitRepo, _ ...interface{}) error {

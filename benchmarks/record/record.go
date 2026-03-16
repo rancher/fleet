@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"maps"
 	"math/rand/v2"
@@ -199,7 +200,7 @@ func Nodes(ctx context.Context, experiment *gm.Experiment) {
 }
 
 func Header(s string) string {
-	h := fmt.Sprintf("%s\n", s)
+	h := s + "\n"
 	h += strings.Repeat("=", len(s)) + "\n"
 	return h
 }
@@ -251,7 +252,7 @@ func getMetrics(res map[string]float64, url string, controllers ...string) {
 		}
 
 		if _, ok := mfs["controller_runtime_reconcile_total"]; !ok {
-			return fmt.Errorf("controller_runtime_reconcile_total not found")
+			return errors.New("controller_runtime_reconcile_total not found")
 		}
 
 		return nil

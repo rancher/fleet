@@ -2,7 +2,6 @@ package summary_test
 
 import (
 	"errors"
-	"fmt"
 	"testing"
 
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
@@ -75,7 +74,7 @@ func TestSetReadyConditions_ReasonClearedWhenBecomingReady(t *testing.T) {
 
 	// Simulate an error state by using SetError
 	c := condition.Cond("Ready")
-	c.SetError(bundleStatus, "", fmt.Errorf("some error occurred"))
+	c.SetError(bundleStatus, "", errors.New("some error occurred"))
 
 	// Verify the error state is set correctly
 	if c.GetStatus(bundleStatus) != "False" {

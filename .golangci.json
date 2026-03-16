@@ -28,6 +28,7 @@
       "nilerr",
       "noctx",
       "nolintlint",
+      "perfsprint",
       "revive",
       "staticcheck",
       "testifylint",

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strings"
 
 	"github.com/rancher/fleet/benchmarks/cmd/parser"
 
@@ -21,13 +22,15 @@ type Summary struct {
 func (s Summary) ColorableString() string {
 	sb := "{{green}}Experiments{{/}}\n"
 	keys := slices.Sorted(maps.Keys(s.Experiments))
+	var sbSb24 strings.Builder
 	for _, k := range keys {
 		v := s.Experiments[k]
-		sb += fmt.Sprintf("{{green}}%s{{/}}\n", k)
+		sbSb24.WriteString("{{green}}" + k + "{{/}}\n")
 		t2 := NewTable(v.Measurements)
-		sb += t2.Render()
-		sb += "\n"
+		sbSb24.WriteString(t2.Render())
+		sbSb24.WriteString("\n")
 	}
+	sb += sbSb24.String()
 	sb += "{{green}}Environment{{/}}\n"
 	sb += s.Description
 	sb += "\n"

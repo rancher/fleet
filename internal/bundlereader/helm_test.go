@@ -9,6 +9,7 @@ import (
 	"crypto/subtle"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -290,7 +291,7 @@ func TestGetManifestFromHelmChart(t *testing.T) {
 				},
 			},
 			readerCalls: func(c *mocks.MockReader) {
-				c.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).Return(fmt.Errorf("secret not found"))
+				c.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).Return(errors.New("secret not found"))
 			},
 			requiresAuth:        false,
 			expectedNilManifest: true,

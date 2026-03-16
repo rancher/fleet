@@ -1,7 +1,6 @@
 package singlecluster_test
 
 import (
-	"fmt"
 	"path"
 	"strconv"
 	"time"
@@ -34,11 +33,11 @@ var _ = Describe("Downstream objects cloning", Ordered, func() {
 
 	JustBeforeEach(func() {
 		cmAsset := path.Join(testenv.AssetPath("single-cluster/values-cm.yaml"))
-		out, err := k.Create("configmap", "config-values", fmt.Sprintf("--from-file=values.yaml=%s", cmAsset))
+		out, err := k.Create("configmap", "config-values", "--from-file=values.yaml="+cmAsset)
 		Expect(err).ToNot(HaveOccurred(), out)
 
 		secretAsset := path.Join(testenv.AssetPath("single-cluster/values-secret.yaml"))
-		out, err = k.Create("secret", "generic", "secret-values", fmt.Sprintf("--from-file=values.yaml=%s", secretAsset))
+		out, err = k.Create("secret", "generic", "secret-values", "--from-file=values.yaml="+secretAsset)
 		Expect(err).ToNot(HaveOccurred(), out)
 
 		// Not actually used by the deployment, but validates secret type preservation over copy

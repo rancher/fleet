@@ -4,7 +4,6 @@ package cleanup
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -26,15 +25,15 @@ func TestCleanupReleases(t *testing.T) {
 	deployedBundles := []helmdeployer.DeployedBundle{
 		{
 			BundleID:    "ID1",
-			ReleaseName: fmt.Sprintf("%s/TestRelease1", defaultNS),
+			ReleaseName: defaultNS + "/TestRelease1",
 		},
 		{
 			BundleID:    "ID2",
-			ReleaseName: fmt.Sprintf("%s/TestRelease2", defaultNS),
+			ReleaseName: defaultNS + "/TestRelease2",
 		},
 		{
 			BundleID:    "ID3",
-			ReleaseName: fmt.Sprintf("%s/TestRelease3", defaultNS),
+			ReleaseName: defaultNS + "/TestRelease3",
 		},
 	}
 

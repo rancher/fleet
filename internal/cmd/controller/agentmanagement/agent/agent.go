@@ -4,6 +4,7 @@ package agent
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -138,7 +139,7 @@ func getToken(ctx context.Context, controllerNamespace, tokenName string, client
 	}
 
 	if _, ok := data["token"]; !ok {
-		return nil, fmt.Errorf("failed to find token in values")
+		return nil, errors.New("failed to find token in values")
 	}
 
 	expectedNamespace := fleetns.SystemRegistrationNamespace(controllerNamespace)
@@ -182,7 +183,7 @@ func waitForSecretName(ctx context.Context, tokenName string, client *client.Cli
 		var event watch.Event
 		select {
 		case <-timeout:
-			return "", fmt.Errorf("timeout getting credential for cluster group")
+			return "", errors.New("timeout getting credential for cluster group")
 		case <-ctx.Done():
 			return "", ctx.Err()
 		case event = <-watcher.ResultChan():

@@ -43,7 +43,7 @@ func (r Measurement) String() string {
 }
 
 func NewSetup(specReports types.SpecReports, result map[string]Measurement) (string, error) {
-	description := ""
+	var description strings.Builder
 
 	for _, specReport := range specReports {
 		if len(specReport.ContainerHierarchyLabels) > 1 {
@@ -93,19 +93,19 @@ func NewSetup(specReports types.SpecReports, result map[string]Measurement) (str
 					}
 					result[name] = tmp
 				} else if m.Type == gm.MeasurementTypeNote {
-					description += "\n"
-					lines := strings.Split(strings.Trim(m.Note, "\n"), "\n")
-					for i := range lines {
-						description += fmt.Sprintf("%s\n", lines[i])
+					description.WriteByte('\n')
+					for _, line := range strings.Split(strings.Trim(m.Note, "\n"), "\n") {
+						description.WriteString(line)
+						description.WriteByte('\n')
 					}
 				}
 			}
-			description += "\n"
+			description.WriteByte('\n')
 		}
 		break
 	}
 
-	return description, nil
+	return description.String(), nil
 }
 
 func NewExperiments(specReports types.SpecReports, result map[string]Experiment) (float64, error) {

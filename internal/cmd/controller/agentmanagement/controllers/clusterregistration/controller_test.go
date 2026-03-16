@@ -1,13 +1,13 @@
 package clusterregistration
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/rancher/wrangler/v3/pkg/generic"
 	"github.com/rancher/wrangler/v3/pkg/generic/fake"
 	"go.uber.org/mock/gomock"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
@@ -31,8 +31,8 @@ var _ = Describe("ClusterRegistration OnChange", func() {
 		clusterRegistrationController *fake.MockControllerInterface[*fleet.ClusterRegistration, *fleet.ClusterRegistrationList]
 		clusterCache                  *fake.MockCacheInterface[*fleet.Cluster]
 		h                             *handler
-		notFound                      = errors.NewNotFound(schema.GroupResource{}, "")
-		anError                       = fmt.Errorf("an error occurred")
+		notFound                      = apierrors.NewNotFound(schema.GroupResource{}, "")
+		anError                       = errors.New("an error occurred")
 	)
 
 	BeforeEach(func() {

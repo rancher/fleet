@@ -1,6 +1,7 @@
 package webhook
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -45,7 +46,7 @@ func parseWebhook(r *http.Request, secret *corev1.Secret) (interface{}, error) {
 
 func getValue(secret *corev1.Secret, key string) (string, error) {
 	if secret == nil {
-		return "", fmt.Errorf("secret is nil")
+		return "", errors.New("secret is nil")
 	}
 
 	value, ok := secret.Data[key]

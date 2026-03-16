@@ -205,7 +205,7 @@ func TestReconcile_Error_WhenGetGitJobErrors(t *testing.T) {
 
 	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
 		func(ctx context.Context, req types.NamespacedName, job *batchv1.Job, opts ...interface{}) error {
-			return fmt.Errorf("GITJOB ERROR")
+			return errors.New("GITJOB ERROR")
 		},
 	)
 
@@ -293,7 +293,7 @@ func TestReconcile_Error_WhenSecretDoesNotExist(t *testing.T) {
 
 	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
 		func(ctx context.Context, req types.NamespacedName, job *corev1.Secret, opts ...interface{}) error {
-			return fmt.Errorf("SECRET ERROR")
+			return errors.New("SECRET ERROR")
 		},
 	)
 
@@ -2801,19 +2801,19 @@ func TestUpdateSecretDataHashes_AggregatesNonNotFoundErrors(t *testing.T) {
 	mockClient.EXPECT().Get(gomock.Any(), types.NamespacedName{
 		Name:      "client-secret",
 		Namespace: "default",
-	}, gomock.Any()).Return(fmt.Errorf("connection refused for client-secret"))
+	}, gomock.Any()).Return(errors.New("connection refused for client-secret"))
 
 	// Return a non-NotFound error for helm secret
 	mockClient.EXPECT().Get(gomock.Any(), types.NamespacedName{
 		Name:      "helm-secret",
 		Namespace: "default",
-	}, gomock.Any()).Return(fmt.Errorf("connection refused for helm-secret"))
+	}, gomock.Any()).Return(errors.New("connection refused for helm-secret"))
 
 	// Return a non-NotFound error for helm paths secret
 	mockClient.EXPECT().Get(gomock.Any(), types.NamespacedName{
 		Name:      "helm-paths-secret",
 		Namespace: "default",
-	}, gomock.Any()).Return(fmt.Errorf("connection refused for helm-paths-secret"))
+	}, gomock.Any()).Return(errors.New("connection refused for helm-paths-secret"))
 
 	r := &GitJobReconciler{
 		Client: mockClient,

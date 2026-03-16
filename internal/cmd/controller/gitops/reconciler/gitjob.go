@@ -205,8 +205,8 @@ func (r *GitJobReconciler) newGitJob(ctx context.Context, obj *v1alpha1.GitRepo)
 				"commit":     obj.Status.Commit,
 			},
 			Labels: map[string]string{
-				forceSyncGenerationLabel: fmt.Sprintf("%d", obj.Spec.ForceSyncGeneration),
-				generationLabel:          fmt.Sprintf("%d", obj.Generation),
+				forceSyncGenerationLabel: strconv.FormatInt(obj.Spec.ForceSyncGeneration, 10),
+				generationLabel:          strconv.FormatInt(obj.Generation, 10),
 			},
 			Namespace: obj.Namespace,
 			Name:      jobName(obj),
@@ -906,7 +906,7 @@ func volumesFromSecret(
 	_ = c.Get(ctx, types.NamespacedName{Namespace: namespace, Name: secretName}, secret)
 	if _, ok := secret.Data["cacerts"]; ok {
 		volumes = append(volumes, corev1.Volume{
-			Name: fmt.Sprintf("%s-cert", volumeName),
+			Name: volumeName + "-cert",
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
 					SecretName: secretName,
@@ -920,7 +920,7 @@ func volumesFromSecret(
 			},
 		})
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
-			Name:      fmt.Sprintf("%s-cert", volumeName),
+			Name:      volumeName + "-cert",
 			MountPath: "/etc/ssl/certs",
 		})
 
@@ -1003,9 +1003,9 @@ func jobName(obj *v1alpha1.GitRepo) string {
 }
 
 func caBundleName(obj *v1alpha1.GitRepo) string {
-	return fmt.Sprintf("%s-cabundle", obj.Name)
+	return obj.Name + "-cabundle"
 }
 
 func rancherCABundleName(obj *v1alpha1.GitRepo) string {
-	return fmt.Sprintf("%s-rancher-cabundle", obj.Name)
+	return obj.Name + "-rancher-cabundle"
 }

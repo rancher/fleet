@@ -2,6 +2,7 @@ package reconciler
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"sort"
@@ -28,11 +29,11 @@ func AuthorizeAndAssignDefaults(ctx context.Context, c client.Client, gitrepo *f
 	restriction := aggregate(restrictions.Items)
 
 	if len(restriction.AllowedTargetNamespaces) > 0 && gitrepo.Spec.TargetNamespace == "" {
-		return fmt.Errorf("empty targetNamespace denied, because allowedTargetNamespaces restriction is present")
+		return errors.New("empty targetNamespace denied, because allowedTargetNamespaces restriction is present")
 	}
 
 	if restriction.AllowedTargetNamespaceSelector != nil && gitrepo.Spec.TargetNamespace == "" {
-		return fmt.Errorf("empty targetNamespace denied, because allowedTargetNamespaceSelector restriction is present")
+		return errors.New("empty targetNamespace denied, because allowedTargetNamespaceSelector restriction is present")
 	}
 
 	targetNamespace, err := isAllowed(gitrepo.Spec.TargetNamespace, "", restriction.AllowedTargetNamespaces)

@@ -2,7 +2,7 @@ package cert_test
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"testing"
 
 	"go.uber.org/mock/gomock"
@@ -126,7 +126,7 @@ func TestGetRancherCABundle(t *testing.T) {
 					})
 			},
 			expectedBundle: nil,
-			expectedErr:    fmt.Errorf("no field cacerts.pem found in secret tls-ca"),
+			expectedErr:    errors.New("no field cacerts.pem found in secret tls-ca"),
 		},
 		{
 			name: "tls-ca and tls-ca-additional both exist, but tls-ca-additional is malformed",
@@ -152,7 +152,7 @@ func TestGetRancherCABundle(t *testing.T) {
 					})
 			},
 			expectedBundle: nil,
-			expectedErr:    fmt.Errorf("no field ca-additional.pem found in secret tls-ca-additional"),
+			expectedErr:    errors.New("no field ca-additional.pem found in secret tls-ca-additional"),
 		},
 		{
 			name: "client fails to get tls-ca secret",
@@ -163,11 +163,11 @@ func TestGetRancherCABundle(t *testing.T) {
 					gomock.Any(),
 				).DoAndReturn(
 					func(ctx context.Context, key client.ObjectKey, secret *corev1.Secret, opts ...client.GetOption) error {
-						return fmt.Errorf("something happened")
+						return errors.New("something happened")
 					})
 			},
 			expectedBundle: nil,
-			expectedErr:    fmt.Errorf("something happened"),
+			expectedErr:    errors.New("something happened"),
 		},
 		{
 			name: "client fails to get tls-ca-additional secret",
@@ -188,11 +188,11 @@ func TestGetRancherCABundle(t *testing.T) {
 					gomock.Any(),
 				).DoAndReturn(
 					func(ctx context.Context, key client.ObjectKey, secret *corev1.Secret, opts ...client.GetOption) error {
-						return fmt.Errorf("something happened")
+						return errors.New("something happened")
 					})
 			},
 			expectedBundle: nil,
-			expectedErr:    fmt.Errorf("something happened"),
+			expectedErr:    errors.New("something happened"),
 		},
 	}
 

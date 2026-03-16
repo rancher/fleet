@@ -1,7 +1,7 @@
 package github
 
 import (
-	"fmt"
+	"errors"
 	"reflect"
 	"testing"
 
@@ -35,7 +35,7 @@ func TestGetGithubAppAuthFromSecret(t *testing.T) {
 					GitHubAppAuthIDKey: []byte("123"),
 				},
 			},
-			getter:   fakeGetter{err: fmt.Errorf("not a GitHub App secret")},
+			getter:   fakeGetter{err: errors.New("not a GitHub App secret")},
 			wantAuth: nil,
 			wantErr:  true,
 		},
@@ -61,7 +61,7 @@ func TestGetGithubAppAuthFromSecret(t *testing.T) {
 					GitHubAppAuthPrivateKeyKey:     []byte("my-pem"),
 				},
 			},
-			getter:   fakeGetter{err: fmt.Errorf("token fetch failed")},
+			getter:   fakeGetter{err: errors.New("token fetch failed")},
 			wantAuth: nil,
 			wantErr:  true,
 		},

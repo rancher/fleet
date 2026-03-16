@@ -211,7 +211,7 @@ var _ = Describe("GitRepo using Helm chart with auth", Label("infra-setup"), fun
 			BeforeEach(func() {
 				gitRepoPath = "oci-with-auth"
 				helmSecretName = "helm-secret"
-				targetNamespace = fmt.Sprintf("fleet-helm-%s", gitRepoPath)
+				targetNamespace = "fleet-helm-" + gitRepoPath
 				k = env.Kubectl.Namespace(env.Namespace)
 
 				tmpdir, gh = setupGitRepo(testenv.AssetPath("helm/repo"), gitRepoPath, repoName, port)
@@ -246,7 +246,7 @@ var _ = Describe("GitRepo using Helm chart with auth", Label("infra-setup"), fun
 			BeforeEach(func() {
 				gitRepoPath = "http-with-auth-repo-path"
 				helmSecretName = "helm-secret-no-ca"
-				targetNamespace = fmt.Sprintf("fleet-helm-%s", gitRepoPath)
+				targetNamespace = "fleet-helm-" + gitRepoPath
 				k = env.Kubectl.Namespace(env.Namespace)
 
 				// No CA bundle in this secret
@@ -295,7 +295,7 @@ var _ = Describe("GitRepo using Helm chart with auth", Label("infra-setup"), fun
 			BeforeEach(func() {
 				gitRepoPath = "http-with-auth-repo-path"
 				helmSecretName = "helm-secret"
-				targetNamespace = fmt.Sprintf("fleet-helm-%s", gitRepoPath)
+				targetNamespace = "fleet-helm-" + gitRepoPath
 				k = env.Kubectl.Namespace(env.Namespace)
 
 				tmpdir, gh = setupGitRepo(testenv.AssetPath("helm/repo"), gitRepoPath, repoName, port)
@@ -312,7 +312,7 @@ var _ = Describe("GitRepo using Helm chart with auth", Label("infra-setup"), fun
 			BeforeEach(func() {
 				gitRepoPath = "http-with-auth-chart-path"
 				helmSecretName = "helm-secret"
-				targetNamespace = fmt.Sprintf("fleet-helm-%s", gitRepoPath)
+				targetNamespace = "fleet-helm-" + gitRepoPath
 				k = env.Kubectl.Namespace(env.Namespace)
 
 				tmpdir, gh = setupGitRepo(testenv.AssetPath("helm/repo"), gitRepoPath, repoName, port)

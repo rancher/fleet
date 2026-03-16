@@ -353,7 +353,7 @@ func TestReconcile_ErrorCreatingBundleIsShownInStatus(t *testing.T) {
 
 		client.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
 			func(ctx context.Context, req types.NamespacedName, bundle *fleet.Bundle, opts ...interface{}) error {
-				return fmt.Errorf("this is a test error")
+				return errors.New("this is a test error")
 			},
 		)
 
@@ -849,7 +849,7 @@ func TestReconcile_ManagePollingJobs(t *testing.T) {
 					BundleSpec: fleet.BundleSpec{
 						BundleDeploymentOptions: fleet.BundleDeploymentOptions{
 							Helm: &fleet.HelmOptions{
-								Chart: fmt.Sprintf("%s/alpine/alpine-0.1.0.tgz", svr1.URL),
+								Chart: svr1.URL + "/alpine/alpine-0.1.0.tgz",
 							},
 						},
 					},
@@ -874,7 +874,7 @@ func TestReconcile_ManagePollingJobs(t *testing.T) {
 					BundleSpec: fleet.BundleSpec{
 						BundleDeploymentOptions: fleet.BundleDeploymentOptions{
 							Helm: &fleet.HelmOptions{
-								Chart: fmt.Sprintf("%s/alpine/alpine-0.1.0.tgz", svr1.URL),
+								Chart: svr1.URL + "/alpine/alpine-0.1.0.tgz",
 							},
 						},
 					},
