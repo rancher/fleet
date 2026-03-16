@@ -415,7 +415,7 @@ func addEventsToArchive(
 					}
 
 					if foundEvents {
-						if _, err := tmpFile.Write([]byte("\n")); err != nil {
+						if _, err := tmpFile.WriteString("\n"); err != nil {
 							merr = append(merr, fmt.Errorf("failed to write newline to temp file: %w", err))
 							writeErr = true
 							break

@@ -23,6 +23,7 @@
       "loggercheck",
       "makezero",
       "misspell",
+      "mirror",
       "nakedret",
       "nilerr",
       "noctx",

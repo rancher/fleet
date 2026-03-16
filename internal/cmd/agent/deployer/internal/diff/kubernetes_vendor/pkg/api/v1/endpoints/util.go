@@ -21,6 +21,7 @@ import (
 	"crypto/md5" //nolint:gosec // Non-crypto use
 	"hash"
 	"sort"
+	"strings"
 
 	hashutil "github.com/rancher/fleet/internal/cmd/agent/deployer/internal/diff/kubernetes_vendor/pkg/util/hash"
 	v1 "k8s.io/api/core/v1"
@@ -28,7 +29,7 @@ import (
 
 // LessEndpointAddress compares IP addresses lexicographically and returns true if first argument is lesser than second
 func LessEndpointAddress(a, b *v1.EndpointAddress) bool {
-	ipComparison := bytes.Compare([]byte(a.IP), []byte(b.IP))
+	ipComparison := strings.Compare(a.IP, b.IP)
 	if ipComparison != 0 {
 		return ipComparison < 0
 	}

@@ -480,7 +480,7 @@ func TestReconcile_ErrorCreatingBundleIsShownInStatus(t *testing.T) {
 		}
 
 		errRegex := "could not get a chart version.*error code: 404"
-		match, rErr := regexp.Match(errRegex, []byte(err.Error()))
+		match, rErr := regexp.MatchString(errRegex, err.Error())
 		if rErr != nil {
 			t.Errorf("something went wrong when compiling the regex: %v", rErr)
 		}
