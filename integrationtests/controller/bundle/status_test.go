@@ -186,12 +186,25 @@ var _ = Describe("Bundle Status Fields", func() {
 				return k8sClient.Update(ctx, cluster)
 			}).ShouldNot(HaveOccurred())
 
-			By("validating that the bundle is re-deployed")
-			Eventually(func(g Gomega) {
+			By("validating that the bundle deployment spec is updated")
+			Eventually(func() bool {
 				err = k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "name"}, bd)
-				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(bd.Spec.DeploymentID).ToNot(Equal(deplIDBefore))
+				Expect(err).NotTo(HaveOccurred())
+				return bd.Spec.DeploymentID != deplIDBefore
+			}).Should(BeTrue())
 
+			By("simulating the agent applying the updated bundle deployment")
+			Eventually(func() error {
+				err = k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "name"}, bd)
+				if err != nil {
+					return err
+				}
+				bd.Status.AppliedDeploymentID = bd.Spec.DeploymentID
+				return k8sClient.Status().Update(ctx, bd)
+			}).ShouldNot(HaveOccurred())
+
+			By("verifying the bundle is ready again")
+			Eventually(func(g Gomega) {
 				err = k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "name"}, bundle)
 				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(bundle.Status.Summary.WaitApplied).To(Equal(0))

@@ -1,6 +1,7 @@
 package summary_test
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 
@@ -112,4 +113,57 @@ func TestSetReadyConditions_ReasonClearedWhenBecomingReady(t *testing.T) {
 		t.Errorf("Expected empty reason when Ready status is True, but got %q.",
 			c.GetReason(bundleStatus))
 	}
+}
+
+func setCondition(bd *fleet.BundleDeployment, condType, message string) {
+	condition.Cond(condType).SetError(bd, "", errors.New(message))
+}
+
+func TestMessageFromDeployment(t *testing.T) {
+	t.Run("nil deployment returns empty string", func(t *testing.T) {
+		if msg := summary.MessageFromDeployment(nil); msg != "" {
+			t.Errorf("expected empty string, got %q", msg)
+		}
+	})
+
+	t.Run("Deployed condition takes priority over Installed", func(t *testing.T) {
+		bd := &fleet.BundleDeployment{}
+		bd.Spec.DeploymentID = "id1"
+		bd.Status.AppliedDeploymentID = "id1"
+		setCondition(bd, "Deployed", "deploy error")
+		setCondition(bd, "Installed", "install error")
+		if msg := summary.MessageFromDeployment(bd); msg != "deploy error" {
+			t.Errorf("expected deploy error to take priority, got %q", msg)
+		}
+	})
+
+	t.Run("Installed shown when deployment IDs match", func(t *testing.T) {
+		bd := &fleet.BundleDeployment{}
+		bd.Spec.DeploymentID = "id1"
+		bd.Status.AppliedDeploymentID = "id1"
+		setCondition(bd, "Installed", "install error")
+		if msg := summary.MessageFromDeployment(bd); msg != "install error" {
+			t.Errorf("expected install error, got %q", msg)
+		}
+	})
+
+	t.Run("Installed suppressed when deployment IDs differ", func(t *testing.T) {
+		bd := &fleet.BundleDeployment{}
+		bd.Spec.DeploymentID = "id2"
+		bd.Status.AppliedDeploymentID = "id1"
+		setCondition(bd, "Installed", "stale install error")
+		if msg := summary.MessageFromDeployment(bd); msg != "" {
+			t.Errorf("expected stale Installed message to be suppressed, got %q", msg)
+		}
+	})
+
+	t.Run("Monitored used as fallback when Deployed and Installed are absent", func(t *testing.T) {
+		bd := &fleet.BundleDeployment{}
+		bd.Spec.DeploymentID = "id1"
+		bd.Status.AppliedDeploymentID = "id1"
+		setCondition(bd, "Monitored", "monitor error")
+		if msg := summary.MessageFromDeployment(bd); msg != "monitor error" {
+			t.Errorf("expected monitor error as fallback, got %q", msg)
+		}
+	})
 }
