@@ -9,6 +9,7 @@ import (
 	"path"
 	"strings"
 
+	gogit "github.com/go-git/go-git/v5"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -259,6 +260,190 @@ var _ = Describe("Checks that template errors are shown in bundles and gitrepos"
 				expectNoError(g, status.Conditions)
 			}).Should(Succeed())
 		})
+	})
+})
+
+// Checks that once a cluster goes offline after a failed deployment, the bundle
+// status does not permanently show the stale error after a fix commit is applied
+// (issue https://github.com/rancher/fleet/issues/594).
+var _ = Describe("Bundle status does not retain stale error for offline cluster after fix", Ordered, Label("infra-setup"), func() {
+	const (
+		localAgentNS     = "cattle-fleet-local-system"
+		fleetAgentDeploy = "fleet-agent"
+	)
+
+	var (
+		tmpDir           string
+		cloneDir         string
+		k                kubectl.Command
+		kAgent           kubectl.Command
+		gh               *githelper.Git
+		inClusterRepoURL string
+		gitrepoName      string
+		clone            *gogit.Repository
+		targetNamespace  string
+		r                = rand.New(rand.NewSource(GinkgoRandomSeed()))
+	)
+
+	BeforeEach(func() {
+		k = env.Kubectl.Namespace(env.Namespace)
+		kAgent = env.Kubectl.Namespace(localAgentNS)
+	})
+
+	JustBeforeEach(func() {
+		host := githelper.BuildGitHostname()
+		addr, err := githelper.GetExternalRepoAddr(env, port, "repo")
+		Expect(err).ToNot(HaveOccurred())
+		gh = githelper.NewHTTP(addr)
+
+		inClusterRepoURL = gh.GetInClusterURL(host, port, "repo")
+
+		tmpDir, _ = os.MkdirTemp("", "fleet-")
+		cloneDir = path.Join(tmpDir, "repo")
+
+		gitrepoName = testenv.RandomFilename("offline-stuck", r)
+		targetNamespace = testenv.NewNamespaceName("offline-stuck", r)
+
+		clone, err = gh.Create(cloneDir, testenv.AssetPath("single-cluster/offline-bundle-stuck"), "examples")
+		Expect(err).ToNot(HaveOccurred())
+
+		err = testenv.ApplyTemplate(k, testenv.AssetPath("status/gitrepo.yaml"), struct {
+			Name            string
+			Repo            string
+			Branch          string
+			TargetNamespace string
+		}{
+			gitrepoName,
+			inClusterRepoURL,
+			gh.Branch,
+			targetNamespace,
+		})
+		Expect(err).ToNot(HaveOccurred())
+	})
+
+	AfterAll(func() {
+		// Ensure fleet-agent is always restored, even when the test fails midway.
+		_, _ = kAgent.Run("scale", "deployment", fleetAgentDeploy, "--replicas=1", "--timeout=60s")
+
+		_ = os.RemoveAll(tmpDir)
+		_, _ = k.Delete("gitrepo", gitrepoName)
+
+		Eventually(func(g Gomega) {
+			out, _ := k.Get(
+				"bundledeployments",
+				"-A",
+				"-l",
+				fmt.Sprintf("fleet.cattle.io/repo-name=%s", gitrepoName),
+			)
+			g.Expect(out).To(ContainSubstring("No resources found"))
+		}).Should(Succeed())
+
+		_, _ = k.Delete("ns", targetNamespace, "--wait=false")
+	})
+
+	It("clears the stale error from an offline cluster once a fix commit is present", func() {
+		bundleName := gitrepoName + "-examples"
+
+		By("waiting for the initial deployment to be Ready")
+		Eventually(func(g Gomega) {
+			status := getBundleStatus(g, k, bundleName)
+			g.Expect(status.Summary.Ready).To(Equal(1))
+		}).Should(Succeed())
+
+		By("pushing a commit that introduces a YAML parse error")
+		badContent := `apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: offline-bundle-stuck-cm
+data:
+  broken: {unclosed
+`
+		err := os.WriteFile(path.Join(cloneDir, "examples", "templates", "configmap.yaml"), []byte(badContent), 0644)
+		Expect(err).ToNot(HaveOccurred())
+		_, err = gh.Update(clone)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("waiting for the bundle to reflect the YAML parse error")
+		Eventually(func(g Gomega) {
+			status := getBundleStatus(g, k, bundleName)
+			g.Expect(status.Summary.Ready).To(Equal(0))
+			found := false
+			for _, cond := range status.Conditions {
+				if cond.Type == string(fleet.Ready) && strings.Contains(cond.Message, "did not find expected") {
+					found = true
+					break
+				}
+			}
+			g.Expect(found).To(BeTrue(), "expected YAML parse error in bundle conditions, got: %v", status.Conditions)
+		}, testenv.MediumTimeout, testenv.PollingInterval).Should(Succeed())
+
+		By("scaling down the fleet-agent to simulate an offline cluster")
+		out, err := kAgent.Run("scale", "deployment", fleetAgentDeploy, "--replicas=0", "--timeout=60s")
+		Expect(err).ToNot(HaveOccurred(), out)
+
+		// Wait until the agent pod is gone so it cannot apply any further commits.
+		Eventually(func(g Gomega) {
+			out, _ := kAgent.Get("pods", "-l", "app=fleet-agent")
+			g.Expect(out).To(ContainSubstring("No resources found"))
+		}).Should(Succeed())
+
+		By("pushing an intermediate commit that does not fix the YAML error")
+		intermediateContent := `apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: offline-bundle-stuck-cm
+  labels:
+    version: "2"
+data:
+  broken: {unclosed
+`
+		err = os.WriteFile(path.Join(cloneDir, "examples", "templates", "configmap.yaml"), []byte(intermediateContent), 0644)
+		Expect(err).ToNot(HaveOccurred())
+		_, err = gh.Update(clone)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("pushing a fix commit (valid YAML)")
+		fixContent := `apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: offline-bundle-stuck-cm
+data:
+  key: fixed
+`
+		err = os.WriteFile(path.Join(cloneDir, "examples", "templates", "configmap.yaml"), []byte(fixContent), 0644)
+		Expect(err).ToNot(HaveOccurred())
+		_, err = gh.Update(clone)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("verifying the error message does not persist after the fix commit is pushed")
+		// After the controller picks up the fix commit it updates the BD spec.
+		// Even though the offline agent cannot apply the fix yet, the bundle
+		// should no longer surface the stale error from the previous apply attempt.
+		Eventually(func(g Gomega) {
+			status := getBundleStatus(g, k, bundleName)
+			found := false
+			for _, cond := range status.Conditions {
+				if cond.Type == string(fleet.Ready) {
+					found = true
+					g.Expect(cond.Message).NotTo(
+						ContainSubstring("did not find expected"),
+						"bundle Ready condition still shows stale YAML error after fix commit was pushed",
+					)
+					break
+				}
+			}
+			g.Expect(found).To(BeTrue(), "expected Ready condition to be present, got: %v", status.Conditions)
+		}, testenv.LongTimeout, testenv.PollingInterval).Should(Succeed())
+
+		By("scaling the fleet-agent back up")
+		out, err = kAgent.Run("scale", "deployment", fleetAgentDeploy, "--replicas=1", "--timeout=60s")
+		Expect(err).ToNot(HaveOccurred(), out)
+
+		By("waiting for the bundle to become Ready after the agent recovers")
+		Eventually(func(g Gomega) {
+			status := getBundleStatus(g, k, bundleName)
+			g.Expect(status.Summary.Ready).To(Equal(1))
+		}, testenv.LongTimeout, testenv.PollingInterval).Should(Succeed())
 	})
 })
 

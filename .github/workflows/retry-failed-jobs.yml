@@ -1,0 +1,32 @@
+name: Retry failed PR jobs once
+
+on:
+  workflow_run:
+    workflows:
+      - "CI"
+      - "E2E Fleet"
+      - "E2E Upgrade Fleet Standalone to HEAD"
+      - "E2E Multi-Cluster Fleet"
+    types: [completed]
+
+permissions:
+  actions: write
+
+jobs:
+  retry:
+    # Only retry once, only on pull_request runs, only on failure.
+    # Skipped runs (e.g. path filters) have conclusion 'skipped', not 'failure'.
+    if: >-
+      github.event.workflow_run.conclusion == 'failure' &&
+      github.event.workflow_run.run_attempt == 1 &&
+      github.event.workflow_run.event == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Rerun failed jobs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          gh api \
+            --method POST \
+            "repos/${{ github.repository }}/actions/runs/$RUN_ID/rerun-failed-jobs"

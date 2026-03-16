@@ -39,7 +39,7 @@ func GetManifestFromHelmChart(ctx context.Context, c client.Reader, bd *fleet.Bu
 		auth.CABundle = bd.Spec.HelmChartOptions.CABundle
 	}
 
-	chartURL, err := ChartURL(ctx, *helm, auth, true)
+	chartURL, err := ChartURL(ctx, *helm, auth)
 	if err != nil {
 		return nil, err
 	}

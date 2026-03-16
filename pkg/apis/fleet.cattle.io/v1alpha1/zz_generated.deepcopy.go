@@ -2358,6 +2358,11 @@ func (in *RolloutStrategy) DeepCopyInto(out *RolloutStrategy) {
 		*out = new(int)
 		**out = **in
 	}
+	if in.MaxNew != nil {
+		in, out := &in.MaxNew, &out.MaxNew
+		*out = new(int)
+		**out = **in
+	}
 	if in.Partitions != nil {
 		in, out := &in.Partitions, &out.Partitions
 		*out = make([]Partition, len(*in))

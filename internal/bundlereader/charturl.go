@@ -111,8 +111,8 @@ func getOCIRepoClient(repoURI string, a Auth) (*remote.Repository, error) {
 
 // ChartURL returns the URL to the helm chart from a helm repo server, by
 // inspecting the repo's index.yaml
-func ChartURL(ctx context.Context, location fleet.HelmOptions, auth Auth, isHelmOps bool) (string, error) {
-	if uri, ok := isOCIChart(location, isHelmOps); ok {
+func ChartURL(ctx context.Context, location fleet.HelmOptions, auth Auth) (string, error) {
+	if uri, ok := isOCIChart(location); ok {
 		return uri, nil
 	}
 	repoURL := location.Repo
@@ -162,7 +162,7 @@ func getHelmRepoIndex(ctx context.Context, repoURL string, auth Auth) (helmRepoI
 
 	client := getHTTPClient(auth)
 
-	resp, err := client.Do(request) //nolint:gosec // G704 false positive: URL is the user-configured Helm chart repository
+	resp, err := client.Do(request)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch %q: %w", indexURL, err)
 	}
@@ -309,14 +309,9 @@ func transportForAuth(insecureSkipVerify bool, caBundle []byte) http.RoundTrippe
 	return transport
 }
 
-func isOCIChart(location fleet.HelmOptions, isHelmOps bool) (string, bool) {
-	OCIField := location.Chart
-	if isHelmOps {
-		OCIField = location.Repo
-	}
-
-	if strings.HasPrefix(OCIField, ociURLPrefix) {
-		return OCIField, true
+func isOCIChart(location fleet.HelmOptions) (string, bool) {
+	if strings.HasPrefix(location.Repo, ociURLPrefix) {
+		return location.Repo, true
 	}
 	return "", false
 }

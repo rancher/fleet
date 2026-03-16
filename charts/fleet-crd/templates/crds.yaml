@@ -2254,6 +2254,18 @@ spec:
                         default: 200'
                       nullable: true
                       type: integer
+                    maxNew:
+                      description: 'MaxNew is the maximum number of new BundleDeployments
+                        that can be created
+
+                        in a single reconciliation. This limits the rate at which
+                        new deployments
+
+                        are staged when a bundle is first applied to many clusters.
+
+                        default: 50'
+                      nullable: true
+                      type: integer
                     maxUnavailable:
                       anyOf:
                         - type: integer
@@ -3309,12 +3321,6 @@ spec:
                       nullable: true
                       type: string
                   type: object
-                maxNew:
-                  description: 'MaxNew is always 50. A bundle change can only stage
-                    50
-
-                    bundledeployments at a time.'
-                  type: integer
                 maxUnavailable:
                   description: 'MaxUnavailable is the maximum number of unavailable
                     deployments. See
@@ -8493,6 +8499,18 @@ spec:
                         partition.
 
                         default: 200'
+                      nullable: true
+                      type: integer
+                    maxNew:
+                      description: 'MaxNew is the maximum number of new BundleDeployments
+                        that can be created
+
+                        in a single reconciliation. This limits the rate at which
+                        new deployments
+
+                        are staged when a bundle is first applied to many clusters.
+
+                        default: 50'
                       nullable: true
                       type: integer
                     maxUnavailable:
