@@ -16,7 +16,6 @@ var _ = Describe("Single Cluster Examples", func() {
 	var (
 		asset    string
 		repoPath string
-		repoURL  string
 		tmpdir   string
 		k        kubectl.Command
 	)
@@ -24,7 +23,6 @@ var _ = Describe("Single Cluster Examples", func() {
 	BeforeEach(func() {
 		k = env.Kubectl.Namespace(env.Namespace)
 		tmpdir, _ = os.MkdirTemp("", "fleet-")
-		repoURL = "https://github.com/rancher/fleet-test-data"
 	})
 
 	JustBeforeEach(func() {
@@ -35,7 +33,7 @@ var _ = Describe("Single Cluster Examples", func() {
 			Path       string
 			SecretName string
 		}{
-			repoURL,
+			"https://github.com/rancher/fleet-test-data",
 			repoPath,
 			"helm-oci-secret",
 		})
@@ -84,7 +82,6 @@ var _ = Describe("Single Cluster Examples", func() {
 			BeforeEach(func() {
 				asset = "single-cluster/helm-with-auth.yaml"
 				repoPath = "helm-oci-with-auth-chart"
-				repoURL = "https://github.com/p-se/fleet-test-data"
 				k = env.Kubectl.Namespace(env.Namespace)
 
 				out, err := k.Create(
