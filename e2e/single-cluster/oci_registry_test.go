@@ -805,7 +805,7 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 				useNoDeleterUser = true
 			})
 
-			It("redeploys the gitrepo and and keeps the previous oci artifact", func() {
+			It("redeploys the gitrepo and keeps the previous oci artifact", func() {
 				var bundle fleet.Bundle
 				By("creating the bundle", func() {
 					k8sclient.GetObjectShouldSucceed(clientUpstream, "sample-simple-chart-oci", env.Namespace, &bundle)

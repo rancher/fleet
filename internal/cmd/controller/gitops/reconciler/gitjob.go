@@ -867,7 +867,7 @@ func volumes(targetsConfigName string) ([]corev1.Volume, []corev1.VolumeMount) {
 	return volumes, volumeMounts
 }
 
-// volumesFromSecret generates volumes and volume mounts from a Helm secret, assuming that that secret exists.
+// volumesFromSecret generates volumes and volume mounts from a Helm secret, assuming that secret exists.
 // If the secret has a cacerts key, it will be mounted into /etc/ssl/certs, too.
 // It also returns a struct containing boolean values indicating if a volume has
 // been created for CA bundles, along with values (defaulting to false) of the

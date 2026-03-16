@@ -308,7 +308,7 @@ func deployErrToStatus(err error, status fleet.BundleDeploymentStatus) (bool, fl
 		// returned a new condition is being captured. Ready is the
 		// condition that displays for status in general and it is used
 		// for the readiness of resources. Only when we cannot capture
-		// the status of resources, like here, can use use it for a
+		// the status of resources, like here, can use it for a
 		// message like the above. The Installed condition lets us have
 		// a condition to capture the error that can be bubbled up for
 		// Bundles and Gitrepos to consume.

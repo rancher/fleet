@@ -9,6 +9,7 @@
       "contextcheck",
       "copyloopvar",
       "dupl",
+      "dupword",
       "durationcheck",
       "errcheck",
       "errorlint",

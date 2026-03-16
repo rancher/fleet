@@ -442,7 +442,7 @@ var _ = Describe("Summary", func() {
 		}
 
 		It("should deduplicate messages", func() {
-			obj := newObj("message1; message2; message1; message1; message2")
+			obj := newObj("message1; message2; message1; message2")
 			smr := kStatusSummarizer(obj, nil, fleet.Summary{})
 			Expect(smr.Message).To(Equal([]string{"message1; message2"}))
 			Expect(smr.Transitioning).To(BeTrue())
