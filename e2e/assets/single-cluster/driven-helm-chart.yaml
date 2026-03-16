@@ -4,7 +4,7 @@ metadata:
   name: driven-helm-chart
   namespace: fleet-local
 spec:
-  repo: https://github.com/rancher/fleet-test-data
+  repo: https://github.com/p-se/fleet-test-data
   bundles:
   - base: driven/helm-chart
   - base: driven/simple
