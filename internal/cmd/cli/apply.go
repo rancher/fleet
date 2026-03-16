@@ -4,9 +4,10 @@ import (
 	"bytes"
 	"fmt"
 	"os"
-	"os/exec"
 	"strings"
 
+	gogit "github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -246,14 +247,15 @@ func (a *Apply) addAuthToOpts(opts *apply.Options, readFile readFile, helmBasicH
 // currentCommit returns the HEAD commit SHA of the git repository
 // containing dir, or "" if dir is not inside a git repository.
 func currentCommit(dir string) string {
-	cmd := exec.Command("git", "rev-parse", "HEAD") //nolint:noctx // TODO: refactor to use go-git's ResolveRevision
-	cmd.Dir = dir
-	buf := &bytes.Buffer{}
-	cmd.Stdout = buf
-	if err := cmd.Run(); err == nil {
-		return strings.TrimSpace(buf.String())
+	repo, err := gogit.PlainOpenWithOptions(dir, &gogit.PlainOpenOptions{DetectDotGit: true})
+	if err != nil {
+		return ""
 	}
-	return ""
+	hash, err := repo.ResolveRevision(plumbing.Revision("HEAD"))
+	if err != nil {
+		return ""
+	}
+	return hash.String()
 }
 
 // writeTmpKnownHosts creates a temporary file and writes known_hosts data to it, if such data is available from
