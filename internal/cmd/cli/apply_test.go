@@ -274,4 +274,43 @@ func TestCurrentCommit(t *testing.T) {
 			t.Errorf("expected a 40-char hex SHA, got %q", got)
 		}
 	})
+
+	t.Run("returns HEAD commit SHA from nested subdirectory", func(t *testing.T) {
+		dir := t.TempDir()
+
+		repo, err := gogit.PlainInit(dir, false)
+		if err != nil {
+			t.Fatalf("PlainInit: %v", err)
+		}
+		wt, err := repo.Worktree()
+		if err != nil {
+			t.Fatalf("Worktree: %v", err)
+		}
+
+		if err := os.WriteFile(filepath.Join(dir, "README"), []byte("test"), 0600); err != nil {
+			t.Fatalf("WriteFile: %v", err)
+		}
+		if _, err = wt.Add("README"); err != nil {
+			t.Fatalf("Add: %v", err)
+		}
+		expected, err := wt.Commit("initial commit", &gogit.CommitOptions{
+			Author: &object.Signature{Name: "test", Email: "test@example.com", When: time.Now()},
+		})
+		if err != nil {
+			t.Fatalf("Commit: %v", err)
+		}
+
+		subdir := filepath.Join(dir, "some", "nested")
+		if err := os.MkdirAll(subdir, 0o755); err != nil {
+			t.Fatalf("MkdirAll: %v", err)
+		}
+
+		got := currentCommit(subdir)
+		if got != expected.String() {
+			t.Errorf("expected SHA %q from nested subdir, got %q", expected.String(), got)
+		}
+		if matched, _ := regexp.MatchString(`^[0-9a-f]{40}$`, got); !matched {
+			t.Errorf("expected a 40-char hex SHA from nested subdir, got %q", got)
+		}
+	})
 }
