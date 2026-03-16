@@ -132,7 +132,7 @@ func findCond(obj interface{}, val reflect.Value, name string) *reflect.Value {
 		}
 	}()
 
-	for i := 0; i < val.Len(); i++ {
+	for i := range val.Len() {
 		cond := val.Index(i)
 		typeVal := getFieldValue(cond, "Type")
 		if typeVal.String() == name {

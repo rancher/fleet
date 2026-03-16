@@ -646,7 +646,7 @@ func Test_addSecretsToArchive(t *testing.T) {
 				tr := tar.NewReader(&buf)
 
 				// Validate all secrets in the archive
-				for i := 0; i < len(c.secrets); i++ {
+				for i := range len(c.secrets) {
 					_, err := tr.Next()
 					if err != nil {
 						t.Fatalf("failed to read tar header for secret %d: %v", i, err)

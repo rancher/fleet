@@ -19,6 +19,7 @@
       "gosec",
       "govet",
       "ineffassign",
+      "intrange",
       "loggercheck",
       "makezero",
       "misspell",
