@@ -99,7 +99,7 @@ func (a *Apply) Run(cmd *cobra.Command, args []string) error {
 func (a *Apply) run(cmd *cobra.Command, args []string) error {
 	labels := a.Label
 	if a.Commit == "" {
-		a.Commit = currentCommit()
+		a.Commit = currentCommit(".")
 	}
 	if a.Commit != "" {
 		if labels == nil {
@@ -243,12 +243,14 @@ func (a *Apply) addAuthToOpts(opts *apply.Options, readFile readFile, helmBasicH
 	return nil
 }
 
-func currentCommit() string {
+// currentCommit returns the HEAD commit SHA of the git repository
+// containing dir, or "" if dir is not inside a git repository.
+func currentCommit(dir string) string {
 	cmd := exec.Command("git", "rev-parse", "HEAD") //nolint:noctx // TODO: refactor to use go-git's ResolveRevision
+	cmd.Dir = dir
 	buf := &bytes.Buffer{}
 	cmd.Stdout = buf
-	err := cmd.Run()
-	if err == nil {
+	if err := cmd.Run(); err == nil {
 		return strings.TrimSpace(buf.String())
 	}
 	return ""
