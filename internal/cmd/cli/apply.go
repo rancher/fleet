@@ -116,7 +116,7 @@ func (a *Apply) run(cmd *cobra.Command, args []string) error {
 		Output:                       writer.NewDefaultNone(a.Output),
 		Compress:                     a.Compress,
 		ServiceAccount:               a.ServiceAccount,
-		Labels:                       a.Label,
+		Labels:                       labels,
 		TargetsFile:                  a.TargetsFile,
 		TargetNamespace:              a.TargetNamespace,
 		Paused:                       a.Paused,
