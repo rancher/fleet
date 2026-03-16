@@ -8,12 +8,7 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
-const (
-	maxNew = 50
-)
-
 func resetStatus(status *fleet.BundleStatus, allTargets []*target.Target) (err error) {
-	status.MaxNew = maxNew
 	status.Summary = fleet.BundleSummary{}
 	status.PartitionStatus = nil
 	status.Unavailable = 0

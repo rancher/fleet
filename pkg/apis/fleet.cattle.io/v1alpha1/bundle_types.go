@@ -200,6 +200,12 @@ type RolloutStrategy struct {
 	// default: 200
 	// +nullable
 	AutoPartitionThreshold *int `json:"autoPartitionThreshold,omitempty"`
+	// MaxNew is the maximum number of new BundleDeployments that can be created
+	// in a single reconciliation. This limits the rate at which new deployments
+	// are staged when a bundle is first applied to many clusters.
+	// default: 50
+	// +nullable
+	MaxNew *int `json:"maxNew,omitempty"`
 	// A list of definitions of partitions.  If any target clusters do not match
 	// the configuration they are added to partitions at the end following the
 	// autoPartitionSize.
@@ -383,9 +389,6 @@ type BundleStatus struct {
 	// percentage of unavailable partitions.
 	// +optional
 	MaxUnavailablePartitions int `json:"maxUnavailablePartitions"`
-	// MaxNew is always 50. A bundle change can only stage 50
-	// bundledeployments at a time.
-	MaxNew int `json:"maxNew,omitempty"`
 	// PartitionStatus lists the status of each partition.
 	PartitionStatus []PartitionStatus `json:"partitions,omitempty"`
 	// Display contains the number of ready, desiredready clusters and a
