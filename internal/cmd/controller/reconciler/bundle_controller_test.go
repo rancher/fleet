@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"strings"
 	"testing"
 
@@ -690,12 +689,7 @@ func TestReconcile_OCIReferenceSecretResolutionError(t *testing.T) {
 
 func TestReconcile_DownstreamObjectsHandlingError(t *testing.T) {
 	envVar := "EXPERIMENTAL_COPY_RESOURCES_DOWNSTREAM"
-	bkp := os.Getenv(envVar)
-	defer func() {
-		os.Setenv(envVar, bkp)
-	}()
-
-	os.Setenv(envVar, "true")
+	t.Setenv(envVar, "true")
 
 	cases := []struct {
 		name                        string
@@ -1246,12 +1240,7 @@ func expectGetWithFinalizer(mockCli *mocks.MockK8sClient, bundle fleetv1.Bundle)
 
 func TestReconcile_DownstreamResourcesGeneration_Increment(t *testing.T) {
 	envVar := "EXPERIMENTAL_COPY_RESOURCES_DOWNSTREAM"
-	bkp := os.Getenv(envVar)
-	defer func() {
-		os.Setenv(envVar, bkp)
-	}()
-
-	os.Setenv(envVar, "true")
+	t.Setenv(envVar, "true")
 
 	testCases := []struct {
 		name                     string
@@ -1560,13 +1549,8 @@ func TestReconcile_DownstreamResourcesGeneration_Increment(t *testing.T) {
 
 func TestReconcile_DownstreamResources_FeatureDisabled(t *testing.T) {
 	envVar := "EXPERIMENTAL_COPY_RESOURCES_DOWNSTREAM"
-	bkp := os.Getenv(envVar)
-	defer func() {
-		os.Setenv(envVar, bkp)
-	}()
-
 	// Explicitly disable the feature
-	os.Setenv(envVar, "false")
+	t.Setenv(envVar, "false")
 
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()

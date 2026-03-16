@@ -1,7 +1,6 @@
 package summary
 
 import (
-	"os"
 	"testing"
 
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/data"
@@ -174,7 +173,7 @@ func TestCheckErrors(t *testing.T) {
 				},
 			},
 			loadConditions: func() {
-				os.Setenv(checkGVKErrorMappingEnvVar, `
+				t.Setenv(checkGVKErrorMappingEnvVar, `
 					[
 						{
 							"gvk": "sample.cattle.io/v1, Kind=Sample",
@@ -211,7 +210,7 @@ func TestCheckErrors(t *testing.T) {
 				},
 			},
 			loadConditions: func() {
-				os.Setenv(checkGVKErrorMappingEnvVar, `
+				t.Setenv(checkGVKErrorMappingEnvVar, `
 					[
 						{
 							"gvk": "sample.cattle.io/v1, Kind=Sample",
@@ -295,7 +294,7 @@ func TestCheckErrors(t *testing.T) {
 				},
 			},
 			loadConditions: func() {
-				os.Setenv(checkGVKErrorMappingEnvVar, `
+				t.Setenv(checkGVKErrorMappingEnvVar, `
 					[
 						{
 							"gvk": "sample.cattle.io/v1, Kind=Sample",
@@ -333,7 +332,7 @@ func TestCheckErrors(t *testing.T) {
 				},
 			},
 			loadConditions: func() {
-				os.Setenv(checkGVKErrorMappingEnvVar, `
+				t.Setenv(checkGVKErrorMappingEnvVar, `
 					[
 						{
 							"gvk": "sample.cattle.io/v1, Kind=Sample",

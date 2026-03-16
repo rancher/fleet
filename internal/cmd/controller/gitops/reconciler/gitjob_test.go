@@ -2147,10 +2147,7 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			for k, v := range test.osEnv {
-				err := os.Setenv(k, v)
-				if err != nil {
-					t.Errorf("unexpected error: %v", err)
-				}
+				t.Setenv(k, v)
 			}
 
 			r := GitJobReconciler{
