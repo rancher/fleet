@@ -12,5 +12,4 @@ Refers to #XXX
 
 ### Checklist
 
-- [ ] <!-- If applicable,--> I have updated the documentation via a pull request in the
-[fleet-docs](https://github.com/rancher/fleet-docs) repository.
+- [ ] <!-- If applicable,--> I have updated the documentation via a pull request in the [fleet-product-docs](https://github.com/rancher/fleet-product-docs) repository.
