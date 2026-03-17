@@ -67,6 +67,7 @@ func Register(ctx context.Context, appCtx *AppContext) error {
 		appCtx.RBAC.ClusterRoleBinding(),
 		appCtx.Core.Namespace(),
 		appCtx.Cluster().Cache(),
+		appCtx.Cluster(),
 	)
 
 	if err := appCtx.Start(ctx); err != nil {
