@@ -7,7 +7,6 @@ import (
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/controllers/cluster"
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/controllers/clusterregistration"
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/controllers/clusterregistrationtoken"
-	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/controllers/config"
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/controllers/manageagent"
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/controllers/resources"
 	fleetns "github.com/rancher/fleet/internal/cmd/controller/namespace"
@@ -57,14 +56,6 @@ func (a *AppContext) Start(ctx context.Context) error {
 
 func Register(ctx context.Context, appCtx *AppContext, systemNamespace string, disableBootstrap bool) error {
 	systemRegistrationNamespace := fleetns.SystemRegistrationNamespace(systemNamespace)
-
-	// config should be registered first to ensure the global
-	// config is available to all components
-	if err := config.Register(ctx,
-		systemNamespace,
-		appCtx.Core.ConfigMap()); err != nil {
-		return err
-	}
 
 	if err := resources.ApplyBootstrapResources(
 		systemNamespace,

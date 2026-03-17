@@ -4,6 +4,8 @@ import (
 	"context"
 
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/controllers"
+	agentconfig "github.com/rancher/fleet/internal/cmd/controller/agentmanagement/controllers/config"
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	"github.com/rancher/wrangler/v3/pkg/kubeconfig"
 	"github.com/rancher/wrangler/v3/pkg/leader"
@@ -14,9 +16,21 @@ import (
 	v1 "k8s.io/api/apps/v1"
 	policyv1 "k8s.io/api/policy/v1"
 	schedulingv1 "k8s.io/api/scheduling/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
+	ctrl "sigs.k8s.io/controller-runtime"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 )
+
+var agentScheme = runtime.NewScheme()
+
+func init() {
+	utilruntime.Must(clientgoscheme.AddToScheme(agentScheme))
+	utilruntime.Must(fleet.AddToScheme(agentScheme))
+}
 
 func start(ctx context.Context, kubeConfig, namespace string, disableBootstrap bool) error {
 	clientConfig := kubeconfig.GetNonInteractiveClientConfig(kubeConfig)
@@ -47,6 +61,33 @@ func start(ctx context.Context, kubeConfig, namespace string, disableBootstrap b
 	}
 
 	leader.RunOrDie(ctx, namespace, "fleet-agentmanagement-lock", k8s, func(ctx context.Context) {
+		// Create controller-runtime manager. Leader election is disabled because
+		// wrangler's leader.RunOrDie already holds the lease; the manager starts
+		// inside the leader callback.
+		mgr, err := ctrl.NewManager(kc, ctrl.Options{
+			Scheme:                 agentScheme,
+			LeaderElection:         false,
+			Metrics:                metricsserver.Options{BindAddress: "0"},
+			HealthProbeBindAddress: "",
+		})
+		if err != nil {
+			logrus.Fatal(err)
+		}
+
+		if err := (&agentconfig.ConfigReconciler{
+			Client:          mgr.GetClient(),
+			Scheme:          mgr.GetScheme(),
+			SystemNamespace: namespace,
+		}).SetupWithManager(mgr); err != nil {
+			logrus.Fatal(err)
+		}
+
+		go func() {
+			if err := mgr.Start(ctx); err != nil {
+				logrus.Fatal(err)
+			}
+		}()
+
 		appCtx, err := controllers.NewAppContext(clientConfig)
 		if err != nil {
 			logrus.Fatal(err)
