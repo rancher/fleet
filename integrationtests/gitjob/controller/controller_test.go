@@ -2068,5 +2068,42 @@ var _ = Describe("GitJob controller", func() {
 				}).Should(Succeed())
 			})
 		})
+
+		// Verify that a permanently broken git API (always returning the old commit) surfaces
+		// an error on the GitPolling condition instead of looping silently forever.
+		When("the git API permanently returns the previously-deployed commit", func() {
+			BeforeEach(func() {
+				gitRepoName = "disable-polling-permanent-stale"
+				expectedCommit = stableCommit // never updated — simulates a broken API
+			})
+
+			JustBeforeEach(func() {
+				Expect(setGitRepoWebhookCommit(gitRepo, webhookRaceCommit)).To(Succeed())
+			})
+
+			It("sets the GitPolling condition to an error after the stale timeout", func() {
+				// The fix keeps Status.Commit at the previously-deployed value while waiting.
+				Consistently(func(g Gomega) {
+					g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: gitRepoName, Namespace: gitRepoNamespace}, &gitRepo)).To(Succeed())
+					g.Expect(gitRepo.Status.Commit).To(Equal(stableCommit))
+				}, 2*time.Second, 500*time.Millisecond).Should(Succeed())
+
+				// After the stale timeout (2s in tests) the GitPolling condition must turn
+				// False with reason StaleAPI so the user can see the API problem.
+				Eventually(func(g Gomega) {
+					g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: gitRepoName, Namespace: gitRepoNamespace}, &gitRepo)).To(Succeed())
+					cond, found := getCondition(&gitRepo, "GitPolling")
+					g.Expect(found).To(BeTrue())
+					g.Expect(string(cond.Status)).To(Equal(string(corev1.ConditionFalse)))
+					g.Expect(cond.Reason).To(Equal("StaleAPI"))
+				}).Should(Succeed())
+
+				// No deployment job should have been created for the webhook commit.
+				jobName := names.SafeConcatName(gitRepoName, names.Hex(repo+webhookRaceCommit, 5))
+				Consistently(func() error {
+					return k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
+				}, 2*time.Second, 500*time.Millisecond).ShouldNot(Succeed())
+			})
+		})
 	})
 })

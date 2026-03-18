@@ -38,6 +38,10 @@ const (
 	// the helmop status first, before the status controller looks at
 	// bundledeployments.
 	HelmOpStatusDelay = time.Second * 5
+	// GitPollingStaleTimeout is how long the reconciler waits for the git API
+	// to return the webhook-announced commit before surfacing an error on the
+	// GitPolling condition.
+	GitPollingStaleTimeout = time.Minute * 5
 	// WaitForDependenciesReadyRequeueInterval is the wait time after the Fleet agent finds a BundleDeployment has non-ready dependencies
 	WaitForDependenciesReadyRequeueInterval = time.Second * 15
 )

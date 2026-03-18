@@ -7799,6 +7799,19 @@ spec:
                   description: WebhookCommit is the latest Git commit hash received
                     from a webhook
                   type: string
+                webhookCommitStaleSince:
+                  description: 'WebhookCommitStaleSince records when the reconciler
+                    first detected that
+
+                    the git API was still returning the previously-deployed commit
+                    while a
+
+                    webhook had announced a newer one. Cleared once the API returns
+                    the
+
+                    expected commit or when LatestCommit fails for a different reason.'
+                  format: date-time
+                  type: string
               type: object
           type: object
       served: true

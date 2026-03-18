@@ -144,6 +144,11 @@ type GitJobReconciler struct {
 	SystemNamespace string
 	KnownHosts      KnownHostsGetter
 	WithImagescan   bool
+	// WebhookCommitStaleTimeout controls after how long a persistent mismatch
+	// between the git API commit and the webhook commit is surfaced as an error
+	// on the GitPolling condition. Defaults to durations.GitPollingStaleTimeout
+	// when zero.
+	WebhookCommitStaleTimeout time.Duration
 }
 
 func (r *GitJobReconciler) SetupWithManager(mgr ctrl.Manager) error {
@@ -361,14 +366,32 @@ func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger,
 				// can still detect the commit change and create a job once the API
 				// returns the expected commit.
 				if gitrepo.Spec.DisablePolling && gitrepo.Status.WebhookCommit != "" && commit == oldCommit && commit != gitrepo.Status.WebhookCommit {
-					logger.V(1).Info("Git server commit does not match webhook commit, requeuing",
-						"apiCommit", commit, "webhookCommit", gitrepo.Status.WebhookCommit)
+					staleTimeout := r.WebhookCommitStaleTimeout
+					if staleTimeout == 0 {
+						staleTimeout = durations.GitPollingStaleTimeout
+					}
+					if gitrepo.Status.WebhookCommitStaleSince == nil {
+						now := metav1.Now()
+						gitrepo.Status.WebhookCommitStaleSince = &now
+					}
+					if time.Since(gitrepo.Status.WebhookCommitStaleSince.Time) >= staleTimeout {
+						condition.Cond(gitPollingCondition).SetError(&gitrepo.Status, "StaleAPI",
+							fmt.Errorf("git server API still returns the previously-deployed commit after %s: "+
+								"expected %s, got %s", staleTimeout, gitrepo.Status.WebhookCommit, commit))
+					} else {
+						logger.V(1).Info("Git server commit does not match webhook commit, requeuing",
+							"apiCommit", commit, "webhookCommit", gitrepo.Status.WebhookCommit)
+					}
 					gitrepo.Status.Commit = oldCommit
 					return ctrl.Result{RequeueAfter: durations.DefaultRequeueAfter}, nil
 				}
+				// API returned the expected commit or a newer one — clear any stale tracker.
+				gitrepo.Status.WebhookCommitStaleSince = nil
 				gitrepo.Status.Commit = commit
 			}
 			if err != nil {
+				// Clear any stale tracker: this is a different failure mode.
+				gitrepo.Status.WebhookCommitStaleSince = nil
 				r.Recorder.Eventf(
 					gitrepo,
 					nil,
@@ -1149,6 +1172,7 @@ func updateStatus(ctx context.Context, c client.Client, req types.NamespacedName
 		t.Status.LastPollingTime = status.LastPollingTime
 		t.Status.ObservedGeneration = status.ObservedGeneration
 		t.Status.UpdateGeneration = status.UpdateGeneration
+		t.Status.WebhookCommitStaleSince = status.WebhookCommitStaleSince
 
 		// only keep the Ready condition from live status, it's calculated by the status reconciler
 		conds := []genericcondition.GenericCondition{}

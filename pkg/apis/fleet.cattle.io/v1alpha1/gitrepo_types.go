@@ -196,6 +196,12 @@ type GitRepoStatus struct {
 	LastSyncedImageScanTime metav1.Time `json:"lastSyncedImageScanTime,omitempty"`
 	// LastPollingTime is the last time the polling check was triggered
 	LastPollingTime metav1.Time `json:"lastPollingTriggered,omitempty"`
+	// WebhookCommitStaleSince records when the reconciler first detected that
+	// the git API was still returning the previously-deployed commit while a
+	// webhook had announced a newer one. Cleared once the API returns the
+	// expected commit or when LatestCommit fails for a different reason.
+	// +optional
+	WebhookCommitStaleSince *metav1.Time `json:"webhookCommitStaleSince,omitempty"`
 }
 
 type GitRepoDisplay struct {

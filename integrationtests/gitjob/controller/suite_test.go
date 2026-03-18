@@ -170,6 +170,8 @@ var _ = BeforeSuite(func() {
 		Workers:         50,
 		SystemNamespace: "default",
 		KnownHosts:      ssh.KnownHosts{},
+		// Short timeout so the "permanently stale API" integration test runs quickly.
+		WebhookCommitStaleTimeout: 2 * time.Second,
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred())
 

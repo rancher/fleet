@@ -30,6 +30,7 @@ import (
 	"github.com/rancher/fleet/internal/metrics"
 	"github.com/rancher/fleet/internal/ssh"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/durations"
 	"github.com/rancher/fleet/pkg/git"
 	"github.com/rancher/fleet/pkg/version"
 	"github.com/rancher/fleet/pkg/webhook"
@@ -177,19 +178,20 @@ func (g *GitOperator) Run(cmd *cobra.Command, args []string) error {
 	}
 
 	gitJobReconciler := &reconciler.GitJobReconciler{
-		Client:          mgr.GetClient(),
-		Scheme:          mgr.GetScheme(),
-		Image:           g.Image,
-		Scheduler:       sched,
-		Workers:         workers,
-		ShardID:         g.ShardID,
-		JobNodeSelector: g.ShardNodeSelector,
-		GitFetcher:      &git.Fetch{KnownHosts: kh},
-		Clock:           reconciler.RealClock{},
-		Recorder:        mgr.GetEventRecorder(fmt.Sprintf("fleet-gitops%s", shardIDSuffix)),
-		SystemNamespace: namespace,
-		KnownHosts:      kh,
-		WithImagescan:   imagescanEnabled,
+		Client:                    mgr.GetClient(),
+		Scheme:                    mgr.GetScheme(),
+		Image:                     g.Image,
+		Scheduler:                 sched,
+		Workers:                   workers,
+		ShardID:                   g.ShardID,
+		JobNodeSelector:           g.ShardNodeSelector,
+		GitFetcher:                &git.Fetch{KnownHosts: kh},
+		Clock:                     reconciler.RealClock{},
+		Recorder:                  mgr.GetEventRecorder(fmt.Sprintf("fleet-gitops%s", shardIDSuffix)),
+		SystemNamespace:           namespace,
+		KnownHosts:                kh,
+		WithImagescan:             imagescanEnabled,
+		WebhookCommitStaleTimeout: durations.GitPollingStaleTimeout,
 	}
 
 	statusReconciler := &reconciler.StatusReconciler{
