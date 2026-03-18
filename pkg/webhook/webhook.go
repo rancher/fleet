@@ -170,7 +170,13 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 					// if polling is disabled, we add a small sleep to avoid potential race conditions between
 					// the webhook processing and the reconciliation that happens after the gitrepo update
 					// Refers to: https://github.com/rancher/fleet/issues/4837
-					time.Sleep(1 * time.Second)
+					select {
+					case <-time.After(1 * time.Second):
+					case <-ctx.Done():
+						// stop waiting if the request context has been canceled
+						w.logAndReturn(rw, ctx.Err())
+						return
+					}
 				}
 				orig := gitRepoFromCluster.DeepCopy()
 				gitRepoFromCluster.Status.WebhookCommit = revision
