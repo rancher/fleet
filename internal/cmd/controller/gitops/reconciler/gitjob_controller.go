@@ -354,6 +354,18 @@ func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger,
 			})
 			condition.Cond(gitPollingCondition).SetError(&gitrepo.Status, "", err)
 			if err == nil && commit != "" {
+				// When polling is disabled and a webhook commit is pending, the
+				// git server API may not have propagated the new commit yet (race
+				// condition between webhook delivery and API consistency). Restore
+				// the pre-reconcile commit so the next reconcile (via RequeueAfter)
+				// can still detect the commit change and create a job once the API
+				// returns the expected commit.
+				if gitrepo.Spec.DisablePolling && gitrepo.Status.WebhookCommit != "" && commit == oldCommit && commit != gitrepo.Status.WebhookCommit {
+					logger.V(1).Info("Git server commit does not match webhook commit, requeuing",
+						"apiCommit", commit, "webhookCommit", gitrepo.Status.WebhookCommit)
+					gitrepo.Status.Commit = oldCommit
+					return ctrl.Result{RequeueAfter: durations.DefaultRequeueAfter}, nil
+				}
 				gitrepo.Status.Commit = commit
 			}
 			if err != nil {

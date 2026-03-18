@@ -1966,4 +1966,107 @@ var _ = Describe("GitJob controller", func() {
 			})
 		})
 	})
+
+	// These two sub-cases share the same initial setup (create GitRepo, wait for the first job
+	// to succeed and be deleted) and diverge only at the point where the webhook commit and
+	// API commit are set. The inner BeforeEach runs before the outer JustBeforeEach so that
+	// gitRepoName and expectedCommit are set before the shared setup executes.
+	When("a GitRepo with DisablePolling receives a new webhook after initial deployment", func() {
+		var (
+			gitRepo     v1alpha1.GitRepo
+			gitRepoName string
+			job         batchv1.Job
+		)
+
+		const (
+			webhookRaceCommit  = "deadbeef1deadbeef1deadbeef1deadbeef1aaaa"
+			staleWebhookCommit = "cafebabe1cafebabe1cafebabe1cafebabe1bbbb"
+			apiAdvancedCommit  = "deadf00d1deadf00d1deadf00d1deadf00d1cccc"
+		)
+
+		JustBeforeEach(func() {
+			gitRepo = createGitRepoWithDisablePolling(gitRepoName)
+			Expect(k8sClient.Create(ctx, &gitRepo)).To(Succeed())
+
+			// Wait for the initial job from stableCommit.
+			Eventually(func() error {
+				jobName := names.SafeConcatName(gitRepoName, names.Hex(repo+stableCommit, 5))
+				return k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
+			}).Should(Succeed())
+
+			// Mark it succeeded so it gets cleaned up.
+			Eventually(func() error {
+				jobName := names.SafeConcatName(gitRepoName, names.Hex(repo+stableCommit, 5))
+				if err := k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job); err != nil {
+					return err
+				}
+				job.Status = succeeded(job.Status)
+				return k8sClient.Status().Update(ctx, &job)
+			}).Should(Succeed())
+
+			Eventually(func() bool {
+				jobName := names.SafeConcatName(gitRepoName, names.Hex(repo+stableCommit, 5))
+				err := k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
+				return errors.IsNotFound(err)
+			}).Should(BeTrue())
+		})
+
+		AfterEach(func() {
+			waitDeleteGitrepo(gitRepo)
+			logsBuffer.Reset()
+		})
+
+		When("the git API has not yet propagated the push", func() {
+			BeforeEach(func() {
+				gitRepoName = "disable-polling-api-race"
+				expectedCommit = stableCommit
+			})
+
+			JustBeforeEach(func() {
+				// The fetcherMock still returns stableCommit, reproducing the race where the
+				// git server API has not yet propagated the push.
+				Expect(setGitRepoWebhookCommit(gitRepo, webhookRaceCommit)).To(Succeed())
+			})
+
+			It("requeues until the API catches up, then creates a job", func() {
+				// The reconciler should requeue and keep Status.Commit at stableCommit while
+				// the API is still returning the old value.
+				Consistently(func(g Gomega) {
+					g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: gitRepoName, Namespace: gitRepoNamespace}, &gitRepo)).To(Succeed())
+					g.Expect(gitRepo.Status.Commit).To(Equal(stableCommit))
+				}, 2*time.Second, 500*time.Millisecond).Should(Succeed())
+
+				// Simulate the git API catching up.
+				expectedCommit = webhookRaceCommit
+
+				// The reconciler picks up the correct commit and creates a job.
+				Eventually(func() error {
+					jobName := names.SafeConcatName(gitRepoName, names.Hex(repo+webhookRaceCommit, 5))
+					return k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
+				}).Should(Succeed())
+			})
+		})
+
+		// Verify the fix does not loop when the API returns a commit newer than both the
+		// deployed commit and the (stale) WebhookCommit — i.e. out-of-order webhook arrival.
+		When("the git API has already advanced beyond the webhook commit", func() {
+			BeforeEach(func() {
+				gitRepoName = "disable-polling-no-loop"
+				expectedCommit = stableCommit
+			})
+
+			JustBeforeEach(func() {
+				Expect(setGitRepoWebhookCommit(gitRepo, staleWebhookCommit)).To(Succeed())
+				expectedCommit = apiAdvancedCommit
+			})
+
+			It("creates a job for the API commit without looping", func() {
+				// commit != oldCommit, so the fix must not requeue — trust the API value.
+				Eventually(func() error {
+					jobName := names.SafeConcatName(gitRepoName, names.Hex(repo+apiAdvancedCommit, 5))
+					return k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
+				}).Should(Succeed())
+			})
+		})
+	})
 })
