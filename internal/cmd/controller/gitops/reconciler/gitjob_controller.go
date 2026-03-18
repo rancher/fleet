@@ -353,6 +353,13 @@ func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger,
 		// If the client secret has changed, we now retrieve the latest commit.
 		// If the secret is still incorrect, we will not need to create
 		// the gitJob (which is more expensive) and we will return an error earlier.
+
+		// If polling is enabled or there is no pending webhook commit, any previous
+		// webhook-vs-API stale tracker is no longer meaningful and should be cleared.
+		if !gitrepo.Spec.DisablePolling || gitrepo.Status.WebhookCommit == "" {
+			gitrepo.Status.WebhookCommitStaleSince = nil
+		}
+
 		if gitrepo.Spec.DisablePolling || clientSecretChanged {
 			commit, err := monitorLatestCommit(gitrepo, func() (string, error) {
 				return r.GitFetcher.LatestCommit(ctx, gitrepo, r.Client)
