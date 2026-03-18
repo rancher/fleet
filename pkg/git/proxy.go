@@ -213,7 +213,7 @@ func (d *httpConnectDialer) DialContext(ctx context.Context, network, addr strin
 		return nil, fmt.Errorf("http connect proxy: write CONNECT request: %w", err)
 	}
 
-	resp, err := http.ReadResponse(bufio.NewReader(conn), req)
+	resp, err := http.ReadResponse(bufio.NewReaderSize(conn, 1), req)
 	if err != nil {
 		conn.Close()
 		if ctxErr := ctx.Err(); ctxErr != nil {

@@ -131,6 +131,7 @@ func handleProxyConn(t *testing.T, clientConn net.Conn, onConnect func(http.Resp
 		done <- struct{}{}
 	}()
 	<-done
+	<-done
 }
 
 // simpleResponseWriter is a minimal http.ResponseWriter that writes directly to
@@ -475,9 +476,9 @@ func TestHTTPConnectDialer_DefaultPort_HTTPS(t *testing.T) {
 // This test exercises cancellation during the forward-dial phase (before the
 // TCP connection to the proxy is established).
 func TestHTTPConnectDialer_ContextCancelled(t *testing.T) {
-	// Use a forward dialer that blocks until the context is done.
+	// Use a forward dialer that blocks until the test context is done.
 	blocking := &recordingDialer{dial: func(network, addr string) (net.Conn, error) {
-		time.Sleep(5 * time.Second)
+		<-t.Context().Done()
 		return nil, fmt.Errorf("should not reach here")
 	}}
 
@@ -700,7 +701,7 @@ func TestHTTPConnectDialer_TLSForHTTPSProxy(t *testing.T) {
 		t.Fatalf("Write: %v", err)
 	}
 	buf := make([]byte, len(msg))
-	if _, err := io.ReadFull(conn, buf); err != nil && !errors.Is(err, io.ErrUnexpectedEOF) {
+	if _, err := io.ReadFull(conn, buf); err != nil {
 		t.Fatalf("Read: %v", err)
 	}
 	if got := string(buf); got != msg {
