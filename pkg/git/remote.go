@@ -137,17 +137,6 @@ func (r *Remote) LatestBranchCommit(branch string) (string, error) {
 		return "", err
 	}
 
-	// check if the url is one of the supported for getting the last commit with a specific commits url
-	commitsURL := getVendorCommitsURL(r.URL, branch)
-	if commitsURL != "" {
-		// it is supported. Get the last commit with the vendor's url
-		// (this is faster than running a whole ls-remote like operation)
-		if commit, err := latestCommitFromCommitsURL(commitsURL, r.Options); err == nil {
-			// in case of error it tries the full List operation
-			return commit, nil
-		}
-	}
-
 	refBranch := formatRefForBranch(branch)
 
 	refs, err := r.Lister.List(false)
