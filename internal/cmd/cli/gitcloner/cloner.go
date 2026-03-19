@@ -17,6 +17,7 @@ import (
 	"github.com/rancher/fleet/internal/cmd/cli/gitcloner/submodule"
 	fleetgithub "github.com/rancher/fleet/internal/github"
 	fleetssh "github.com/rancher/fleet/internal/ssh"
+	fleetgit "github.com/rancher/fleet/pkg/git"
 	giturls "github.com/rancher/fleet/pkg/git-urls"
 )
 
@@ -91,6 +92,7 @@ func cloneBranch(opts *GitCloner, auth transport.AuthMethod, caBundle []byte) er
 		ReferenceName:     plumbing.ReferenceName(opts.Branch),
 		RecurseSubmodules: git.NoRecurseSubmodules,
 		Tags:              git.NoTags,
+		ProxyOptions:      fleetgit.ProxyOptsFromEnvironment(opts.Repo),
 	})
 
 	if err != nil {
@@ -120,6 +122,7 @@ func cloneRevision(opts *GitCloner, auth transport.AuthMethod, caBundle []byte) 
 		CABundle:          caBundle,
 		RecurseSubmodules: git.NoRecurseSubmodules,
 		Tags:              git.NoTags,
+		ProxyOptions:      fleetgit.ProxyOptsFromEnvironment(opts.Repo),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to clone repo from revision %s: %w", repo(opts), err)
