@@ -46,7 +46,7 @@ chart_response=$(curl -fsSL \
 # RC would be selected even after the final chart has been published.
 all_charts=$(printf '%s' "$chart_response" \
     | jq -r '.[] | select(.type == "dir") | .name')
-latest_chart=$(printf '%s' "$all_charts" | grep -v '\+up.*-' | sort -V | tail -1)
+latest_chart=$(printf '%s' "$all_charts" | { grep -v '+up.*-' || true; } | sort -V | tail -1)
 if [ -z "$latest_chart" ]; then
     latest_chart=$(printf '%s' "$all_charts" | sort -V | tail -1)
 fi
