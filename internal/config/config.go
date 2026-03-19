@@ -151,14 +151,8 @@ type Config struct {
 	// AgentWorkers specifies the maximum number of workers for each agent reconciler.
 	AgentWorkers AgentWorkers `json:"agentWorkers,omitzero"`
 
-	// ClusterMonitorInterval determines how often the cluster monitor will check for offline downstream clusters.
-	ClusterMonitorInterval metav1.Duration `json:"clusterMonitorInterval,omitempty"`
-
-	// ClusterMonitorThreshold determines how long must have elapsed since a downstream cluster's Fleet agent last
-	// reported its status to the management cluster, before that downstream cluster is considered offline.
-	// If this configured value is shorter than three times the agent check-in interval, then that check-in
-	// interval-based value will be used instead to prevent false positives.
-	ClusterMonitorThreshold metav1.Duration `json:"clusterMonitorThreshold.omitempty"`
+	// ClusterMonitor represents configuration for the cluster monitor, including its enabled or disabled state.
+	ClusterMonitor ClusterMonitor `json:"clusterMonitor,omitempty"`
 }
 
 type AgentWorkers struct {
@@ -178,6 +172,20 @@ type Bootstrap struct {
 	Secret string `json:"secret,omitempty"`
 	Paths  string `json:"paths,omitempty"`
 	Branch string `json:"branch,omitempty"`
+}
+
+type ClusterMonitor struct {
+	// Enabled determines whether the cluster monitor should be instantiated.
+	Enabled bool `json:"enabled,omitempty"`
+
+	// Interval determines how often the cluster monitor will check for offline downstream clusters.
+	Interval metav1.Duration `json:"interval,omitempty"`
+
+	// Threshold determines how long must have elapsed since a downstream cluster's Fleet agent last reported its
+	// status to the management cluster, before that downstream cluster is considered offline. If this configured value
+	// is shorter than three times the agent check-in interval, then that check-in interval-based value will be used
+	// instead to prevent false positives.
+	Threshold metav1.Duration `json:"threshold.omitempty"`
 }
 
 // OnChange is used by agentmanagement to react to config changes. The callback is triggered by 'Set' via
