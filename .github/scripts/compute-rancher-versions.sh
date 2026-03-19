@@ -41,14 +41,19 @@ chart_response=$(curl -fsSL \
     exit 1
 }
 
-# Prefer a final (non-pre-release) chart over an RC: sort -V ranks "0.14.4-rc.5"
-# above "0.14.4" because the RC has extra characters, so without filtering the
-# RC would be selected even after the final chart has been published.
+# Find the latest chart by chart-version prefix (part before '+up'), then
+# prefer a final fleet release over an RC with the same chart-version prefix.
+# sort -V ranks "0.14.4-rc.5" above "0.14.4" because the RC suffix is longer,
+# so we must compare explicitly rather than relying on sort order alone.
+# This still picks an RC when it is genuinely the newest chart (e.g. 0.15.0-rc.6
+# when no final 0.15.0 chart exists yet), rather than falling back to an older
+# final chart from a previous release cycle.
 all_charts=$(printf '%s' "$chart_response" \
     | jq -r '.[] | select(.type == "dir") | .name')
-latest_chart=$(printf '%s' "$all_charts" | { grep -v '+up.*-' || true; } | sort -V | tail -1)
+highest_chart_prefix=$(printf '%s' "$all_charts" | sed 's/+up.*//' | sort -V | tail -1)
+latest_chart=$(printf '%s' "$all_charts" | grep "^${highest_chart_prefix}+up" | { grep -v '+up.*-' || true; } | sort -V | tail -1)
 if [ -z "$latest_chart" ]; then
-    latest_chart=$(printf '%s' "$all_charts" | sort -V | tail -1)
+    latest_chart=$(printf '%s' "$all_charts" | grep "^${highest_chart_prefix}+up" | sort -V | tail -1)
 fi
 
 if [ -z "$latest_chart" ]; then
