@@ -62,7 +62,12 @@ func UpdateOfflineBundleDeployments(ctx context.Context, c client.Client, thresh
 	for _, cluster := range clusters.Items {
 		lastSeen := cluster.Status.Agent.LastSeen
 
-		logger.Info("Checking cluster status", "cluster", cluster.Name, "last seen", lastSeen.UTC().String())
+		logger.Info(
+			"Checking cluster status",
+			"cluster", cluster.Name,
+			"threshold", threshold,
+			"last seen", lastSeen.UTC().String(),
+		)
 
 		// lastSeen being 0 would typically mean that the cluster is not registered yet, in which case bundle
 		// deployments should not be deployed there.
