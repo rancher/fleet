@@ -27,6 +27,7 @@ import (
 	"github.com/rancher/fleet/internal/ocistorage"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/durations"
+	fleetevent "github.com/rancher/fleet/pkg/event"
 	"github.com/rancher/fleet/pkg/sharding"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -35,7 +36,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	errutil "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/client-go/tools/events"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -70,7 +71,7 @@ type TargetBuilder interface {
 type BundleReconciler struct {
 	client.Client
 	Scheme    *runtime.Scheme
-	Recorder  events.EventRecorder
+	Recorder  record.EventRecorder
 	APIReader client.Reader
 
 	Builder TargetBuilder
@@ -905,17 +906,7 @@ func (r *BundleReconciler) maybeDeleteOCIArtifact(ctx context.Context, bundle *f
 	}
 	err = ocistorage.NewOCIWrapper().DeleteManifest(ctx, opts, bundle.Spec.ContentsID)
 	if err != nil {
-		r.Recorder.Eventf(
-			bundle,
-			nil,
-			corev1.EventTypeWarning,
-			"FailedToDeleteOCIArtifact",
-			"DeleteOCIArtifact",
-			"deleting OCI artifact %q: %v",
-			bundle.Spec.ContentsID,
-			"%v",
-			err,
-		)
+		r.Recorder.Event(bundle, fleetevent.Warning, "FailedToDeleteOCIArtifact", fmt.Sprintf("deleting OCI artifact %q: %v", bundle.Spec.ContentsID, err.Error()))
 	}
 
 	// In case there's an error deleting from the OCI registry,
