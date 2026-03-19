@@ -102,48 +102,20 @@ func handleProxyConn(t *testing.T, clientConn net.Conn, onConnect func(http.Resp
 	}
 	defer targetConn.Close()
 
-	// Pipe in both directions. When either direction encounters an error (e.g.
-	// the client closes the connection), close both ends so the other goroutine
-	// unblocks immediately instead of waiting forever for more data.
-	var once sync.Once
-	closeBoth := func() {
-		once.Do(func() {
-			targetConn.Close()
-			clientConn.Close()
-		})
-	}
-
-	done := make(chan struct{}, 2)
+	// Pipe in both directions. When client→target finishes, close targetConn
+	// so the target→client goroutine unblocks immediately.
+	var wg sync.WaitGroup
+	wg.Add(2)
 	go func() {
-		buf := make([]byte, 32*1024) // 32 KiB is a common I/O buffer size that balances memory use and throughput
-		for {
-			n, err := br.Read(buf)
-			if n > 0 {
-				_, _ = targetConn.Write(buf[:n])
-			}
-			if err != nil {
-				break
-			}
-		}
-		closeBoth()
-		done <- struct{}{}
+		defer wg.Done()
+		_, _ = io.Copy(targetConn, br)
+		targetConn.Close()
 	}()
 	go func() {
-		buf := make([]byte, 32*1024)
-		for {
-			n, err := targetConn.Read(buf)
-			if n > 0 {
-				_, _ = clientConn.Write(buf[:n])
-			}
-			if err != nil {
-				break
-			}
-		}
-		closeBoth()
-		done <- struct{}{}
+		defer wg.Done()
+		_, _ = io.Copy(clientConn, targetConn)
 	}()
-	<-done
-	<-done
+	wg.Wait()
 }
 
 // simpleResponseWriter is a minimal http.ResponseWriter that writes directly to
