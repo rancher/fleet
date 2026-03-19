@@ -11,15 +11,15 @@ import (
 	"golang.org/x/sync/semaphore"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	fleetevent "github.com/rancher/fleet/pkg/event"
 
 	"github.com/rancher/wrangler/v3/pkg/condition"
 	"github.com/rancher/wrangler/v3/pkg/kstatus"
 
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	errutil "k8s.io/apimachinery/pkg/util/errors"
-	"k8s.io/client-go/tools/events"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -37,11 +37,11 @@ type gitPollingJob struct {
 	repo   string
 	branch string
 
-	recorder   events.EventRecorder
+	recorder   record.EventRecorder
 	gitFetcher GitFetcher
 }
 
-func newGitPollingJob(c client.Client, r events.EventRecorder, repo fleet.GitRepo, fetcher GitFetcher) *gitPollingJob {
+func newGitPollingJob(c client.Client, r record.EventRecorder, repo fleet.GitRepo, fetcher GitFetcher) *gitPollingJob {
 	return &gitPollingJob{
 		sem:        semaphore.NewWeighted(1),
 		client:     c,
@@ -89,16 +89,7 @@ func (j *gitPollingJob) pollGitRepo(ctx context.Context) error {
 	pollingTimestamp := time.Now().UTC()
 
 	fail := func(origErr error) error {
-		j.recorder.Eventf(
-			gitrepo,
-			nil,
-			corev1.EventTypeWarning,
-			"FailedToCheckCommit",
-			"CheckCommit",
-			"%v",
-			origErr,
-		)
-
+		j.recorder.Event(gitrepo, fleetevent.Warning, "FailedToCheckCommit", origErr.Error())
 		return j.updateErrorStatus(ctx, gitrepo, pollingTimestamp, origErr)
 	}
 
@@ -110,14 +101,7 @@ func (j *gitPollingJob) pollGitRepo(ctx context.Context) error {
 	}
 
 	if commit != gitrepo.Status.Commit {
-		j.recorder.Eventf(
-			gitrepo,
-			nil,
-			corev1.EventTypeNormal,
-			"GotNewCommit",
-			"GetNewCommit",
-			commit,
-		)
+		j.recorder.Event(gitrepo, fleetevent.Normal, "GotNewCommit", commit)
 	}
 
 	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {

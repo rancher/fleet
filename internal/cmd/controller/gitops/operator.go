@@ -186,7 +186,7 @@ func (g *GitOperator) Run(cmd *cobra.Command, args []string) error {
 		JobNodeSelector: g.ShardNodeSelector,
 		GitFetcher:      &git.Fetch{KnownHosts: kh},
 		Clock:           reconciler.RealClock{},
-		Recorder:        mgr.GetEventRecorder(fmt.Sprintf("fleet-gitops%s", shardIDSuffix)),
+		Recorder:        mgr.GetEventRecorderFor(fmt.Sprintf("fleet-gitops%s", shardIDSuffix)),
 		SystemNamespace: namespace,
 		KnownHosts:      kh,
 		WithImagescan:   imagescanEnabled,

@@ -166,7 +166,7 @@ var _ = BeforeSuite(func() {
 		Scheduler:       sched,
 		GitFetcher:      fetcherMock,
 		Clock:           reconciler.RealClock{},
-		Recorder:        mgr.GetEventRecorder("gitjob-controller"),
+		Recorder:        mgr.GetEventRecorderFor("gitjob-controller"),
 		Workers:         50,
 		SystemNamespace: "default",
 		KnownHosts:      ssh.KnownHosts{},
