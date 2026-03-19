@@ -102,7 +102,17 @@ func handleProxyConn(t *testing.T, clientConn net.Conn, onConnect func(http.Resp
 	}
 	defer targetConn.Close()
 
-	// Pipe in both directions.
+	// Pipe in both directions. When either direction encounters an error (e.g.
+	// the client closes the connection), close both ends so the other goroutine
+	// unblocks immediately instead of waiting forever for more data.
+	var once sync.Once
+	closeBoth := func() {
+		once.Do(func() {
+			targetConn.Close()
+			clientConn.Close()
+		})
+	}
+
 	done := make(chan struct{}, 2)
 	go func() {
 		buf := make([]byte, 32*1024) // 32 KiB is a common I/O buffer size that balances memory use and throughput
@@ -115,6 +125,7 @@ func handleProxyConn(t *testing.T, clientConn net.Conn, onConnect func(http.Resp
 				break
 			}
 		}
+		closeBoth()
 		done <- struct{}{}
 	}()
 	go func() {
@@ -128,6 +139,7 @@ func handleProxyConn(t *testing.T, clientConn net.Conn, onConnect func(http.Resp
 				break
 			}
 		}
+		closeBoth()
 		done <- struct{}{}
 	}()
 	<-done
