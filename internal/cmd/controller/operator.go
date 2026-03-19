@@ -240,17 +240,23 @@ func start(
 		return err
 	}
 
-	if shardID == "" { // only one instance of the cluster status monitor needs to run.
+	cfg := fleetcfg.Get()
+
+	if cfg.ClusterMonitor.Enabled && shardID == "" { // only one instance of the cluster status monitor needs to run.
 		setupLog.Info("starting cluster status monitor")
-		cfg := fleetcfg.Get()
 		// No need to run a similar check on the threshold, since its minimum value will be a multiple of the agent check-in
 		// interval anyway.
-		if cfg.ClusterMonitorInterval.Seconds() == 0 {
+		if cfg.ClusterMonitor.Interval.Seconds() == 0 {
 			err := errors.New("cluster status monitor interval cannot be 0")
 			setupLog.Error(err, "cannot start cluster status monitor")
 			return err
 		}
-		go clustermonitor.Run(ctx, mgr.GetClient(), cfg.ClusterMonitorInterval.Duration, cfg.ClusterMonitorThreshold.Duration)
+		go clustermonitor.Run(
+			ctx,
+			mgr.GetClient(),
+			cfg.ClusterMonitor.Interval.Duration,
+			cfg.ClusterMonitor.Threshold.Duration,
+		)
 	}
 
 	setupLog.Info("starting job scheduler")
