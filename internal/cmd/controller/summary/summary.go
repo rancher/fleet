@@ -137,7 +137,13 @@ func MessageFromDeployment(deployment *fleet.BundleDeployment) string {
 	}
 	message := MessageFromCondition("Deployed", deployment.Status.Conditions)
 	if message == "" {
-		message = MessageFromCondition("Installed", deployment.Status.Conditions)
+		// Only surface the Installed error when it belongs to the current
+		// deployment. If the deployment IDs differ, the Installed condition
+		// was set by a previous (now superseded) apply attempt and the
+		// message is stale.
+		if deployment.Status.AppliedDeploymentID == deployment.Spec.DeploymentID {
+			message = MessageFromCondition("Installed", deployment.Status.Conditions)
+		}
 	}
 	if message == "" {
 		message = MessageFromCondition("Monitored", deployment.Status.Conditions)
