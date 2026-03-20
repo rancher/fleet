@@ -45,6 +45,8 @@ var (
 
 	// ClusterManagementLabel can be used to specify a custom cluster manager
 	ClusterManagementLabel = "fleet.cattle.io/cluster-management"
+
+	ClusterOfflineMsg = "cluster is offline"
 )
 
 // +genclient

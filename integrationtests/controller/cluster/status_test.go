@@ -1,12 +1,14 @@
 package cluster
 
 import (
+	"errors"
 	"fmt"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	"github.com/rancher/fleet/integrationtests/utils"
+	"github.com/rancher/fleet/internal/cmd/agent/deployer/monitor"
 
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
@@ -191,6 +193,64 @@ var _ = Describe("Cluster Status Fields", func() {
 			}).Should(Succeed())
 			Expect(cluster.Status.Display.ReadyBundles).To(Equal("2/2"))
 			Expect(cluster.Status.Summary.Ready).To(Equal(2))
+		})
+	})
+
+	When("A bundle deployment is marked offline by the cluster monitor", func() {
+		BeforeEach(func() {
+			cluster, err := utils.CreateCluster(ctx, k8sClient, "cluster", namespace, nil, namespace)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(cluster).To(Not(BeNil()))
+
+			targets := []v1alpha1.BundleTarget{
+				{
+					BundleDeploymentOptions: v1alpha1.BundleDeploymentOptions{
+						TargetNamespace: "targetNs",
+					},
+					Name:        "cluster",
+					ClusterName: "cluster",
+				},
+			}
+
+			bundle, err := utils.CreateBundle(ctx, k8sClient, "my-bundle", namespace, targets, targets)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(bundle).To(Not(BeNil()))
+		})
+
+		It("marks the cluster as offline", func() {
+			By("Marking the bundledeployment as offline, as the monitor would")
+			bd := &v1alpha1.BundleDeployment{}
+			Eventually(func() error {
+				err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "my-bundle"}, bd)
+				if err != nil {
+					return err
+				}
+
+				mc := monitor.Cond(v1alpha1.BundleDeploymentConditionReady)
+				mc.SetError(&bd.Status, "Cluster offline", errors.New(v1alpha1.ClusterOfflineMsg))
+				mc.Unknown(&bd.Status)
+
+				mc = monitor.Cond(v1alpha1.BundleDeploymentConditionMonitored)
+				mc.SetError(&bd.Status, "Cluster offline", errors.New(v1alpha1.ClusterOfflineMsg))
+
+				return k8sClient.Status().Update(ctx, bd)
+			}).ShouldNot(HaveOccurred())
+
+			By("Checking cluster status")
+			cluster := &v1alpha1.Cluster{}
+			Eventually(func(g Gomega) {
+				err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "cluster"}, cluster)
+				g.Expect(err).NotTo(HaveOccurred())
+
+				for _, cond := range cluster.Status.Conditions {
+					switch cond.Type {
+					case v1alpha1.ClusterConditionReady, "Reconciled":
+						g.Expect(cond.Message).To(Equal("cluster is offline"))
+						g.Expect(cond.Reason).To(Equal("Cluster offline"))
+						g.Expect(cond.Status).To(Equal(corev1.ConditionStatus("Unknown")))
+					}
+				}
+			}).Should(Succeed())
 		})
 	})
 })
