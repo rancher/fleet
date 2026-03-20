@@ -64,7 +64,18 @@ type ClusterReconciler struct {
 // SetupWithManager sets up the controller with the Manager.
 func (r *ClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&fleet.Cluster{}).
+		For(&fleet.Cluster{},
+			builder.WithPredicates(
+				// do not trigger for cluster status changes (except for cache sync)
+				predicate.Or(
+					TypedResourceVersionUnchangedPredicate[client.Object]{},
+					predicate.GenerationChangedPredicate{},
+					predicate.AnnotationChangedPredicate{},
+					predicate.LabelChangedPredicate{},
+				),
+				sharding.FilterByShardID(r.ShardID),
+			),
+		).
 		// Watch bundledeployments so we can update the status fields
 		Watches(
 			&fleet.BundleDeployment{},
