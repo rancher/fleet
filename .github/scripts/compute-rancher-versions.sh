@@ -41,9 +41,15 @@ chart_response=$(curl -fsSL \
     exit 1
 }
 
-latest_chart=$(printf '%s' "$chart_response" \
-    | jq -r '.[] | select(.type == "dir") | .name' \
-    | sort -V | tail -1)
+# Prefer a final (non-pre-release) chart over an RC: sort -V ranks "0.14.4-rc.5"
+# above "0.14.4" because the RC has extra characters, so without filtering the
+# RC would be selected even after the final chart has been published.
+all_charts=$(printf '%s' "$chart_response" \
+    | jq -r '.[] | select(.type == "dir") | .name')
+latest_chart=$(printf '%s' "$all_charts" | { grep -v '+up.*-' || true; } | sort -V | tail -1)
+if [ -z "$latest_chart" ]; then
+    latest_chart=$(printf '%s' "$all_charts" | sort -V | tail -1)
+fi
 
 if [ -z "$latest_chart" ]; then
     printf 'ERROR: No Fleet chart directories found in rancher/charts branch %s\n' "$charts_branch" >&2

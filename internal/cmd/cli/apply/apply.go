@@ -354,7 +354,9 @@ func pruneBundlesNotFoundInRepo(
 ) error {
 	filter := labels.SelectorFromSet(labels.Set{fleet.RepoLabel: repoName})
 	bundleList := &fleet.BundleList{}
-	err := c.List(ctx, bundleList, &client.ListOptions{LabelSelector: filter, Namespace: ns})
+	if err := c.List(ctx, bundleList, &client.ListOptions{LabelSelector: filter, Namespace: ns}); err != nil {
+		return err
+	}
 
 	for _, bundle := range bundleList.Items {
 		if _, ok := gitRepoBundlesMap[bundle.Name]; !ok {
@@ -404,13 +406,12 @@ func pruneBundlesNotFoundInRepo(
 					}
 				}
 			}
-			err = c.Delete(ctx, &bundle)
-			if err != nil {
+			if err := c.Delete(ctx, &bundle); err != nil {
 				return err
 			}
 		}
 	}
-	return err
+	return nil
 }
 
 // newBundle reads bundle data from a source and returns a bundle with the

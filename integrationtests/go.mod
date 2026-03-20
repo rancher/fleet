@@ -20,7 +20,7 @@ require (
 	github.com/otiai10/copy v1.14.1
 	github.com/rancher/fleet v0.0.0-00010101000000-000000000000
 	github.com/rancher/fleet/pkg/apis v0.14.2
-	github.com/rancher/wrangler/v3 v3.4.0
+	github.com/rancher/wrangler/v3 v3.5.0
 	github.com/reugn/go-quartz v0.15.2
 	github.com/sirupsen/logrus v1.9.4
 	github.com/testcontainers/testcontainers-go v0.41.0
@@ -175,7 +175,7 @@ require (
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.67.5 // indirect
 	github.com/prometheus/procfs v0.19.2 // indirect
-	github.com/rancher/lasso v0.2.6 // indirect
+	github.com/rancher/lasso v0.2.7 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rubenv/sql-migrate v1.8.1 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
