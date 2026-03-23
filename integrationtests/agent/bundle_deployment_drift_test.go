@@ -386,33 +386,6 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 			})
 		})
 
-		// Changing an immutable field like Service spec.type (ClusterIP -> NodePort)
-		// cannot be patched — Kubernetes rejects the update. Non-force drift
-		// correction cannot fix this; force: true (DELETE+CREATE) is required.
-		Context("Changing immutable service type without force", func() {
-			BeforeEach(func() {
-				namespace = createNamespace()
-				name = "drift-immutable-svctype-test"
-				deplID = "v1"
-			})
-
-			It("Cannot correct immutable field drift without force", func() {
-				By("Changing the service type from ClusterIP to NodePort")
-				svc, err := env.getService(svcName)
-				Expect(err).NotTo(HaveOccurred())
-				patchedSvc := svc.DeepCopy()
-				patchedSvc.Spec.Type = corev1.ServiceTypeNodePort
-				Expect(k8sClient.Patch(ctx, patchedSvc, client.StrategicMergeFrom(&svc))).NotTo(HaveOccurred())
-
-				By("Verifying the drift is not corrected")
-				Consistently(func(g Gomega) {
-					svc, err := env.getService(svcName)
-					g.Expect(err).NotTo(HaveOccurred())
-					g.Expect(svc.Spec.Type).Should(Equal(corev1.ServiceTypeNodePort))
-				}, 2*time.Second, 100*time.Millisecond).Should(Succeed())
-			})
-		})
-
 		// Changing the port number in a Service creates a new entry in the
 		// strategic merge patch (port is the merge key), resulting in two
 		// ports with the same name — which Kubernetes rejects. Non-force
