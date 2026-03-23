@@ -127,10 +127,24 @@ func gitDownload(ctx context.Context, dst, rawURL string, auth Auth) error {
 // sshKeyPEM (from the URL ?sshkey= param) takes precedence over auth.SSHPrivateKey.
 // For HTTPS, credentials are taken from the URL userinfo first, then from auth.
 func setGitAuth(opts *gogit.CloneOptions, u *url.URL, sshKeyPEM []byte, auth Auth) error {
+	isSSH := u.Scheme == "ssh" || u.Scheme == "git"
+
 	// Prefer the key from the URL query param over auth.SSHPrivateKey.
 	keyPEM := sshKeyPEM
 	if len(keyPEM) == 0 {
 		keyPEM = auth.SSHPrivateKey
+	}
+
+	if len(keyPEM) > 0 {
+		if !isSSH {
+			// ?sshkey= in an HTTP(S) URL is a misconfiguration.
+			if len(sshKeyPEM) > 0 {
+				return fmt.Errorf("?sshkey= is not supported for %s URLs", u.Scheme)
+			}
+			// Auth.SSHPrivateKey alongside an HTTP(S) URL: ignore and fall
+			// through to HTTP basic auth below.
+			keyPEM = nil
+		}
 	}
 
 	if len(keyPEM) > 0 {

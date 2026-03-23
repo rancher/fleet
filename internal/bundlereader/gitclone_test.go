@@ -13,9 +13,11 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
+	gogit "github.com/go-git/go-git/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -115,5 +117,74 @@ func TestGitDownloadCABundle(t *testing.T) {
 		err := gitDownload(context.Background(), dst, srv.URL, Auth{CABundle: []byte("not-a-cert")})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "no valid PEM certificates")
+	})
+}
+
+// generateEd25519PEM returns a PEM-encoded Ed25519 private key for use in tests.
+func generateEd25519PEM(t *testing.T) []byte {
+	t.Helper()
+
+	// Use ECDSA since crypto/ed25519 and go-git's SSH key parsing both work,
+	// but PEM encoding of Ed25519 requires the x/crypto package. ECDSA P-256
+	// is simpler to produce inline.
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	der, err := x509.MarshalECPrivateKey(key)
+	require.NoError(t, err)
+	return pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: der})
+}
+
+// TestSetGitAuth verifies that setGitAuth respects URL scheme when choosing
+// which auth type to configure.
+func TestSetGitAuth(t *testing.T) {
+	t.Parallel()
+
+	keyPEM := generateEd25519PEM(t)
+
+	t.Run("sshKey in URL for HTTPS URL returns error", func(t *testing.T) {
+		t.Parallel()
+		u, _ := url.Parse("https://example.com/repo.git")
+		opts := &gogit.CloneOptions{}
+		err := setGitAuth(opts, u, keyPEM, Auth{})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "?sshkey= is not supported")
+		assert.Nil(t, opts.Auth)
+	})
+
+	t.Run("Auth.SSHPrivateKey alongside HTTPS URL is ignored", func(t *testing.T) {
+		t.Parallel()
+		u, _ := url.Parse("https://example.com/repo.git")
+		opts := &gogit.CloneOptions{}
+		err := setGitAuth(opts, u, nil, Auth{SSHPrivateKey: keyPEM})
+		require.NoError(t, err)
+		// No auth configured: callers that need basic auth supply URL credentials.
+		assert.Nil(t, opts.Auth)
+	})
+
+	t.Run("sshKey in URL for SSH URL configures SSH auth", func(t *testing.T) {
+		t.Parallel()
+		u, _ := url.Parse("ssh://git@example.com/repo.git")
+		opts := &gogit.CloneOptions{}
+		err := setGitAuth(opts, u, keyPEM, Auth{})
+		require.NoError(t, err)
+		assert.NotNil(t, opts.Auth)
+	})
+
+	t.Run("Auth.SSHPrivateKey for SSH URL configures SSH auth", func(t *testing.T) {
+		t.Parallel()
+		u, _ := url.Parse("ssh://git@example.com/repo.git")
+		opts := &gogit.CloneOptions{}
+		err := setGitAuth(opts, u, nil, Auth{SSHPrivateKey: keyPEM})
+		require.NoError(t, err)
+		assert.NotNil(t, opts.Auth)
+	})
+
+	t.Run("basic auth from URL userinfo for HTTPS URL", func(t *testing.T) {
+		t.Parallel()
+		u, _ := url.Parse("https://user:pass@example.com/repo.git")
+		opts := &gogit.CloneOptions{}
+		err := setGitAuth(opts, u, nil, Auth{})
+		require.NoError(t, err)
+		assert.NotNil(t, opts.Auth)
 	})
 }
