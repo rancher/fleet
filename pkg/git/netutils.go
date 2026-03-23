@@ -49,12 +49,16 @@ func GetAuthFromSecret(url string, creds *corev1.Secret, knownHosts string) (tra
 		if err != nil {
 			return nil, err
 		}
+		username := "git"
+		if gitURL.User != nil && gitURL.User.Username() != "" {
+			username = gitURL.User.Username()
+		}
 		// Prefer known_hosts from the secret; fall back to the cluster-wide value.
 		knownHostsData := creds.Data["known_hosts"]
 		if len(knownHostsData) == 0 {
 			knownHostsData = []byte(knownHosts)
 		}
-		auth, err := fleetssh.NewSSHPublicKeys(gitURL.User.Username(), creds.Data[corev1.SSHAuthPrivateKey], knownHostsData)
+		auth, err := fleetssh.NewSSHPublicKeys(username, creds.Data[corev1.SSHAuthPrivateKey], knownHostsData)
 		if err != nil {
 			return nil, err
 		}

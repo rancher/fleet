@@ -216,6 +216,55 @@ var _ = Describe("Applying a git job gets content from git repo", Label("network
 				Expect(err).NotTo(HaveOccurred())
 			})
 		})
+
+		// This test verifies that the HTTPS transport is restored to the default
+		// after a CA bundle clone. Without transport restoration, a subsequent
+		// clone without a CA bundle would erroneously trust the custom CA still
+		// installed in the global transport.
+		//
+		// This is the integration-level regression test for the exclusive cert pool
+		// fix: a Rancher CA bundle mounted in gitjob pods must not prevent subsequent
+		// connections to servers signed by well-known CAs (e.g. GitHub).
+		When("CA bundle clone is followed by a no-bundle clone", func() {
+			It("restores the default transport so the no-bundle clone fails TLS", func() {
+				url, err := utils.GetGogsHTTPSURL(context.Background(), container)
+				Expect(err).NotTo(HaveOccurred())
+				repoName, _, err := createRepo(url, "assets/repo", false)
+				Expect(err).NotTo(HaveOccurred())
+
+				caBundleFile, err := os.CreateTemp("", "gitcloner-ca")
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { _ = os.Remove(caBundleFile.Name()) }()
+				_, err = caBundleFile.Write(gogsCABundle)
+				Expect(err).NotTo(HaveOccurred())
+
+				tmp1 := utils.CreateTempFolder("gogs-ca")
+				defer func() { _ = os.RemoveAll(tmp1) }()
+
+				// First: clone with CA bundle — must succeed.
+				c := gitcloner.New()
+				Expect(c.CloneRepo(&gitcloner.GitCloner{
+					Repo:         url + "/test/" + repoName,
+					Path:         tmp1,
+					Branch:       "master",
+					CABundleFile: caBundleFile.Name(),
+				})).NotTo(HaveOccurred(), "CA bundle clone should succeed")
+
+				// Second: clone without CA bundle — must fail TLS.
+				// If the transport is not restored, the gogs self-signed cert would
+				// still be trusted and the clone would incorrectly succeed.
+				tmp2 := utils.CreateTempFolder("gogs-nocert")
+				defer func() { _ = os.RemoveAll(tmp2) }()
+
+				noCertErr := c.CloneRepo(&gitcloner.GitCloner{
+					Repo:   url + "/test/" + repoName,
+					Path:   tmp2,
+					Branch: "master",
+				})
+				Expect(noCertErr).To(HaveOccurred(), "clone without CA bundle should fail TLS")
+				Expect(noCertErr.Error()).To(ContainSubstring("certificate"))
+			})
+		})
 	})
 
 	When("Cloning an ssh repo", func() {

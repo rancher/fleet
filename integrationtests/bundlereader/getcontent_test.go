@@ -92,6 +92,18 @@ var _ = Describe("GetContent fetches files from a git repository", Label("networ
 			})
 		})
 
+		When("a CA bundle is provided", func() {
+			It("returns the repository files", func() {
+				source := fmt.Sprintf("git::%s/%s/%s", httpsBase, utils.GogsUser, repoName)
+				files, err := bundlereader.GetContent(
+					context.Background(), GinkgoT().TempDir(), source, "",
+					bundlereader.Auth{CABundle: gogsCABundle}, false, nil,
+				)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(files).To(HaveKey("README.md"))
+			})
+		})
+
 		When("no TLS configuration is provided", func() {
 			It("fails with a certificate error", func() {
 				source := fmt.Sprintf("git::%s/%s/%s", httpsBase, utils.GogsUser, repoName)
@@ -235,6 +247,47 @@ var _ = Describe("GetContent fetches files from a git repository", Label("networ
 			)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(files).To(HaveKey("README.md"))
+		})
+
+		It("returns the repository files when a correct known host entry is provided", func() {
+			privateKey, err := os.ReadFile(tmpKeyFile)
+			Expect(err).NotTo(HaveOccurred())
+
+			knownHost, err := utils.GetGogsKnownHostEntry(context.Background(), container)
+			Expect(err).NotTo(HaveOccurred())
+
+			source := fmt.Sprintf("%s/%s/%s", sshBase, utils.GogsUser, repoName)
+			Eventually(func() error {
+				_, err = bundlereader.GetContent(
+					context.Background(), GinkgoT().TempDir(), source, "",
+					bundlereader.Auth{SSHPrivateKey: privateKey, SSHKnownHosts: []byte(knownHost)}, false, nil,
+				)
+				return err
+			}, timeout, interval).Should(Succeed())
+
+			files, err := bundlereader.GetContent(
+				context.Background(), GinkgoT().TempDir(), source, "",
+				bundlereader.Auth{SSHPrivateKey: privateKey, SSHKnownHosts: []byte(knownHost)}, false, nil,
+			)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(files).To(HaveKey("README.md"))
+		})
+
+		It("fails when a wrong known host entry is provided", func() {
+			privateKey, err := os.ReadFile(tmpKeyFile)
+			Expect(err).NotTo(HaveOccurred())
+
+			// A valid-looking but wrong known_hosts entry: the key is for github.com, not our gogs server.
+			wrongKnownHost := "github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl"
+
+			source := fmt.Sprintf("%s/%s/%s", sshBase, utils.GogsUser, repoName)
+			Eventually(func() error {
+				_, err = bundlereader.GetContent(
+					context.Background(), GinkgoT().TempDir(), source, "",
+					bundlereader.Auth{SSHPrivateKey: privateKey, SSHKnownHosts: []byte(wrongKnownHost)}, false, nil,
+				)
+				return err
+			}, timeout, interval).Should(HaveOccurred())
 		})
 	})
 })

@@ -3,8 +3,6 @@ package bundlereader_test
 import (
 	"context"
 	"io"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -585,10 +583,7 @@ func TestGetContent(t *testing.T) {
 		},
 	}
 
-	base, err := os.MkdirTemp("", "test-fleet")
-	require.NoError(t, err)
-
-	defer os.RemoveAll(base)
+	base := t.TempDir()
 
 	ignoreApplyConfigs := []string{"fleet.yaml", "chart/myvalues.yaml"}
 
@@ -611,59 +606,6 @@ func TestGetContent(t *testing.T) {
 			for k, v := range c.expectedFiles {
 				assert.Equal(t, v, files[k])
 			}
-		})
-	}
-}
-
-type authTester struct {
-	t    *testing.T
-	want string
-}
-
-func (a *authTester) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	url, err := r.URL.Parse(r.URL.String())
-	if err != nil {
-		http.Error(w, "Invalid URL", http.StatusBadRequest)
-		return
-	}
-	if sskey := url.Query().Get("sshkey"); sskey != a.want {
-		a.t.Errorf("wrong or no sshkey query parameter: want %s but got %s", a.want, sskey)
-	}
-	w.WriteHeader(http.StatusOK)
-}
-
-func TestGetContentSSHKey(t *testing.T) {
-	cases := []struct {
-		name, want string
-		auth       bundlereader.Auth
-	}{
-		{
-			name: "any URL with SSHPrivateKey set should be queried with sshkey query parameter",
-			auth: bundlereader.Auth{
-				SSHPrivateKey: []byte("foo"),
-			},
-			want: "Zm9v", // base64 encoding of "foo"
-		},
-		{
-			name: "no query parameter if SSHPrivateKey is not set",
-			auth: bundlereader.Auth{},
-		},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			authTester := &authTester{t: t, want: c.want}
-			s := httptest.NewServer(authTester)
-			defer s.Close()
-
-			base, err := os.MkdirTemp("", "test-fleet")
-			require.NoError(t, err)
-			defer os.RemoveAll(base)
-
-			_, _ = bundlereader.GetContent(context.Background(), base, s.URL, "", c.auth, false, []string{})
 		})
 	}
 }
@@ -733,10 +675,7 @@ func TestGetContentOCI(t *testing.T) {
 
 	assert := assert.New(t)
 
-	base, err := os.MkdirTemp("", "test-fleet")
-	require.NoError(t, err)
-
-	defer os.RemoveAll(base)
+	base := t.TempDir()
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
