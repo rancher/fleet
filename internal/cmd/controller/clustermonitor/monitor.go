@@ -16,8 +16,6 @@ import (
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
-const offlineMsg = "cluster is offline"
-
 // Run monitors Fleet cluster resources' agent last seen dates. If a cluster's agent was last seen longer ago than
 // a certain threshold, then Run updates statuses of all bundle deployments targeting that cluster, to reflect the fact
 // that the cluster is offline. This prevents those bundle deployments from displaying outdated status information.
@@ -50,8 +48,9 @@ func Run(ctx context.Context, c client.Client, interval, threshold time.Duration
 // UpdateOfflineBundleDeployments looks for offline clusters based on the provided threshold duration. For each cluster
 // considered offline, this updates its bundle deployments' statuses accordingly.
 // If a cluster's bundle deployments have already been marked as offline, they will be skipped.
+// Cluster status updates are handled by the cluster reconciler, to prevent concurrent status updates.
 func UpdateOfflineBundleDeployments(ctx context.Context, c client.Client, threshold time.Duration) {
-	logger := ctrl.Log.WithName("cluster status monitor")
+	logger := ctrl.Log.WithName("cluster-status-monitor")
 
 	clusters := &v1alpha1.ClusterList{}
 	if err := c.List(ctx, clusters); err != nil {
@@ -77,7 +76,7 @@ func UpdateOfflineBundleDeployments(ctx context.Context, c client.Client, thresh
 
 		logger.Info("Detected offline cluster", "cluster", cluster.Name)
 
-		// Cluster is offline
+		// List and patch bundle deployments for cluster
 		bundleDeployments := &v1alpha1.BundleDeploymentList{}
 		if err := c.List(ctx, bundleDeployments, client.InNamespace(cluster.Status.Namespace)); err != nil {
 			logger.Error(
@@ -98,7 +97,7 @@ func UpdateOfflineBundleDeployments(ctx context.Context, c client.Client, thresh
 				case "Ready":
 					fallthrough
 				case "Monitored":
-					if cond.Message == offlineMsg {
+					if cond.Message == v1alpha1.ClusterOfflineMsg {
 						break bd_update
 					}
 				}
@@ -112,26 +111,29 @@ func UpdateOfflineBundleDeployments(ctx context.Context, c client.Client, thresh
 					return err
 				}
 				t.Status = bd.Status
+
+				orig := bd.DeepCopy()
+
 				// Any information about resources living in an offline cluster is likely to be
 				// outdated.
 				t.Status.ModifiedStatus = nil
 				t.Status.NonReadyStatus = nil
 
-				for _, cond := range bd.Status.Conditions {
-					switch cond.Type {
-					case "Ready":
-						mc := monitor.Cond(v1alpha1.BundleDeploymentConditionReady)
-						mc.SetError(&t.Status, "Cluster offline", errors.New(offlineMsg))
-						mc.Unknown(&t.Status)
-						// XXX: do we want to set Deployed and Installed conditions as well?
-					case "Monitored":
-						mc := monitor.Cond(v1alpha1.BundleDeploymentConditionMonitored)
-						mc.SetError(&t.Status, "Cluster offline", errors.New(offlineMsg))
+				mc := monitor.Cond(v1alpha1.BundleDeploymentConditionReady)
+				mc.SetError(&t.Status, "Cluster offline", errors.New(v1alpha1.ClusterOfflineMsg))
+				mc.Unknown(&t.Status)
+				// XXX: do we want to set Deployed and Installed conditions as well?
 
-					}
+				mc = monitor.Cond(v1alpha1.BundleDeploymentConditionMonitored)
+				mc.SetError(&t.Status, "Cluster offline", errors.New(v1alpha1.ClusterOfflineMsg))
+
+				statusPatch := client.MergeFrom(orig)
+
+				if patchData, err := statusPatch.Data(t); err != nil || string(patchData) != "{}" {
+					return c.Status().Patch(ctx, t, statusPatch)
 				}
 
-				return c.Status().Update(ctx, t)
+				return nil
 			})
 			if err != nil {
 				logger.Error(
