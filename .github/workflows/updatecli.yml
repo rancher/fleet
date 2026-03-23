@@ -24,7 +24,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Install Updatecli in the runner
-        uses: updatecli/updatecli-action@v2
+        uses: updatecli/updatecli-action@4b17f4ea784de29f71f85f9bc4955402ba1ae53c # v2.100.0
 
       - name: Apply
         run: "updatecli apply --config ./updatecli/updatecli.d --values ./updatecli/values.d/scm.yaml"
