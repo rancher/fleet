@@ -1427,6 +1427,12 @@ func TestNewJob(t *testing.T) {
 					},
 				},
 			},
+			expectedContainers: []corev1.Container{
+				{
+					Name: "fleet",
+					Args: []string{"--helm-insecure-skip-tls"},
+				},
+			},
 			expectedVolumes: []corev1.Volume{
 				{
 					Name: gitClonerVolumeName,
@@ -1701,10 +1707,6 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 					Value: "4",
 				},
 				{
-					Name:  "GIT_SSH_COMMAND",
-					Value: "ssh -o stricthostkeychecking=no",
-				},
-				{
 					Name: "HELM_USERNAME",
 					ValueFrom: &corev1.EnvVarSource{
 						SecretKeyRef: &corev1.SecretKeySelector{
@@ -1774,10 +1776,6 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 					Value: "4",
 				},
 				{
-					Name:  "GIT_SSH_COMMAND",
-					Value: "ssh -o stricthostkeychecking=yes",
-				},
-				{
 					Name: "HELM_USERNAME",
 					ValueFrom: &corev1.EnvVarSource{
 						SecretKeyRef: &corev1.SecretKeySelector{
@@ -1829,10 +1827,6 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 				{
 					Name:  "FLEET_BUNDLE_CREATION_MAX_CONCURRENCY",
 					Value: "4",
-				},
-				{
-					Name:  "GIT_SSH_COMMAND",
-					Value: "ssh -o stricthostkeychecking=no",
 				},
 				{
 					Name:  "COMMIT",
@@ -1890,10 +1884,6 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 				{
 					Name:  "FLEET_BUNDLE_CREATION_MAX_CONCURRENCY",
 					Value: "4",
-				},
-				{
-					Name:  "GIT_SSH_COMMAND",
-					Value: "ssh -o stricthostkeychecking=yes",
 				},
 				{
 					Name:  "COMMIT",

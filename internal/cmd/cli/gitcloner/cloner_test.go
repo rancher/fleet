@@ -1,7 +1,13 @@
 package gitcloner
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"encoding/pem"
 	"errors"
+	"net"
 	"os"
 	"strings"
 	"testing"
@@ -15,6 +21,8 @@ import (
 	gossh "github.com/go-git/go-git/v5/plumbing/transport/ssh"
 	"github.com/google/go-cmp/cmp"
 	"github.com/rancher/fleet/internal/cmd/cli/gitcloner/submodule"
+	fleetssh "github.com/rancher/fleet/internal/ssh"
+	golangssh "golang.org/x/crypto/ssh"
 )
 
 type fakeGetter struct{}
@@ -615,4 +623,131 @@ func TestCloneRevision_SubmoduleUpdateError(t *testing.T) {
 	if err.Error() != "submodule update failed" {
 		t.Fatalf("expected 'submodule update failed', got: %s", err.Error())
 	}
+}
+
+// generateECPrivateKeyPEM creates a PEM-encoded EC private key for use in tests.
+func generateECPrivateKeyPEM(t *testing.T) []byte {
+	t.Helper()
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatalf("generating key: %v", err)
+	}
+	der, err := x509.MarshalECPrivateKey(key)
+	if err != nil {
+		t.Fatalf("marshalling key: %v", err)
+	}
+	return pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: der})
+}
+
+// generateKnownHostsEntry creates a host key and returns the matching
+// known_hosts line for use in tests.
+func generateKnownHostsEntry(t *testing.T, hostname string) (golangssh.PublicKey, string) {
+	t.Helper()
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatalf("generating host key: %v", err)
+	}
+	sshPubKey, err := golangssh.NewPublicKey(&key.PublicKey)
+	if err != nil {
+		t.Fatalf("creating SSH public key: %v", err)
+	}
+	entry := golangssh.MarshalAuthorizedKey(sshPubKey)
+	return sshPubKey, hostname + " " + string(entry)
+}
+
+func TestCreateAuthFromOpts(t *testing.T) {
+	// Ensure real file I/O regardless of which mock a previous test left installed.
+	origReadFile := readFile
+	readFile = os.ReadFile
+	t.Cleanup(func() { readFile = origReadFile })
+	keyPEM := generateECPrivateKeyPEM(t)
+	hostKey, knownHostsLine := generateKnownHostsEntry(t, "expected-host")
+
+	writeTempKey := func(t *testing.T) string {
+		t.Helper()
+		f, err := os.CreateTemp(t.TempDir(), "ssh-key-*.pem")
+		if err != nil {
+			t.Fatalf("creating temp key file: %v", err)
+		}
+		if _, err := f.Write(keyPEM); err != nil {
+			t.Fatalf("writing key: %v", err)
+		}
+		f.Close()
+		return f.Name()
+	}
+
+	addr := &net.TCPAddr{}
+
+	t.Run("no SSH key returns nil auth", func(t *testing.T) {
+		opts := &GitCloner{Repo: "https://github.com/example/repo"}
+		auth, err := createAuthFromOpts(opts)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if auth != nil {
+			t.Fatalf("expected nil auth, got %v", auth)
+		}
+	})
+
+	t.Run("SSH key without known hosts uses InsecureIgnoreHostKey", func(t *testing.T) {
+		opts := &GitCloner{
+			Repo:              "ssh://git@example.com/org/repo",
+			SSHPrivateKeyFile: writeTempKey(t),
+		}
+		auth, err := createAuthFromOpts(opts)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		pubKeys, ok := auth.(*gossh.PublicKeys)
+		if !ok {
+			t.Fatalf("expected *gossh.PublicKeys, got %T", auth)
+		}
+		// InsecureIgnoreHostKey never returns an error.
+		if err := pubKeys.HostKeyCallback("any-host:22", addr, hostKey); err != nil {
+			t.Fatalf("expected InsecureIgnoreHostKey to accept any host, got: %v", err)
+		}
+	})
+
+	t.Run("SSH key with FLEET_KNOWN_HOSTS enforces host key", func(t *testing.T) {
+		t.Setenv(fleetssh.KnownHostsEnvVar, knownHostsLine)
+		opts := &GitCloner{
+			Repo:              "ssh://git@example.com/org/repo",
+			SSHPrivateKeyFile: writeTempKey(t),
+		}
+		auth, err := createAuthFromOpts(opts)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		pubKeys, ok := auth.(*gossh.PublicKeys)
+		if !ok {
+			t.Fatalf("expected *gossh.PublicKeys, got %T", auth)
+		}
+		// Known host passes.
+		if err := pubKeys.HostKeyCallback("expected-host:22", addr, hostKey); err != nil {
+			t.Fatalf("expected-host should be accepted: %v", err)
+		}
+		// Unknown host key is rejected.
+		otherHostKey, _ := generateKnownHostsEntry(t, "other-host")
+		if err := pubKeys.HostKeyCallback("expected-host:22", addr, otherHostKey); err == nil {
+			t.Fatal("unexpected host key should be rejected")
+		}
+	})
+
+	t.Run("SSH URL without user defaults to git", func(t *testing.T) {
+		opts := &GitCloner{
+			Repo:              "ssh://example.com/org/repo",
+			SSHPrivateKeyFile: writeTempKey(t),
+		}
+		auth, err := createAuthFromOpts(opts)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		pubKeys, ok := auth.(*gossh.PublicKeys)
+		if !ok {
+			t.Fatalf("expected *gossh.PublicKeys, got %T", auth)
+		}
+		if pubKeys.User != "git" {
+			t.Fatalf("expected user 'git', got %q", pubKeys.User)
+		}
+	})
 }
