@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"go.uber.org/mock/gomock"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -18,53 +19,6 @@ import (
 )
 
 const threshold = 1 * time.Second
-
-// BDStatusMatcher implements a gomock matcher for bundle deployment status.
-// The matcher checks for empty modified and non-ready status, as well as offline state through Ready and Monitored
-// conditions.
-type BDStatusMatcher struct {
-}
-
-func (m BDStatusMatcher) Matches(x interface{}) bool {
-	bd, ok := x.(*v1alpha1.BundleDeployment)
-	if !ok || bd == nil {
-		return false
-	}
-
-	bdStatus := bd.Status
-
-	if bdStatus.ModifiedStatus != nil || bdStatus.NonReadyStatus != nil {
-		return false
-	}
-
-	foundReady, foundMonitored := false, false
-	for _, cond := range bdStatus.Conditions {
-		switch cond.Type {
-		case "Ready":
-			foundReady = true
-
-			if cond.Status != "Unknown" ||
-				!strings.Contains(cond.Reason, "offline") ||
-				!strings.Contains(cond.Message, "offline") {
-				return false
-			}
-		case "Monitored":
-			foundMonitored = true
-
-			if cond.Status != "False" ||
-				!strings.Contains(cond.Reason, "offline") ||
-				!strings.Contains(cond.Message, "offline") {
-				return false
-			}
-		}
-	}
-
-	return foundReady && foundMonitored
-}
-
-func (m BDStatusMatcher) String() string {
-	return "Bundle deployment status for offline cluster"
-}
 
 type clusterWithOfflineMarker struct {
 	cluster                v1alpha1.Cluster
@@ -514,7 +468,35 @@ func Test_Run(t *testing.T) {
 					srw := mocks.NewMockStatusWriter(ctrl)
 					testClient.EXPECT().Status().Return(srw)
 
-					srw.EXPECT().Update(ctx, &BDStatusMatcher{}).Return(nil)
+					srw.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any()).Do(
+						func(ctx context.Context, bd *v1alpha1.BundleDeployment, p client.Patch, opts ...interface{}) {
+							var foundReady, foundMonitored bool
+							for _, c := range bd.Status.Conditions {
+								switch c.Type {
+								case "Ready":
+									foundReady = true
+									if c.Status != corev1.ConditionStatus("Unknown") {
+										t.Errorf("expecting unknown ready condition status, got %s", c.Status)
+									}
+									if !strings.Contains(c.Message, "offline") {
+										t.Errorf("expecting ready condition message to reflect offline state, got %s", c.Message)
+									}
+								case "Monitored":
+									foundMonitored = true
+									if !strings.Contains(c.Message, "offline") {
+										t.Errorf("expecting ready condition message to reflect offline state, got %s", c.Message)
+									}
+								}
+							}
+
+							if !foundReady {
+								t.Errorf("ready condition not found in BD status %v", bd.Status)
+							}
+
+							if !foundMonitored {
+								t.Errorf("monitored condition not found in BD status %v", bd.Status)
+							}
+						}).Times(1)
 				}
 			}
 
