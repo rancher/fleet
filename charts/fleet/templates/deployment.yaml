@@ -53,6 +53,13 @@ spec:
         - name: NO_PROXY
           value: {{ $.Values.noProxy }}
         {{- end }}
+        {{- if $.Values.proxyCACert }}
+        - name: PROXY_CA_BUNDLE
+          valueFrom:
+            configMapKeyRef:
+              name: proxy-ca
+              key: proxy.crt
+        {{- end }}
         {{- if $.Values.leaderElection.leaseDuration }}
         - name: CATTLE_ELECTION_LEASE_DURATION
           value: {{$.Values.leaderElection.leaseDuration}}

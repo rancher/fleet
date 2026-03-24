@@ -19,6 +19,7 @@ import (
 	ssh "github.com/rancher/fleet/internal/ssh"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/cert"
+	fleetgit "github.com/rancher/fleet/pkg/git"
 	"github.com/rancher/fleet/pkg/sharding"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -957,7 +958,7 @@ func volumesFromSecret(
 
 func proxyEnvVars() []corev1.EnvVar {
 	var envVars []corev1.EnvVar
-	for _, envVar := range []string{"HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY"} {
+	for _, envVar := range []string{"HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", fleetgit.ProxyCABundleEnvVar} {
 		if val, ok := os.LookupEnv(envVar); ok {
 			envVars = append(envVars, corev1.EnvVar{Name: envVar, Value: val})
 		}
