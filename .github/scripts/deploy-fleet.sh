@@ -63,7 +63,10 @@ eventually helm upgrade --install fleet charts/fleet \
   --set agentImage.tag="$agentTag" \
   --set agentImage.imagePullPolicy=IfNotPresent \
   --set bootstrap.agentNamespace=cattle-fleet-local-system \
+  --set agentCheckinInterval=5s \
   --set clusterMonitor.enabled=true \
+  --set clusterMonitor.threshold=20s \
+  --set clusterMonitor.interval=10s \
   --set apiServerCA="$ca" \
   --set apiServerURL="$server" \
   $shards_settings \

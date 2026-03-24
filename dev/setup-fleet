@@ -44,7 +44,10 @@ helm -n cattle-fleet-system upgrade --install --create-namespace --wait --reset-
   --set agent.leaderElection.leaseDuration=10s \
   --set agent.leaderElection.retryPeriod=1s \
   --set agent.leaderElection.renewDeadline=5s \
+  --set agentCheckinInterval=5s \
   --set clusterMonitor.enabled=true \
+  --set clusterMonitor.threshold=20s \
+  --set clusterMonitor.interval=10s \
   --set garbageCollectionInterval=1s \
   --set insecureSkipHostKeyChecks=false \
   --set imagescan.enabled=true \
