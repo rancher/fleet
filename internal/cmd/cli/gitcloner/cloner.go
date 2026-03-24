@@ -139,10 +139,19 @@ func cloneRevision(opts *GitCloner, auth transport.AuthMethod, caBundle []byte) 
 }
 
 func getCABundleFromFile(path string) ([]byte, error) {
-	if path == "" {
-		return nil, nil
+	var caBundle []byte
+	if path != "" {
+		var err error
+		caBundle, err = readFile(path)
+		if err != nil {
+			return nil, err
+		}
 	}
-	return readFile(path)
+	if proxyCAPEM, ok := os.LookupEnv(fleetgit.ProxyCABundleEnvVar); ok && proxyCAPEM != "" {
+		caBundle = append(caBundle, '\n')
+		caBundle = append(caBundle, []byte(proxyCAPEM)...)
+	}
+	return caBundle, nil
 }
 
 // createAuthFromOpts adds auth for cloning git repos based on the parameters provided in opts.

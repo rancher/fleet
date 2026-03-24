@@ -3,6 +3,7 @@ package git
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -91,13 +92,19 @@ func NewRemote(url string, opts *options) (*Remote, error) {
 		return nil, fmt.Errorf("SSH private key file is required for SSH/SCP-style URLs: %s", url)
 	}
 
+	caBundle := opts.CABundle
+	if proxyCAPEM, ok := os.LookupEnv(ProxyCABundleEnvVar); ok && proxyCAPEM != "" {
+		caBundle = append(caBundle, '\n')
+		caBundle = append(caBundle, []byte(proxyCAPEM)...)
+	}
+
 	return &Remote{
 		URL:     url,
 		Options: opts,
 		Lister: &GoGitRemoteLister{
 			URL:             url,
 			Auth:            auth,
-			CABundle:        opts.CABundle,
+			CABundle:        caBundle,
 			InsecureSkipTLS: opts.InsecureTLSVerify,
 			ProxyOptions:    ProxyOptsFromEnvironment(url),
 		},
