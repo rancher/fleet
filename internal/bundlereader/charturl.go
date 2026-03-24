@@ -13,12 +13,14 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/Masterminds/semver/v3"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	fleetgit "github.com/rancher/fleet/pkg/git"
 	"golang.org/x/sync/singleflight"
 	repov1 "helm.sh/helm/v4/pkg/repo/v1"
 	"sigs.k8s.io/yaml"
@@ -271,6 +273,17 @@ func transportHash(insecureSkipVerify bool, caBundle []byte) string {
 }
 
 func transportForAuth(insecureSkipVerify bool, caBundle []byte) http.RoundTripper {
+	if proxyCAPEM, ok := os.LookupEnv(fleetgit.ProxyCABundleEnvVar); ok && proxyCAPEM != "" {
+		proxyBytes := []byte(proxyCAPEM)
+		tmpPool := x509.NewCertPool()
+		if !tmpPool.AppendCertsFromPEM(proxyBytes) {
+			fmt.Fprintf(os.Stderr, "warning: %s is set but contains no valid PEM certificates; ignoring proxy CA bundle\n", fleetgit.ProxyCABundleEnvVar)
+		} else {
+			caBundle = append(caBundle, '\n')
+			caBundle = append(caBundle, proxyBytes...)
+		}
+	}
+
 	// We don't need the full hash
 	hash := transportHash(insecureSkipVerify, caBundle)
 
