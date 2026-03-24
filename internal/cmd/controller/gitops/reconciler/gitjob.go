@@ -397,6 +397,10 @@ func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.Git
 		volumeMounts = append(volumeMounts, volMnts...)
 	}
 
+	// spec.InsecureSkipTLSverify applies to all git operations, including
+	// Helm-chart-from-git fetches in fleet apply.
+	helmInsecure = helmInsecure || gitrepo.Spec.InsecureSkipTLSverify
+
 	// In case no Helm secret volume has been created, because Helm secrets don't exist or don't contain a CA
 	// bundle, mount a volume with a Rancher CA bundle.
 	if !certVolCreated {
@@ -448,7 +452,6 @@ func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.Git
 		gitrepo,
 		logger,
 		CACertsFilePathOverride,
-		r.KnownHosts,
 		drivenScanSeparator,
 		helmInsecure,
 		helmBasicHTTP,
@@ -658,7 +661,6 @@ func argsAndEnvs(
 	gitrepo *v1alpha1.GitRepo,
 	logger logr.Logger,
 	pathOverrideCACerts string,
-	knownHosts KnownHostsGetter,
 	drivenScanSeparator string,
 	helmInsecureSkipTLS bool,
 	helmBasicHTTP bool,
@@ -742,8 +744,6 @@ func argsAndEnvs(
 		}
 
 		args = append(args, helmArgs...)
-		// for ssh go-getter
-		env = append(env, gitSSHCommandEnvVar(knownHosts.IsStrict()))
 	} else if gitrepo.Spec.HelmSecretName != "" {
 		helmArgs := []string{
 			"--password-file",
@@ -763,8 +763,6 @@ func argsAndEnvs(
 			helmArgs = append(helmArgs, "--helm-repo-url-regex", gitrepo.Spec.HelmRepoURLRegex)
 		}
 		args = append(args, helmArgs...)
-		// for ssh go-getter
-		env = append(env, gitSSHCommandEnvVar(knownHosts.IsStrict()))
 		env = append(env,
 			corev1.EnvVar{
 				Name: "HELM_USERNAME",
@@ -789,7 +787,6 @@ func argsAndEnvs(
 			helmArgs = append(helmArgs, "--helm-repo-url-regex", gitrepo.Spec.HelmRepoURLRegex)
 		}
 		args = append(args, helmArgs...)
-		env = append(env, gitSSHCommandEnvVar(knownHosts.IsStrict()))
 	}
 
 	if !ocistorage.OCIIsEnabled() {
@@ -967,19 +964,6 @@ func proxyEnvVars() []corev1.EnvVar {
 	}
 
 	return envVars
-}
-
-func gitSSHCommandEnvVar(strictChecks bool) corev1.EnvVar {
-	strictVal := "no"
-
-	if strictChecks {
-		strictVal = "yes"
-	}
-
-	return corev1.EnvVar{
-		Name:  "GIT_SSH_COMMAND",
-		Value: fmt.Sprintf("ssh -o stricthostkeychecking=%s", strictVal),
-	}
 }
 
 // getDrivenScanSeparator returns a separator that is valid for all the Bundle

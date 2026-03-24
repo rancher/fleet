@@ -10,9 +10,7 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/protocol/packp/capability"
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	httpgit "github.com/go-git/go-git/v5/plumbing/transport/http"
-	gossh "github.com/go-git/go-git/v5/plumbing/transport/ssh"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/rancher/fleet/internal/cmd/cli/gitcloner/submodule"
 	fleetgithub "github.com/rancher/fleet/internal/github"
@@ -94,23 +92,16 @@ func cloneBranch(opts *GitCloner, auth transport.AuthMethod, caBundle []byte) er
 		Tags:              git.NoTags,
 		ProxyOptions:      fleetgit.ProxyOptsFromEnvironment(opts.Repo),
 	})
-
 	if err != nil {
 		return fmt.Errorf("failed to clone main repo from branch %s: %w, skipping submodule clone", repo(opts), err)
 	}
 
-	submoduleUpdateOptions := &git.SubmoduleUpdateOptions{
+	return updateSubmodules(r, &git.SubmoduleUpdateOptions{
 		Init:              true,
 		RecurseSubmodules: git.DefaultSubmoduleRecursionDepth,
 		Depth:             1,
 		Auth:              auth,
-	}
-
-	if err := updateSubmodules(r, submoduleUpdateOptions); err != nil {
-		return err
-	}
-
-	return nil
+	})
 }
 
 func cloneRevision(opts *GitCloner, auth transport.AuthMethod, caBundle []byte) error {
@@ -135,23 +126,16 @@ func cloneRevision(opts *GitCloner, auth transport.AuthMethod, caBundle []byte) 
 	if err != nil {
 		return fmt.Errorf("failed to get filesystem worktree for %s: %w", repo(opts), err)
 	}
-
 	if err := w.Checkout(&git.CheckoutOptions{Hash: *h}); err != nil {
 		return fmt.Errorf("failed to checkout in worktree %s: %w", repo(opts), err)
 	}
 
-	submoduleUpdateOptions := &git.SubmoduleUpdateOptions{
+	return updateSubmodules(r, &git.SubmoduleUpdateOptions{
 		Init:              true,
 		RecurseSubmodules: git.DefaultSubmoduleRecursionDepth,
 		Depth:             1,
 		Auth:              auth,
-	}
-
-	if err := updateSubmodules(r, submoduleUpdateOptions); err != nil {
-		return err
-	}
-
-	return nil
+	})
 }
 
 func getCABundleFromFile(path string) ([]byte, error) {
@@ -177,22 +161,15 @@ func createAuthFromOpts(opts *GitCloner) (transport.AuthMethod, error) {
 		if err != nil {
 			return nil, err
 		}
-		auth, err := gossh.NewPublicKeys(gitURL.User.Username(), privateKey, "")
-		if err != nil {
-			return nil, err
+		username := "git"
+		if gitURL.User != nil && gitURL.User.Username() != "" {
+			username = gitURL.User.Username()
 		}
+		var knownHostsData []byte
 		if isKnownHostsSet {
-			knownHostsCallBack, err := fleetssh.CreateKnownHostsCallBack([]byte(knownHosts))
-			if err != nil {
-				return nil, fmt.Errorf("could not create known_hosts callback: %w", err)
-			}
-
-			auth.HostKeyCallback = knownHostsCallBack
-		} else {
-			//nolint:gosec // G106: Use of ssh InsecureIgnoreHostKey should be audited - this will run in an init-container, so there is no persistence
-			auth.HostKeyCallback = ssh.InsecureIgnoreHostKey()
+			knownHostsData = []byte(knownHosts)
 		}
-		return auth, nil
+		return fleetssh.NewSSHPublicKeys(username, privateKey, knownHostsData)
 	}
 
 	if opts.GitHubAppID != 0 && opts.GitHubAppInstallation != 0 && opts.GitHubAppKeyFile != "" {

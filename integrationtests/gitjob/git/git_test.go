@@ -2,16 +2,11 @@ package integrationtests
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
-	"crypto/x509"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -28,7 +23,6 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 	"go.uber.org/mock/gomock"
-	"golang.org/x/crypto/ssh"
 
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -469,14 +463,14 @@ func createGogsContainer(ctx context.Context, tmpDir string) (testcontainers.Con
 		return nil, "", err
 	}
 	if latestCommitPublicRepo == "" {
-		return nil, "", fmt.Errorf("latestCommitPublicRepo is empty after initRepo")
+		return nil, "", errors.New("latestCommitPublicRepo is empty after initRepo")
 	}
 	latestCommitPrivateRepo, err = initRepo(url, "private-repo", true)
 	if err != nil {
 		return nil, "", err
 	}
 	if latestCommitPrivateRepo == "" {
-		return nil, "", fmt.Errorf("latestCommitPrivateRepo is empty after initRepo")
+		return nil, "", errors.New("latestCommitPrivateRepo is empty after initRepo")
 	}
 
 	return container, url, nil
@@ -669,7 +663,7 @@ func getURL(ctx context.Context, container testcontainers.Container) (string, er
 
 // createAndAddKeys creates a public private key pair. It adds the public key to gogs, and returns the private key.
 func createAndAddKeys() (string, error) {
-	publicKey, privateKey, err := makeSSHKeyPair()
+	publicKey, privateKey, err := utils.MakeSSHKeyPair()
 	if err != nil {
 		return "", err
 	}
@@ -683,27 +677,6 @@ func createAndAddKeys() (string, error) {
 	}
 
 	return privateKey, nil
-}
-
-func makeSSHKeyPair() (string, string, error) {
-	privateKey, err := rsa.GenerateKey(rand.Reader, 4096)
-	if err != nil {
-		return "", "", err
-	}
-
-	var privKeyBuf strings.Builder
-	privateKeyPEM := &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(privateKey)}
-	if err := pem.Encode(&privKeyBuf, privateKeyPEM); err != nil {
-		return "", "", err
-	}
-	pub, err := ssh.NewPublicKey(&privateKey.PublicKey)
-	if err != nil {
-		return "", "", err
-	}
-	var pubKeyBuf strings.Builder
-	pubKeyBuf.Write(ssh.MarshalAuthorizedKey(pub))
-
-	return pubKeyBuf.String(), privKeyBuf.String(), nil
 }
 
 type mockKnownHostsGetter struct {
