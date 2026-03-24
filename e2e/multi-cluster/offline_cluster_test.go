@@ -116,7 +116,35 @@ var _ = Describe("Offline cluster detection", func() {
 
 				checkReadyCondition(g, out, "cluster is offline", "Unknown")
 			}).To(Succeed())
-			// TODO bring cluster back online and check that all is well
+
+			By("taking the cluster back online")
+			out, err = kd.Namespace("cattle-fleet-system").Run("scale", "deployment", "fleet-agent", "--replicas=1", "--timeout=60s")
+			Expect(err).ToNot(HaveOccurred(), out)
+
+			By("checking the new online state of the cluster")
+			// Cluster should be ready again
+			Eventually(func(g Gomega) {
+				out, err := k.Get(
+					"cluster", "-n", env.ClusterRegistrationNamespace,
+					"-o", `jsonpath={.items[0].status.conditions}`,
+				)
+				g.Expect(err).ToNot(HaveOccurred(), out)
+
+				checkReadyCondition(g, out, "", "True")
+			}).To(Succeed())
+
+			// Bundle deployment should be ready again
+			Eventually(func(g Gomega) {
+				out, err := k.Get(
+					"bundledeployments", "-A",
+					"-l", fmt.Sprintf("fleet.cattle.io/bundle-name=%s", name),
+					"-l", fmt.Sprintf("fleet.cattle.io/bundle-namespace=%s", env.ClusterRegistrationNamespace),
+					"-o", `jsonpath={.items[0].status.conditions}`,
+				)
+				g.Expect(err).ToNot(HaveOccurred(), out)
+
+				checkReadyCondition(g, out, "", "True")
+			}).To(Succeed())
 		})
 	})
 })
