@@ -13,13 +13,14 @@ import (
 )
 
 const (
-	OCISecretUsername      = "username"
-	OCISecretPassword      = "password"
-	OCISecretAgentUsername = "agentUsername"
-	OCISecretAgentPassword = "agentPassword"
-	OCISecretReference     = "reference"
-	OCISecretBasicHTTP     = "basicHTTP"
-	OCISecretInsecure      = "insecure"
+	OCISecretUsername        = "username"
+	OCISecretPassword        = "password"
+	OCISecretAgentUsername   = "agentUsername"
+	OCISecretAgentPassword   = "agentPassword"
+	OCISecretReference       = "reference"
+	OCISecretBasicHTTP       = "basicHTTP"
+	OCISecretInsecureSkipTLS = "insecureSkipTLS"
+	OCISecretInsecure        = "insecure" // legacy alias
 )
 
 // ReadOptsFromSecret reads the secret identified by the given NamespacedName and
@@ -73,7 +74,12 @@ func ReadOptsFromSecret(ctx context.Context, c client.Reader, ns client.ObjectKe
 		return OCIOpts{}, err
 	}
 
-	opts.InsecureSkipTLS, err = getBoolValueFromSecret(secret.Data, OCISecretInsecure, false)
+	opts.InsecureSkipTLS, err = getBoolValueFromSecretWithFallback(
+		secret.Data,
+		false,
+		OCISecretInsecureSkipTLS,
+		OCISecretInsecure,
+	)
 	if err != nil {
 		return OCIOpts{}, err
 	}
@@ -107,4 +113,16 @@ func getBoolValueFromSecret(data map[string][]byte, key string, required bool) (
 	}
 
 	return boolValue, nil
+}
+
+func getBoolValueFromSecretWithFallback(data map[string][]byte, required bool, keys ...string) (bool, error) {
+	for _, key := range keys {
+		if _, ok := data[key]; ok {
+			return getBoolValueFromSecret(data, key, true)
+		}
+	}
+	if !required {
+		return false, nil
+	}
+	return false, fmt.Errorf("key %q not found in secret", keys[0])
 }
