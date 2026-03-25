@@ -320,7 +320,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 	)
 
 	if cfg.AgentCheckinInterval.Seconds() == 0 {
-		return status, fmt.Errorf("agent check-in interval cannot be 0")
+		return status, errors.New("agent check-in interval cannot be 0")
 	}
 
 	if apiServerURL == "" {

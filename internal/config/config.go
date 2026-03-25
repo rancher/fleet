@@ -152,7 +152,7 @@ type Config struct {
 	AgentWorkers AgentWorkers `json:"agentWorkers,omitzero"`
 
 	// ClusterMonitor represents configuration for the cluster monitor, including its enabled or disabled state.
-	ClusterMonitor ClusterMonitor `json:"clusterMonitor,omitempty"`
+	ClusterMonitor ClusterMonitor `json:"clusterMonitor,omitzero"`
 }
 
 type AgentWorkers struct {
@@ -179,13 +179,13 @@ type ClusterMonitor struct {
 	Enabled bool `json:"enabled,omitempty"`
 
 	// Interval determines how often the cluster monitor will check for offline downstream clusters.
-	Interval metav1.Duration `json:"interval,omitempty"`
+	Interval metav1.Duration `json:"interval,omitzero"`
 
 	// Threshold determines how long must have elapsed since a downstream cluster's Fleet agent last reported its
 	// status to the management cluster, before that downstream cluster is considered offline. If this configured value
 	// is shorter than three times the agent check-in interval, then that check-in interval-based value will be used
 	// instead to prevent false positives.
-	Threshold metav1.Duration `json:"threshold.omitempty"`
+	Threshold metav1.Duration `json:"threshold,omitzero"`
 }
 
 // OnChange is used by agentmanagement to react to config changes. The callback is triggered by 'Set' via

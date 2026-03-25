@@ -1,7 +1,6 @@
 package manageagent
 
 import (
-	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -27,9 +26,9 @@ func TestNewAgentBundle(t *testing.T) {
 	config.Set(&config.Config{AgentCheckinInterval: metav1.Duration{Duration: 0 * time.Second}})
 
 	// ensure leader election env is set so NewLeaderElectionOptionsWithPrefix doesn't error
-	os.Setenv("FLEET_AGENT_ELECTION_LEASE_DURATION", "15s")
-	os.Setenv("FLEET_AGENT_ELECTION_RENEW_DEADLINE", "10s")
-	os.Setenv("FLEET_AGENT_ELECTION_RETRY_PERIOD", "2s")
+	t.Setenv("FLEET_AGENT_ELECTION_LEASE_DURATION", "15s")
+	t.Setenv("FLEET_AGENT_ELECTION_RENEW_DEADLINE", "10s")
+	t.Setenv("FLEET_AGENT_ELECTION_RETRY_PERIOD", "2s")
 
 	h := handler{systemNamespace: "blah"}
 	obj, err := h.newAgentBundle("foo", &fleet.Cluster{Spec: fleet.ClusterSpec{AgentNamespace: "bar"}})
