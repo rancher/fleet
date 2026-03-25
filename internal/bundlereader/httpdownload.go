@@ -39,7 +39,7 @@ import (
 func httpDownload(ctx context.Context, dst, src string, auth Auth) error {
 	u, err := url.Parse(src)
 	if err != nil {
-		return fmt.Errorf("parsing URL %q: %w", src, err)
+		return fmt.Errorf("parsing URL %q: %w", redactURL(src), err)
 	}
 
 	q := u.Query()
@@ -69,7 +69,7 @@ func httpDownload(ctx context.Context, dst, src string, auth Auth) error {
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, src, nil)
 	if err != nil {
-		return fmt.Errorf("building request for %q: %w", src, err)
+		return fmt.Errorf("building request for %q: %w", u.Redacted(), err)
 	}
 	if auth.Username != "" && auth.Password != "" {
 		req.SetBasicAuth(auth.Username, auth.Password)
@@ -77,12 +77,12 @@ func httpDownload(ctx context.Context, dst, src string, auth Auth) error {
 
 	resp, err := getHTTPClient(auth).Do(req)
 	if err != nil {
-		return fmt.Errorf("downloading %q: %w", src, err)
+		return fmt.Errorf("downloading %q: %w", u.Redacted(), err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("downloading %q: unexpected status %d", src, resp.StatusCode)
+		return fmt.Errorf("downloading %q: unexpected status %d", u.Redacted(), resp.StatusCode)
 	}
 
 	if err := os.MkdirAll(dst, 0750); err != nil {
