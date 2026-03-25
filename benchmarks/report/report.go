@@ -20,24 +20,35 @@ type Summary struct {
 
 // ColorableString for ReportEntry to use
 func (s Summary) ColorableString() string {
-	sb := "{{green}}Experiments{{/}}\n"
+	var sb strings.Builder
+
+	// Header
+	sb.WriteString("{{green}}Experiments{{/}}\n")
+
+	// Sorted experiment keys
 	keys := slices.Sorted(maps.Keys(s.Experiments))
-	var sbSb24 strings.Builder
 	for _, k := range keys {
+		// Experiment name
+		sb.WriteString("{{green}}" + k + "{{/}}\n")
+
+		// Experiment measurements
 		v := s.Experiments[k]
-		sbSb24.WriteString("{{green}}" + k + "{{/}}\n")
 		t2 := NewTable(v.Measurements)
-		sbSb24.WriteString(t2.Render())
-		sbSb24.WriteString("\n")
+		sb.WriteString(t2.Render())
+		sb.WriteByte('\n')
 	}
-	sb += sbSb24.String()
-	sb += "{{green}}Environment{{/}}\n"
-	sb += s.Description
-	sb += "\n"
+
+	// Environment section
+	sb.WriteString("{{green}}Environment{{/}}\n")
+	sb.WriteString(s.Description)
+	sb.WriteByte('\n')
+
+	// Setup section
 	t1 := NewTable(s.Setup)
-	sb += t1.Render()
-	sb += "\n"
-	return sb
+	sb.WriteString(t1.Render())
+	sb.WriteByte('\n')
+
+	return sb.String()
 }
 
 // non-colorable String() is used by go's string formatting support but ignored by ReportEntry

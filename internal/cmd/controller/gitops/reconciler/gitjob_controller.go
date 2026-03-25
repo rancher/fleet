@@ -1181,14 +1181,12 @@ func updateStatus(ctx context.Context, c client.Client, req types.NamespacedName
 func filterFleetCLIJobOutput(output string) string {
 	// first split the output in lines
 	lines := strings.Split(output, "\n")
-	s := ""
-	var sSb1180 strings.Builder
+	var sb strings.Builder
 	for _, l := range lines {
-		sSb1180.WriteString(getFleetCLIErrorsFromLine(l))
+		sb.WriteString(getFleetCLIErrorsFromLine(l))
 	}
-	s += sSb1180.String()
 
-	s = strings.Trim(s, "\n")
+	s := strings.Trim(sb.String(), "\n")
 	// in the case that all the messages from fleet apply are from libraries
 	// we just report an unknown error
 	if s == "" {
