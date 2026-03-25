@@ -45,11 +45,11 @@ func (c Cond) IsFalse(obj any) bool {
 	return getStatus(obj, string(c)) == "False"
 }
 
-func (c Cond) Unknown(obj interface{}) {
+func (c Cond) Unknown(obj any) {
 	setStatus(obj, string(c), "Unknown")
 }
 
-func (c Cond) IsUnknown(obj interface{}) bool {
+func (c Cond) IsUnknown(obj any) bool {
 	return getStatus(obj, string(c)) == "Unknown"
 }
 

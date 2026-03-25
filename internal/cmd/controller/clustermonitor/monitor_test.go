@@ -414,9 +414,7 @@ func Test_Run(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			testClient := mocks.NewMockK8sClient(ctrl)
-			ctx, cancel := context.WithCancel(context.Background())
-
-			defer cancel()
+			ctx := t.Context()
 
 			testClient.EXPECT().List(ctx, gomock.Any(), gomock.Any()).DoAndReturn(
 				func(ctx context.Context, list *v1alpha1.ClusterList, opts ...client.ListOption) error {
@@ -469,7 +467,7 @@ func Test_Run(t *testing.T) {
 					testClient.EXPECT().Status().Return(srw)
 
 					srw.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any()).Do(
-						func(ctx context.Context, bd *v1alpha1.BundleDeployment, p client.Patch, opts ...interface{}) {
+						func(ctx context.Context, bd *v1alpha1.BundleDeployment, p client.Patch, opts ...any) {
 							var foundReady, foundMonitored bool
 							for _, c := range bd.Status.Conditions {
 								switch c.Type {

@@ -2,7 +2,6 @@ package multicluster_test
 
 import (
 	"encoding/json"
-	"fmt"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -79,8 +78,8 @@ var _ = Describe("Offline cluster detection", func() {
 			Eventually(func(g Gomega) {
 				out, err := k.Get(
 					"bundledeployments", "-A",
-					"-l", fmt.Sprintf("fleet.cattle.io/bundle-name=%s", name),
-					"-l", fmt.Sprintf("fleet.cattle.io/bundle-namespace=%s", env.ClusterRegistrationNamespace),
+					"-l", "fleet.cattle.io/bundle-name="+name,
+					"-l", "fleet.cattle.io/bundle-namespace="+env.ClusterRegistrationNamespace,
 					"-o", `jsonpath={.items[0].status.conditions}`,
 				)
 				g.Expect(err).ToNot(HaveOccurred(), out)
@@ -108,8 +107,8 @@ var _ = Describe("Offline cluster detection", func() {
 			Eventually(func(g Gomega) {
 				out, err := k.Get(
 					"bundledeployments", "-A",
-					"-l", fmt.Sprintf("fleet.cattle.io/bundle-name=%s", name),
-					"-l", fmt.Sprintf("fleet.cattle.io/bundle-namespace=%s", env.ClusterRegistrationNamespace),
+					"-l", "fleet.cattle.io/bundle-name="+name,
+					"-l", "fleet.cattle.io/bundle-namespace="+env.ClusterRegistrationNamespace,
 					"-o", `jsonpath={.items[0].status.conditions}`,
 				)
 				g.Expect(err).ToNot(HaveOccurred(), out)
@@ -137,8 +136,8 @@ var _ = Describe("Offline cluster detection", func() {
 			Eventually(func(g Gomega) {
 				out, err := k.Get(
 					"bundledeployments", "-A",
-					"-l", fmt.Sprintf("fleet.cattle.io/bundle-name=%s", name),
-					"-l", fmt.Sprintf("fleet.cattle.io/bundle-namespace=%s", env.ClusterRegistrationNamespace),
+					"-l", "fleet.cattle.io/bundle-name="+name,
+					"-l", "fleet.cattle.io/bundle-namespace="+env.ClusterRegistrationNamespace,
 					"-o", `jsonpath={.items[0].status.conditions}`,
 				)
 				g.Expect(err).ToNot(HaveOccurred(), out)
