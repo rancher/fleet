@@ -7,9 +7,9 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	fleet_testenv "github.com/rancher/fleet/e2e/testenv"
 	"github.com/rancher/fleet/integrationtests/utils"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/monitor"
-
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	corev1 "k8s.io/api/core/v1"
@@ -236,7 +236,7 @@ var _ = Describe("Cluster Status Fields", func() {
 				return k8sClient.Status().Update(ctx, bd)
 			}).ShouldNot(HaveOccurred())
 
-			By("Checking cluster status")
+			By("Checking offline cluster status")
 			cluster := &v1alpha1.Cluster{}
 			Eventually(func(g Gomega) {
 				err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "cluster"}, cluster)
@@ -251,6 +251,40 @@ var _ = Describe("Cluster Status Fields", func() {
 					}
 				}
 			}).Should(Succeed())
+
+			By("Marking the bundledeployment as online again")
+			bd = &v1alpha1.BundleDeployment{}
+			Eventually(func() error {
+				err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "my-bundle"}, bd)
+				if err != nil {
+					return err
+				}
+
+				mc := monitor.Cond(v1alpha1.BundleDeploymentConditionReady)
+				mc.SetError(&bd.Status, "", nil)
+				mc.True(&bd.Status)
+
+				mc = monitor.Cond(v1alpha1.BundleDeploymentConditionMonitored)
+				mc.SetError(&bd.Status, "", nil)
+				mc.True(&bd.Status)
+
+				return k8sClient.Status().Update(ctx, bd)
+			}).ShouldNot(HaveOccurred())
+
+			By("Checking online cluster status")
+			Eventually(func(g Gomega) {
+				cluster = &v1alpha1.Cluster{}
+				err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "cluster"}, cluster)
+				g.Expect(err).NotTo(HaveOccurred())
+
+				for _, cond := range cluster.Status.Conditions {
+					switch cond.Type {
+					case v1alpha1.ClusterConditionReady, "Reconciled":
+						g.Expect(cond.Message).NotTo(ContainSubstring("offline")) // may be "WaitApplied..."
+						g.Expect(cond.Reason).To(BeEmpty())
+					}
+				}
+			}, fleet_testenv.MediumTimeout, fleet_testenv.ShortTimeout).Should(Succeed())
 		})
 	})
 })

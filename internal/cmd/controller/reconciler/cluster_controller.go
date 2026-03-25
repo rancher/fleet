@@ -43,6 +43,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
 
+var offlineConds = []string{
+	fleet.ClusterConditionReady,
+	"Reconciled",
+}
+
 var LongRetry = wait.Backoff{
 	Steps:    5,
 	Duration: 5 * time.Second,
@@ -241,20 +246,26 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			helmOps[helmOpKey] = (state == fleet.Ready) || helmOps[helmOpKey]
 		}
 
-		if isClusterOffline {
-			continue
-		}
-
 		if summary.MessageFromCondition(fleet.ClusterConditionReady, bd.Status.Conditions) == fleet.ClusterOfflineMsg {
+			// bundle deployment offline, mark cluster offline
+			if isClusterOffline {
+				continue
+			}
+
 			isClusterOffline = true
 
-			ready := monitor.Cond(fleet.ClusterConditionReady)
-			ready.SetError(&cluster.Status, "Cluster offline", errors.New(fleet.ClusterOfflineMsg))
-			ready.Unknown(&cluster.Status)
+			for _, c := range offlineConds {
+				cond := monitor.Cond(c)
+				cond.SetError(&cluster.Status, "Cluster offline", errors.New(fleet.ClusterOfflineMsg))
+				cond.Unknown(&cluster.Status)
+			}
 
-			reconciled := monitor.Cond("Reconciled")
-			reconciled.SetError(&cluster.Status, "Cluster offline", errors.New(fleet.ClusterOfflineMsg))
-			reconciled.Unknown(&cluster.Status)
+		} else if summary.MessageFromCondition(fleet.ClusterConditionReady, cluster.Status.Conditions) == fleet.ClusterOfflineMsg {
+			// bundle deployment online, mark offline cluster back online
+			for _, c := range offlineConds {
+				cond := monitor.Cond(c)
+				cond.SetError(&cluster.Status, "", nil)
+			}
 		}
 	}
 
