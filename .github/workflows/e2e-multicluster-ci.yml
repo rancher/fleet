@@ -82,7 +82,7 @@ jobs:
             -p "443:443@agent:0:direct" \
             --api-port 6443 \
             --agents 1 \
-            --network "nw01"
+            --network "fleet"
       -
         name: Provision k3d Downstream Cluster for agent-initiated registration
         run: |
@@ -91,7 +91,7 @@ jobs:
             -p "444:443@agent:0:direct" \
             --api-port 6644 \
             --agents 1 \
-            --network "nw01"
+            --network "fleet"
       -
         name: Provision k3d Downstream Cluster for manager-initiated registration
         run: |
@@ -100,7 +100,7 @@ jobs:
             -p "445:443@agent:0:direct" \
             --api-port 6645 \
             --agents 1 \
-            --network "nw01"
+            --network "fleet"
       -
         name: Import Images Into k3d
         run: |
@@ -213,6 +213,7 @@ jobs:
         env:
           FLEET_E2E_NS: fleet-local
           FLEET_E2E_NS_DOWNSTREAM: fleet-default
+          FLEET_E2E_CLUSTER_DOWNSTREAM: k3d-downstream
         run: |
           # Force use of non-managed downstream cluster for portability
           export CI_REGISTERED_CLUSTER=$(kubectl get clusters.fleet.cattle.io -n $FLEET_E2E_NS_DOWNSTREAM -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}' | grep -v second)
