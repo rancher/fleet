@@ -2,6 +2,7 @@ package multicluster_test
 
 import (
 	"encoding/json"
+	"os/exec"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -18,14 +19,12 @@ import (
 var _ = Describe("Offline cluster detection", func() {
 	var (
 		k     kubectl.Command
-		kd    kubectl.Command
 		asset string
 		name  string
 	)
 
 	BeforeEach(func() {
 		k = env.Kubectl.Context(env.Upstream)
-		kd = env.Kubectl.Context(env.Downstream).Namespace("fleet-default")
 	})
 
 	Context("cluster with deployed workload becomes offline", func() {
@@ -55,8 +54,8 @@ var _ = Describe("Offline cluster detection", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			DeferCleanup(func() {
-				out, err := kd.Namespace("cattle-fleet-system").Run("scale", "deployment", "fleet-agent", "--replicas=1", "--timeout=60s")
-				Expect(err).ToNot(HaveOccurred(), out)
+				connectCmd := exec.Command("docker", "network", "connect", "fleet", "k3d-"+k3dDownstreamCluster+"-server-0")
+				_, _ = connectCmd.CombinedOutput() // will fail if the node is already connected.
 
 				_, _ = k.Namespace(env.ClusterRegistrationNamespace).Delete("helmop", name)
 			})
@@ -88,8 +87,9 @@ var _ = Describe("Offline cluster detection", func() {
 			}).To(Succeed())
 
 			By("taking the cluster offline")
-			out, err := kd.Namespace("cattle-fleet-system").Run("scale", "deployment", "fleet-agent", "--replicas=0", "--timeout=60s")
-			Expect(err).ToNot(HaveOccurred(), out)
+			disconnectCmd := exec.Command("docker", "network", "disconnect", "fleet", "k3d-"+k3dDownstreamCluster+"-server-0")
+			out, err := disconnectCmd.CombinedOutput()
+			Expect(err).ToNot(HaveOccurred(), string(out))
 
 			By("checking that the bundle deployment and the cluster appear offline")
 			// Cluster should be offline
@@ -117,8 +117,9 @@ var _ = Describe("Offline cluster detection", func() {
 			}).To(Succeed())
 
 			By("taking the cluster back online")
-			out, err = kd.Namespace("cattle-fleet-system").Run("scale", "deployment", "fleet-agent", "--replicas=1", "--timeout=60s")
-			Expect(err).ToNot(HaveOccurred(), out)
+			connectCmd := exec.Command("docker", "network", "connect", "fleet", "k3d-"+k3dDownstreamCluster+"-server-0")
+			out, err = connectCmd.CombinedOutput()
+			Expect(err).ToNot(HaveOccurred(), string(out))
 
 			By("checking the new online state of the cluster")
 			// Cluster should be ready again
