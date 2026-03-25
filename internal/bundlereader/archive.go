@@ -16,6 +16,34 @@ import (
 	"github.com/ulikunitz/xz"
 )
 
+// openDecompressor wraps r in a decompressor for the given file extension.
+// The caller must call the returned cleanup func (typically via defer).
+func openDecompressor(ext string, r io.Reader) (io.Reader, func(), error) {
+	switch ext {
+	case ".gz":
+		gz, err := gzip.NewReader(r)
+		if err != nil {
+			return nil, nil, fmt.Errorf("opening gzip reader: %w", err)
+		}
+		return gz, func() { gz.Close() }, nil
+	case ".bz2":
+		return bzip2.NewReader(r), func() {}, nil
+	case ".zst":
+		zr, err := zstd.NewReader(r)
+		if err != nil {
+			return nil, nil, fmt.Errorf("opening zstd reader: %w", err)
+		}
+		return zr, zr.Close, nil
+	case ".xz":
+		xr, err := xz.NewReader(r)
+		if err != nil {
+			return nil, nil, fmt.Errorf("opening xz reader: %w", err)
+		}
+		return xr, func() {}, nil
+	}
+	return nil, nil, fmt.Errorf("unknown compression format %q", ext)
+}
+
 // extractResponse writes the content of r into dst.
 // filename is used to detect the archive type by extension.
 // archiveOverride, when non-empty, takes precedence over the filename extension.
@@ -24,28 +52,56 @@ func extractResponse(dst, filename, archiveOverride string, r io.Reader) error {
 	if lower == "" {
 		lower = strings.ToLower(filename)
 	}
+
+	// Compressed tar: detect the outer compression layer, unwrap it, then
+	// extract the inner tar. Checked before the single-extension cases so that
+	// ".tar.gz" is never mistaken for a bare ".gz" single-file.
+	for _, ct := range []struct{ suffix, ext string }{
+		{".tar.gz", ".gz"}, {".tgz", ".gz"},
+		{".tar.bz2", ".bz2"}, {".tbz2", ".bz2"},
+		{".tar.zst", ".zst"}, {".tar.zstd", ".zst"}, {".tzst", ".zst"},
+		{".tar.xz", ".xz"}, {".txz", ".xz"},
+	} {
+		if strings.HasSuffix(lower, ct.suffix) {
+			dr, cleanup, err := openDecompressor(ct.ext, r)
+			if err != nil {
+				return err
+			}
+			defer cleanup()
+			return extractTar(dst, dr)
+		}
+	}
+
 	switch {
-	case strings.HasSuffix(lower, ".tar.gz"), strings.HasSuffix(lower, ".tgz"):
-		return extractTarGz(dst, r)
-	case strings.HasSuffix(lower, ".tar.bz2"), strings.HasSuffix(lower, ".tbz2"):
-		return extractTarBz2(dst, r)
-	case strings.HasSuffix(lower, ".tar.zst"), strings.HasSuffix(lower, ".tar.zstd"),
-		strings.HasSuffix(lower, ".tzst"):
-		return extractTarZst(dst, r)
 	case strings.HasSuffix(lower, ".tar"):
 		return extractTar(dst, r)
-	case strings.HasSuffix(lower, ".gz"):
-		return extractGz(dst, filepath.Base(filename), r)
-	case strings.HasSuffix(lower, ".bz2"):
-		return extractBz2(dst, filepath.Base(filename), r)
-	case strings.HasSuffix(lower, ".zst"), strings.HasSuffix(lower, ".zstd"):
-		return extractZst(dst, filepath.Base(filename), r)
 	case strings.HasSuffix(lower, ".zip"):
 		return extractZipFromReader(dst, r)
-	case strings.HasSuffix(lower, ".tar.xz"), strings.HasSuffix(lower, ".txz"):
-		return extractTarXz(dst, r)
+	case strings.HasSuffix(lower, ".gz"):
+		dr, cleanup, err := openDecompressor(".gz", r)
+		if err != nil {
+			return err
+		}
+		defer cleanup()
+		return extractSingleFile(dst, strings.TrimSuffix(filepath.Base(filename), ".gz"), dr)
+	case strings.HasSuffix(lower, ".bz2"):
+		return extractSingleFile(dst, strings.TrimSuffix(filepath.Base(filename), ".bz2"), bzip2.NewReader(r))
+	case strings.HasSuffix(lower, ".zst"), strings.HasSuffix(lower, ".zstd"):
+		dr, cleanup, err := openDecompressor(".zst", r)
+		if err != nil {
+			return err
+		}
+		defer cleanup()
+		// Trim both .zstd and .zst since either may appear as the extension.
+		base := strings.TrimSuffix(strings.TrimSuffix(filepath.Base(filename), ".zstd"), ".zst")
+		return extractSingleFile(dst, base, dr)
 	case strings.HasSuffix(lower, ".xz"):
-		return extractXz(dst, filepath.Base(filename), r)
+		dr, cleanup, err := openDecompressor(".xz", r)
+		if err != nil {
+			return err
+		}
+		defer cleanup()
+		return extractSingleFile(dst, strings.TrimSuffix(filepath.Base(filename), ".xz"), dr)
 	default:
 		// Plain file: write it under its base name inside dst.
 		// filepath.Base returns "/" for a trailing-slash URL and "." for an
@@ -54,87 +110,12 @@ func extractResponse(dst, filename, archiveOverride string, r io.Reader) error {
 		if name == "/" || name == "." || name == "" {
 			name = "file"
 		}
-		out, err := os.Create(filepath.Join(dst, name))
-		if err != nil {
-			return err
-		}
-		defer out.Close()
-		_, err = io.Copy(out, r)
-		return err
+		return extractSingleFile(dst, name, r)
 	}
 }
 
-// extractTarGz decompresses a gzip-compressed tar archive into dst.
-func extractTarGz(dst string, r io.Reader) error {
-	gz, err := gzip.NewReader(r)
-	if err != nil {
-		return fmt.Errorf("opening gzip reader: %w", err)
-	}
-	defer gz.Close()
-	return extractTar(dst, gz)
-}
-
-// extractTarBz2 decompresses a bzip2-compressed tar archive into dst.
-func extractTarBz2(dst string, r io.Reader) error {
-	return extractTar(dst, bzip2.NewReader(r))
-}
-
-// extractTarZst decompresses a zstd-compressed tar archive into dst.
-func extractTarZst(dst string, r io.Reader) error {
-	zr, err := zstd.NewReader(r)
-	if err != nil {
-		return fmt.Errorf("opening zstd reader: %w", err)
-	}
-	defer zr.Close()
-	return extractTar(dst, zr)
-}
-
-// extractTarXz decompresses an xz-compressed tar archive into dst.
-func extractTarXz(dst string, r io.Reader) error {
-	xr, err := xz.NewReader(r)
-	if err != nil {
-		return fmt.Errorf("opening xz reader: %w", err)
-	}
-	return extractTar(dst, xr)
-}
-
-// extractGz decompresses a single gzip-compressed file into dst/name.
-func extractGz(dst, name string, r io.Reader) error {
-	gz, err := gzip.NewReader(r)
-	if err != nil {
-		return fmt.Errorf("opening gzip reader: %w", err)
-	}
-	defer gz.Close()
-	return extractSingleFile(dst, strings.TrimSuffix(name, ".gz"), gz)
-}
-
-// extractBz2 decompresses a single bzip2-compressed file into dst/name.
-func extractBz2(dst, name string, r io.Reader) error {
-	return extractSingleFile(dst, strings.TrimSuffix(name, ".bz2"), bzip2.NewReader(r))
-}
-
-// extractZst decompresses a single zstd-compressed file into dst/name.
-func extractZst(dst, name string, r io.Reader) error {
-	zr, err := zstd.NewReader(r)
-	if err != nil {
-		return fmt.Errorf("opening zstd reader: %w", err)
-	}
-	defer zr.Close()
-	// Handle both .zst and .zstd extensions (e.g. when ?archive=.zstd is used).
-	return extractSingleFile(dst, strings.TrimSuffix(strings.TrimSuffix(name, ".zstd"), ".zst"), zr)
-}
-
-// extractXz decompresses a single xz-compressed file into dst/name.
-func extractXz(dst, name string, r io.Reader) error {
-	xr, err := xz.NewReader(r)
-	if err != nil {
-		return fmt.Errorf("opening xz reader: %w", err)
-	}
-	return extractSingleFile(dst, strings.TrimSuffix(name, ".xz"), xr)
-}
-
-// extractSingleFile writes the content of r into a single file under dst named
-// outName. An empty outName is replaced with "file".
+// extractSingleFile writes the content of r into dst/outName.
+// An empty outName is replaced with "file".
 func extractSingleFile(dst, outName string, r io.Reader) error {
 	if outName == "" {
 		outName = "file"
@@ -192,6 +173,7 @@ func extractTar(dst string, r io.Reader) error {
 			}
 			// Validate the target resolves within the extraction root when expanded
 			// relative to the directory containing the link (not relative to dst itself).
+			//
 			//nolint:gosec // G305: path traversal is prevented by the filepath.Rel check below.
 			resolved := filepath.Join(filepath.Dir(target), hdr.Linkname)
 			rel, err := filepath.Rel(filepath.Clean(dst), filepath.Clean(resolved))
