@@ -16,6 +16,15 @@ import (
 	"github.com/ulikunitz/xz"
 )
 
+var (
+	// MaxDecompressedBytes caps the total uncompressed bytes accepted from a
+	// single archive. This prevents a compressed archive ("zip bomb") from
+	// exhausting disk space. 2 GB is generous for the chart/bundle use case.
+	MaxDecompressedBytes int64 = 2 * 1024 * 1024 * 1024
+	// MaxArchiveFiles caps the number of entries extracted from a single archive.
+	MaxArchiveFiles = 100_000
+)
+
 // openDecompressor wraps r in a decompressor for the given file extension.
 // The caller must call the returned cleanup func (typically via defer).
 func openDecompressor(ext string, r io.Reader) (io.Reader, func(), error) {
@@ -126,13 +135,23 @@ func extractSingleFile(dst, outName string, r io.Reader) error {
 	}
 	defer out.Close()
 
-	_, err = io.Copy(out, r)
-	return err
+	n, err := io.Copy(out, io.LimitReader(r, MaxDecompressedBytes+1))
+	if err != nil {
+		return err
+	}
+	if n > MaxDecompressedBytes {
+		return fmt.Errorf("extracted file exceeds the %d byte limit", MaxDecompressedBytes)
+	}
+	return nil
 }
 
 // extractTar extracts a tar archive into dst.
 func extractTar(dst string, r io.Reader) error {
 	tr := tar.NewReader(r)
+	var (
+		bytesLeft = MaxDecompressedBytes
+		filesLeft = MaxArchiveFiles
+	)
 	for {
 		hdr, err := tr.Next()
 		if errors.Is(err, io.EOF) {
@@ -145,6 +164,11 @@ func extractTar(dst string, r io.Reader) error {
 		target, err := safeJoin(dst, hdr.Name)
 		if err != nil {
 			return err
+		}
+
+		filesLeft--
+		if filesLeft < 0 {
+			return fmt.Errorf("archive contains too many files (limit %d)", MaxArchiveFiles)
 		}
 
 		switch hdr.Typeflag {
@@ -160,12 +184,15 @@ func extractTar(dst string, r io.Reader) error {
 			if err != nil {
 				return err
 			}
-			//nolint:gosec // G110: archive content is sourced from a trusted server configured by the cluster admin
-			if _, err := io.Copy(f, tr); err != nil {
-				f.Close()
+			n, err := io.Copy(f, io.LimitReader(tr, bytesLeft+1))
+			f.Close()
+			bytesLeft -= n
+			if bytesLeft < 0 {
+				return fmt.Errorf("archive extraction exceeds the %d byte limit", MaxDecompressedBytes)
+			}
+			if err != nil {
 				return err
 			}
-			f.Close()
 		case tar.TypeSymlink:
 			// Reject absolute symlink targets outright; they bypass path-safety checks.
 			if filepath.IsAbs(hdr.Linkname) {
@@ -240,7 +267,16 @@ func extractZipFromReader(dst string, r io.Reader) error {
 		return fmt.Errorf("opening zip reader: %w", err)
 	}
 
+	var (
+		bytesLeft = MaxDecompressedBytes
+		filesLeft = MaxArchiveFiles
+	)
 	for _, entry := range zr.File {
+		filesLeft--
+		if filesLeft < 0 {
+			return fmt.Errorf("archive contains too many files (limit %d)", MaxArchiveFiles)
+		}
+
 		target, err := safeJoin(dst, entry.Name)
 		if err != nil {
 			return err
@@ -266,14 +302,16 @@ func extractZipFromReader(dst string, r io.Reader) error {
 			rc.Close()
 			return err
 		}
-		//nolint:gosec // G110: archive content is sourced from a trusted server configured by the cluster admin
-		if _, err := io.Copy(out, rc); err != nil {
-			rc.Close()
-			out.Close()
-			return fmt.Errorf("extracting zip entry %q: %w", entry.Name, err)
-		}
+		n, err := io.Copy(out, io.LimitReader(rc, bytesLeft+1))
 		rc.Close()
 		out.Close()
+		bytesLeft -= n
+		if bytesLeft < 0 {
+			return fmt.Errorf("archive extraction exceeds the %d byte limit", MaxDecompressedBytes)
+		}
+		if err != nil {
+			return fmt.Errorf("extracting zip entry %q: %w", entry.Name, err)
+		}
 	}
 	return nil
 }
