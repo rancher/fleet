@@ -20,7 +20,7 @@ func main() {
 		Boilerplate:   "cmd/codegen/boilerplate.go.txt",
 		Groups: map[string]args.Group{
 			"fleet.cattle.io": {
-				Types: []interface{}{
+				Types: []any{
 					"./pkg/apis/fleet.cattle.io/v1alpha1",
 				},
 			},

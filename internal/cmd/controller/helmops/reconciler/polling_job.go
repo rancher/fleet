@@ -5,6 +5,8 @@ package reconciler
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/hex"
+	"errors"
 	"fmt"
 	"time"
 
@@ -86,7 +88,7 @@ func (j *helmPollingJob) Description() string {
 	hasher.Write([]byte(j.chart))
 	hasher.Write([]byte(j.version))
 
-	chartRefHash := fmt.Sprintf("%x", hasher.Sum(nil))
+	chartRefHash := hex.EncodeToString(hasher.Sum(nil))
 
 	return fmt.Sprintf("helmops-polling-%s-%s-%s", j.namespace, j.name, chartRefHash)
 }
@@ -103,7 +105,7 @@ func (j *helmPollingJob) pollHelm(ctx context.Context) error {
 
 	if h.Spec.Helm == nil {
 		// This should not happen unless something has gone wrong in the reconciler's job management logic.
-		return fmt.Errorf("helm options are unset")
+		return errors.New("helm options are unset")
 	}
 
 	// In case the version constraint has changed before the job was updated or deleted, this prevents an unwanted

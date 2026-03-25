@@ -2,8 +2,8 @@ package cli
 
 import (
 	"bytes"
+	"errors"
 	"flag"
-	"fmt"
 	"os"
 	"reflect"
 
@@ -101,12 +101,12 @@ func (d *Deploy) Run(cmd *cobra.Command, args []string) error {
 
 	emptyContent := &v1alpha1.Content{}
 	if reflect.DeepEqual(c, emptyContent) {
-		return fmt.Errorf("failed to read content resource from file")
+		return errors.New("failed to read content resource from file")
 	}
 
 	emptyBD := &v1alpha1.BundleDeployment{}
 	if reflect.DeepEqual(bd, emptyBD) {
-		return fmt.Errorf("failed to read bundledeployment resource from file")
+		return errors.New("failed to read bundledeployment resource from file")
 	}
 
 	data, err := content.GUnzip(c.Content)

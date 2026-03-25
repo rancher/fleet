@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -142,7 +143,7 @@ func checkIDAnnotation(desc ocispec.Descriptor, id string) error {
 	}
 	idFound, ok := desc.Annotations["id"]
 	if !ok || idFound != id {
-		return fmt.Errorf("could not find expected id in Descriptor's annotations")
+		return errors.New("could not find expected id in Descriptor's annotations")
 	}
 	return nil
 }

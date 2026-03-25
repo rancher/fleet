@@ -205,7 +205,7 @@ func generateValues(base string, chart *fleet.HelmOptions) (valuesMap *fleet.Gen
 }
 
 func mergeGenericMap(first, second *fleet.GenericMap) *fleet.GenericMap {
-	result := &fleet.GenericMap{Data: make(map[string]interface{})}
+	result := &fleet.GenericMap{Data: make(map[string]any)}
 	result.Data = data.MergeMaps(first.Data, second.Data)
 	return result
 }

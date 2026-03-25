@@ -1,7 +1,6 @@
 package singlecluster_test
 
 import (
-	"fmt"
 	"math/rand"
 	"os"
 	"path"
@@ -42,7 +41,7 @@ var _ = Describe("Helm v4 Null Field Drift Detection", Label("infra-setup"), fun
 
 		addr, err := githelper.GetExternalRepoAddr(env, gitServerPort, localRepoName)
 		Expect(err).ToNot(HaveOccurred())
-		addr = strings.Replace(addr, "http://", fmt.Sprintf("%s://", gitProtocol), 1)
+		addr = strings.Replace(addr, "http://", gitProtocol+"://", 1)
 		gh = githelper.NewHTTP(addr)
 
 		inClusterRepoURL = gh.GetInClusterURL(host, gitServerPort, localRepoName)
@@ -66,7 +65,7 @@ var _ = Describe("Helm v4 Null Field Drift Detection", Label("infra-setup"), fun
 				"bundledeployments",
 				"-A",
 				"-l",
-				fmt.Sprintf("fleet.cattle.io/repo-name=%s", gitrepoName),
+				"fleet.cattle.io/repo-name="+gitrepoName,
 			)
 			g.Expect(out).To(ContainSubstring("No resources found"))
 		}).Should(Succeed())
@@ -100,7 +99,7 @@ var _ = Describe("Helm v4 Null Field Drift Detection", Label("infra-setup"), fun
 		It("should not detect drift from Helm v4 rendering", func() {
 			By("checking the bundle is ready")
 			Eventually(func(g Gomega) {
-				out, err := k.Get("bundles", "-A", "-l", fmt.Sprintf("fleet.cattle.io/repo-name=%s", gitrepoName))
+				out, err := k.Get("bundles", "-A", "-l", "fleet.cattle.io/repo-name="+gitrepoName)
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(out).To(ContainSubstring("fleet-local"))
 			}, testenv.MediumTimeout, testenv.ShortTimeout).Should(Succeed())
@@ -108,7 +107,7 @@ var _ = Describe("Helm v4 Null Field Drift Detection", Label("infra-setup"), fun
 			By("checking the bundle deployment is ready")
 			var bundleDeploymentName, bdNamespace string
 			Eventually(func(g Gomega) {
-				out, err := k.Get("bundledeployments", "-A", "-o", "jsonpath={.items[0]['metadata.name','metadata.namespace']}", "-l", fmt.Sprintf("fleet.cattle.io/repo-name=%s", gitrepoName))
+				out, err := k.Get("bundledeployments", "-A", "-o", "jsonpath={.items[0]['metadata.name','metadata.namespace']}", "-l", "fleet.cattle.io/repo-name="+gitrepoName)
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(out).ToNot(BeEmpty())
 

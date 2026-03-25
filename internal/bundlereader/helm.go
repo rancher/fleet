@@ -2,7 +2,7 @@ package bundlereader
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"os"
 
 	"github.com/rancher/fleet/internal/manifest"
@@ -17,7 +17,7 @@ func GetManifestFromHelmChart(ctx context.Context, c client.Reader, bd *fleet.Bu
 	helm := bd.Spec.Options.Helm
 
 	if helm == nil {
-		return nil, fmt.Errorf("helm options not found")
+		return nil, errors.New("helm options not found")
 	}
 	temp, err := os.MkdirTemp("", "helmop")
 	if err != nil {

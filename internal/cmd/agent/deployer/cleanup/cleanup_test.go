@@ -4,7 +4,6 @@ package cleanup
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -26,22 +25,22 @@ func TestCleanupReleases(t *testing.T) {
 	deployedBundles := []helmdeployer.DeployedBundle{
 		{
 			BundleID:    "ID1",
-			ReleaseName: fmt.Sprintf("%s/TestRelease1", defaultNS),
+			ReleaseName: defaultNS + "/TestRelease1",
 		},
 		{
 			BundleID:    "ID2",
-			ReleaseName: fmt.Sprintf("%s/TestRelease2", defaultNS),
+			ReleaseName: defaultNS + "/TestRelease2",
 		},
 		{
 			BundleID:    "ID3",
-			ReleaseName: fmt.Sprintf("%s/TestRelease3", defaultNS),
+			ReleaseName: defaultNS + "/TestRelease3",
 		},
 	}
 
 	mockClient := mocks.NewMockK8sClient(mockCtrl)
 	bd := &fleet.BundleDeployment{}
 	mockClient.EXPECT().Get(gomock.Any(), types.NamespacedName{Namespace: fleetNS, Name: "ID1"}, bd).DoAndReturn(
-		func(_ context.Context, _ types.NamespacedName, bd *fleet.BundleDeployment, _ ...interface{}) error {
+		func(_ context.Context, _ types.NamespacedName, bd *fleet.BundleDeployment, _ ...any) error {
 			bd.Spec.Options.TargetNamespace = defaultNS
 			bd.Spec.Options.Helm = &fleet.HelmOptions{
 				ReleaseName: "TestRelease1", // will be kept
@@ -52,7 +51,7 @@ func TestCleanupReleases(t *testing.T) {
 	)
 
 	mockClient.EXPECT().Get(gomock.Any(), types.NamespacedName{Namespace: fleetNS, Name: "ID2"}, bd).DoAndReturn(
-		func(_ context.Context, _ types.NamespacedName, bd *fleet.BundleDeployment, _ ...interface{}) error {
+		func(_ context.Context, _ types.NamespacedName, bd *fleet.BundleDeployment, _ ...any) error {
 			bd.Spec.Options.TargetNamespace = defaultNS
 			bd.Spec.Options.Helm = &fleet.HelmOptions{
 				ReleaseName: "TestRelease2-old", // will be deleted
@@ -63,7 +62,7 @@ func TestCleanupReleases(t *testing.T) {
 	)
 
 	mockClient.EXPECT().Get(gomock.Any(), types.NamespacedName{Namespace: fleetNS, Name: "ID3"}, bd).DoAndReturn(
-		func(_ context.Context, _ types.NamespacedName, bd *fleet.BundleDeployment, _ ...interface{}) error {
+		func(_ context.Context, _ types.NamespacedName, bd *fleet.BundleDeployment, _ ...any) error {
 			bd.Spec.Options.TargetNamespace = defaultNS + "-old" // will be deleted
 			bd.Spec.Options.Helm = &fleet.HelmOptions{
 				ReleaseName: "TestRelease3",

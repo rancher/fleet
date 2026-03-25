@@ -609,8 +609,8 @@ func save(ctx context.Context, c client.Client, bundle *fleet.Bundle) (*fleet.Bu
 			// this bundle was previously deployed to an OCI registry.
 			// Delete the OCI artifact as it's no longer required.
 			if err := deleteOCIManifest(ctx, c, bundle, ocistorage.OCIOpts{}); err != nil {
-				// we log the error and continue, since the OCI registry is an external entity to the the cluster
-				// we may encounter various types of transient errors (such as connection or access issues).
+				// return the error, since the OCI registry is an external entity to the cluster
+				// and we may encounter various types of transient errors (such as connection or access issues).
 				logrus.Warnf("deleting OCI artifact: %v", err)
 				return err
 
@@ -670,7 +670,7 @@ func saveOCIBundle(ctx context.Context, c client.Client, r record.EventRecorder,
 		// delete the previous OCI artifact
 		if bundle.Spec.ContentsID != "" && bundle.Spec.ContentsID != manifestID {
 			if err := deleteOCIManifest(ctx, c, bundle, opts); err != nil {
-				// we log the error and continue, since the OCI registry is an external entity to the the cluster
+				// we log the error and continue, since the OCI registry is an external entity to the cluster
 				// we may encounter various types of transient errors (such as connection or access issues).
 				logrus.Warnf("deleting OCI artifact: %v", err)
 				sendWarningEvent(r, bundle.Namespace, bundle.Spec.ContentsID, err)
@@ -936,7 +936,7 @@ func GetBundleCreationMaxConcurrency() (int, error) {
 
 type k8sWithNS struct {
 	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.ObjectMeta `json:"metadata"`
 }
 
 func getKindNS(br fleet.BundleResource, bundleName string) (fleet.OverwrittenResource, error) {

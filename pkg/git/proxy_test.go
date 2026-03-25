@@ -463,7 +463,7 @@ func TestHTTPConnectDialer_ContextCancelled(t *testing.T) {
 	// Use a forward dialer that blocks until the test context is done.
 	blocking := &recordingDialer{dial: func(network, addr string) (net.Conn, error) {
 		<-t.Context().Done()
-		return nil, fmt.Errorf("should not reach here")
+		return nil, errors.New("should not reach here")
 	}}
 
 	d := mustDialContext(t, parseURL(t, "http://127.0.0.1:3128"), blocking)

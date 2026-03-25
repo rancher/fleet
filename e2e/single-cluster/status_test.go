@@ -3,7 +3,6 @@ package singlecluster_test
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"math/rand"
 	"os"
 	"path"
@@ -180,7 +179,7 @@ var _ = Describe("Checks that template errors are shown in bundles and gitrepos"
 				"bundledeployments",
 				"-A",
 				"-l",
-				fmt.Sprintf("fleet.cattle.io/repo-name=%s", gitrepoName),
+				"fleet.cattle.io/repo-name="+gitrepoName,
 			)
 			g.Expect(out).To(ContainSubstring("No resources found"))
 		}).Should(Succeed())
@@ -333,7 +332,7 @@ var _ = Describe("Bundle status does not retain stale error for offline cluster 
 				"bundledeployments",
 				"-A",
 				"-l",
-				fmt.Sprintf("fleet.cattle.io/repo-name=%s", gitrepoName),
+				"fleet.cattle.io/repo-name="+gitrepoName,
 			)
 			g.Expect(out).To(ContainSubstring("No resources found"))
 		}).Should(Succeed())

@@ -64,7 +64,7 @@ func start(
 
 	var leaderElectionSuffix string
 	if shardID != "" {
-		leaderElectionSuffix = fmt.Sprintf("-%s", shardID)
+		leaderElectionSuffix = "-" + shardID
 	}
 
 	mgr, err := ctrl.NewManager(config, ctrl.Options{
@@ -73,7 +73,7 @@ func start(
 		HealthProbeBindAddress: bindAddresses.HealthProbe,
 
 		LeaderElection:          leaderElection,
-		LeaderElectionID:        fmt.Sprintf("fleet-controller-leader-election-shard%s", leaderElectionSuffix),
+		LeaderElectionID:        "fleet-controller-leader-election-shard" + leaderElectionSuffix,
 		LeaderElectionNamespace: systemNamespace,
 		LeaseDuration:           &leaderOpts.LeaseDuration,
 		RenewDeadline:           &leaderOpts.RenewDeadline,
@@ -115,12 +115,12 @@ func start(
 
 	var shardIDSuffix string
 	if shardID != "" {
-		shardIDSuffix = fmt.Sprintf("-%s", shardID)
+		shardIDSuffix = "-" + shardID
 	}
 	if err = (&reconciler.BundleReconciler{
 		Client:    mgr.GetClient(),
 		Scheme:    mgr.GetScheme(),
-		Recorder:  mgr.GetEventRecorder(fmt.Sprintf("fleet-bundle-ctrl%s", shardIDSuffix)),
+		Recorder:  mgr.GetEventRecorder("fleet-bundle-ctrl" + shardIDSuffix),
 		APIReader: mgr.GetAPIReader(),
 
 		Builder: builder,
@@ -190,7 +190,7 @@ func start(
 		if err = (&reconciler.ScheduleReconciler{
 			Client:   mgr.GetClient(),
 			Scheme:   mgr.GetScheme(),
-			Recorder: mgr.GetEventRecorder(fmt.Sprintf("fleet-schedule-ctrl%s", shardIDSuffix)),
+			Recorder: mgr.GetEventRecorder("fleet-schedule-ctrl" + shardIDSuffix),
 			ShardID:  shardID,
 
 			Workers:   workersOpts.Schedule,

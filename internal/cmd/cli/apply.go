@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 
@@ -20,7 +21,7 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/kubernetes"
 	typedv1core "k8s.io/client-go/kubernetes/typed/core/v1"
@@ -88,7 +89,7 @@ func (a *Apply) Run(cmd *cobra.Command, args []string) error {
 	}
 	for range retries {
 		err = a.run(cmd, args)
-		if !errors.IsConflict(err) {
+		if !apierrors.IsConflict(err) {
 			break
 		}
 	}
@@ -141,7 +142,7 @@ func (a *Apply) run(cmd *cobra.Command, args []string) error {
 	case a.File == "-":
 		opts.BundleReader = os.Stdin
 		if len(args) != 1 {
-			return fmt.Errorf("the bundle name is required as the first argument")
+			return errors.New("the bundle name is required as the first argument")
 		}
 		name = args[0]
 	case a.File != "":
@@ -152,11 +153,11 @@ func (a *Apply) run(cmd *cobra.Command, args []string) error {
 		defer f.Close()
 		opts.BundleReader = f
 		if len(args) != 1 {
-			return fmt.Errorf("the bundle name is required as the first argument")
+			return errors.New("the bundle name is required as the first argument")
 		}
 		name = args[0]
 	case len(args) < 1:
-		return fmt.Errorf("at least one arguments is required BUNDLE_NAME")
+		return errors.New("at least one argument is required: BUNDLE_NAME")
 	default:
 		name = args[0]
 		args = args[1:]

@@ -1,7 +1,7 @@
 package metrics
 
 import (
-	"fmt"
+	"strconv"
 
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -58,7 +58,7 @@ func collectBundleDeploymentMetrics(obj any, metrics map[string]prometheus.Colle
 		"commit":            bundleDep.Labels[fleet.CommitLabel],
 		"bundle":            bundleDep.Labels[fleet.BundleLabel],
 		"bundle_namespace":  bundleDep.Labels[fleet.BundleNamespaceLabel],
-		"generation":        fmt.Sprintf("%d", bundleDep.Generation),
+		"generation":        strconv.FormatInt(bundleDep.Generation, 10),
 		"state":             string(currentState),
 	}
 

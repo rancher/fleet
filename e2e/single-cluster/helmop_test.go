@@ -259,7 +259,7 @@ var _ = Describe("HelmOp resource with polling of OCI registry", Label("infra-se
 				name = "basic-oci"
 				insecure = true
 
-				repo = fmt.Sprintf("%s/sleeper-chart", ociRef)
+				repo = ociRef + "/sleeper-chart"
 				chartVersion = "0.1.0" // no polling
 			})
 			It("deploys the chart", func() {
@@ -350,8 +350,8 @@ var _ = Describe("HelmOp resource with polling of OCI registry", Label("infra-se
 				)
 				Expect(err).ToNot(HaveOccurred())
 
-				OCIHost := fmt.Sprintf("%s:8082", externalIP)
-				_, err = OCIClient.Push(chartArchive, fmt.Sprintf("%s/sleeper-chart:0.2.0", OCIHost))
+				OCIHost := externalIP + ":8082"
+				_, err = OCIClient.Push(chartArchive, OCIHost+"/sleeper-chart:0.2.0")
 				Expect(err).ToNot(HaveOccurred())
 
 				By("installing the newer chart version")
@@ -380,7 +380,7 @@ var _ = Describe("HelmOp resource with polling of OCI registry", Label("infra-se
 				name = "basic-oci-invalid"
 				insecure = true
 
-				repo = fmt.Sprintf("%s/sleeper-chart-will-not-be-found", ociRef)
+				repo = ociRef + "/sleeper-chart-will-not-be-found"
 			})
 			It("fails visibly", func() {
 				By("not deploying the chart")
@@ -466,7 +466,7 @@ var _ = Describe("HelmOp resource tests with tarball source", Label("infra-setup
 			name,
 			namespace,
 			"",
-			fmt.Sprintf("%s/charts/sleeper-chart-0.1.0.tgz", getChartMuseumExternalAddr()),
+			getChartMuseumExternalAddr() + "/charts/sleeper-chart-0.1.0.tgz",
 			0,
 			helmOpsSecretName,
 			insecure,

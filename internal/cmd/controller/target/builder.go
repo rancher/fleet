@@ -247,11 +247,11 @@ func preprocessHelmValues(logger logr.Logger, opts *fleet.BundleDeploymentOption
 
 	opts.Helm = opts.Helm.DeepCopy()
 	opts.Helm.Values = cmp.Or(opts.Helm.Values, &fleet.GenericMap{
-		Data: map[string]interface{}{},
+		Data: map[string]any{},
 	})
 
 	if opts.Helm.Values.Data == nil {
-		opts.Helm.Values.Data = map[string]interface{}{}
+		opts.Helm.Values.Data = map[string]any{}
 	}
 
 	if opts.Helm.TemplateValues == nil && len(opts.Helm.Values.Data) == 0 {
@@ -263,12 +263,12 @@ func preprocessHelmValues(logger logr.Logger, opts *fleet.BundleDeploymentOption
 	}
 
 	if !opts.Helm.DisablePreProcess {
-		templateValues := map[string]interface{}{}
+		templateValues := map[string]any{}
 		if cluster.Spec.TemplateValues != nil {
 			templateValues = cluster.Spec.TemplateValues.Data
 		}
 
-		values := map[string]interface{}{
+		values := map[string]any{
 			"ClusterNamespace":   cluster.Namespace,
 			"ClusterName":        cluster.Name,
 			"ClusterLabels":      toDict(clusterLabels),
@@ -296,15 +296,15 @@ func preprocessHelmValues(logger logr.Logger, opts *fleet.BundleDeploymentOption
 }
 
 // sprig dictionary functions like "default" and "hasKey" expect map[string]interface{}
-func toDict(values map[string]string) map[string]interface{} {
-	dict := make(map[string]interface{}, len(values))
+func toDict(values map[string]string) map[string]any {
+	dict := make(map[string]any, len(values))
 	for k, v := range values {
 		dict[k] = v
 	}
 	return dict
 }
 
-func processLabelValues(logger logr.Logger, valuesMap map[string]interface{}, clusterLabels map[string]string, recursionDepth int) error {
+func processLabelValues(logger logr.Logger, valuesMap map[string]any, clusterLabels map[string]string, recursionDepth int) error {
 	if recursionDepth > maxTemplateRecursionDepth {
 		return fmt.Errorf("maximum recursion depth of %v exceeded for cluster label prefix processing, too many nested values", maxTemplateRecursionDepth)
 	}
@@ -322,16 +322,16 @@ func processLabelValues(logger logr.Logger, valuesMap map[string]interface{}, cl
 			}
 		}
 
-		if valMap, ok := val.(map[string]interface{}); ok {
+		if valMap, ok := val.(map[string]any); ok {
 			err := processLabelValues(logger, valMap, clusterLabels, recursionDepth+1)
 			if err != nil {
 				return err
 			}
 		}
 
-		if valArr, ok := val.([]interface{}); ok {
+		if valArr, ok := val.([]any); ok {
 			for _, item := range valArr {
-				if itemMap, ok := item.(map[string]interface{}); ok {
+				if itemMap, ok := item.(map[string]any); ok {
 					err := processLabelValues(logger, itemMap, clusterLabels, recursionDepth+1)
 					if err != nil {
 						return err
@@ -355,8 +355,8 @@ func tplFuncMap() template.FuncMap {
 	return f
 }
 
-func processTemplateValuesData(helmTemplateData map[string]string, templateContext map[string]interface{}) (map[string]interface{}, error) {
-	renderedValues := make(map[string]interface{}, len(helmTemplateData))
+func processTemplateValuesData(helmTemplateData map[string]string, templateContext map[string]any) (map[string]any, error) {
+	renderedValues := make(map[string]any, len(helmTemplateData))
 
 	for k, v := range helmTemplateData {
 		// fleet.yaml must be valid yaml, however '{}[]' are YAML control
@@ -375,7 +375,7 @@ func processTemplateValuesData(helmTemplateData map[string]string, templateConte
 			return nil, fmt.Errorf("failed to render helm values template: %w", err)
 		}
 
-		var value interface{}
+		var value any
 		err = kyaml.Unmarshal(b.Bytes(), &value)
 		if err != nil {
 			return nil, fmt.Errorf("failed to interpret rendered template as helm values: %s, %w", b.String(), err)
@@ -387,7 +387,7 @@ func processTemplateValuesData(helmTemplateData map[string]string, templateConte
 	return renderedValues, nil
 }
 
-func processTemplateValues(helmValues map[string]interface{}, templateContext map[string]interface{}) (map[string]interface{}, error) {
+func processTemplateValues(helmValues map[string]any, templateContext map[string]any) (map[string]any, error) {
 	data, err := kyaml.Marshal(helmValues)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal helm values section into a template: %w", err)
@@ -409,7 +409,7 @@ func processTemplateValues(helmValues map[string]interface{}, templateContext ma
 		return nil, fmt.Errorf("failed to render helm values template: %w", err)
 	}
 
-	var renderedValues map[string]interface{}
+	var renderedValues map[string]any
 	err = kyaml.Unmarshal(b.Bytes(), &renderedValues)
 	if err != nil {
 		return nil, fmt.Errorf("failed to interpret rendered template as helm values: %#v, %w", renderedValues, err)

@@ -84,7 +84,7 @@ func getVersionSet(client discovery.ServerResourcesInterface) (common.VersionSet
 		return common.DefaultVersionSet, nil
 	}
 
-	versionMap := make(map[string]interface{})
+	versionMap := make(map[string]any)
 	versions := []string{}
 
 	// Extract the groups

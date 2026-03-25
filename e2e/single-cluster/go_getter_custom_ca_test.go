@@ -71,7 +71,7 @@ var _ = Describe("Testing CA bundles and insecureSkipVerify for cloning git repo
 	createInvalidCACertFile := func() *os.File {
 		tmpFile, err := os.CreateTemp("", "invalid-ca-*.crt")
 		Expect(err).ToNot(HaveOccurred(), "failed to create temp file for invalid CA bundle")
-		_, err = tmpFile.Write([]byte("invalid-ca-bundle"))
+		_, err = tmpFile.WriteString("invalid-ca-bundle")
 		Expect(err).ToNot(HaveOccurred(), "failed to write invalid CA bundle to temp file")
 		err = tmpFile.Close()
 		Expect(err).ToNot(HaveOccurred(), "failed to close temp file for invalid CA bundle")

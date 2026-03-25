@@ -78,7 +78,7 @@ func modifiedObj(gvk schema.GroupVersionKind, newObject runtime.Object) ([]byte,
 	return modified, err
 }
 
-func emptyMaps(data map[string]interface{}, keys ...string) bool {
+func emptyMaps(data map[string]any, keys ...string) bool {
 	for _, key := range append(keys, "__invalid_key__") {
 		if len(data) == 0 {
 			// map is empty so all children are empty too
@@ -102,7 +102,7 @@ func emptyMaps(data map[string]interface{}, keys ...string) bool {
 
 func sanitizePatch(patch []byte, removeObjectSetAnnotation bool) ([]byte, error) {
 	mod := false
-	data := map[string]interface{}{}
+	data := map[string]any{}
 	err := json.Unmarshal(patch, &data)
 	if err != nil {
 		return nil, err
@@ -214,7 +214,7 @@ func (o *desiredSet) compareObjects(logger logr.Logger, gvk schema.GroupVersionK
 	return nil
 }
 
-func removeCreationTimestamp(data map[string]interface{}) bool {
+func removeCreationTimestamp(data map[string]any) bool {
 	metadata, ok := data["metadata"]
 	if !ok {
 		return false
@@ -229,13 +229,13 @@ func removeCreationTimestamp(data map[string]interface{}) bool {
 	return false
 }
 
-func pruneList(data []interface{}) []interface{} {
-	result := make([]interface{}, 0, len(data))
+func pruneList(data []any) []any {
+	result := make([]any, 0, len(data))
 	for _, v := range data {
 		switch typed := v.(type) {
-		case map[string]interface{}:
+		case map[string]any:
 			result = append(result, pruneValues(typed, true))
-		case []interface{}:
+		case []any:
 			result = append(result, pruneList(typed))
 		default:
 			result = append(result, v)
@@ -244,13 +244,13 @@ func pruneList(data []interface{}) []interface{} {
 	return result
 }
 
-func pruneValues(data map[string]interface{}, isList bool) map[string]interface{} {
-	result := map[string]interface{}{}
+func pruneValues(data map[string]any, isList bool) map[string]any {
+	result := map[string]any{}
 	for k, v := range data {
 		switch typed := v.(type) {
-		case map[string]interface{}:
+		case map[string]any:
 			result[k] = pruneValues(typed, false)
-		case []interface{}:
+		case []any:
 			result[k] = pruneList(typed)
 		default:
 			if isList && knownListKeys[k] {

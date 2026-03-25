@@ -202,7 +202,7 @@ func newNormalizers(live objectset.ObjectByGVK, bd *fleet.BundleDeployment) (dif
 
 			for _, op := range patch.Operations {
 				// compile each operation by itself so that one failing operation doesn't block the others
-				patchData, err := json.Marshal([]interface{}{op})
+				patchData, err := json.Marshal([]any{op})
 				if err != nil {
 					return nil, err
 				}

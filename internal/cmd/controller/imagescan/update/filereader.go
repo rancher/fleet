@@ -18,6 +18,7 @@ package update
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -52,7 +53,7 @@ type ScreeningLocalReader struct {
 // adapting lightly (mainly to leave features out).
 func (r *ScreeningLocalReader) Read() ([]*yaml.RNode, error) {
 	if r.Path == "" {
-		return nil, fmt.Errorf("must supply path to scan for files")
+		return nil, errors.New("must supply path to scan for files")
 	}
 
 	root, err := filepath.Abs(r.Path)

@@ -89,7 +89,7 @@ func (e *Env) GetCluster(name, namespace string) (*fleet.Cluster, error) {
 }
 
 // Unmarshal unmarshals the given JSON string into the provided object.
-func (e *Env) Unmarshal(out string, obj interface{}) error {
+func (e *Env) Unmarshal(out string, obj any) error {
 	return json.Unmarshal([]byte(out), obj)
 }
 

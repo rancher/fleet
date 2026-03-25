@@ -82,10 +82,7 @@ func TestChartYAMLExists(t *testing.T) {
 		},
 	}
 
-	base, err := os.MkdirTemp("", "test-fleet")
-	require.NoError(t, err)
-
-	defer os.RemoveAll(base)
+	base := t.TempDir()
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			testDirPath := filepath.Join(base, c.testDir)

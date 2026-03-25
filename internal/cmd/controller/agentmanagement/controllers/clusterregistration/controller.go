@@ -7,6 +7,7 @@ package clusterregistration
 import (
 	"context"
 	"fmt"
+	"maps"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -378,9 +379,7 @@ func (h *handler) createOrGetCluster(request *fleet.ClusterRegistration) (*fleet
 	// and managed clusters would already exist
 	labels := map[string]string{}
 	if !config.Get().IgnoreClusterRegistrationLabels {
-		for k, v := range request.Spec.ClusterLabels {
-			labels[k] = v
-		}
+		maps.Copy(labels, request.Spec.ClusterLabels)
 	}
 	labels[fleet.ClusterAnnotation] = clusterName
 

@@ -85,14 +85,14 @@ var _ = Describe("ValuesFrom", func() {
 					content := data["values.yaml"]
 					b, err := base64.StdEncoding.DecodeString(content)
 					Expect(err).ToNot(HaveOccurred())
-					values := map[string]interface{}{}
+					values := map[string]any{}
 					err = yaml.Unmarshal(b, &values)
 					Expect(err).ToNot(HaveOccurred())
 
 					Expect(values).To(HaveLen(3))
 					Expect(values).To(HaveKeyWithValue("fleetyaml", "from fleet.yaml"))
 					Expect(values).To(HaveKeyWithValue("name", "name from fleet.yaml"))
-					Expect(values).To(HaveKeyWithValue("options", map[string]interface{}{"english": map[string]interface{}{"name": "english name from fleet.yaml"}}))
+					Expect(values).To(HaveKeyWithValue("options", map[string]any{"english": map[string]any{"name": "english name from fleet.yaml"}}))
 				})
 			})
 		})

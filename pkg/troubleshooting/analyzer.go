@@ -116,7 +116,7 @@ func OutputDiff(w io.Writer, snapshots []*Snapshot) error {
 	})
 
 	if len(snapshots) < 2 {
-		return fmt.Errorf("need at least 2 snapshots to show diff")
+		return errors.New("need at least 2 snapshots to show diff")
 	}
 
 	printHeader(w, fmt.Sprintf("Changes Across %d Snapshots", len(snapshots)))

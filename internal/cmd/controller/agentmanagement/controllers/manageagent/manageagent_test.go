@@ -166,7 +166,7 @@ func TestNewAgentBundle_SortsAgentTolerations(t *testing.T) {
 
 	var found bool
 	for _, d := range docs {
-		var m map[string]interface{}
+		var m map[string]any
 		if err := yaml.Unmarshal([]byte(d), &m); err != nil {
 			continue
 		}

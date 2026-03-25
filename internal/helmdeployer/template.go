@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strconv"
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/rancher/fleet/internal/manifest"
@@ -44,8 +45,8 @@ func Template(ctx context.Context, bundleID string, manifest *manifest.Manifest,
 	h.globalCfg.Capabilities = common.DefaultCapabilities.Copy()
 	h.globalCfg.Capabilities.KubeVersion = common.KubeVersion{
 		Version: kubeVersion.String(),
-		Major:   fmt.Sprint(kubeVersion.Major()),
-		Minor:   fmt.Sprint(kubeVersion.Minor()),
+		Major:   strconv.FormatUint(kubeVersion.Major(), 10),
+		Minor:   strconv.FormatUint(kubeVersion.Minor(), 10),
 	}
 	h.globalCfg.KubeClient = &kubefake.PrintingKubeClient{Out: io.Discard}
 	h.globalCfg.Releases = storage.Init(mem)

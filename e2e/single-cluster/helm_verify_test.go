@@ -86,7 +86,7 @@ var _ = Describe("Helm Chart Values", func() {
 			}).Should(ContainSubstring("test-template-values"))
 			out, _ := k.Namespace("default").Get("configmap", "test-template-values", "-o", "jsonpath={.data}")
 
-			var t map[string]interface{}
+			var t map[string]any
 			err := yaml.Unmarshal([]byte(out), &t)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(t).To(HaveKeyWithValue("name", "name-local"))
