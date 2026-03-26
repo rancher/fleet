@@ -31,9 +31,14 @@ spec:
 {{- if and $.Values.extraLabels $.Values.extraLabels.gitjob }}
 {{ toYaml $.Values.extraLabels.gitjob | indent 8 }}
 {{- end }}
-{{- if and $.Values.extraAnnotations $.Values.extraAnnotations.gitjob }}
+{{- if or $.Values.proxyCACert (and $.Values.extraAnnotations $.Values.extraAnnotations.gitjob) }}
       annotations:
+        {{- if $.Values.proxyCACert }}
+        checksum/proxy-ca: {{ include (print $.Template.BasePath "/configmap_proxy_ca.yaml") $ | sha256sum }}
+        {{- end }}
+        {{- if and $.Values.extraAnnotations $.Values.extraAnnotations.gitjob }}
 {{ toYaml $.Values.extraAnnotations.gitjob | indent 8 }}
+        {{- end }}
 {{- end }}
     spec:
       serviceAccountName: gitjob

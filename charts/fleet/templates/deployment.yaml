@@ -30,9 +30,14 @@ spec:
 {{- if and $.Values.extraLabels $.Values.extraLabels.fleetController }}
 {{ toYaml $.Values.extraLabels.fleetController | indent 8 }}
 {{- end }}
-{{- if and $.Values.extraAnnotations $.Values.extraAnnotations.fleetController }}
+{{- if or $.Values.proxyCACert (and $.Values.extraAnnotations $.Values.extraAnnotations.fleetController) }}
       annotations:
+        {{- if $.Values.proxyCACert }}
+        checksum/proxy-ca: {{ include (print $.Template.BasePath "/configmap_proxy_ca.yaml") $ | sha256sum }}
+        {{- end }}
+        {{- if and $.Values.extraAnnotations $.Values.extraAnnotations.fleetController }}
 {{ toYaml $.Values.extraAnnotations.fleetController | indent 8 }}
+        {{- end }}
 {{- end }}
     spec:
       containers:
