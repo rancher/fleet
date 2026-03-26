@@ -148,7 +148,9 @@ func getCABundleFromFile(path string) ([]byte, error) {
 		}
 	}
 	if proxyCAPEM, ok := os.LookupEnv(fleetgit.ProxyCABundleEnvVar); ok && proxyCAPEM != "" {
-		caBundle = append(caBundle, '\n')
+		if len(caBundle) > 0 && caBundle[len(caBundle)-1] != '\n' {
+			caBundle = append(caBundle, '\n')
+		}
 		caBundle = append(caBundle, []byte(proxyCAPEM)...)
 	}
 	return caBundle, nil
