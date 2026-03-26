@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"fmt"
+	"errors"
 	"net/http"
 	"os"
 
@@ -72,7 +72,7 @@ var _ = Describe("OCIUtils tests", func() {
 
 	It("returns an error when can't push to the store", func() {
 		orasOperatorMock := NewMockOrasOperator(ctrl, false)
-		orasOperatorMock.Target.EXPECT().Push(gomock.Any(), gomock.Any(), gomock.Any()).Return(fmt.Errorf("TEST ERROR")).Times(1)
+		orasOperatorMock.Target.EXPECT().Push(gomock.Any(), gomock.Any(), gomock.Any()).Return(errors.New("TEST ERROR")).Times(1)
 
 		opts := OCIOpts{
 			Reference: "test.com",
@@ -100,7 +100,7 @@ var _ = Describe("OCIUtils tests", func() {
 			_ oras.PackManifestVersion,
 			_ string,
 			_ oras.PackManifestOptions) (ocispec.Descriptor, error) {
-			return ocispec.Descriptor{}, fmt.Errorf("ERROR PACKING")
+			return ocispec.Descriptor{}, errors.New("ERROR PACKING")
 		}
 		oci := &OCIWrapper{
 			oci: orasOperatorMock,

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -583,7 +584,7 @@ func (r *GitJobReconciler) deleteJobIfNeeded(ctx context.Context, gitRepo *v1alp
 	// create a new one
 	if gitRepo.Spec.ForceSyncGeneration != gitRepo.Status.UpdateGeneration {
 		if forceSync, ok := job.Labels[forceSyncGenerationLabel]; ok {
-			t := fmt.Sprintf("%d", gitRepo.Spec.ForceSyncGeneration)
+			t := strconv.FormatInt(gitRepo.Spec.ForceSyncGeneration, 10)
 			if t != forceSync {
 				jobDeletedMessage := "job deletion triggered because of ForceUpdateGeneration"
 				logger.V(1).Info(jobDeletedMessage)
@@ -599,7 +600,7 @@ func (r *GitJobReconciler) deleteJobIfNeeded(ctx context.Context, gitRepo *v1alp
 	// Avoid deleting the job twice
 	if generationChanged(gitRepo) {
 		if gen, ok := job.Labels[generationLabel]; ok {
-			t := fmt.Sprintf("%d", gitRepo.Generation)
+			t := strconv.FormatInt(gitRepo.Generation, 10)
 			if t != gen {
 				jobDeletedMessage := "job deletion triggered because of generation change"
 				logger.V(1).Info(jobDeletedMessage)
@@ -1053,20 +1054,24 @@ func setStatusFromGitjob(ctx context.Context, c client.Client, gitRepo *v1alpha1
 
 		terminationMessage = result.Message
 		if len(podList.Items) > 0 {
+			var terminationMessageSb1056 strings.Builder
 			for _, podStatus := range podList.Items[len(podList.Items)-1].Status.ContainerStatuses {
 				if podStatus.Name != "step-git-source" && podStatus.State.Terminated != nil {
-					terminationMessage += podStatus.State.Terminated.Message
+					terminationMessageSb1056.WriteString(podStatus.State.Terminated.Message)
 				}
 			}
+			terminationMessage += terminationMessageSb1056.String()
 
 			// set also the message from init containers (if they failed)
+			var terminationMessageSb1063 strings.Builder
 			for _, podStatus := range podList.Items[len(podList.Items)-1].Status.InitContainerStatuses {
 				if podStatus.Name != "step-git-source" &&
 					podStatus.State.Terminated != nil &&
 					podStatus.State.Terminated.ExitCode != 0 {
-					terminationMessage += podStatus.State.Terminated.Message
+					terminationMessageSb1063.WriteString(podStatus.State.Terminated.Message)
 				}
 			}
+			terminationMessage += terminationMessageSb1063.String()
 		}
 	}
 
@@ -1176,12 +1181,12 @@ func updateStatus(ctx context.Context, c client.Client, req types.NamespacedName
 func filterFleetCLIJobOutput(output string) string {
 	// first split the output in lines
 	lines := strings.Split(output, "\n")
-	s := ""
+	var sb strings.Builder
 	for _, l := range lines {
-		s += getFleetCLIErrorsFromLine(l)
+		sb.WriteString(getFleetCLIErrorsFromLine(l))
 	}
 
-	s = strings.Trim(s, "\n")
+	s := strings.Trim(sb.String(), "\n")
 	// in the case that all the messages from fleet apply are from libraries
 	// we just report an unknown error
 	if s == "" {

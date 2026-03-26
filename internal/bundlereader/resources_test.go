@@ -55,41 +55,41 @@ func TestValueMerge(t *testing.T) {
 		if !ok {
 			t.Fatalf("unable to find parent key for service %s", serviceName)
 		}
-		resourceVals, ok := serviceVals.(map[string]interface{})["resources"]
+		resourceVals, ok := serviceVals.(map[string]any)["resources"]
 		if !ok {
 			t.Fatalf("unable to find key resources in values for service %s", serviceName)
 		}
 
-		limitVals, ok := resourceVals.(map[string]interface{})["limits"]
+		limitVals, ok := resourceVals.(map[string]any)["limits"]
 		if !ok {
 			t.Fatalf("unable to find key limits in resources for service %s", serviceName)
 		}
 
-		_, ok = limitVals.(map[string]interface{})["cpu"]
+		_, ok = limitVals.(map[string]any)["cpu"]
 		if !ok {
 			t.Fatalf("unable to find key cpu in limits for service %s", serviceName)
 		}
 
-		_, ok = limitVals.(map[string]interface{})["memory"]
+		_, ok = limitVals.(map[string]any)["memory"]
 		if !ok {
 			t.Fatalf("unable to find key memory in limits for service %s", serviceName)
 		}
 
-		requestVals, ok := resourceVals.(map[string]interface{})["requests"]
+		requestVals, ok := resourceVals.(map[string]any)["requests"]
 		if !ok {
 			t.Fatalf("unable to find key requests in resources for service %s", serviceName)
 		}
 
-		_, ok = requestVals.(map[string]interface{})["cpu"]
+		_, ok = requestVals.(map[string]any)["cpu"]
 		if !ok {
 			t.Fatalf("unable to find key cpu in requests for service %s", serviceName)
 		}
 
-		_, ok = requestVals.(map[string]interface{})["memory"]
+		_, ok = requestVals.(map[string]any)["memory"]
 		if !ok {
 			t.Fatalf("unable to find key memory in requests for service %s", serviceName)
 		}
-		_, ok = serviceVals.(map[string]interface{})["replicas"]
+		_, ok = serviceVals.(map[string]any)["replicas"]
 		if !ok {
 			t.Fatalf("unable to find key replicas in values for service %s", serviceName)
 		}

@@ -42,7 +42,7 @@ var _ = Describe("Deleting a resource with finalizers", Ordered, func() {
 				"bundledeployments",
 				"-A",
 				"-l",
-				fmt.Sprintf("fleet.cattle.io/repo-name=%s", gitrepoName),
+				"fleet.cattle.io/repo-name="+gitrepoName,
 				"-o=jsonpath={.items[*].spec.deploymentID}",
 			)
 			g.Expect(err).ToNot(HaveOccurred())
@@ -133,10 +133,10 @@ var _ = Describe("Deleting a resource with finalizers", Ordered, func() {
 			Expect(out).To(ContainSubstring(gitrepoName))
 
 			By("checking that the auxiliary resources still exist")
-			serviceAccountName := fmt.Sprintf("git-%s", gitrepoName)
+			serviceAccountName := "git-" + gitrepoName
 			Consistently(func() error {
 				out, _ := k.Get("configmaps")
-				if !strings.Contains(out, fmt.Sprintf("%s-config", gitrepoName)) {
+				if !strings.Contains(out, gitrepoName+"-config") {
 					return errors.New("configmap not found")
 				}
 
@@ -175,7 +175,7 @@ var _ = Describe("Deleting a resource with finalizers", Ordered, func() {
 			By("checking that the auxiliary resources don't exist anymore")
 			Eventually(func() error {
 				out, _ := k.Get("configmaps")
-				if strings.Contains(out, fmt.Sprintf("%s-config", gitrepoName)) {
+				if strings.Contains(out, gitrepoName+"-config") {
 					return errors.New("configmap not expected")
 				}
 

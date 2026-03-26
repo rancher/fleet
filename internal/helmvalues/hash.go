@@ -2,8 +2,8 @@ package helmvalues
 
 import (
 	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
-	"fmt"
 )
 
 const (
@@ -20,7 +20,7 @@ func HashValuesSecret(data map[string][]byte) (string, error) {
 		return "", err
 	}
 	hasher.Write(b)
-	return fmt.Sprintf("%x", hasher.Sum(nil)), nil
+	return hex.EncodeToString(hasher.Sum(nil)), nil
 }
 
 // HashOptions hashes the bytes passed in. This is used to create a hash of the
@@ -30,5 +30,5 @@ func HashOptions(bytes ...[]byte) string {
 	for _, b := range bytes {
 		hasher.Write(b)
 	}
-	return fmt.Sprintf("%x", hasher.Sum(nil))
+	return hex.EncodeToString(hasher.Sum(nil))
 }

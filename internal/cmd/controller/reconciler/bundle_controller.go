@@ -609,7 +609,7 @@ func (r *BundleReconciler) ensureOwnerReferences(ctx context.Context, bd *fleet.
 
 func (r *BundleReconciler) getOCIReference(ctx context.Context, bundle *fleet.Bundle) (string, error) {
 	if bundle.Spec.ContentsID == "" {
-		return "", fmt.Errorf("cannot get OCI reference. Bundle's ContentsID is not set")
+		return "", errors.New("cannot get OCI reference. Bundle's ContentsID is not set")
 	}
 	namespacedName := types.NamespacedName{
 		Namespace: bundle.Namespace,

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strings"
 
 	"github.com/rancher/fleet/benchmarks/cmd/parser"
 
@@ -19,22 +20,35 @@ type Summary struct {
 
 // ColorableString for ReportEntry to use
 func (s Summary) ColorableString() string {
-	sb := "{{green}}Experiments{{/}}\n"
+	var sb strings.Builder
+
+	// Header
+	sb.WriteString("{{green}}Experiments{{/}}\n")
+
+	// Sorted experiment keys
 	keys := slices.Sorted(maps.Keys(s.Experiments))
 	for _, k := range keys {
+		// Experiment name
+		sb.WriteString("{{green}}" + k + "{{/}}\n")
+
+		// Experiment measurements
 		v := s.Experiments[k]
-		sb += fmt.Sprintf("{{green}}%s{{/}}\n", k)
 		t2 := NewTable(v.Measurements)
-		sb += t2.Render()
-		sb += "\n"
+		sb.WriteString(t2.Render())
+		sb.WriteByte('\n')
 	}
-	sb += "{{green}}Environment{{/}}\n"
-	sb += s.Description
-	sb += "\n"
+
+	// Environment section
+	sb.WriteString("{{green}}Environment{{/}}\n")
+	sb.WriteString(s.Description)
+	sb.WriteByte('\n')
+
+	// Setup section
 	t1 := NewTable(s.Setup)
-	sb += t1.Render()
-	sb += "\n"
-	return sb
+	sb.WriteString(t1.Render())
+	sb.WriteByte('\n')
+
+	return sb.String()
 }
 
 // non-colorable String() is used by go's string formatting support but ignored by ReportEntry
@@ -95,7 +109,7 @@ func New(r ginkgo.Report) (*Summary, bool) {
 	return s, true
 }
 
-func prettyPrint(i interface{}) string {
+func prettyPrint(i any) string {
 	s, _ := json.MarshalIndent(i, "", "\t")
 	return string(s)
 }

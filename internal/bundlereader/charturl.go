@@ -125,7 +125,7 @@ func ChartURL(ctx context.Context, location fleet.HelmOptions, auth Auth) (strin
 	}
 
 	// Aggregate any concurrent helm repo index retrieval for the same combination of repo URL and auth
-	i, err, _ := concurrentIndexFetch.Do(auth.Hash()+repoURL, func() (interface{}, error) {
+	i, err, _ := concurrentIndexFetch.Do(auth.Hash()+repoURL, func() (any, error) {
 		return getHelmRepoIndex(ctx, repoURL, auth)
 	})
 	if err != nil {

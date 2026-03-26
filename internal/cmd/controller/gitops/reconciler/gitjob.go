@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"slices"
 	"strconv"
@@ -206,8 +207,8 @@ func (r *GitJobReconciler) newGitJob(ctx context.Context, obj *v1alpha1.GitRepo)
 				"commit":     obj.Status.Commit,
 			},
 			Labels: map[string]string{
-				forceSyncGenerationLabel: fmt.Sprintf("%d", obj.Spec.ForceSyncGeneration),
-				generationLabel:          fmt.Sprintf("%d", obj.Generation),
+				forceSyncGenerationLabel: strconv.FormatInt(obj.Spec.ForceSyncGeneration, 10),
+				generationLabel:          strconv.FormatInt(obj.Generation, 10),
 			},
 			Namespace: obj.Namespace,
 			Name:      jobName(obj),
@@ -442,9 +443,7 @@ func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.Git
 			return nil, fmt.Errorf("could not decode shard node selector: %w", err)
 		}
 
-		for k, v := range shardNodeSelector {
-			nodeSelector[k] = v
-		}
+		maps.Copy(nodeSelector, shardNodeSelector)
 	}
 
 	saName := names.SafeConcatName("git", gitrepo.Name)
@@ -868,7 +867,7 @@ func volumes(targetsConfigName string) ([]corev1.Volume, []corev1.VolumeMount) {
 	return volumes, volumeMounts
 }
 
-// volumesFromSecret generates volumes and volume mounts from a Helm secret, assuming that that secret exists.
+// volumesFromSecret generates volumes and volume mounts from a Helm secret, assuming that secret exists.
 // If the secret has a cacerts key, it will be mounted into /etc/ssl/certs, too.
 // It also returns a struct containing boolean values indicating if a volume has
 // been created for CA bundles, along with values (defaulting to false) of the
@@ -907,7 +906,7 @@ func volumesFromSecret(
 	_ = c.Get(ctx, types.NamespacedName{Namespace: namespace, Name: secretName}, secret)
 	if _, ok := secret.Data["cacerts"]; ok {
 		volumes = append(volumes, corev1.Volume{
-			Name: fmt.Sprintf("%s-cert", volumeName),
+			Name: volumeName + "-cert",
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
 					SecretName: secretName,
@@ -921,7 +920,7 @@ func volumesFromSecret(
 			},
 		})
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
-			Name:      fmt.Sprintf("%s-cert", volumeName),
+			Name:      volumeName + "-cert",
 			MountPath: "/etc/ssl/certs",
 		})
 
@@ -1004,9 +1003,9 @@ func jobName(obj *v1alpha1.GitRepo) string {
 }
 
 func caBundleName(obj *v1alpha1.GitRepo) string {
-	return fmt.Sprintf("%s-cabundle", obj.Name)
+	return obj.Name + "-cabundle"
 }
 
 func rancherCABundleName(obj *v1alpha1.GitRepo) string {
-	return fmt.Sprintf("%s-rancher-cabundle", obj.Name)
+	return obj.Name + "-rancher-cabundle"
 }

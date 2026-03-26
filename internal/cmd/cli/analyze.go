@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -128,7 +129,7 @@ func (a *Analyze) Run(cmd *cobra.Command, args []string) error {
 	// Compare mode requires two files
 	if a.Compare != "" {
 		if len(args) == 0 {
-			return fmt.Errorf("--compare requires two snapshot files")
+			return errors.New("--compare requires two snapshot files")
 		}
 		return a.compareFiles(cmd, filename, a.Compare)
 	}
@@ -140,7 +141,7 @@ func (a *Analyze) Run(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(snapshots) == 0 {
-		return fmt.Errorf("no snapshots found")
+		return errors.New("no snapshots found")
 	}
 
 	w := cmd.OutOrStdout()

@@ -178,7 +178,7 @@ func (r *Remote) LatestBranchCommit(ctx context.Context, branch string) (string,
 }
 
 func formatRefForBranch(branch string) string {
-	return fmt.Sprintf("refs/heads/%s", branch)
+	return "refs/heads/" + branch
 }
 
 func formatRefForTag(tag string, annotated bool) string {

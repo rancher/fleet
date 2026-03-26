@@ -2,6 +2,7 @@ package kustomize
 
 import (
 	"path/filepath"
+	"slices"
 
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/data/convert"
 	"github.com/rancher/fleet/internal/content"
@@ -46,12 +47,7 @@ func Process(m *manifest.Manifest, content []byte, dir string) ([]runtime.Object
 }
 
 func containsString(slice []string, item string) bool {
-	for _, j := range slice {
-		if j == item {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(slice, item)
 }
 
 func modifyKustomize(f filesys.FileSystem, dir string) error {
@@ -61,7 +57,7 @@ func modifyKustomize(f filesys.FileSystem, dir string) error {
 		return err
 	}
 
-	data := map[string]interface{}{}
+	data := map[string]any{}
 	if err := yaml.Unmarshal(fileBytes, &data); err != nil {
 		return err
 	}

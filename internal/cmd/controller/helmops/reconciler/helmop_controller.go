@@ -262,7 +262,7 @@ func (r *HelmOpReconciler) calculateBundle(helmop *fleet.HelmOp) *fleet.Bundle {
 // version. (Potentially we could be gathering the version at the very moment it is being updated, for example)
 func (r *HelmOpReconciler) handleVersion(ctx context.Context, oldBundle *fleet.Bundle, bundle *fleet.Bundle, helmop *fleet.HelmOp) error {
 	if helmop == nil {
-		return fmt.Errorf("the provided HelmOp is nil; this should not happen")
+		return errors.New("the provided HelmOp is nil; this should not happen")
 	}
 
 	if !helmChartSpecChanged(oldBundle.Spec.Helm, bundle.Spec.Helm, helmop.Status.Version) {
@@ -428,7 +428,7 @@ func usesPolling(helmop fleet.HelmOp) bool {
 // updates) metrics for the HelmOp resource.
 func updateStatus(ctx context.Context, c client.Client, req types.NamespacedName, helmop *fleet.HelmOp, orgErr error) error {
 	if helmop == nil {
-		return fmt.Errorf("the HelmOp provided for a status update is nil; this should not happen")
+		return errors.New("the HelmOp provided for a status update is nil; this should not happen")
 	}
 
 	objToPatchFrom := helmop.DeepCopy()
@@ -575,7 +575,7 @@ func jobKey(h fleet.HelmOp) *quartz.JobKey {
 // * non-empty Repo URL, non-empty Chart name, optional Version
 func validate(h fleet.HelmOp) error {
 	if h.Spec.Helm == nil {
-		return fmt.Errorf("helm options are empty in the HelmOp's spec")
+		return errors.New("helm options are empty in the HelmOp's spec")
 	}
 
 	fail := func(msg string) error {

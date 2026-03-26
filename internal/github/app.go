@@ -95,8 +95,8 @@ func getBaseURL(repoURL string) (string, error) {
 	}
 
 	if strings.HasPrefix(url.Host, "api.") {
-		return fmt.Sprintf("https://%s", url.Host), nil
+		return "https://" + url.Host, nil
 	}
 
-	return fmt.Sprintf("https://api.%s", url.Host), nil
+	return "https://api." + url.Host, nil
 }

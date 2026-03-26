@@ -134,10 +134,10 @@ func patchContent(content map[string][]byte, overlays []string) error {
 }
 
 func convertToJSON(input []byte) ([]byte, error) {
-	var data interface{}
-	data = map[string]interface{}{}
+	var data any
+	data = map[string]any{}
 	if err := yaml.Unmarshal(input, &data); err != nil {
-		data = []interface{}{}
+		data = []any{}
 		if err := yaml.Unmarshal(input, &data); err != nil {
 			return nil, err
 		}

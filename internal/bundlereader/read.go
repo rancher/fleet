@@ -343,7 +343,7 @@ func setTargetNames(spec *fleet.BundleSpec) {
 }
 
 type bundleMeta struct {
-	metav1.ObjectMeta `json:",inline,omitempty"`
+	metav1.ObjectMeta `json:",inline"`
 }
 
 func readMetadata(bytes []byte) (*bundleMeta, error) {

@@ -1,7 +1,7 @@
 package agentmanagement
 
 import (
-	"fmt"
+	"errors"
 	"os"
 	"strconv"
 
@@ -43,7 +43,7 @@ func (a *AgentManagement) PersistentPre(_ *cobra.Command, _ []string) error {
 
 func (a *AgentManagement) Run(cmd *cobra.Command, args []string) error {
 	if a.Namespace == "" {
-		return fmt.Errorf("--namespace or env NAMESPACE is required to be set")
+		return errors.New("--namespace or env NAMESPACE is required to be set")
 	}
 	return start(cmd.Context(), a.Kubeconfig, a.Namespace, a.DisableBootstrap)
 }

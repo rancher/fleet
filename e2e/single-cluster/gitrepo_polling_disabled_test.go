@@ -150,7 +150,7 @@ var _ = Describe("GitRepoPollingDisabled", Label("infra-setup"), func() {
 			Eventually(func() string {
 				out, _ := k.Get("gitrepo", gitrepoName, "-o", "jsonpath={.metadata.generation}")
 				return out
-			}, testenv.MediumTimeout, testenv.ShortTimeout).ShouldNot(Equal(fmt.Sprintf("%d", currentGeneration)))
+			}, testenv.MediumTimeout, testenv.ShortTimeout).ShouldNot(Equal(strconv.FormatInt(currentGeneration, 10)))
 
 			By("Waiting for the controller to process the force sync")
 			Eventually(func() string {
