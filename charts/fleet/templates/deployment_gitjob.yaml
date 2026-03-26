@@ -31,14 +31,9 @@ spec:
 {{- if and $.Values.extraLabels $.Values.extraLabels.gitjob }}
 {{ toYaml $.Values.extraLabels.gitjob | indent 8 }}
 {{- end }}
-{{- if or $.Values.proxyCACert (and $.Values.extraAnnotations $.Values.extraAnnotations.gitjob) }}
+{{- if and $.Values.extraAnnotations $.Values.extraAnnotations.gitjob }}
       annotations:
-        {{- if $.Values.proxyCACert }}
-        checksum/proxy-ca: {{ include (print $.Template.BasePath "/configmap_proxy_ca.yaml") $ | sha256sum }}
-        {{- end }}
-        {{- if and $.Values.extraAnnotations $.Values.extraAnnotations.gitjob }}
 {{ toYaml $.Values.extraAnnotations.gitjob | indent 8 }}
-        {{- end }}
 {{- end }}
     spec:
       serviceAccountName: gitjob
@@ -101,10 +96,7 @@ spec:
           {{- end }}
           {{- if $.Values.proxyCACert }}
             - name: PROXY_CA_BUNDLE
-              valueFrom:
-                configMapKeyRef:
-                  name: proxy-ca
-                  key: proxy.crt
+              value: {{ $.Values.proxyCACert | quote }}
           {{- end }}
           {{- if $.Values.gitops.syncPeriod }}
             - name: GITREPO_SYNC_PERIOD
