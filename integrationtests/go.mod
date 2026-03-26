@@ -1,8 +1,8 @@
 module github.com/rancher/fleet/integrationtests
 
-go 1.25.7
+go 1.26
 
-toolchain go1.25.8
+toolchain go1.26.2
 
 replace (
 	github.com/rancher/fleet => ../
