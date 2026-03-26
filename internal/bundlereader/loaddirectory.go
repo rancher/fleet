@@ -204,7 +204,7 @@ func GetContent(ctx context.Context, base, source, version string, auth Auth, di
 	if strings.HasPrefix(source, ociURLPrefix) {
 		source, err = downloadOCIChart(source, version, temp, auth)
 		if err != nil {
-			return nil, fmt.Errorf("downloading OCI chart from %q: %w", orgSource, err)
+			return nil, fmt.Errorf("downloading OCI chart from %q: %w", redactURL(orgSource), err)
 		}
 	}
 
@@ -216,7 +216,7 @@ func GetContent(ctx context.Context, base, source, version string, auth Auth, di
 	}
 
 	if err := fetchToDir(ctx, temp, source, base, auth); err != nil {
-		return nil, fmt.Errorf("retrieving file from %q: %w", orgSource, err)
+		return nil, fmt.Errorf("retrieving file from %q: %w", redactURL(orgSource), err)
 	}
 
 	files := map[string][]byte{}
@@ -282,7 +282,7 @@ func GetContent(ctx context.Context, base, source, version string, auth Auth, di
 		return nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to read %s relative to %s: %w", orgSource, base, err)
+		return nil, fmt.Errorf("failed to read %s relative to %s: %w", redactURL(orgSource), base, err)
 	}
 
 	return files, nil
