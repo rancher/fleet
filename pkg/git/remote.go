@@ -92,9 +92,11 @@ func NewRemote(url string, opts *options) (*Remote, error) {
 		return nil, fmt.Errorf("SSH private key file is required for SSH/SCP-style URLs: %s", url)
 	}
 
-	caBundle := opts.CABundle
+	caBundle := append([]byte(nil), opts.CABundle...) // defensive copy
 	if proxyCAPEM, ok := os.LookupEnv(ProxyCABundleEnvVar); ok && proxyCAPEM != "" {
-		caBundle = append(caBundle, '\n')
+		if len(caBundle) > 0 && caBundle[len(caBundle)-1] != '\n' {
+			caBundle = append(caBundle, '\n')
+		}
 		caBundle = append(caBundle, []byte(proxyCAPEM)...)
 	}
 

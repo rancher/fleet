@@ -273,6 +273,7 @@ func transportHash(insecureSkipVerify bool, caBundle []byte) string {
 }
 
 func transportForAuth(insecureSkipVerify bool, caBundle []byte) http.RoundTripper {
+	caBundle = append([]byte(nil), caBundle...) // defensive copy
 	if proxyCAPEM, ok := os.LookupEnv(fleetgit.ProxyCABundleEnvVar); ok && proxyCAPEM != "" {
 		proxyBytes := []byte(proxyCAPEM)
 		tmpPool := x509.NewCertPool()
