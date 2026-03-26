@@ -110,9 +110,8 @@ func UpdateOfflineBundleDeployments(ctx context.Context, c client.Client, thresh
 				if err := c.Get(ctx, nsn, t); err != nil {
 					return err
 				}
-				t.Status = bd.Status
 
-				orig := bd.DeepCopy()
+				orig := t.DeepCopy()
 
 				// Any information about resources living in an offline cluster is likely to be
 				// outdated.
@@ -129,7 +128,12 @@ func UpdateOfflineBundleDeployments(ctx context.Context, c client.Client, thresh
 
 				statusPatch := client.MergeFrom(orig)
 
-				if patchData, err := statusPatch.Data(t); err != nil || string(patchData) != "{}" {
+				patchData, err := statusPatch.Data(t)
+				if err != nil {
+					return err
+				}
+
+				if string(patchData) != "{}" {
 					return c.Status().Patch(ctx, t, statusPatch)
 				}
 
