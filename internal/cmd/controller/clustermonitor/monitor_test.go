@@ -457,7 +457,7 @@ func Test_Run(t *testing.T) {
 							b *v1alpha1.BundleDeployment, //nolint: staticcheck
 							opts ...client.GetOption,
 						) error {
-							b = &bd //nolint: ineffassign,staticcheck // the value is used by the implementation, not directly by the tests.
+							*b = bd //nolint: ineffassign,staticcheck // the value is used by the implementation, not directly by the tests.
 
 							return nil
 						},

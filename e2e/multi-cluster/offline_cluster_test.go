@@ -155,9 +155,9 @@ func checkReadyCondition(g Gomega, out, msg, status string) {
 	g.Expect(err).ToNot(HaveOccurred())
 
 	var readyCond *genericcondition.GenericCondition
-	for _, c := range conds {
+	for i, c := range conds {
 		if c.Type == "Ready" {
-			readyCond = &c
+			readyCond = &conds[i]
 		}
 	}
 
