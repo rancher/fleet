@@ -21,6 +21,7 @@ import (
 	"github.com/Masterminds/semver/v3"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleetgit "github.com/rancher/fleet/pkg/git"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/singleflight"
 	repov1 "helm.sh/helm/v4/pkg/repo/v1"
 	"sigs.k8s.io/yaml"
@@ -278,7 +279,7 @@ func transportForAuth(insecureSkipVerify bool, caBundle []byte) http.RoundTrippe
 		proxyBytes := []byte(proxyCAPEM)
 		tmpPool := x509.NewCertPool()
 		if !tmpPool.AppendCertsFromPEM(proxyBytes) {
-			fmt.Fprintf(os.Stderr, "warning: %s is set but contains no valid PEM certificates; ignoring proxy CA bundle\n", fleetgit.ProxyCABundleEnvVar)
+			logrus.Warnf("%s is set but contains no valid PEM certificates; ignoring proxy CA bundle", fleetgit.ProxyCABundleEnvVar)
 		} else {
 			caBundle = append(caBundle, '\n')
 			caBundle = append(caBundle, proxyBytes...)
