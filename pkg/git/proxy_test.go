@@ -916,11 +916,11 @@ func TestProxyOptsFromEnvironment_ReturnType(t *testing.T) {
 // PROXY_CA_BUNDLE tests
 // --------------------------------------------------------------------------
 
-// TestNewHTTPConnectDialer_CABundle_IgnoredForHTTPScheme verifies that
+// TestNewHTTPConnectDialer_CABundle_IgnoredForHTTPProxyScheme verifies that
 // PROXY_CA_BUNDLE has no effect when the proxy scheme is http (plaintext).
 // A TLS config is only relevant for https proxies; setting it for an http
 // proxy would be a no-op but we assert it stays nil to keep the code path clean.
-func TestNewHTTPConnectDialer_CABundle_IgnoredForHTTPScheme(t *testing.T) {
+func TestNewHTTPConnectDialer_CABundle_IgnoredForHTTPProxyScheme(t *testing.T) {
 	t.Setenv(ProxyCABundleEnvVar, "-----BEGIN CERTIFICATE-----\ndummy\n-----END CERTIFICATE-----")
 
 	d, err := newHTTPConnectDialer(parseURL(t, "http://proxy.example.com:3128"), proxy.Direct)
