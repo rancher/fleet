@@ -454,10 +454,10 @@ func Test_Run(t *testing.T) {
 							// b's initial value is never used, but the variable needs to be
 							// named for its value to be overwritten with values we care
 							// about, to simulate a response from the API server.
-							b *v1alpha1.BundleDeployment, //nolint: staticcheck
+							b *v1alpha1.BundleDeployment,
 							opts ...client.GetOption,
 						) error {
-							*b = bd //nolint: ineffassign,staticcheck // the value is used by the implementation, not directly by the tests.
+							*b = bd
 
 							return nil
 						},
