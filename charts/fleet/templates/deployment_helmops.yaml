@@ -85,6 +85,10 @@ spec:
             - name: NO_PROXY
               value: {{ $.Values.noProxy }}
           {{- end }}
+          {{- if $.Values.proxyCACert }}
+            - name: PROXY_CA_BUNDLE
+              value: {{ $.Values.proxyCACert | quote }}
+          {{- end }}
           {{- if $.Values.controller.reconciler.workers.gitrepo }}
             - name: HELMOPS_RECONCILER_WORKERS
               value: {{ quote $.Values.controller.reconciler.workers.gitrepo }}

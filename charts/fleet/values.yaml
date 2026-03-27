@@ -41,6 +41,13 @@ ignoreClusterRegistrationLabels: false
 # comma separated list of domains or ip addresses that will not use the proxy
 noProxy: 127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,.svc,.cluster.local
 
+# PEM-encoded CA certificate to trust when connecting to the proxy. Required
+# when proxy is set to an https:// URL and the proxy uses a self-signed cert.
+# proxyCACert: |
+#   -----BEGIN CERTIFICATE-----
+#   ...
+#   -----END CERTIFICATE-----
+
 # The amount of time to wait for a response from the server before canceling the
 # request.  Used to retrieve the latest commit of configured git repositories.
 # A non-existent value or 0 will result in a timeout of 30 seconds.

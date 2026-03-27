@@ -4,17 +4,38 @@ import (
 	"bufio"
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/base64"
 	"fmt"
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	"golang.org/x/net/http/httpproxy"
 	"golang.org/x/net/proxy"
 )
+
+// ProxyCABundleEnvVar is the name of the environment variable that holds the
+// PEM-encoded CA certificate used to trust HTTPS proxies with custom or
+// self-signed certificates. The value is appended to the system cert pool so
+// that well-known public CA certificates remain trusted.
+const ProxyCABundleEnvVar = "PROXY_CA_BUNDLE"
+
+// isTLSRecord returns true when the first byte of data received from the proxy
+// looks like a TLS record (content types 20–23 cover change_cipher_spec, alert,
+// handshake, and application_data). This lets us emit a friendlier error when
+// a plain-HTTP CONNECT request is sent to a TLS-only proxy port.
+func isTLSRecord(b []byte) bool {
+	if len(b) == 0 {
+		return false
+	}
+	// TLS record content-type values: 20=change_cipher_spec, 21=alert,
+	// 22=handshake, 23=application_data.
+	return b[0] >= 20 && b[0] <= 23
+}
 
 func init() {
 	proxy.RegisterDialerType("http", newHTTPConnectDialer)
@@ -118,10 +139,23 @@ func newHTTPConnectDialer(proxyURL *url.URL, forward proxy.Dialer) (proxy.Dialer
 	if !ok {
 		return nil, fmt.Errorf("http connect proxy: forward dialer %T does not implement proxy.ContextDialer", forward)
 	}
-	return &httpConnectDialer{
+	d := &httpConnectDialer{
 		proxyURL: proxyURL,
 		forward:  fwd,
-	}, nil
+	}
+	if proxyURL.Scheme == "https" {
+		if caPEM, ok := os.LookupEnv(ProxyCABundleEnvVar); ok && caPEM != "" {
+			pool, err := x509.SystemCertPool()
+			if err != nil {
+				pool = x509.NewCertPool()
+			}
+			if ok := pool.AppendCertsFromPEM([]byte(caPEM)); !ok {
+				return nil, fmt.Errorf("http connect proxy: %s does not contain any valid PEM-encoded certificates", ProxyCABundleEnvVar)
+			}
+			d.tlsConfig = &tls.Config{RootCAs: pool}
+		}
+	}
+	return d, nil
 }
 
 // Dial implements proxy.Dialer.
@@ -213,7 +247,24 @@ func (d *httpConnectDialer) DialContext(ctx context.Context, network, addr strin
 		return nil, fmt.Errorf("http connect proxy: write CONNECT request: %w", err)
 	}
 
-	resp, err := http.ReadResponse(bufio.NewReaderSize(conn, 1), req)
+	br := bufio.NewReader(conn)
+
+	// Peek at the first byte before attempting to parse an HTTP response.
+	// If the proxy is TLS-only and we sent a plain HTTP CONNECT request, it
+	// will reply with a TLS record (content type 20–23). Detecting this early
+	// produces a clear, actionable error instead of the confusing "malformed
+	// HTTP response \x15\x03..." message that http.ReadResponse would emit
+	// after consuming and failing to parse the TLS bytes.
+	if first, err := br.Peek(1); err == nil && isTLSRecord(first) {
+		conn.Close()
+		return nil, fmt.Errorf(
+			"http connect proxy: proxy %s responded with a TLS record instead of an HTTP response — "+
+				"the proxy URL scheme may need to be \"https://\" and its certificate must be trusted",
+			proxyAddr,
+		)
+	}
+
+	resp, err := http.ReadResponse(br, req)
 	if err != nil {
 		conn.Close()
 		if ctxErr := ctx.Err(); ctxErr != nil {

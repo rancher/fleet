@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"crypto/tls"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -909,6 +910,146 @@ func TestProxyOptsFromEnvironment(t *testing.T) {
 func TestProxyOptsFromEnvironment_ReturnType(t *testing.T) {
 	t.Setenv("HTTPS_PROXY", "http://proxy.example.com:3128")
 	var _ = ProxyOptsFromEnvironment("https://github.com/org/repo.git")
+}
+
+// --------------------------------------------------------------------------
+// PROXY_CA_BUNDLE tests
+// --------------------------------------------------------------------------
+
+// TestNewHTTPConnectDialer_CABundle_IgnoredForHTTPProxyScheme verifies that
+// PROXY_CA_BUNDLE has no effect when the proxy scheme is http (plaintext).
+// A TLS config is only relevant for https proxies; setting it for an http
+// proxy would be a no-op but we assert it stays nil to keep the code path clean.
+func TestNewHTTPConnectDialer_CABundle_IgnoredForHTTPProxyScheme(t *testing.T) {
+	t.Setenv(ProxyCABundleEnvVar, "-----BEGIN CERTIFICATE-----\ndummy\n-----END CERTIFICATE-----")
+
+	d, err := newHTTPConnectDialer(parseURL(t, "http://proxy.example.com:3128"), proxy.Direct)
+	if err != nil {
+		t.Fatalf("newHTTPConnectDialer: %v", err)
+	}
+	hd := d.(*httpConnectDialer)
+	if hd.tlsConfig != nil {
+		t.Error("expected tlsConfig to be nil for http:// proxy even when PROXY_CA_BUNDLE is set")
+	}
+}
+
+// TestNewHTTPConnectDialer_CABundle_AppliedForHTTPSScheme verifies that when
+// PROXY_CA_BUNDLE is set and the proxy URL uses https://, a custom TLS config
+// is built and stored in the dialer.
+func TestNewHTTPConnectDialer_CABundle_AppliedForHTTPSScheme(t *testing.T) {
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	defer ts.Close()
+	caDER := ts.TLS.Certificates[0].Certificate[0]
+	caPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: caDER})
+	t.Setenv(ProxyCABundleEnvVar, string(caPEM))
+
+	d, err := newHTTPConnectDialer(parseURL(t, "https://proxy.example.com:3128"), proxy.Direct)
+	if err != nil {
+		t.Fatalf("newHTTPConnectDialer: %v", err)
+	}
+	hd := d.(*httpConnectDialer)
+	if hd.tlsConfig == nil {
+		t.Error("expected tlsConfig to be set for https:// proxy when PROXY_CA_BUNDLE is non-empty")
+	}
+}
+
+// TestNewHTTPConnectDialer_CABundle_NoEnvVar verifies that without PROXY_CA_BUNDLE
+// the dialer's tlsConfig is nil, even for an https:// proxy.
+func TestNewHTTPConnectDialer_CABundle_NoEnvVar(t *testing.T) {
+	t.Setenv(ProxyCABundleEnvVar, "")
+
+	d, err := newHTTPConnectDialer(parseURL(t, "https://proxy.example.com:3128"), proxy.Direct)
+	if err != nil {
+		t.Fatalf("newHTTPConnectDialer: %v", err)
+	}
+	hd := d.(*httpConnectDialer)
+	if hd.tlsConfig != nil {
+		t.Error("expected tlsConfig to be nil when PROXY_CA_BUNDLE is empty")
+	}
+}
+
+// TestHTTPConnectDialer_ProxyCABundle_TrustsCustomCA is an end-to-end test.
+// It starts a TLS-wrapped CONNECT proxy backed by httptest, extracts the
+// self-signed CA cert as PEM, injects it via PROXY_CA_BUNDLE, and then calls
+// newHTTPConnectDialer — which must pick it up and trust the proxy without any
+// explicit tlsConfig field.  The test verifies the full tunnel works by
+// exchanging a message with a plain echo server on the other side.
+func TestHTTPConnectDialer_ProxyCABundle_TrustsCustomCA(t *testing.T) {
+	echoAddr, stopEcho := startEchoServer(t)
+	defer stopEcho()
+
+	// Inline TLS CONNECT proxy (same logic as startFakeTLSProxy but we need
+	// access to the *httptest.Server to extract its certificate).
+	ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodConnect {
+			http.Error(w, "expected CONNECT", http.StatusMethodNotAllowed)
+			return
+		}
+		hijacker, ok := w.(http.Hijacker)
+		if !ok {
+			http.Error(w, "hijacking not supported", http.StatusInternalServerError)
+			return
+		}
+		clientConn, br, err := hijacker.Hijack()
+		if err != nil {
+			return
+		}
+		defer clientConn.Close()
+		fmt.Fprintf(clientConn, "HTTP/1.1 200 Connection established\r\n\r\n")
+		targetConn, err := (&net.Dialer{}).DialContext(r.Context(), "tcp", r.Host)
+		if err != nil {
+			return
+		}
+		defer targetConn.Close()
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			_, _ = io.Copy(targetConn, br)
+			targetConn.Close()
+		}()
+		go func() {
+			defer wg.Done()
+			_, _ = io.Copy(clientConn, targetConn)
+		}()
+		wg.Wait()
+	}))
+	ts.StartTLS()
+	defer ts.Close()
+
+	// Extract the proxy server's leaf certificate as PEM.
+	caDER := ts.TLS.Certificates[0].Certificate[0]
+	caPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: caDER})
+
+	// Inject the CA via the environment variable — no explicit tlsConfig.
+	t.Setenv(ProxyCABundleEnvVar, string(caPEM))
+
+	d, err := newHTTPConnectDialer(parseURL(t, "https://"+ts.Listener.Addr().String()), proxy.Direct)
+	if err != nil {
+		t.Fatalf("newHTTPConnectDialer: %v", err)
+	}
+	cd, ok := d.(proxy.ContextDialer)
+	if !ok {
+		t.Fatal("expected proxy.ContextDialer")
+	}
+
+	conn, err := cd.DialContext(context.Background(), "tcp", echoAddr)
+	if err != nil {
+		t.Fatalf("DialContext through TLS proxy with PROXY_CA_BUNDLE: %v", err)
+	}
+	defer conn.Close()
+
+	msg := "hello via CA bundle"
+	if _, err := fmt.Fprint(conn, msg); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+	buf := make([]byte, len(msg))
+	if _, err := io.ReadFull(conn, buf); err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+	if got := string(buf); got != msg {
+		t.Errorf("echo mismatch: got %q, want %q", got, msg)
+	}
 }
 
 // --------------------------------------------------------------------------
