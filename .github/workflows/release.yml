@@ -19,7 +19,6 @@ on:
 
 permissions:
   contents: write
-  packages: write
   id-token: write # this is important, it's how we authenticate with Vault
 
 env:
