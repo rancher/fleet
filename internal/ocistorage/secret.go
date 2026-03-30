@@ -115,6 +115,8 @@ func getBoolValueFromSecret(data map[string][]byte, key string, required bool) (
 	return boolValue, nil
 }
 
+// getBoolValueFromSecretWithFallback extracts a boolean value from data, using keys in the provided order of priority, and returns the first found value, if any.
+// If no value is found, the function returns false, with an error if the value was required.
 func getBoolValueFromSecretWithFallback(data map[string][]byte, required bool, keys ...string) (bool, error) {
 	for _, key := range keys {
 		if _, ok := data[key]; ok {
