@@ -5,17 +5,6 @@ on:
   push:
     tags:
       - v**
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Tag to release (e.g., v0.15.0-alpha.7)'
-        required: true
-        type: string
-      skip_tests:
-        description: 'Skip tests (for faster testing of release process)'
-        required: false
-        type: boolean
-        default: false
 
 permissions:
   contents: write
@@ -24,7 +13,7 @@ permissions:
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
-  RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+  RELEASE_TAG: ${{ github.ref_name }}
 
 jobs:
   build-fleet:
