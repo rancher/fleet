@@ -9,6 +9,8 @@ on:
 permissions:
   contents: write
   id-token: write # this is important, it's how we authenticate with Vault
+  pull-requests: read
+  checks: read
 
 env:
   GOARCH: amd64
@@ -28,6 +30,37 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
+
+      - name: Verify CI passed on tagged commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          COMMIT_SHA=$(git rev-list -n 1 "$RELEASE_TAG")
+          echo "Verifying CI checks for ${RELEASE_TAG} (${COMMIT_SHA})"
+
+          PR_NUMBER=$(gh api \
+            "repos/${{ github.repository }}/commits/${COMMIT_SHA}/pulls" \
+            --jq '[.[] | select(.merged_at != null)] | first | .number // empty')
+
+          if [[ -n "${PR_NUMBER:-}" ]]; then
+            echo "Found PR #${PR_NUMBER}, verifying required checks..."
+            gh pr checks "${PR_NUMBER}" \
+              --repo "${{ github.repository }}" \
+              --required
+          else
+            echo "No merged PR found (hotfix), verifying all commit checks..."
+            ISSUES=$(gh api \
+              "repos/${{ github.repository }}/commits/${COMMIT_SHA}/check-runs" \
+              --jq 'if .total_count == 0 then "no CI checks found" else ([.check_runs[] | select(.status != "completed" or (.conclusion != "success" and .conclusion != "skipped")) | .name] | join(", ")) end')
+
+            if [[ -n "${ISSUES}" ]]; then
+              echo "ERROR: ${ISSUES}"
+              exit 1
+            fi
+
+            echo "✓ All checks passed for ${RELEASE_TAG} (${COMMIT_SHA})"
+          fi
 
       - name: Verify Rancher is not in code freeze (alpha/beta only)
         run: |
@@ -68,30 +101,6 @@ jobs:
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version-file: 'go.mod'
-
-      - name: Install Ginkgo CLI
-        if: ${{ !inputs.skip_tests }}
-        run: go install github.com/onsi/ginkgo/v2/ginkgo
-
-      - name: Check for code changes
-        if: ${{ !inputs.skip_tests }}
-        continue-on-error: ${{ contains(github.ref, 'rc') }}
-        run: |
-          ./.github/scripts/check-for-auto-generated-changes.sh
-          go mod verify
-
-      - name: Run unit tests
-        if: ${{ !inputs.skip_tests }}
-        continue-on-error: ${{ contains(github.ref, 'rc') }}
-        run: go list ./... | grep -v -e /e2e -e /integrationtests -e /benchmarks | xargs go test -cover -tags=test
-
-      - name: Run integration tests
-        if: ${{ !inputs.skip_tests }}
-        continue-on-error: ${{ contains(github.ref, 'rc') }}
-        env:
-          SETUP_ENVTEST_VER: v0.0.0-20250218120612-6f6111124902
-          ENVTEST_K8S_VERSION: 1.35
-        run: ./.github/scripts/run-integration-tests.sh
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0

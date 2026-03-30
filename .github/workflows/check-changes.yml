@@ -2,6 +2,9 @@ name: Check for unallowed changes
 
 on:
   pull_request:
+  push:
+    branches:
+    - '*-hotfix-*'
 
 env:
   MAIN_BRANCH: origin/main

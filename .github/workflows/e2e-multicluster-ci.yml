@@ -7,7 +7,7 @@ on:
   pull_request:
   push:
     branches:
-    - 'release/*'
+    - '*-hotfix-*'
 
 env:
   GOARCH: amd64
