@@ -276,7 +276,7 @@ func TestGetKnownHosts(t *testing.T) {
 			}
 
 			client.EXPECT().Get(gomock.Any(), nsn, secretPointerMatcher{}, gomock.Any()).MaxTimes(1).DoAndReturn(
-				func(ctx context.Context, req types.NamespacedName, secret *corev1.Secret, opts ...interface{}) error {
+				func(ctx context.Context, req types.NamespacedName, secret *corev1.Secret, opts ...any) error {
 					if test.secret == nil {
 						return apierrors.NewNotFound(schema.GroupResource{}, "TEST ERROR")
 					}
@@ -291,7 +291,7 @@ func TestGetKnownHosts(t *testing.T) {
 			nsn.Name = "gitcredential"
 
 			client.EXPECT().Get(gomock.Any(), nsn, secretPointerMatcher{}, gomock.Any()).MaxTimes(1).DoAndReturn(
-				func(ctx context.Context, req types.NamespacedName, secret *corev1.Secret, opts ...interface{}) error {
+				func(ctx context.Context, req types.NamespacedName, secret *corev1.Secret, opts ...any) error {
 					if test.fallbackSecret == nil {
 						return apierrors.NewNotFound(schema.GroupResource{}, "TEST ERROR")
 					}
@@ -304,7 +304,7 @@ func TestGetKnownHosts(t *testing.T) {
 			)
 
 			client.EXPECT().Get(gomock.Any(), gomock.Any(), configMapPointerMatcher{}, gomock.Any()).MaxTimes(1).DoAndReturn(
-				func(ctx context.Context, req types.NamespacedName, c *corev1.ConfigMap, opts ...interface{}) error {
+				func(ctx context.Context, req types.NamespacedName, c *corev1.ConfigMap, opts ...any) error {
 					if test.configMap == nil {
 						return apierrors.NewNotFound(schema.GroupResource{}, "TEST ERROR")
 					}
@@ -334,7 +334,7 @@ func TestGetKnownHosts(t *testing.T) {
 
 type configMapPointerMatcher struct{}
 
-func (m configMapPointerMatcher) Matches(x interface{}) bool {
+func (m configMapPointerMatcher) Matches(x any) bool {
 	_, ok := x.(*corev1.ConfigMap)
 	return ok
 }
@@ -345,7 +345,7 @@ func (m configMapPointerMatcher) String() string {
 
 type secretPointerMatcher struct{}
 
-func (m secretPointerMatcher) Matches(x interface{}) bool {
+func (m secretPointerMatcher) Matches(x any) bool {
 	_, ok := x.(*corev1.Secret)
 	return ok
 }

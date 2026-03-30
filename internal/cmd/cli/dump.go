@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -56,28 +57,28 @@ func (d *Dump) PersistentPre(_ *cobra.Command, _ []string) error {
 
 func (d *Dump) ValidateFilterOptions(cmd *cobra.Command) error {
 	if d.WithSecrets && d.WithSecretsMetadata {
-		return fmt.Errorf("--with-secrets and --with-secrets-metadata are mutually exclusive")
+		return errors.New("--with-secrets and --with-secrets-metadata are mutually exclusive")
 	}
 	if d.WithContent && d.WithContentMetadata {
-		return fmt.Errorf("--with-content and --with-content-metadata are mutually exclusive")
+		return errors.New("--with-content and --with-content-metadata are mutually exclusive")
 	}
 	if d.Gitrepo != "" && d.Bundle != "" {
-		return fmt.Errorf("--gitrepo and --bundle are mutually exclusive")
+		return errors.New("--gitrepo and --bundle are mutually exclusive")
 	}
 	if d.Gitrepo != "" && d.Helmop != "" {
-		return fmt.Errorf("--gitrepo and --helmop are mutually exclusive")
+		return errors.New("--gitrepo and --helmop are mutually exclusive")
 	}
 	if d.Bundle != "" && d.Helmop != "" {
-		return fmt.Errorf("--bundle and --helmop are mutually exclusive")
+		return errors.New("--bundle and --helmop are mutually exclusive")
 	}
 	if (d.Gitrepo != "" || d.Bundle != "" || d.Helmop != "") && !cmd.Flags().Changed("namespace") {
-		return fmt.Errorf("--gitrepo, --bundle, and --helmop filters require --namespace to be explicitly specified")
+		return errors.New("--gitrepo, --bundle, and --helmop filters require --namespace to be explicitly specified")
 	}
 	// If --all-namespaces is set, --namespace cannot be set to a specific namespace. It can either
 	// be left as the default "fleet-local" (which will be treated as all namespaces), or set to ""
 	// to explicitly indicate all namespaces.
 	if d.AllNamespaces && d.Namespace != "fleet-local" && cmd.Flags().Changed("namespace") {
-		return fmt.Errorf("--namespace and --all-namespaces are mutually exclusive")
+		return errors.New("--namespace and --all-namespaces are mutually exclusive")
 	}
 	// If --all-namespaces is set and --namespace is not explicitly set, treat it as all namespaces
 	// by setting namespace to ""
@@ -99,7 +100,7 @@ func (d *Dump) Run(cmd *cobra.Command, args []string) error {
 
 	fmt.Fprintln(os.Stderr, "dump path: ", d.DumpPath)
 	if d.DumpPath == "" {
-		err := fmt.Errorf("no destination path specified for state dump. Exiting")
+		err := errors.New("no destination path specified for state dump. Exiting")
 
 		return err
 	}

@@ -249,20 +249,20 @@ func getSecretFromMockK8sClient(
 	switch {
 	case wantErrorMessage != "":
 		mockClient.EXPECT().Get(gomock.Any(), ns, gomock.Any()).DoAndReturn(
-			func(_ context.Context, _ types.NamespacedName, secret *corev1.Secret, _ ...interface{}) error {
+			func(_ context.Context, _ types.NamespacedName, secret *corev1.Secret, _ ...any) error {
 				return errors.New(wantErrorMessage)
 			},
 		)
 	case wantNotFound:
 		mockClient.EXPECT().Get(gomock.Any(), ns, gomock.Any()).DoAndReturn(
-			func(_ context.Context, _ types.NamespacedName, secret *corev1.Secret, _ ...interface{}) error {
+			func(_ context.Context, _ types.NamespacedName, secret *corev1.Secret, _ ...any) error {
 				return apierrors.NewNotFound(schema.GroupResource{}, "TEST ERROR")
 			},
 		)
 	case ns.Name == "":
 		// verify that when the name is not set it uses the default secret name.
 		mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-			func(_ context.Context, key types.NamespacedName, secret *corev1.Secret, _ ...interface{}) error {
+			func(_ context.Context, key types.NamespacedName, secret *corev1.Secret, _ ...any) error {
 				Expect(key.Name).To(Equal(config.DefaultOCIStorageSecretName))
 				secret.Data = data
 				secret.Type = corev1.SecretType(secretType)
@@ -271,7 +271,7 @@ func getSecretFromMockK8sClient(
 		)
 	default:
 		mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-			func(_ context.Context, key types.NamespacedName, secret *corev1.Secret, _ ...interface{}) error {
+			func(_ context.Context, key types.NamespacedName, secret *corev1.Secret, _ ...any) error {
 				Expect(ns.Name).To(Equal(key.Name))
 				secret.Data = data
 				secret.Type = corev1.SecretType(secretType)

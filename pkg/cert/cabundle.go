@@ -2,10 +2,10 @@ package cert
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -21,13 +21,13 @@ func GetRancherCABundle(ctx context.Context, c client.Reader) ([]byte, error) {
 	}
 
 	caBundle, ok := secret.Data["cacerts.pem"]
-	if !errors.IsNotFound(err) && !ok {
-		return nil, fmt.Errorf("no field cacerts.pem found in secret tls-ca")
+	if !apierrors.IsNotFound(err) && !ok {
+		return nil, errors.New("no field cacerts.pem found in secret tls-ca")
 	}
 
 	err = c.Get(ctx, types.NamespacedName{Namespace: rancherNS, Name: "tls-ca-additional"}, secret)
 	if err != nil {
-		if errors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) {
 			return caBundle, nil
 		}
 
@@ -36,7 +36,7 @@ func GetRancherCABundle(ctx context.Context, c client.Reader) ([]byte, error) {
 
 	field, ok := secret.Data["ca-additional.pem"]
 	if !ok {
-		return nil, fmt.Errorf("no field ca-additional.pem found in secret tls-ca-additional")
+		return nil, errors.New("no field ca-additional.pem found in secret tls-ca-additional")
 	}
 	caBundle = append(caBundle, field...)
 

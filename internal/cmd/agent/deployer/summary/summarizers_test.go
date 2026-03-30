@@ -1,7 +1,6 @@
 package summary
 
 import (
-	"os"
 	"testing"
 
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/data"
@@ -174,7 +173,7 @@ func TestCheckErrors(t *testing.T) {
 				},
 			},
 			loadConditions: func() {
-				os.Setenv(checkGVKErrorMappingEnvVar, `
+				t.Setenv(checkGVKErrorMappingEnvVar, `
 					[
 						{
 							"gvk": "sample.cattle.io/v1, Kind=Sample",
@@ -211,7 +210,7 @@ func TestCheckErrors(t *testing.T) {
 				},
 			},
 			loadConditions: func() {
-				os.Setenv(checkGVKErrorMappingEnvVar, `
+				t.Setenv(checkGVKErrorMappingEnvVar, `
 					[
 						{
 							"gvk": "sample.cattle.io/v1, Kind=Sample",
@@ -295,7 +294,7 @@ func TestCheckErrors(t *testing.T) {
 				},
 			},
 			loadConditions: func() {
-				os.Setenv(checkGVKErrorMappingEnvVar, `
+				t.Setenv(checkGVKErrorMappingEnvVar, `
 					[
 						{
 							"gvk": "sample.cattle.io/v1, Kind=Sample",
@@ -333,7 +332,7 @@ func TestCheckErrors(t *testing.T) {
 				},
 			},
 			loadConditions: func() {
-				os.Setenv(checkGVKErrorMappingEnvVar, `
+				t.Setenv(checkGVKErrorMappingEnvVar, `
 					[
 						{
 							"gvk": "sample.cattle.io/v1, Kind=Sample",
@@ -416,7 +415,7 @@ func TestCheckErrors(t *testing.T) {
 
 func newCondition(conditionType, status, reason, message string) Condition {
 	return Condition{
-		Object: map[string]interface{}{
+		Object: map[string]any{
 			"type":    conditionType,
 			"status":  status,
 			"reason":  reason,
@@ -429,9 +428,9 @@ var _ = Describe("Summary", func() {
 	When("testing kStatusSummarizer", func() {
 		newObj := func(message string) data.Object {
 			return data.Object{
-				"status": map[string]interface{}{
-					"conditions": []interface{}{
-						map[string]interface{}{
+				"status": map[string]any{
+					"conditions": []any{
+						map[string]any{
 							"type":    "Ready",
 							"status":  "False",
 							"message": message,
@@ -442,7 +441,7 @@ var _ = Describe("Summary", func() {
 		}
 
 		It("should deduplicate messages", func() {
-			obj := newObj("message1; message2; message1; message1; message2")
+			obj := newObj("message1; message2; message1; message2")
 			smr := kStatusSummarizer(obj, nil, fleet.Summary{})
 			Expect(smr.Message).To(Equal([]string{"message1; message2"}))
 			Expect(smr.Transitioning).To(BeTrue())

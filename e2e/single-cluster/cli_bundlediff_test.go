@@ -111,10 +111,10 @@ var _ = Describe("Fleet bundlediff CLI", func() {
 			Expect(err).ToNot(HaveOccurred())
 			expectedOutput := strings.ReplaceAll(string(expectedBytes), "${TARGET_NAMESPACE}", targetNs)
 
-			var actualYAML map[string]interface{}
+			var actualYAML map[string]any
 			err = yaml.Unmarshal([]byte(diffSnippet), &actualYAML)
 			Expect(err).ToNot(HaveOccurred())
-			var expectedYAML map[string]interface{}
+			var expectedYAML map[string]any
 			err = yaml.Unmarshal([]byte(expectedOutput), &expectedYAML)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(actualYAML).To(Equal(expectedYAML))

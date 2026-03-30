@@ -50,7 +50,7 @@ func (s *FullSHAStrategy) Execute(ctx context.Context, r *git.Repository, req pl
 
 func (s *FullSHAStrategy) defaultFetch(hash plumbing.Hash) FetchFunc {
 	return func(ctx context.Context, r *git.Repository) error {
-		refSpec := config.RefSpec(fmt.Sprintf("%s:refs/heads/temp", hash.String()))
+		refSpec := config.RefSpec(hash.String() + ":refs/heads/temp")
 
 		return r.FetchContext(ctx, &git.FetchOptions{
 			RefSpecs: []config.RefSpec{refSpec},

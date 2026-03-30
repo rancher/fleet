@@ -33,7 +33,7 @@ type Experiment struct {
 type Measurement struct {
 	Value           float64            `json:"value,omitempty"`
 	Type            gm.MeasurementType `json:"type,omitempty"`
-	PrecisionBundle gm.PrecisionBundle `json:"precision_bundle,omitempty"`
+	PrecisionBundle gm.PrecisionBundle `json:"precision_bundle,omitzero"`
 	Style           string             `json:"style,omitempty"`
 	Units           string             `json:"units,omitempty"`
 }
@@ -43,7 +43,7 @@ func (r Measurement) String() string {
 }
 
 func NewSetup(specReports types.SpecReports, result map[string]Measurement) (string, error) {
-	description := ""
+	var description strings.Builder
 
 	for _, specReport := range specReports {
 		if len(specReport.ContainerHierarchyLabels) > 1 {
@@ -93,19 +93,19 @@ func NewSetup(specReports types.SpecReports, result map[string]Measurement) (str
 					}
 					result[name] = tmp
 				} else if m.Type == gm.MeasurementTypeNote {
-					description += "\n"
-					lines := strings.Split(strings.Trim(m.Note, "\n"), "\n")
-					for i := range lines {
-						description += fmt.Sprintf("%s\n", lines[i])
+					description.WriteByte('\n')
+					for line := range strings.SplitSeq(strings.Trim(m.Note, "\n"), "\n") {
+						description.WriteString(line)
+						description.WriteByte('\n')
 					}
 				}
 			}
-			description += "\n"
+			description.WriteByte('\n')
 		}
 		break
 	}
 
-	return description, nil
+	return description.String(), nil
 }
 
 func NewExperiments(specReports types.SpecReports, result map[string]Experiment) (float64, error) {
@@ -203,10 +203,10 @@ func Extract(m gm.Measurement) (string, float64) {
 		v = stat.Mean(m.Values, nil)
 	} else if beforeAfterName(name) {
 		if strings.HasSuffix(m.Name, "Before") {
-			name = strings.TrimSuffix(m.Name, "Before")
+			name, _ = strings.CutSuffix(m.Name, "Before")
 			v = -v
 		} else {
-			name = strings.TrimSuffix(m.Name, "After")
+			name, _ = strings.CutSuffix(m.Name, "After")
 		}
 	}
 

@@ -36,8 +36,8 @@ func TestValuesFrom(t *testing.T) {
 
 	configMapPayload := fmt.Sprintf("replication: \"true\"%sreplicas: \"2\"%sserviceType: NodePort", newline, newline)
 	secretPayload := fmt.Sprintf("replication: \"false\"%sreplicas: \"3\"%sserviceType: NodePort%sfoo: bar", newline, newline, newline)
-	totalValues := map[string]interface{}{"beforeMerge": "value"}
-	expected := map[string]interface{}{
+	totalValues := map[string]any{"beforeMerge": "value"}
+	expected := map[string]any{
 		"beforeMerge": "value",
 		"replicas":    "2",
 		"replication": "true",
@@ -473,8 +473,7 @@ func TestIsInDownstreamResources(t *testing.T) {
 
 	// function returns only a boolean indicating membership for a kind
 	// enable experimental feature for this test
-	os.Setenv(experimental.CopyResourcesDownstreamFlag, "true")
-	defer os.Unsetenv(experimental.CopyResourcesDownstreamFlag)
+	t.Setenv(experimental.CopyResourcesDownstreamFlag, "true")
 
 	found := isInDownstreamResources("my-config", "ConfigMap", opts)
 	a.True(found, "expected to find my-config in DownstreamResources")
@@ -594,8 +593,7 @@ func TestValuesFromUsesDefaultNamespaceWhenResourceCopiedDownstream(t *testing.T
 	}
 
 	// enable experimental copy behavior for this test
-	os.Setenv(experimental.CopyResourcesDownstreamFlag, "true")
-	defer os.Unsetenv(experimental.CopyResourcesDownstreamFlag)
+	t.Setenv(experimental.CopyResourcesDownstreamFlag, "true")
 
 	vals, err := h.getValues(context.TODO(), opts, defaultNS)
 	r.NoError(err)
@@ -634,8 +632,7 @@ func TestValuesFromUsesProvidedNamespaceWhenNotCopiedDownstream(t *testing.T) {
 	}
 
 	// enable experimental copy behavior for this test
-	os.Setenv(experimental.CopyResourcesDownstreamFlag, "true")
-	defer os.Unsetenv(experimental.CopyResourcesDownstreamFlag)
+	t.Setenv(experimental.CopyResourcesDownstreamFlag, "true")
 
 	vals, err := h.getValues(context.TODO(), opts, defaultNS)
 	r.NoError(err)

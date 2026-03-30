@@ -1,6 +1,7 @@
 package helmvalues
 
 import (
+	"errors"
 	"fmt"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -72,7 +73,7 @@ func ExtractValues(bundle *fleet.Bundle) (string, map[string][]byte, error) {
 		}
 
 		if target.Name == "" {
-			return "", data, fmt.Errorf("target name is required")
+			return "", data, errors.New("target name is required")
 		}
 
 		v, err := target.Helm.Values.MarshalJSON()

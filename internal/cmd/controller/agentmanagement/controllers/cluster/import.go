@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -182,7 +183,7 @@ func hashStatusField(field any) string {
 		return ""
 	}
 	hasher.Write(b)
-	return fmt.Sprintf("%x", hasher.Sum(nil))
+	return hex.EncodeToString(hasher.Sum(nil))
 }
 
 func agentDeployed(cluster *fleet.Cluster) bool {

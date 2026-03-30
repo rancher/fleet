@@ -228,7 +228,7 @@ func (h *handler) clusterRegistrationSecret(token *fleet.ClusterRegistrationToke
 		return nil, err
 	}
 
-	values := map[string]interface{}{
+	values := map[string]any{
 		"clusterNamespace":            token.Namespace,
 		config.APIServerURLKey:        config.Get().APIServerURL,
 		config.APIServerCAKey:         string(config.Get().APIServerCA),
@@ -237,7 +237,7 @@ func (h *handler) clusterRegistrationSecret(token *fleet.ClusterRegistrationToke
 	}
 
 	if h.systemNamespace != config.DefaultNamespace {
-		values["internal"] = map[string]interface{}{
+		values["internal"] = map[string]any{
 			"systemNamespace": h.systemNamespace,
 		}
 	}

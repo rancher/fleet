@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"fmt"
 	"path"
 	"strconv"
 	"strings"
@@ -197,7 +196,7 @@ func agentApp(namespace string, agentScope string, opts ManifestOptions) *appsv1
 								{Name: "CATTLE_ELECTION_LEASE_DURATION", Value: opts.LeaseDuration.String()},
 								{Name: "CATTLE_ELECTION_RETRY_PERIOD", Value: opts.RetryPeriod.String()},
 								{Name: "CATTLE_ELECTION_RENEW_DEADLINE", Value: opts.RenewDeadline.String()},
-								{Name: "EXPERIMENTAL_COPY_RESOURCES_DOWNSTREAM", Value: fmt.Sprintf("%t", experimental.CopyResourcesDownstreamEnabled())},
+								{Name: "EXPERIMENTAL_COPY_RESOURCES_DOWNSTREAM", Value: strconv.FormatBool(experimental.CopyResourcesDownstreamEnabled())},
 							},
 							Command: []string{
 								"fleetagent",

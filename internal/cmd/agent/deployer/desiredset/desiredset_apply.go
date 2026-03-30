@@ -5,6 +5,7 @@ import (
 	"crypto/sha1" //nolint:gosec // non crypto usage
 	"encoding/hex"
 	"fmt"
+	"maps"
 	"sync"
 	"time"
 
@@ -150,9 +151,7 @@ func setAnnotations(meta metav1.Object, annotations map[string]string) {
 		objAnn = map[string]string{}
 	}
 	delete(objAnn, LabelApplied)
-	for k, v := range annotations {
-		objAnn[k] = v
-	}
+	maps.Copy(objAnn, annotations)
 	meta.SetAnnotations(objAnn)
 }
 
@@ -161,9 +160,7 @@ func setLabels(meta metav1.Object, labels map[string]string) {
 	if objLabels == nil {
 		objLabels = map[string]string{}
 	}
-	for k, v := range labels {
-		objLabels[k] = v
-	}
+	maps.Copy(objLabels, labels)
 	meta.SetLabels(objLabels)
 }
 

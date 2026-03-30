@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"time"
@@ -87,7 +88,7 @@ func (c *CronDurationJob) Execute(ctx context.Context) error {
 
 // Description implements the quartz.Job interface function to describe a scheduled job.
 func (c *CronDurationJob) Description() string {
-	return fmt.Sprintf("CronDurationJob-%s", c.hash)
+	return "CronDurationJob-" + c.hash
 }
 
 // scheduleKey builds a quartz.JobKey for the given fleet Schedule
@@ -144,7 +145,7 @@ func checkScheduleAndDuration(schedule *fleet.Schedule, location *time.Location)
 	if int64(schedule.Spec.Duration.Seconds()) >= (secondFireTimeSecs - firstFireTimeSecs) {
 		// we also consider an error when duration is equal to the next time
 		// the job should trigger because we could incur race conditions.
-		return fmt.Errorf("duration is too long and overlaps with the next execution time")
+		return errors.New("duration is too long and overlaps with the next execution time")
 	}
 
 	return nil

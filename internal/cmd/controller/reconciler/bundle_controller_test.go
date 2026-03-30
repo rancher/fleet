@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"strings"
 	"testing"
 
@@ -61,7 +60,7 @@ func TestReconcile_FinalizerUpdateError(t *testing.T) {
 	mockClient := mocks.NewMockK8sClient(mockCtrl)
 
 	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Bundle{}), gomock.Any()).DoAndReturn(
-		func(ctx context.Context, req types.NamespacedName, b *fleetv1.Bundle, opts ...interface{}) error {
+		func(ctx context.Context, req types.NamespacedName, b *fleetv1.Bundle, opts ...any) error {
 			b.Name = bundle.Name
 			b.Namespace = bundle.Namespace
 			// no finalizer
@@ -477,7 +476,7 @@ func TestReconcile_OptionsSecretCreateUpdateError(t *testing.T) {
 							Options: fleetv1.BundleDeploymentOptions{
 								Helm: &fleetv1.HelmOptions{
 									Values: &fleetv1.GenericMap{
-										Data: map[string]interface{}{"foo": "bar"}, // non-empty, to generate a non-empty hash and force secret creation/update
+										Data: map[string]any{"foo": "bar"}, // non-empty, to generate a non-empty hash and force secret creation/update
 									},
 								},
 							},
@@ -587,13 +586,13 @@ func TestReconcile_OptionsSecretDeletionError(t *testing.T) {
 func TestReconcile_OCIReferenceSecretResolutionError(t *testing.T) {
 	cases := []struct {
 		name               string
-		secretGet          func(ctx context.Context, req types.NamespacedName, s *corev1.Secret, opts ...interface{}) error
+		secretGet          func(ctx context.Context, req types.NamespacedName, s *corev1.Secret, opts ...any) error
 		expectStatusUpdate bool
 		expectedErrMsg     string
 	}{
 		{
 			name: "non-retryable error",
-			secretGet: func(ctx context.Context, req types.NamespacedName, s *corev1.Secret, opts ...interface{}) error {
+			secretGet: func(ctx context.Context, req types.NamespacedName, s *corev1.Secret, opts ...any) error {
 				// Necessary reference field is missing → non-retryable
 				return nil
 			},
@@ -602,7 +601,7 @@ func TestReconcile_OCIReferenceSecretResolutionError(t *testing.T) {
 		},
 		{
 			name: "retryable error",
-			secretGet: func(ctx context.Context, req types.NamespacedName, s *corev1.Secret, opts ...interface{}) error {
+			secretGet: func(ctx context.Context, req types.NamespacedName, s *corev1.Secret, opts ...any) error {
 				return errors.New("something went wrong")
 			},
 			// no expected reconcile error (requeue set instead)
@@ -690,12 +689,7 @@ func TestReconcile_OCIReferenceSecretResolutionError(t *testing.T) {
 
 func TestReconcile_DownstreamObjectsHandlingError(t *testing.T) {
 	envVar := "EXPERIMENTAL_COPY_RESOURCES_DOWNSTREAM"
-	bkp := os.Getenv(envVar)
-	defer func() {
-		os.Setenv(envVar, bkp)
-	}()
-
-	os.Setenv(envVar, "true")
+	t.Setenv(envVar, "true")
 
 	cases := []struct {
 		name                        string
@@ -1029,7 +1023,7 @@ func TestReconcile_AccessSecretsHandlingError(t *testing.T) {
 	// OCI contents secret
 	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{}), gomock.Any()).
 		DoAndReturn(
-			func(ctx context.Context, req types.NamespacedName, s *corev1.Secret, opts ...interface{}) error {
+			func(ctx context.Context, req types.NamespacedName, s *corev1.Secret, opts ...any) error {
 				s.Data = map[string][]byte{
 					"reference": []byte("foo"), // key exists
 				}
@@ -1088,7 +1082,7 @@ func TestReconcile_AccessSecretsHandlingError(t *testing.T) {
 func expectStatusPatch(t *testing.T, sClient *mocks.MockStatusWriter, errMsg string) {
 	t.Helper()
 	sClient.EXPECT().Patch(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Bundle{}), gomock.Any()).Do(
-		func(ctx context.Context, b *fleetv1.Bundle, p client.Patch, opts ...interface{}) {
+		func(ctx context.Context, b *fleetv1.Bundle, p client.Patch, opts ...any) {
 			cond, found := getBundleReadyCondition(b)
 			if !found {
 				t.Errorf("expecting Condition %s to be found", fleetv1.BundleConditionReady)
@@ -1232,7 +1226,7 @@ func TestBundleDeploymentMapFunc(t *testing.T) {
 
 func expectGetWithFinalizer(mockCli *mocks.MockK8sClient, bundle fleetv1.Bundle) {
 	mockCli.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Bundle{}), gomock.Any()).DoAndReturn(
-		func(ctx context.Context, req types.NamespacedName, b *fleetv1.Bundle, opts ...interface{}) error {
+		func(ctx context.Context, req types.NamespacedName, b *fleetv1.Bundle, opts ...any) error {
 			b.Name = bundle.Name
 			b.Namespace = bundle.Namespace
 			controllerutil.AddFinalizer(b, finalize.BundleFinalizer)
@@ -1246,12 +1240,7 @@ func expectGetWithFinalizer(mockCli *mocks.MockK8sClient, bundle fleetv1.Bundle)
 
 func TestReconcile_DownstreamResourcesGeneration_Increment(t *testing.T) {
 	envVar := "EXPERIMENTAL_COPY_RESOURCES_DOWNSTREAM"
-	bkp := os.Getenv(envVar)
-	defer func() {
-		os.Setenv(envVar, bkp)
-	}()
-
-	os.Setenv(envVar, "true")
+	t.Setenv(envVar, "true")
 
 	testCases := []struct {
 		name                     string
@@ -1280,7 +1269,7 @@ func TestReconcile_DownstreamResourcesGeneration_Increment(t *testing.T) {
 			setupResourceMocks: func(ctrl *gomock.Controller, mc *mocks.MockK8sClient) {
 				// Source secret get
 				mc.EXPECT().Get(gomock.Any(), types.NamespacedName{Namespace: "default", Name: "my-secret"}, gomock.AssignableToTypeOf(&corev1.Secret{}), gomock.Any()).
-					DoAndReturn(func(ctx context.Context, key types.NamespacedName, s *corev1.Secret, opts ...interface{}) error {
+					DoAndReturn(func(ctx context.Context, key types.NamespacedName, s *corev1.Secret, opts ...any) error {
 						s.Name = "my-secret"
 						s.Namespace = "default"
 						s.Data = map[string][]byte{"key": []byte("value")}
@@ -1295,7 +1284,7 @@ func TestReconcile_DownstreamResourcesGeneration_Increment(t *testing.T) {
 
 				// Patch to increment generation
 				mc.EXPECT().Patch(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.BundleDeployment{}), gomock.Any()).
-					DoAndReturn(func(ctx context.Context, bd *fleetv1.BundleDeployment, patch client.Patch, opts ...interface{}) error {
+					DoAndReturn(func(ctx context.Context, bd *fleetv1.BundleDeployment, patch client.Patch, opts ...any) error {
 						if bd.Spec.DownstreamResourcesGeneration != 1 {
 							t.Errorf("Expected generation 1, got %d", bd.Spec.DownstreamResourcesGeneration)
 						}
@@ -1323,7 +1312,7 @@ func TestReconcile_DownstreamResourcesGeneration_Increment(t *testing.T) {
 			setupResourceMocks: func(ctrl *gomock.Controller, mc *mocks.MockK8sClient) {
 				// Source configmap get
 				mc.EXPECT().Get(gomock.Any(), types.NamespacedName{Namespace: "default", Name: "my-config"}, gomock.AssignableToTypeOf(&corev1.ConfigMap{}), gomock.Any()).
-					DoAndReturn(func(ctx context.Context, key types.NamespacedName, cm *corev1.ConfigMap, opts ...interface{}) error {
+					DoAndReturn(func(ctx context.Context, key types.NamespacedName, cm *corev1.ConfigMap, opts ...any) error {
 						cm.Name = "my-config"
 						cm.Namespace = "default"
 						cm.Data = map[string]string{"key": "new-value"}
@@ -1332,7 +1321,7 @@ func TestReconcile_DownstreamResourcesGeneration_Increment(t *testing.T) {
 
 				// Target configmap get (exists) + update
 				mc.EXPECT().Get(gomock.Any(), types.NamespacedName{Namespace: "cluster-ns", Name: "my-config"}, gomock.AssignableToTypeOf(&corev1.ConfigMap{}), gomock.Any()).
-					DoAndReturn(func(ctx context.Context, key types.NamespacedName, cm *corev1.ConfigMap, opts ...interface{}) error {
+					DoAndReturn(func(ctx context.Context, key types.NamespacedName, cm *corev1.ConfigMap, opts ...any) error {
 						cm.Name = "my-config"
 						cm.Namespace = "cluster-ns"
 						cm.Data = map[string]string{"key": "old-value"}
@@ -1343,7 +1332,7 @@ func TestReconcile_DownstreamResourcesGeneration_Increment(t *testing.T) {
 
 				// Patch to increment generation
 				mc.EXPECT().Patch(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.BundleDeployment{}), gomock.Any()).
-					DoAndReturn(func(ctx context.Context, bd *fleetv1.BundleDeployment, patch client.Patch, opts ...interface{}) error {
+					DoAndReturn(func(ctx context.Context, bd *fleetv1.BundleDeployment, patch client.Patch, opts ...any) error {
 						if bd.Spec.DownstreamResourcesGeneration != 6 {
 							t.Errorf("Expected generation 6, got %d", bd.Spec.DownstreamResourcesGeneration)
 						}
@@ -1372,7 +1361,7 @@ func TestReconcile_DownstreamResourcesGeneration_Increment(t *testing.T) {
 			setupResourceMocks: func(ctrl *gomock.Controller, mc *mocks.MockK8sClient) {
 				// Source secret get
 				mc.EXPECT().Get(gomock.Any(), types.NamespacedName{Namespace: "default", Name: "my-secret"}, gomock.AssignableToTypeOf(&corev1.Secret{}), gomock.Any()).
-					DoAndReturn(func(ctx context.Context, key types.NamespacedName, s *corev1.Secret, opts ...interface{}) error {
+					DoAndReturn(func(ctx context.Context, key types.NamespacedName, s *corev1.Secret, opts ...any) error {
 						s.Name = "my-secret"
 						s.Namespace = "default"
 						s.Data = map[string][]byte{"key": []byte("value")}
@@ -1387,7 +1376,7 @@ func TestReconcile_DownstreamResourcesGeneration_Increment(t *testing.T) {
 
 				// Source configmap get
 				mc.EXPECT().Get(gomock.Any(), types.NamespacedName{Namespace: "default", Name: "my-config"}, gomock.AssignableToTypeOf(&corev1.ConfigMap{}), gomock.Any()).
-					DoAndReturn(func(ctx context.Context, key types.NamespacedName, cm *corev1.ConfigMap, opts ...interface{}) error {
+					DoAndReturn(func(ctx context.Context, key types.NamespacedName, cm *corev1.ConfigMap, opts ...any) error {
 						cm.Name = "my-config"
 						cm.Namespace = "default"
 						cm.Data = map[string]string{"key": "value"}
@@ -1396,7 +1385,7 @@ func TestReconcile_DownstreamResourcesGeneration_Increment(t *testing.T) {
 
 				// Target configmap get (exists) + update
 				mc.EXPECT().Get(gomock.Any(), types.NamespacedName{Namespace: "cluster-ns", Name: "my-config"}, gomock.AssignableToTypeOf(&corev1.ConfigMap{}), gomock.Any()).
-					DoAndReturn(func(ctx context.Context, key types.NamespacedName, cm *corev1.ConfigMap, opts ...interface{}) error {
+					DoAndReturn(func(ctx context.Context, key types.NamespacedName, cm *corev1.ConfigMap, opts ...any) error {
 						cm.Name = "my-config"
 						cm.Namespace = "cluster-ns"
 						cm.Data = map[string]string{"key": "old-value"}
@@ -1407,7 +1396,7 @@ func TestReconcile_DownstreamResourcesGeneration_Increment(t *testing.T) {
 
 				// Patch to increment generation (only once for both resources)
 				mc.EXPECT().Patch(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.BundleDeployment{}), gomock.Any()).
-					DoAndReturn(func(ctx context.Context, bd *fleetv1.BundleDeployment, patch client.Patch, opts ...interface{}) error {
+					DoAndReturn(func(ctx context.Context, bd *fleetv1.BundleDeployment, patch client.Patch, opts ...any) error {
 						if bd.Spec.DownstreamResourcesGeneration != 11 {
 							t.Errorf("Expected generation 11, got %d", bd.Spec.DownstreamResourcesGeneration)
 						}
@@ -1435,7 +1424,7 @@ func TestReconcile_DownstreamResourcesGeneration_Increment(t *testing.T) {
 			setupResourceMocks: func(ctrl *gomock.Controller, mc *mocks.MockK8sClient) {
 				// Source secret get
 				mc.EXPECT().Get(gomock.Any(), types.NamespacedName{Namespace: "default", Name: "my-secret"}, gomock.AssignableToTypeOf(&corev1.Secret{}), gomock.Any()).
-					DoAndReturn(func(ctx context.Context, key types.NamespacedName, s *corev1.Secret, opts ...interface{}) error {
+					DoAndReturn(func(ctx context.Context, key types.NamespacedName, s *corev1.Secret, opts ...any) error {
 						s.Name = "my-secret"
 						s.Namespace = "default"
 						s.Data = map[string][]byte{"key": []byte("value")}
@@ -1444,7 +1433,7 @@ func TestReconcile_DownstreamResourcesGeneration_Increment(t *testing.T) {
 
 				// Target secret get (exists with same data) - no update needed
 				mc.EXPECT().Get(gomock.Any(), types.NamespacedName{Namespace: "cluster-ns", Name: "my-secret"}, gomock.AssignableToTypeOf(&corev1.Secret{}), gomock.Any()).
-					DoAndReturn(func(ctx context.Context, key types.NamespacedName, s *corev1.Secret, opts ...interface{}) error {
+					DoAndReturn(func(ctx context.Context, key types.NamespacedName, s *corev1.Secret, opts ...any) error {
 						s.Name = "my-secret"
 						s.Namespace = "cluster-ns"
 						s.Data = map[string][]byte{"key": []byte("value")}
@@ -1513,14 +1502,14 @@ func TestReconcile_DownstreamResourcesGeneration_Increment(t *testing.T) {
 
 			// List BundleDeployments for cleanup
 			mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.BundleDeploymentList{}), gomock.Any()).
-				DoAndReturn(func(ctx context.Context, list *fleetv1.BundleDeploymentList, opts ...interface{}) error {
+				DoAndReturn(func(ctx context.Context, list *fleetv1.BundleDeploymentList, opts ...any) error {
 					list.Items = []fleetv1.BundleDeployment{*tc.existingBundleDeployment}
 					return nil
 				})
 
 			// BundleDeployment get (for CreateOrUpdate)
 			mockClient.EXPECT().Get(gomock.Any(), types.NamespacedName{Namespace: "cluster-ns", Name: "test-bd"}, gomock.AssignableToTypeOf(&fleetv1.BundleDeployment{}), gomock.Any()).
-				DoAndReturn(func(ctx context.Context, key types.NamespacedName, bd *fleetv1.BundleDeployment, opts ...interface{}) error {
+				DoAndReturn(func(ctx context.Context, key types.NamespacedName, bd *fleetv1.BundleDeployment, opts ...any) error {
 					*bd = *tc.existingBundleDeployment
 					return nil
 				})
@@ -1560,13 +1549,8 @@ func TestReconcile_DownstreamResourcesGeneration_Increment(t *testing.T) {
 
 func TestReconcile_DownstreamResources_FeatureDisabled(t *testing.T) {
 	envVar := "EXPERIMENTAL_COPY_RESOURCES_DOWNSTREAM"
-	bkp := os.Getenv(envVar)
-	defer func() {
-		os.Setenv(envVar, bkp)
-	}()
-
 	// Explicitly disable the feature
-	os.Setenv(envVar, "false")
+	t.Setenv(envVar, "false")
 
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
@@ -1636,14 +1620,14 @@ func TestReconcile_DownstreamResources_FeatureDisabled(t *testing.T) {
 
 	// List BundleDeployments for cleanup
 	mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.BundleDeploymentList{}), gomock.Any()).
-		DoAndReturn(func(ctx context.Context, list *fleetv1.BundleDeploymentList, opts ...interface{}) error {
+		DoAndReturn(func(ctx context.Context, list *fleetv1.BundleDeploymentList, opts ...any) error {
 			list.Items = []fleetv1.BundleDeployment{*existingBundleDeployment}
 			return nil
 		})
 
 	// BundleDeployment get (for CreateOrUpdate)
 	mockClient.EXPECT().Get(gomock.Any(), types.NamespacedName{Namespace: "cluster-ns", Name: "test-bd"}, gomock.AssignableToTypeOf(&fleetv1.BundleDeployment{}), gomock.Any()).
-		DoAndReturn(func(ctx context.Context, key types.NamespacedName, bd *fleetv1.BundleDeployment, opts ...interface{}) error {
+		DoAndReturn(func(ctx context.Context, key types.NamespacedName, bd *fleetv1.BundleDeployment, opts ...any) error {
 			*bd = *existingBundleDeployment
 			return nil
 		})
@@ -1651,7 +1635,7 @@ func TestReconcile_DownstreamResources_FeatureDisabled(t *testing.T) {
 	// BundleDeployment update - when feature is disabled, generation stays unchanged
 	// because handleDownstreamObjects modifies BD in memory but doesn't persist it
 	mockClient.EXPECT().Update(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.BundleDeployment{}), gomock.Any()).
-		DoAndReturn(func(ctx context.Context, obj client.Object, opts ...interface{}) error {
+		DoAndReturn(func(ctx context.Context, obj client.Object, opts ...any) error {
 			bd := obj.(*fleetv1.BundleDeployment)
 			// Feature is disabled, so resources are not cloned and generation stays as-is (5)
 			// The handleDownstreamObjects sets it to 0 in memory but doesn't persist that change
@@ -1707,7 +1691,7 @@ func (r *secretNotFoundReader) Get(ctx context.Context, key client.ObjectKey, ob
 // reconciler skeleton used by both race-condition tests. The caller provides
 // the client.Reader that the real Targets() manager will use; this is the
 // single injection point that distinguishes the bug scenario from the control.
-func setupBundleRaceTest(t *testing.T, reader client.Reader, helmValues map[string]interface{}) (
+func setupBundleRaceTest(t *testing.T, reader client.Reader, helmValues map[string]any) (
 	fakeClient client.Client,
 	r *reconciler.BundleReconciler,
 	req ctrl.Request,
@@ -1813,7 +1797,7 @@ func TestReconcile_OptionsSecretNotFound_ValuesPreserved(t *testing.T) {
 		namespace: clusterNS,
 	}
 
-	helmValues := map[string]interface{}{
+	helmValues := map[string]any{
 		"replicas": float64(3),
 		"image":    "nginx:latest",
 	}
@@ -1886,7 +1870,7 @@ func TestReconcile_OptionsSecretNotFound_ValuesPreserved(t *testing.T) {
 	}
 	// Also verify that the values match the original Helm values we set up in the test,
 	// to confirm the secret is intact.
-	var valuesFromSecret map[string]interface{}
+	var valuesFromSecret map[string]any
 	if err := json.Unmarshal(valuesData, &valuesFromSecret); err != nil {
 		t.Fatalf("Failed to unmarshal values from secret: %v", err)
 	}
@@ -1933,7 +1917,7 @@ func TestReconcile_WithOptionsSecret_ValuesPreserved(t *testing.T) {
 		clusterNS  = "cluster-one-ns"
 	)
 
-	helmValues := map[string]interface{}{
+	helmValues := map[string]any{
 		"replicas": float64(3),
 		"image":    "nginx:latest",
 	}
@@ -1979,7 +1963,7 @@ func TestReconcile_WithOptionsSecret_ValuesPreserved(t *testing.T) {
 
 	// Also verify that the values match the original Helm values we set up in the test,
 	// to confirm the secret is intact.
-	var valuesFromSecret map[string]interface{}
+	var valuesFromSecret map[string]any
 	if err := json.Unmarshal(valuesData, &valuesFromSecret); err != nil {
 		t.Fatalf("Failed to unmarshal values from secret: %v", err)
 	}

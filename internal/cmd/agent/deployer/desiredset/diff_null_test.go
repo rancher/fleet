@@ -169,7 +169,7 @@ func Benchmark_Diff_NullPatch_WithNulls(b *testing.B) {
 	patch := []byte(`{"spec":{"strategy":{"rollingUpdate":null,"type":"RollingUpdate"},"template":{"spec":{"securityContext":null,"containers":[{"name":"nginx","resources":null}]}}}}`)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		patchCopy := make([]byte, len(patch))
 		copy(patchCopy, patch)
 		_, _ = normalizeNullPatch(key, &patchCopy)
@@ -183,7 +183,7 @@ func Benchmark_Diff_NullPatch_WithoutNulls(b *testing.B) {
 	patch := []byte(`{"spec":{"replicas":3,"strategy":{"type":"RollingUpdate"},"template":{"metadata":{"labels":{"app":"test"}},"spec":{"containers":[{"name":"nginx","image":"nginx:1.14.2"}]}}}}`)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		patchCopy := make([]byte, len(patch))
 		copy(patchCopy, patch)
 		_, _ = normalizeNullPatch(key, &patchCopy)

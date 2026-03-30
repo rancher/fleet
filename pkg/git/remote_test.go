@@ -2,7 +2,7 @@ package git_test
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -56,14 +56,14 @@ var _ = Describe("git's RevisionCommit tests", func() {
 			commit, error := gitRemote.RevisionCommit(revision)
 			Expect(commit).To(BeEmpty())
 			Expect(error).To(HaveOccurred())
-			Expect(error).To(Equal(fmt.Errorf("commit not found for revision: v1.0.0")))
+			Expect(error).To(Equal(errors.New("commit not found for revision: v1.0.0")))
 		})
 	})
 
 	When("the go-git List function fails", func() {
 		BeforeEach(func() {
 			fakeLister = &FakeRemoteLister{
-				RetError: fmt.Errorf("THIS IS A TEST ERROR"),
+				RetError: errors.New("THIS IS A TEST ERROR"),
 			}
 		})
 
@@ -153,7 +153,7 @@ var _ = Describe("git's LatestBranchCommit tests", func() {
 			commit, err := gitRemote.LatestBranchCommit(context.Background(), "wrong_branch")
 			Expect(err).To(HaveOccurred())
 			Expect(commit).To(BeEmpty())
-			Expect(err).To(Equal(fmt.Errorf("commit not found for branch: wrong_branch")))
+			Expect(err).To(Equal(errors.New("commit not found for branch: wrong_branch")))
 		})
 	})
 
@@ -184,7 +184,7 @@ var _ = Describe("git's LatestBranchCommit tests", func() {
 	When("the go-git List function fails", func() {
 		BeforeEach(func() {
 			fakeLister = &FakeRemoteLister{
-				RetError: fmt.Errorf("THIS IS A TEST ERROR"),
+				RetError: errors.New("THIS IS A TEST ERROR"),
 			}
 		})
 
