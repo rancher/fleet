@@ -76,6 +76,46 @@ var _ = Describe("OCIOpts loaded from secret", func() {
 		})
 	})
 
+	When("the given oci storage secret uses the documented insecureSkipTLS field", func() {
+		BeforeEach(func() {
+			secretName = "test"
+			secretData = map[string][]byte{
+				OCISecretReference:       []byte("reference"),
+				OCISecretInsecureSkipTLS: []byte("true"),
+			}
+			secretType = fleet.SecretTypeOCIStorage
+			secretGetErrorMessage = ""
+			secretGetNotFoundError = false
+		})
+		It("returns the expected OCIOpts from the data in the secret", func() {
+			ns := client.ObjectKey{Name: secretName, Namespace: "test"}
+			opts, err := ReadOptsFromSecret(context.TODO(), mockClient, ns)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(opts.Reference).To(Equal(string(secretData[OCISecretReference])))
+			Expect(opts.InsecureSkipTLS).To(BeTrue())
+		})
+	})
+
+	When("the oci storage secret contains both insecure keys", func() {
+		BeforeEach(func() {
+			secretName = "test"
+			secretData = map[string][]byte{
+				OCISecretReference:       []byte("reference"),
+				OCISecretInsecureSkipTLS: []byte("false"),
+				OCISecretInsecure:        []byte("true"),
+			}
+			secretType = fleet.SecretTypeOCIStorage
+			secretGetErrorMessage = ""
+			secretGetNotFoundError = false
+		})
+		It("prefers insecureSkipTLS over the legacy insecure field", func() {
+			ns := client.ObjectKey{Name: secretName, Namespace: "test"}
+			opts, err := ReadOptsFromSecret(context.TODO(), mockClient, ns)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(opts.InsecureSkipTLS).To(BeFalse())
+		})
+	})
+
 	When("the secret name is not set, but a default secret exists", func() {
 		BeforeEach(func() {
 			secretName = ""
