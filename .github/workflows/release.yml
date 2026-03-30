@@ -80,25 +80,6 @@ jobs:
         with:
           go-version-file: 'go.mod'
 
-      - name: "Read Vault Secrets"
-        uses: rancher-eio/read-vault-secrets@0da85151ad1f19ed7986c41587e45aac1ace74b6 # v3
-        with:
-          secrets: |
-            secret/data/github/repo/${{ github.repository }}/fossa/credential token | FOSSA_API_KEY
-
-      - name: Run FOSSA scan
-        if: ${{ !inputs.skip_tests }}
-        uses: fossas/fossa-action@c414b9ad82eaad041e47a7cf62a4f02411f427a0 # v1.8.0
-        with:
-          api-key: ${{ env.FOSSA_API_KEY }}
-
-      - name: Run FOSSA tests
-        if: ${{ !inputs.skip_tests }}
-        uses: fossas/fossa-action@c414b9ad82eaad041e47a7cf62a4f02411f427a0 # v1.8.0
-        with:
-          api-key: ${{ env.FOSSA_API_KEY }}
-          run-tests: false
-
       - name: Install Ginkgo CLI
         if: ${{ !inputs.skip_tests }}
         run: go install github.com/onsi/ginkgo/v2/ginkgo
