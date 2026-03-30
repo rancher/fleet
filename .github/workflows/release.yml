@@ -127,11 +127,6 @@ jobs:
             secret/data/github/repo/${{ github.repository }}/rancher-prime-stg-registry/credentials registry | STAGE_REGISTRY ;
             secret/data/github/repo/${{ github.repository }}/rancher-prime-registry/credentials registry | PRIME_REGISTRY ;
 
-      - name: Prepare Docker environment to support sbom/provenance parameters
-        run: |
-          sudo bash -c 'echo "{\"features\": {\"containerd-snapshotter\": true}}" > /etc/docker/daemon.json'
-          sudo systemctl restart docker
-
       - name: Log into Docker Container registry
         uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
         if: ${{ env.IS_HOTFIX == 'false' }}
