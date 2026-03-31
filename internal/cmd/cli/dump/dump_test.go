@@ -646,7 +646,7 @@ func Test_addSecretsToArchive(t *testing.T) {
 				tr := tar.NewReader(&buf)
 
 				// Validate all secrets in the archive
-				for i := 0; i < len(c.secrets); i++ {
+				for i := range len(c.secrets) {
 					_, err := tr.Next()
 					if err != nil {
 						t.Fatalf("failed to read tar header for secret %d: %v", i, err)
@@ -1082,7 +1082,7 @@ func Test_GitRepoFiltering(t *testing.T) {
 		}
 
 		// Verify it can be unmarshaled
-		var obj map[string]interface{}
+		var obj map[string]any
 		if err := yaml.Unmarshal(data, &obj); err != nil {
 			t.Fatalf("failed to unmarshal %s: %v", header.Name, err)
 		}
@@ -1307,7 +1307,7 @@ func Test_BundleFiltering(t *testing.T) {
 		}
 
 		// Verify it can be unmarshaled
-		var obj map[string]interface{}
+		var obj map[string]any
 		if err := yaml.Unmarshal(data, &obj); err != nil {
 			t.Fatalf("failed to unmarshal %s: %v", header.Name, err)
 		}
@@ -1568,7 +1568,7 @@ func Test_HelmOpFiltering(t *testing.T) {
 			t.Fatalf("failed to read tar content: %v", err)
 		}
 
-		var obj map[string]interface{}
+		var obj map[string]any
 		if err := yaml.Unmarshal(data, &obj); err != nil {
 			t.Fatalf("failed to unmarshal %s: %v", header.Name, err)
 		}
@@ -1605,4 +1605,127 @@ func Test_HelmOpFiltering(t *testing.T) {
 	}
 
 	t.Logf("Archive contains %d entries (expected 5)", len(entries))
+}
+
+func Test_addFilteredHelmOps(t *testing.T) {
+	ctx := context.Background()
+	logger := log.FromContext(ctx).WithName("test-fleet-dump")
+
+	scheme := runtime.NewScheme()
+	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+	utilruntime.Must(v1alpha1.AddToScheme(scheme))
+
+	helmOpObjs := []runtime.Object{
+		&v1alpha1.HelmOp{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "helmop-1",
+				Namespace: "fleet-local",
+			},
+		},
+		&v1alpha1.HelmOp{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "helmop-2",
+				Namespace: "fleet-local",
+			},
+		},
+	}
+
+	tests := []struct {
+		name          string
+		opt           Options
+		expectedNames []string
+	}{
+		{
+			name: "gitrepo filter: no helmops must be added",
+			opt: Options{
+				FetchLimit: 0,
+				Namespace:  "fleet-local",
+				GitRepo:    "my-gitrepo",
+			},
+			expectedNames: nil,
+		},
+		{
+			name: "bundle filter: no helmops must be added",
+			opt: Options{
+				FetchLimit: 0,
+				Namespace:  "fleet-local",
+				Bundle:     "my-bundle",
+			},
+			expectedNames: nil,
+		},
+		{
+			name: "helmop filter: only the specified helmop must be added",
+			opt: Options{
+				FetchLimit: 0,
+				Namespace:  "fleet-local",
+				HelmOp:     "helmop-1",
+			},
+			expectedNames: []string{"helmop-1"},
+		},
+		{
+			name: "no filter: all helmops in the namespace must be added",
+			opt: Options{
+				FetchLimit: 0,
+				Namespace:  "fleet-local",
+			},
+			expectedNames: []string{"helmop-1", "helmop-2"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fakeDynClient := fake.NewSimpleDynamicClient(scheme, helmOpObjs...)
+
+			var buf bytes.Buffer
+			gz := gzip.NewWriter(&buf)
+			tw := tar.NewWriter(gz)
+
+			err := addFilteredHelmOps(ctx, fakeDynClient, logger, tw, tt.opt)
+			tw.Close()
+			gz.Close()
+
+			if err != nil {
+				t.Fatalf("addFilteredHelmOps() error = %v", err)
+			}
+
+			gzReader, err := gzip.NewReader(&buf)
+			if err != nil {
+				t.Fatalf("failed to create gzip reader: %v", err)
+			}
+			defer gzReader.Close()
+			tarReader := tar.NewReader(gzReader)
+
+			var foundNames []string
+			for {
+				header, err := tarReader.Next()
+				if errors.Is(err, io.EOF) {
+					break
+				}
+				if err != nil {
+					t.Fatalf("failed to read tar: %v", err)
+				}
+				if _, err := io.ReadAll(tarReader); err != nil {
+					t.Fatalf("failed to drain tar entry: %v", err)
+				}
+				parts := strings.SplitN(header.Name, "_", 3)
+				if len(parts) == 3 && parts[0] == "helmops" {
+					foundNames = append(foundNames, parts[2])
+				}
+			}
+
+			slices.Sort(foundNames)
+			expected := append([]string(nil), tt.expectedNames...)
+			slices.Sort(expected)
+
+			if len(foundNames) != len(expected) {
+				t.Errorf("expected %d helmops %v, got %d: %v", len(expected), expected, len(foundNames), foundNames)
+				return
+			}
+			for i := range expected {
+				if foundNames[i] != expected[i] {
+					t.Errorf("expected helmop %q at index %d, got %q", expected[i], i, foundNames[i])
+				}
+			}
+		})
+	}
 }

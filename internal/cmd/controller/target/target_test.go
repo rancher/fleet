@@ -61,14 +61,14 @@ func TestProcessLabelValues(t *testing.T) {
 		t.Fatal("unable to assert correct clusterName")
 	}
 
-	customStruct, ok := bundle.Helm.Values.Data["customStruct"].([]interface{})
+	customStruct, ok := bundle.Helm.Values.Data["customStruct"].([]any)
 	if !ok {
 		t.Fatal("key customStruct not found")
 	}
 
-	firstMap, ok := customStruct[0].(map[string]interface{})
+	firstMap, ok := customStruct[0].(map[string]any)
 	if !ok {
-		t.Fatal("unable to assert first element to map[string]interface{}")
+		t.Fatal("unable to assert first element to map[string]any")
 	}
 
 	firstElemVal, ok := firstMap["name"]
@@ -80,9 +80,9 @@ func TestProcessLabelValues(t *testing.T) {
 		t.Fatal("label replacement not performed in first element")
 	}
 
-	secondElement, ok := customStruct[1].(map[string]interface{})
+	secondElement, ok := customStruct[1].(map[string]any)
 	if !ok {
-		t.Fatal("unable to assert second element of customStruct to map[string]interface{}")
+		t.Fatal("unable to assert second element of customStruct to map[string]any")
 	}
 
 	secondElemVal, ok := secondElement["element1"]
@@ -94,9 +94,9 @@ func TestProcessLabelValues(t *testing.T) {
 		t.Fatal("label replacement not performed in second element")
 	}
 
-	thirdElement, ok := customStruct[2].(map[string]interface{})
+	thirdElement, ok := customStruct[2].(map[string]any)
 	if !ok {
-		t.Fatal("unable to assert third element of customStruct to map[string]interface{}")
+		t.Fatal("unable to assert third element of customStruct to map[string]any")
 	}
 
 	thirdElemVal, ok := thirdElement["element2"]
@@ -158,10 +158,10 @@ diff:
 `
 
 func TestProcessTemplateValues(t *testing.T) {
-	templateValues := map[string]interface{}{
+	templateValues := map[string]any{
 		"topLevel": "foo",
-		"nested": map[string]interface{}{
-			"secondTier": map[string]interface{}{
+		"nested": map[string]any{
+			"secondTier": map[string]any{
 				"thirdTier": "bar",
 			},
 		},
@@ -176,17 +176,17 @@ func TestProcessTemplateValues(t *testing.T) {
 		},
 	}
 
-	clusterLabels := map[string]interface{}{
+	clusterLabels := map[string]any{
 		"name":    "local",
 		"envType": "dev",
 		"really-long-label-name-with-many-many-characters-in-it": "foobar",
 	}
 
-	clusterAnnotations := map[string]interface{}{
+	clusterAnnotations := map[string]any{
 		"testAnnotation": "test",
 	}
 
-	values := map[string]interface{}{
+	values := map[string]any{
 		"ClusterNamespace":   "dev-clusters",
 		"ClusterName":        "my-cluster",
 		"ClusterLabels":      clusterLabels,
@@ -259,14 +259,14 @@ func TestProcessTemplateValues(t *testing.T) {
 		t.Fatal("unable to assert correct value missingLabel: ", missingLabel)
 	}
 
-	customStruct, ok := templatedValues["customStruct"].([]interface{})
+	customStruct, ok := templatedValues["customStruct"].([]any)
 	if !ok {
 		t.Fatal("key customStruct not found")
 	}
 
-	firstMap, ok := customStruct[0].(map[string]interface{})
+	firstMap, ok := customStruct[0].(map[string]any)
 	if !ok {
-		t.Fatal("unable to assert first element to map[string]interface{}")
+		t.Fatal("unable to assert first element to map[string]any")
 	}
 
 	firstElemVal, ok := firstMap["name"]
@@ -278,9 +278,9 @@ func TestProcessTemplateValues(t *testing.T) {
 		t.Fatal("label replacement not performed in first element")
 	}
 
-	secondElement, ok := customStruct[1].(map[string]interface{})
+	secondElement, ok := customStruct[1].(map[string]any)
 	if !ok {
-		t.Fatal("unable to assert second element of customStruct to map[string]interface{}")
+		t.Fatal("unable to assert second element of customStruct to map[string]any")
 	}
 
 	secondElemVal, ok := secondElement["element2"]
@@ -292,9 +292,9 @@ func TestProcessTemplateValues(t *testing.T) {
 		t.Fatal("template replacement not performed in second element")
 	}
 
-	thirdElement, ok := customStruct[2].(map[string]interface{})
+	thirdElement, ok := customStruct[2].(map[string]any)
 	if !ok {
-		t.Fatal("unable to assert second element of customStruct to map[string]interface{}")
+		t.Fatal("unable to assert second element of customStruct to map[string]any")
 	}
 
 	thirdElemVal, ok := thirdElement["element3_dev"]
@@ -306,7 +306,7 @@ func TestProcessTemplateValues(t *testing.T) {
 		t.Fatal("template replacement not performed in third element")
 	}
 
-	funcs, ok := templatedValues["funcs"].(map[string]interface{})
+	funcs, ok := templatedValues["funcs"].(map[string]any)
 	if !ok {
 		t.Fatal("key funcs not found")
 	}
@@ -334,7 +334,7 @@ func TestProcessTemplateValues(t *testing.T) {
 		t.Fatalf("error during templated values processing %v", err)
 	}
 
-	mapData, ok := templatedValuesData["mapData"].(map[string]interface{})
+	mapData, ok := templatedValuesData["mapData"].(map[string]any)
 	if !ok {
 		t.Fatal("mapData not found")
 	}
@@ -344,7 +344,7 @@ func TestProcessTemplateValues(t *testing.T) {
 		t.Fatal("unable to find key one")
 	}
 
-	oneData, ok := one.(map[string]interface{})
+	oneData, ok := one.(map[string]any)
 	if !ok {
 		t.Fatal("one key was not right")
 	}
@@ -358,7 +358,7 @@ func TestProcessTemplateValues(t *testing.T) {
 		t.Fatal("unable to find key two")
 	}
 
-	twoData, ok := two.(map[string]interface{})
+	twoData, ok := two.(map[string]any)
 	if !ok {
 		t.Fatal("two key was not right")
 	}
@@ -367,7 +367,7 @@ func TestProcessTemplateValues(t *testing.T) {
 		t.Fatal("two value was not right")
 	}
 
-	listData, ok := templatedValuesData["listData"].([]interface{})
+	listData, ok := templatedValuesData["listData"].([]any)
 	if !ok {
 		t.Fatal("listData not found")
 	}
@@ -376,7 +376,7 @@ func TestProcessTemplateValues(t *testing.T) {
 		t.Fatal("unable to find all listData keys")
 	}
 
-	oneListData, ok := listData[0].(map[string]interface{})
+	oneListData, ok := listData[0].(map[string]any)
 	if !ok {
 		t.Fatal("oneListData key is not right")
 	}
@@ -385,7 +385,7 @@ func TestProcessTemplateValues(t *testing.T) {
 		t.Fatal("oneListData item is missing")
 	}
 
-	twoListData, ok := listData[1].(map[string]interface{})
+	twoListData, ok := listData[1].(map[string]any)
 	if !ok {
 		t.Fatal("twoListData key is not right")
 	}

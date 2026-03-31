@@ -96,7 +96,7 @@ func (g *GitOperator) Run(cmd *cobra.Command, args []string) error {
 
 	var shardIDSuffix string
 	if g.ShardID != "" {
-		shardIDSuffix = fmt.Sprintf("-%s", g.ShardID)
+		shardIDSuffix = "-" + g.ShardID
 	}
 
 	syncPeriod := defaultSyncPeriod
@@ -111,7 +111,7 @@ func (g *GitOperator) Run(cmd *cobra.Command, args []string) error {
 		Scheme:                  scheme,
 		Metrics:                 g.setupMetrics(),
 		LeaderElection:          g.EnableLeaderElection,
-		LeaderElectionID:        fmt.Sprintf("fleet-gitops-leader-election-shard%s", shardIDSuffix),
+		LeaderElectionID:        "fleet-gitops-leader-election-shard" + shardIDSuffix,
 		LeaderElectionNamespace: namespace,
 		LeaseDuration:           &leaderOpts.LeaseDuration,
 		RenewDeadline:           &leaderOpts.RenewDeadline,
@@ -186,7 +186,7 @@ func (g *GitOperator) Run(cmd *cobra.Command, args []string) error {
 		JobNodeSelector: g.ShardNodeSelector,
 		GitFetcher:      &git.Fetch{KnownHosts: kh},
 		Clock:           reconciler.RealClock{},
-		Recorder:        mgr.GetEventRecorderFor(fmt.Sprintf("fleet-gitops%s", shardIDSuffix)),
+		Recorder:        mgr.GetEventRecorder("fleet-gitops" + shardIDSuffix),
 		SystemNamespace: namespace,
 		KnownHosts:      kh,
 		WithImagescan:   imagescanEnabled,

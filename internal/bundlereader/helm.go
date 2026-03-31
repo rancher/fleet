@@ -2,7 +2,7 @@ package bundlereader
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"os"
 
 	"github.com/rancher/fleet/internal/manifest"
@@ -17,7 +17,7 @@ func GetManifestFromHelmChart(ctx context.Context, c client.Reader, bd *fleet.Bu
 	helm := bd.Spec.Options.Helm
 
 	if helm == nil {
-		return nil, fmt.Errorf("helm options not found")
+		return nil, errors.New("helm options not found")
 	}
 	temp, err := os.MkdirTemp("", "helmop")
 	if err != nil {
@@ -32,7 +32,14 @@ func GetManifestFromHelmChart(ctx context.Context, c client.Reader, bd *fleet.Bu
 	}
 	auth.InsecureSkipVerify = bd.Spec.HelmChartOptions.InsecureSkipTLSverify
 
-	chartURL, err := ChartURL(ctx, *helm, auth, true)
+	// Use the Rancher CA bundle that was pre-resolved by the controller and stored in
+	// HelmChartOptions.CABundle. The agent service account cannot read cattle-system
+	// secrets directly, so the controller must pass the CA bundle through.
+	if len(auth.CABundle) == 0 {
+		auth.CABundle = bd.Spec.HelmChartOptions.CABundle
+	}
+
+	chartURL, err := ChartURL(ctx, *helm, auth)
 	if err != nil {
 		return nil, err
 	}

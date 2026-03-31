@@ -6,11 +6,12 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"time"
 
 	"go.uber.org/mock/gomock"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -40,7 +41,7 @@ import (
 type errReader int
 
 func (errReader) Read(p []byte) (n int, err error) {
-	return 0, fmt.Errorf("ERROR READING")
+	return 0, errors.New("ERROR READING")
 }
 
 func TestGetBranchTagFromRef(t *testing.T) {
@@ -295,7 +296,7 @@ func TestGitHubPingWebhook(t *testing.T) {
 	}
 
 	// JSON payload for the ping event
-	jsonBody := []byte(fmt.Sprintf(`{
+	jsonBody := fmt.Appendf(nil, `{
 		"zen": "%s",
 		"hook_id": %d,
 		"hook": {
@@ -317,7 +318,7 @@ func TestGitHubPingWebhook(t *testing.T) {
 			"test_url": "https://api.github.com/repos/example/repo/hooks/%d/test",
 			"ping_url": "https://api.github.com/repos/example/repo/hooks/%d/pings"
 		}
-	}`, zenMessage, hookID, hookID, hookID, hookID, hookID))
+	}`, zenMessage, hookID, hookID, hookID, hookID, hookID)
 
 	// Request creation
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "/", bytes.NewReader(jsonBody))
@@ -464,7 +465,7 @@ func TestGitHubWrongSecret(t *testing.T) {
 	mac256 := hmac.New(sha256.New, []byte("supersecretvalue"))
 	mac256.Write(jsonBody)
 	sha256Signature := hex.EncodeToString(mac256.Sum(nil))
-	req.Header.Set("X-Hub-Signature-256", fmt.Sprintf("sha256=%s", sha256Signature))
+	req.Header.Set("X-Hub-Signature-256", "sha256="+sha256Signature)
 
 	// request execution
 	rr := httptest.NewRecorder()
@@ -662,7 +663,7 @@ func TestGitHubSecretAndCommitUpdated(t *testing.T) {
 
 		// call for secret
 		mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-			func(ctx context.Context, name types.NamespacedName, secret *corev1.Secret, _ ...interface{}) error {
+			func(ctx context.Context, name types.NamespacedName, secret *corev1.Secret, _ ...any) error {
 				// check that we're calling Get with the expected name and Namespace
 				if tt.gitrepoSecret {
 					if name.Name != gitrepoSecretName {
@@ -694,20 +695,20 @@ func TestGitHubSecretAndCommitUpdated(t *testing.T) {
 				}
 
 				// if no secret
-				return errors.NewNotFound(schema.GroupResource{}, "")
+				return apierrors.NewNotFound(schema.GroupResource{}, "")
 			}).Times(1)
 
 		// Status().Update() mock call
 		if tt.expectedCommitUpdate {
 			mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-				func(ctx context.Context, name types.NamespacedName, gitrepo *v1alpha1.GitRepo, _ ...interface{}) error {
+				func(ctx context.Context, name types.NamespacedName, gitrepo *v1alpha1.GitRepo, _ ...any) error {
 					return nil
 				})
 			statusClient := mocks.NewMockStatusWriter(ctlr)
 
 			mockClient.EXPECT().Status().Return(statusClient).Times(1)
 			statusClient.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any()).Do(
-				func(ctx context.Context, repo *v1alpha1.GitRepo, _ client.Patch, opts ...interface{}) {
+				func(ctx context.Context, repo *v1alpha1.GitRepo, _ client.Patch, opts ...any) {
 					// check that the commit is the expected one
 					if repo.Status.WebhookCommit != expectedCommit {
 						t.Errorf("expecting gitrepo webhook commit %s, got %s", expectedCommit, repo.Status.WebhookCommit)
@@ -725,14 +726,14 @@ func TestGitHubSecretAndCommitUpdated(t *testing.T) {
 		}
 
 		// we set only the values that we're going to use in the push event to make things simple
-		jsonBody := []byte(fmt.Sprintf(`
+		jsonBody := fmt.Appendf(nil, `
 		{
 		  "ref":"refs/heads/main",
 		  "after":"%s",
 		  "repository":{
 			"html_url":"https://github.com/example/repo"
 		  }
-		}`, expectedCommit))
+		}`, expectedCommit)
 
 		// Request creation
 		req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "/", bytes.NewReader(jsonBody))
@@ -745,7 +746,7 @@ func TestGitHubSecretAndCommitUpdated(t *testing.T) {
 		mac256 := hmac.New(sha256.New, []byte(tt.secretValueInRequest))
 		_, _ = mac256.Write(jsonBody)
 		expectedMAC256 := hex.EncodeToString(mac256.Sum(nil))
-		req.Header.Set("X-Hub-Signature-256", fmt.Sprintf("sha256=%s", expectedMAC256))
+		req.Header.Set("X-Hub-Signature-256", "sha256="+expectedMAC256)
 
 		// request execution
 		rr := httptest.NewRecorder()
@@ -766,6 +767,107 @@ func TestGitHubSecretAndCommitUpdated(t *testing.T) {
 	}
 }
 
+func TestGitRepoURLMatch(t *testing.T) {
+	ctlr := gomock.NewController(t)
+	mockClient := mocks.NewMockK8sClient(ctlr)
+
+	expectedCommit := "af69d162de5a276abc86e0686b2b44033cd3f442"
+
+	gitRepos := []v1alpha1.GitRepo{
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "intended-gitrepo",
+				Namespace: "my-namespace",
+			},
+			Spec: v1alpha1.GitRepoSpec{
+				Repo: "https://github.com/example/repo",
+			},
+			Status: v1alpha1.GitRepoStatus{
+				WebhookCommit: "12345abcdef", // different from expectedCommit
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "gitrepo-which-should-be-ignored",
+				Namespace: "my-namespace",
+			},
+			Spec: v1alpha1.GitRepoSpec{
+				Repo: "https://github.com/example/repo-with-suffix",
+			},
+			Status: v1alpha1.GitRepoStatus{
+				WebhookCommit: "12345abcdef", // different from expectedCommit
+			},
+		},
+	}
+
+	// List GitRepos mock call
+	mockClient.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(
+		func(ctx context.Context, list *v1alpha1.GitRepoList, opts ...client.ListOption) error {
+			list.Items = append(list.Items, gitRepos...)
+
+			return nil
+		},
+	)
+
+	nn := types.NamespacedName{Name: webhookSecretName, Namespace: "my-namespace"}
+	// The following calls should happen only _once_, for the GitRepo with the exact URL match, hence the explicit
+	// `.Times(1)` calls.
+	mockClient.EXPECT().Get(gomock.Any(), nn, gomock.Any()).Return(apierrors.NewNotFound(schema.GroupResource{}, "")).Times(1)
+
+	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		func(ctx context.Context, name types.NamespacedName, gitrepo *v1alpha1.GitRepo, _ ...any) error {
+			// check that the GitRepo is the expected one
+			if name.Name != "intended-gitrepo" {
+				t.Errorf("wrong gitrepo matched: expected 'intended-gitrepo', got %s", name.Name)
+			}
+
+			return nil
+		},
+	).Times(1)
+	statusClient := mocks.NewMockStatusWriter(ctlr)
+	mockClient.EXPECT().Status().Return(statusClient).Times(1)
+	statusClient.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any()).Do(
+		func(ctx context.Context, repo *v1alpha1.GitRepo, _ client.Patch, opts ...any) {
+			// check that the commit is the expected one
+			if repo.Status.WebhookCommit != expectedCommit {
+				t.Errorf("expecting gitrepo webhook commit %s, got %s", expectedCommit, repo.Status.WebhookCommit)
+			}
+			if repo.Spec.PollingInterval.Duration != time.Hour {
+				t.Errorf("expecting gitrepo polling interval 1h, got %s", repo.Spec.PollingInterval.Duration)
+			}
+		},
+	).Times(1)
+
+	// we set only the values that we're going to use in the push event to make things simple
+	jsonBody := fmt.Appendf(nil, `
+		{
+		  "ref":"refs/heads/main",
+		  "after":"%s",
+		  "repository":{
+			"html_url":"https://github.com/example/repo"
+		  }
+		}`, expectedCommit)
+
+	// Request creation
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "/", bytes.NewReader(jsonBody))
+	if err != nil {
+		t.Fatalf("Failed to create HTTP request: %v", err)
+	}
+	req.Header.Set("X-Github-Event", "push")
+
+	rr := httptest.NewRecorder()
+	w := &Webhook{
+		client:    mockClient,
+		namespace: "my-namespace",
+	}
+	w.ServeHTTP(rr, req)
+
+	// Verify the response status code is correct
+	if status := rr.Code; status != http.StatusOK {
+		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
+	}
+}
+
 func TestErrorReadingRequest(t *testing.T) {
 	ctlr := gomock.NewController(t)
 	mockClient := mocks.NewMockK8sClient(ctlr)
@@ -773,7 +875,7 @@ func TestErrorReadingRequest(t *testing.T) {
 		client:    mockClient,
 		namespace: "default",
 	}
-	testRequest := httptest.NewRequest(http.MethodPost, "/something", errReader(0))
+	testRequest := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/something", errReader(0))
 	rr := httptest.NewRecorder()
 	w.ServeHTTP(rr, testRequest)
 

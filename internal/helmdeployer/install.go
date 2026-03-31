@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"strconv"
 	"strings"
 	"time"
@@ -158,7 +159,7 @@ func (h *Helm) runInstall(
 	ctx context.Context,
 	cfg *action.Configuration,
 	chart *chartv2.Chart,
-	values map[string]interface{},
+	values map[string]any,
 	releaseName string,
 	namespace string,
 	timeout time.Duration,
@@ -247,7 +248,7 @@ func (h *Helm) runUpgrade(
 	ctx context.Context,
 	cfg *action.Configuration,
 	chart *chartv2.Chart,
-	values map[string]interface{},
+	values map[string]any,
 	releaseName string,
 	namespace string,
 	timeout time.Duration,
@@ -316,7 +317,7 @@ func (h *Helm) configureUpgradeAction(u *action.Upgrade, namespace string, timeo
 
 // retryUpgradeAfterRollback handles the case where a Helm upgrade is interrupted and retries
 // the upgrade after performing a rollback. This addresses the "another operation is in progress" error.
-func (h *Helm) retryUpgradeAfterRollback(ctx context.Context, cfg *action.Configuration, u *action.Upgrade, releaseName string, chart *chartv2.Chart, values map[string]interface{}) (*releasev1.Release, error) {
+func (h *Helm) retryUpgradeAfterRollback(ctx context.Context, cfg *action.Configuration, u *action.Upgrade, releaseName string, chart *chartv2.Chart, values map[string]any) (*releasev1.Release, error) {
 	logger := log.FromContext(ctx)
 	logger.Info("Helm doing a rollback", "error", HelmUpgradeInterruptedError)
 
@@ -361,7 +362,7 @@ func (h *Helm) retryUpgradeAfterRollback(ctx context.Context, cfg *action.Config
 }
 
 // assertRelease converts a Helm release interface to a concrete *releasev1.Release type.
-func assertRelease(rel interface{}) (*releasev1.Release, error) {
+func assertRelease(rel any) (*releasev1.Release, error) {
 	if v1Rel, ok := rel.(*releasev1.Release); ok {
 		return v1Rel, nil
 	}
@@ -466,24 +467,24 @@ func handleOrphanedRelease(ctx context.Context, cfg *action.Configuration, lastR
 	return false, nil
 }
 
-func (h *Helm) getValues(ctx context.Context, options fleet.BundleDeploymentOptions, defaultNamespace string) (map[string]interface{}, error) {
+func (h *Helm) getValues(ctx context.Context, options fleet.BundleDeploymentOptions, defaultNamespace string) (map[string]any, error) {
 	if options.Helm == nil {
 		return nil, nil
 	}
 
-	var values map[string]interface{}
+	var values map[string]any
 	if options.Helm.Values != nil {
 		values = options.Helm.Values.Data
 	}
 
 	// avoid the possibility of returning a nil map
 	if values == nil {
-		values = map[string]interface{}{}
+		values = map[string]any{}
 	}
 	// do not run this when using template
 	if !h.template {
 		for _, valuesFrom := range options.Helm.ValuesFrom {
-			var tempValues map[string]interface{}
+			var tempValues map[string]any
 			if valuesFrom.ConfigMapKeyRef != nil {
 				name := valuesFrom.ConfigMapKeyRef.Name
 				namespace := valuesFrom.ConfigMapKeyRef.Namespace
@@ -543,8 +544,8 @@ func (h *Helm) getValues(ctx context.Context, options fleet.BundleDeploymentOpti
 	return values, nil
 }
 
-func valuesFromSecret(name, namespace, key string, secret *corev1.Secret) (map[string]interface{}, error) {
-	var m map[string]interface{}
+func valuesFromSecret(name, namespace, key string, secret *corev1.Secret) (map[string]any, error) {
+	var m map[string]any
 	if secret == nil {
 		return m, nil
 	}
@@ -559,8 +560,8 @@ func valuesFromSecret(name, namespace, key string, secret *corev1.Secret) (map[s
 	return m, nil
 }
 
-func valuesFromConfigMap(name, namespace, key string, configMap *corev1.ConfigMap) (map[string]interface{}, error) {
-	var m map[string]interface{}
+func valuesFromConfigMap(name, namespace, key string, configMap *corev1.ConfigMap) (map[string]any, error) {
+	var m map[string]any
 	if configMap == nil {
 		return m, nil
 	}
@@ -577,19 +578,15 @@ func valuesFromConfigMap(name, namespace, key string, configMap *corev1.ConfigMa
 
 func mergeMaps(base, other map[string]string) map[string]string {
 	result := map[string]string{}
-	for k, v := range base {
-		result[k] = v
-	}
-	for k, v := range other {
-		result[k] = v
-	}
+	maps.Copy(result, base)
+	maps.Copy(result, other)
 	return result
 }
 
 // mergeValues merges source and destination map, preferring values over maps
 // from the source values. This is slightly adapted from:
 // https://github.com/helm/helm/blob/2332b480c9cb70a0d8a85247992d6155fbe82416/cmd/helm/install.go#L359
-func mergeValues(dest, src map[string]interface{}) map[string]interface{} {
+func mergeValues(dest, src map[string]any) map[string]any {
 	for k, v := range src {
 		// If the key doesn't exist already, then just set the key to that value
 		if _, exists := dest[k]; !exists {
@@ -597,7 +594,7 @@ func mergeValues(dest, src map[string]interface{}) map[string]interface{} {
 			dest[k] = v
 			continue
 		}
-		nextMap, ok := v.(map[string]interface{})
+		nextMap, ok := v.(map[string]any)
 		// If it isn't another map, overwrite the value
 		if !ok {
 			// new key is not a map, overwrite existing key as we prefer values over maps
@@ -605,7 +602,7 @@ func mergeValues(dest, src map[string]interface{}) map[string]interface{} {
 			continue
 		}
 		// Edge case: If the key exists in the destination, but isn't a map
-		destMap, isMap := dest[k].(map[string]interface{})
+		destMap, isMap := dest[k].(map[string]any)
 		// If the source map has a map for this key, prefer it
 		if !isMap {
 			dest[k] = v

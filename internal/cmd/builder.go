@@ -42,13 +42,13 @@ type fieldInfo struct {
 	FieldValue reflect.Value
 }
 
-func fields(obj interface{}) []fieldInfo {
+func fields(obj any) []fieldInfo {
 	ptrValue := reflect.ValueOf(obj)
 	objValue := ptrValue.Elem()
 
 	var result []fieldInfo
 
-	for i := 0; i < objValue.NumField(); i++ {
+	for i := range objValue.NumField() {
 		fieldType := objValue.Type().Field(i)
 		if fieldType.Anonymous && fieldType.Type.Kind() == reflect.Struct {
 			result = append(result, fields(objValue.Field(i).Addr().Interface())...)
@@ -63,7 +63,7 @@ func fields(obj interface{}) []fieldInfo {
 	return result
 }
 
-func Name(obj interface{}) string {
+func Name(obj any) string {
 	ptrValue := reflect.ValueOf(obj)
 	objValue := ptrValue.Elem()
 	commandName := strings.Replace(objValue.Type().Name(), "Command", "", 1)
@@ -255,7 +255,7 @@ func name(name, setName, short string) (string, string) {
 	name = caseRegexp.ReplaceAllString(parts[i], "$1-$2")
 	name = strings.ToLower(name)
 	result := append([]string{name}, parts[0:i]...)
-	for i := 0; i < len(result); i++ {
+	for i := range result {
 		result[i] = strings.ToLower(result[i])
 	}
 	if short == "" && len(result) > 1 {

@@ -138,6 +138,14 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, fmt.Errorf("%w, failed to add finalizer to cluster: %w", fleetutil.ErrRetryable, err)
 	}
 
+	// Normalize an empty agentSchedulingCustomization to nil so
+	// OpenAPI-schema-aware UIs do not render it as an active section.
+	if patched, err := r.normalizeAgentSchedulingCustomization(ctx, cluster); err != nil {
+		return ctrl.Result{}, err
+	} else if patched {
+		return ctrl.Result{Requeue: true}, nil
+	}
+
 	if cluster.Status.Namespace == "" {
 		// wait for the cluster's namespace to be created by agentmanagement
 		return ctrl.Result{
@@ -285,6 +293,24 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	return ctrl.Result{}, err
+}
+
+// normalizeAgentSchedulingCustomization patches agentSchedulingCustomization to
+// nil when it is a non-nil empty struct. Some provisioning layers (e.g. Rancher)
+// always initialize the field as &AgentSchedulingCustomization{}, which is
+// serialized as agentSchedulingCustomization: {} in etcd and causes
+// OpenAPI-aware clients to show the field uncommented even when the user has not
+// configured any scheduling customization. Returns true when the patch was applied.
+func (r *ClusterReconciler) normalizeAgentSchedulingCustomization(ctx context.Context, cluster *fleet.Cluster) (bool, error) {
+	sc := cluster.Spec.AgentSchedulingCustomization
+	if sc == nil || sc.PriorityClass != nil || sc.PodDisruptionBudget != nil {
+		return false, nil
+	}
+	patch := []byte(`{"spec":{"agentSchedulingCustomization":null}}`)
+	if err := r.Patch(ctx, cluster, client.RawPatch(types.MergePatchType, patch)); err != nil {
+		return false, fmt.Errorf("failed to clear empty agentSchedulingCustomization: %w", err)
+	}
+	return true, nil
 }
 
 // setCondition sets the condition and updates the timestamp, if the condition changed

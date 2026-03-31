@@ -15,9 +15,10 @@ import (
 
 type Auth struct {
 	Username           string `json:"username,omitempty"`
-	Password           string `json:"password,omitempty"` //nolint:gosec // G117 false positive: Password is an intentional field in the Helm chart auth config
+	Password           string `json:"password,omitempty"`
 	CABundle           []byte `json:"caBundle,omitempty"`
 	SSHPrivateKey      []byte `json:"sshPrivateKey,omitempty"`
+	SSHKnownHosts      []byte `json:"sshKnownHosts,omitempty"`
 	InsecureSkipVerify bool   `json:"insecureSkipVerify,omitempty"`
 	BasicHTTP          bool   `json:"basicHTTP,omitempty"`
 	// remember to update Hash() when adding/modifying fields
@@ -46,6 +47,7 @@ func (a Auth) Hash() string {
 		[]byte(a.Password),
 		a.CABundle,
 		a.SSHPrivateKey,
+		a.SSHKnownHosts,
 		{toByte(a.InsecureSkipVerify)},
 		{toByte(a.BasicHTTP)},
 	} {

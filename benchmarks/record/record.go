@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"maps"
 	"math/rand/v2"
@@ -199,7 +200,7 @@ func Nodes(ctx context.Context, experiment *gm.Experiment) {
 }
 
 func Header(s string) string {
-	h := fmt.Sprintf("%s\n", s)
+	h := s + "\n"
 	h += strings.Repeat("=", len(s)) + "\n"
 	return h
 }
@@ -251,7 +252,7 @@ func getMetrics(res map[string]float64, url string, controllers ...string) {
 		}
 
 		if _, ok := mfs["controller_runtime_reconcile_total"]; !ok {
-			return fmt.Errorf("controller_runtime_reconcile_total not found")
+			return errors.New("controller_runtime_reconcile_total not found")
 		}
 
 		return nil
@@ -277,22 +278,18 @@ func extractFromMetricFamilies(res map[string]float64, controllers []string, mfs
 	mf := mfs["controller_runtime_reconcile_total"]
 	for _, m := range mf.Metric {
 		l := m.GetLabel()
-		for _, c := range controllers {
-			if l[0].GetValue() == c {
-				v := m.Counter.GetValue()
-				switch l[1].GetValue() {
-				case "error":
-					res["ReconcileErrors"] += v
-				case "requeue":
-					res["ReconcileRequeue"] += v
-				case "requeue_after":
-					res["ReconcileRequeueAfter"] += v
-				case "success":
-					res["ReconcileSuccess"] += v
+		if slices.Contains(controllers, l[0].GetValue()) {
+			v := m.Counter.GetValue()
+			switch l[1].GetValue() {
+			case "error":
+				res["ReconcileErrors"] += v
+			case "requeue":
+				res["ReconcileRequeue"] += v
+			case "requeue_after":
+				res["ReconcileRequeueAfter"] += v
+			case "success":
+				res["ReconcileSuccess"] += v
 
-				}
-
-				break
 			}
 		}
 	}

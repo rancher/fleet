@@ -1,16 +1,20 @@
 ARG BUILD_ENV=docker
 ARG TARGETPLATFORM
-ARG ARCH
+ARG TARGETARCH
+ARG ARCH=${TARGETARCH}
 
-FROM registry.suse.com/bci/bci-base:15.7 AS base
+FROM --platform=linux/${ARCH} registry.suse.com/bci/bci-busybox:15.7 AS base
+ARG ARCH
+# Download tini-static v0.19.0 (stable final release) and verify via embedded SHA256 checksum.
+RUN set -eux; \
+    wget -qO /usr/bin/tini "https://github.com/krallin/tini/releases/download/v0.19.0/tini-static-${ARCH}"; \
+    case "${ARCH}" in \
+      amd64) echo "c5b0666b4cb676901f90dfcb37106783c5fe2077b04590973b885950611b30ee  /usr/bin/tini" | sha256sum -c - ;; \
+      arm64) echo "eae1d3aa50c48fb23b8cbdf4e369d0910dfc538566bfd09df89a774aa84a48b9  /usr/bin/tini" | sha256sum -c - ;; \
+      *) echo "Unsupported architecture: ${ARCH}" >&2; exit 1 ;; \
+    esac; \
+    chmod 0755 /usr/bin/tini
 COPY package/log.sh /usr/bin/
-RUN zypper rm -y container-suseconnect && \
-    zypper ar --priority=500 https://download.opensuse.org/repositories/Virtualization:containers/5.5/Virtualization:containers.repo && \
-    zypper --gpg-auto-import-keys ref && \
-    zypper -n update && \
-    zypper -n install --no-recommends openssh-clients tini git-core && \
-    zypper -n clean -a && \
-    rm -fr /var/log/zypp* /usr/share/doc
 
 FROM base AS copy_docker
 ONBUILD ARG ARCH
@@ -28,7 +32,6 @@ COPY ${TARGETPLATFORM}/fleetcontroller-linux-* /usr/bin/fleetcontroller
 COPY ${TARGETPLATFORM}/fleet-linux-* /usr/bin/fleet
 
 FROM copy_${BUILD_ENV}
-RUN useradd -u 1000 user
 USER 1000
 ENTRYPOINT ["tini", "--"]
 CMD ["fleetcontroller"]

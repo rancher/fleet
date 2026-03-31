@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand"
@@ -194,7 +195,7 @@ func addContentsToArchive(
 				return fmt.Errorf("failed to marshal content: %w", err)
 			}
 
-			fileName := fmt.Sprintf("contents_%s", i.GetName())
+			fileName := "contents_" + i.GetName()
 			if err := addFileToArchive(g, fileName, w); err != nil {
 				return err
 			}
@@ -415,7 +416,7 @@ func addEventsToArchive(
 					}
 
 					if foundEvents {
-						if _, err := tmpFile.Write([]byte("\n")); err != nil {
+						if _, err := tmpFile.WriteString("\n"); err != nil {
 							merr = append(merr, fmt.Errorf("failed to write newline to temp file: %w", err))
 							writeErr = true
 							break
@@ -456,7 +457,7 @@ func addEventsToArchive(
 
 			// Write tar header
 			if err := w.WriteHeader(&tar.Header{
-				Name:     fmt.Sprintf("events_%s", ns),
+				Name:     "events_" + ns,
 				Mode:     0644,
 				Typeflag: tar.TypeReg,
 				ModTime:  time.Unix(0, 0),
@@ -531,7 +532,7 @@ func addMetricsToArchive(ctx context.Context, c client.Client, logger logr.Logge
 			return fmt.Errorf("failed to create request to metrics service: %w", err)
 		}
 
-		resp, err := httpCli.Do(req) //nolint:gosec // G704 false positive: URL always targets localhost via kubectl port-forward, not an arbitrary server
+		resp, err := httpCli.Do(req)
 		if err != nil {
 			return fmt.Errorf("failed to get response from metrics service: %w", err)
 		}
@@ -552,7 +553,7 @@ func addMetricsToArchive(ctx context.Context, c client.Client, logger logr.Logge
 
 		logger.Info("Extracted metrics", "service", svc.Name)
 
-		if err := addFileToArchive(body, fmt.Sprintf("metrics_%s", svc.Name), w); err != nil {
+		if err := addFileToArchive(body, "metrics_"+svc.Name, w); err != nil {
 			return fmt.Errorf("failed to write metrics to archive from service %s: %w", svc.Name, err)
 		}
 	}
@@ -800,16 +801,22 @@ func addOtherNamespaceResources(ctx context.Context, d dynamic.Interface, logger
 }
 
 // addFilteredHelmOps adds HelmOps with appropriate filtering.
-// HelmOps are namespace-scoped resources like GitRepos, so they use namespace filtering only.
+// HelmOps are namespace-scoped resources like GitRepos. They are:
+//   - excluded entirely when filtering by GitRepo or Bundle,
+//   - name-filtered when a specific HelmOp is requested, and
+//   - otherwise included using namespace filtering only.
 func addFilteredHelmOps(ctx context.Context, d dynamic.Interface, logger logr.Logger, w *tar.Writer, opt Options) error {
 	switch {
+	case opt.GitRepo != "" || opt.Bundle != "":
+		// When filtering by GitRepo or Bundle, HelmOps are unrelated resources and must not be included.
+		return nil
 	case opt.HelmOp != "":
 		// Add only the specific HelmOp
 		if err := addObjectsWithNameFilter(ctx, d, logger, "helmops", w, []string{opt.HelmOp}, opt); err != nil {
 			return fmt.Errorf("failed to add helmops to archive: %w", err)
 		}
 	default:
-		// HelmOps are namespace-scoped like GitRepos, use namespace filtering
+		// In unfiltered mode, HelmOps are namespace-scoped like GitRepos and use namespace filtering only.
 		if err := addObjectsToArchive(ctx, d, logger, "helmops", w, opt); err != nil {
 			return fmt.Errorf("failed to add helmops to archive: %w", err)
 		}
@@ -1077,7 +1084,7 @@ func collectBundleNamesByGitRepo(ctx context.Context, d dynamic.Interface, names
 	var names []string
 	lo := metav1.ListOptions{
 		Limit:         fetchLimit,
-		LabelSelector: fmt.Sprintf("fleet.cattle.io/repo-name=%s", gitrepo),
+		LabelSelector: "fleet.cattle.io/repo-name=" + gitrepo,
 	}
 
 	for {
@@ -1110,7 +1117,7 @@ func collectBundleNamesByHelmOp(ctx context.Context, d dynamic.Interface, namesp
 	var names []string
 	lo := metav1.ListOptions{
 		Limit:         fetchLimit,
-		LabelSelector: fmt.Sprintf("fleet.cattle.io/fleet-helm-name=%s", helmop),
+		LabelSelector: "fleet.cattle.io/fleet-helm-name=" + helmop,
 	}
 
 	for {
@@ -1199,7 +1206,7 @@ func collectContentIDs(ctx context.Context, d dynamic.Interface, namespace strin
 // that resource and its dependencies, avoiding leaking secrets from unrelated resources in the same namespace.
 func collectSecretNames(ctx context.Context, d dynamic.Interface, logger logr.Logger, namespace string, bundleNames []string, gitRepoName, bundleFilterName, helmOpName string, fetchLimit int64) ([]string, error) {
 	if namespace == "" {
-		return nil, fmt.Errorf("namespace must be set when collecting secret names")
+		return nil, errors.New("namespace must be set when collecting secret names")
 	}
 
 	secretNameMap, err := getSecretNames(ctx, d, logger, namespace, gitRepoName, bundleFilterName, helmOpName, fetchLimit)
@@ -1319,7 +1326,7 @@ func collectSecretNames(ctx context.Context, d dynamic.Interface, logger logr.Lo
 
 func getSecretNames(ctx context.Context, d dynamic.Interface, logger logr.Logger, namespace string, gitRepoName, bundleFilterName, helmOpName string, fetchLimit int64) (map[string]bool, error) {
 	if namespace == "" {
-		return nil, fmt.Errorf("namespace must be set when collecting secret names")
+		return nil, errors.New("namespace must be set when collecting secret names")
 	}
 
 	secretNameMap := make(map[string]bool)

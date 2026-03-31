@@ -14,9 +14,10 @@ import (
 // These tests use the examples from https://github.com/rancher/fleet-examples/tree/master/single-cluster
 var _ = Describe("Single Cluster Examples", func() {
 	var (
-		asset  string
-		tmpdir string
-		k      kubectl.Command
+		asset    string
+		repoPath string
+		tmpdir   string
+		k        kubectl.Command
 	)
 
 	BeforeEach(func() {
@@ -33,7 +34,7 @@ var _ = Describe("Single Cluster Examples", func() {
 			SecretName string
 		}{
 			"https://github.com/rancher/fleet-test-data",
-			"helm-oci-with-auth",
+			repoPath,
 			"helm-oci-secret",
 		})
 		Expect(err).ToNot(HaveOccurred())
@@ -49,9 +50,10 @@ var _ = Describe("Single Cluster Examples", func() {
 	})
 
 	When("creating a gitrepo resource", func() {
-		Context("containing a private oci based helm chart", func() {
+		Context("containing a private oci based helm chart with helm.repo", func() {
 			BeforeEach(func() {
 				asset = "single-cluster/helm-with-auth.yaml"
+				repoPath = "helm-oci-with-auth"
 				k = env.Kubectl.Namespace(env.Namespace)
 
 				out, err := k.Create(
@@ -64,10 +66,35 @@ var _ = Describe("Single Cluster Examples", func() {
 
 			AfterEach(func() {
 				k = env.Kubectl.Namespace(env.Namespace)
+				out, err := k.Delete("secret", "helm-oci-secret")
+				Expect(err).ToNot(HaveOccurred(), out)
+			})
 
-				out, err := k.Delete(
-					"secret", "helm-oci-secret",
+			It("deploys the helm chart", func() {
+				Eventually(func() string {
+					out, _ := k.Namespace("fleet-helm-oci-with-auth-example").Get("configmaps")
+					return out
+				}).Should(ContainSubstring("fleet-test-configmap"))
+			})
+		})
+
+		Context("containing a private oci based helm chart with helm.chart (backwards compatibility)", func() {
+			BeforeEach(func() {
+				asset = "single-cluster/helm-with-auth.yaml"
+				repoPath = "helm-oci-with-auth-chart"
+				k = env.Kubectl.Namespace(env.Namespace)
+
+				out, err := k.Create(
+					"secret", "generic", "helm-oci-secret",
+					"--from-literal=username="+os.Getenv("CI_OCI_USERNAME"),
+					"--from-literal=password="+os.Getenv("CI_OCI_PASSWORD"),
 				)
+				Expect(err).ToNot(HaveOccurred(), out)
+			})
+
+			AfterEach(func() {
+				k = env.Kubectl.Namespace(env.Namespace)
+				out, err := k.Delete("secret", "helm-oci-secret")
 				Expect(err).ToNot(HaveOccurred(), out)
 			})
 

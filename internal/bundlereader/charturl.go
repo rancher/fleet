@@ -10,14 +10,18 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/Masterminds/semver/v3"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	fleetgit "github.com/rancher/fleet/pkg/git"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/singleflight"
 	repov1 "helm.sh/helm/v4/pkg/repo/v1"
 	"sigs.k8s.io/yaml"
@@ -111,8 +115,8 @@ func getOCIRepoClient(repoURI string, a Auth) (*remote.Repository, error) {
 
 // ChartURL returns the URL to the helm chart from a helm repo server, by
 // inspecting the repo's index.yaml
-func ChartURL(ctx context.Context, location fleet.HelmOptions, auth Auth, isHelmOps bool) (string, error) {
-	if uri, ok := isOCIChart(location, isHelmOps); ok {
+func ChartURL(ctx context.Context, location fleet.HelmOptions, auth Auth) (string, error) {
+	if uri, ok := isOCIChart(location); ok {
 		return uri, nil
 	}
 	repoURL := location.Repo
@@ -121,7 +125,7 @@ func ChartURL(ctx context.Context, location fleet.HelmOptions, auth Auth, isHelm
 	}
 
 	// Aggregate any concurrent helm repo index retrieval for the same combination of repo URL and auth
-	i, err, _ := concurrentIndexFetch.Do(auth.Hash()+repoURL, func() (interface{}, error) {
+	i, err, _ := concurrentIndexFetch.Do(auth.Hash()+repoURL, func() (any, error) {
 		return getHelmRepoIndex(ctx, repoURL, auth)
 	})
 	if err != nil {
@@ -162,7 +166,7 @@ func getHelmRepoIndex(ctx context.Context, repoURL string, auth Auth) (helmRepoI
 
 	client := getHTTPClient(auth)
 
-	resp, err := client.Do(request) //nolint:gosec // G704 false positive: URL is the user-configured Helm chart repository
+	resp, err := client.Do(request)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch %q: %w", indexURL, err)
 	}
@@ -270,6 +274,18 @@ func transportHash(insecureSkipVerify bool, caBundle []byte) string {
 }
 
 func transportForAuth(insecureSkipVerify bool, caBundle []byte) http.RoundTripper {
+	caBundle = append([]byte(nil), caBundle...) // defensive copy
+	if proxyCAPEM, ok := os.LookupEnv(fleetgit.ProxyCABundleEnvVar); ok && proxyCAPEM != "" {
+		proxyBytes := []byte(proxyCAPEM)
+		tmpPool := x509.NewCertPool()
+		if !tmpPool.AppendCertsFromPEM(proxyBytes) {
+			logrus.Warnf("%s is set but contains no valid PEM certificates; ignoring proxy CA bundle", fleetgit.ProxyCABundleEnvVar)
+		} else {
+			caBundle = append(caBundle, '\n')
+			caBundle = append(caBundle, proxyBytes...)
+		}
+	}
+
 	// We don't need the full hash
 	hash := transportHash(insecureSkipVerify, caBundle)
 
@@ -290,7 +306,25 @@ func transportForAuth(insecureSkipVerify bool, caBundle []byte) http.RoundTrippe
 	}
 
 	// Create new transport
-	transport := http.DefaultTransport.(*http.Transport).Clone()
+	baseTransport, ok := http.DefaultTransport.(*http.Transport)
+	if !ok {
+		// Another component has replaced the global default transport.
+		// Construct a transport that preserves the standard proxy and timeout
+		// defaults so runtime behaviour stays close to the stdlib baseline.
+		baseTransport = &http.Transport{
+			Proxy: http.ProxyFromEnvironment,
+			DialContext: (&net.Dialer{
+				Timeout:   30 * time.Second,
+				KeepAlive: 30 * time.Second,
+			}).DialContext,
+			ForceAttemptHTTP2:     true,
+			MaxIdleConns:          100,
+			IdleConnTimeout:       90 * time.Second,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+		}
+	}
+	transport := baseTransport.Clone()
 	transport.TLSClientConfig = &tls.Config{
 		InsecureSkipVerify: insecureSkipVerify, //nolint:gosec
 	}
@@ -309,14 +343,9 @@ func transportForAuth(insecureSkipVerify bool, caBundle []byte) http.RoundTrippe
 	return transport
 }
 
-func isOCIChart(location fleet.HelmOptions, isHelmOps bool) (string, bool) {
-	OCIField := location.Chart
-	if isHelmOps {
-		OCIField = location.Repo
-	}
-
-	if strings.HasPrefix(OCIField, ociURLPrefix) {
-		return OCIField, true
+func isOCIChart(location fleet.HelmOptions) (string, bool) {
+	if strings.HasPrefix(location.Repo, ociURLPrefix) {
+		return location.Repo, true
 	}
 	return "", false
 }

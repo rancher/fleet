@@ -94,7 +94,7 @@ type contentMatcher struct {
 	sha256sum string
 }
 
-func (m contentMatcher) Matches(x interface{}) bool {
+func (m contentMatcher) Matches(x any) bool {
 	content, ok := x.(*fleet.Content)
 	if !ok {
 		return false

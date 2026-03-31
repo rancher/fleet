@@ -76,6 +76,46 @@ var _ = Describe("OCIOpts loaded from secret", func() {
 		})
 	})
 
+	When("the given oci storage secret uses the documented insecureSkipTLS field", func() {
+		BeforeEach(func() {
+			secretName = "test"
+			secretData = map[string][]byte{
+				OCISecretReference:       []byte("reference"),
+				OCISecretInsecureSkipTLS: []byte("true"),
+			}
+			secretType = fleet.SecretTypeOCIStorage
+			secretGetErrorMessage = ""
+			secretGetNotFoundError = false
+		})
+		It("returns the expected OCIOpts from the data in the secret", func() {
+			ns := client.ObjectKey{Name: secretName, Namespace: "test"}
+			opts, err := ReadOptsFromSecret(context.TODO(), mockClient, ns)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(opts.Reference).To(Equal(string(secretData[OCISecretReference])))
+			Expect(opts.InsecureSkipTLS).To(BeTrue())
+		})
+	})
+
+	When("the oci storage secret contains both insecure keys", func() {
+		BeforeEach(func() {
+			secretName = "test"
+			secretData = map[string][]byte{
+				OCISecretReference:       []byte("reference"),
+				OCISecretInsecureSkipTLS: []byte("false"),
+				OCISecretInsecure:        []byte("true"),
+			}
+			secretType = fleet.SecretTypeOCIStorage
+			secretGetErrorMessage = ""
+			secretGetNotFoundError = false
+		})
+		It("prefers insecureSkipTLS over the legacy insecure field", func() {
+			ns := client.ObjectKey{Name: secretName, Namespace: "test"}
+			opts, err := ReadOptsFromSecret(context.TODO(), mockClient, ns)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(opts.InsecureSkipTLS).To(BeFalse())
+		})
+	})
+
 	When("the secret name is not set, but a default secret exists", func() {
 		BeforeEach(func() {
 			secretName = ""
@@ -209,20 +249,20 @@ func getSecretFromMockK8sClient(
 	switch {
 	case wantErrorMessage != "":
 		mockClient.EXPECT().Get(gomock.Any(), ns, gomock.Any()).DoAndReturn(
-			func(_ context.Context, _ types.NamespacedName, secret *corev1.Secret, _ ...interface{}) error {
+			func(_ context.Context, _ types.NamespacedName, secret *corev1.Secret, _ ...any) error {
 				return errors.New(wantErrorMessage)
 			},
 		)
 	case wantNotFound:
 		mockClient.EXPECT().Get(gomock.Any(), ns, gomock.Any()).DoAndReturn(
-			func(_ context.Context, _ types.NamespacedName, secret *corev1.Secret, _ ...interface{}) error {
+			func(_ context.Context, _ types.NamespacedName, secret *corev1.Secret, _ ...any) error {
 				return apierrors.NewNotFound(schema.GroupResource{}, "TEST ERROR")
 			},
 		)
 	case ns.Name == "":
 		// verify that when the name is not set it uses the default secret name.
 		mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-			func(_ context.Context, key types.NamespacedName, secret *corev1.Secret, _ ...interface{}) error {
+			func(_ context.Context, key types.NamespacedName, secret *corev1.Secret, _ ...any) error {
 				Expect(key.Name).To(Equal(config.DefaultOCIStorageSecretName))
 				secret.Data = data
 				secret.Type = corev1.SecretType(secretType)
@@ -231,7 +271,7 @@ func getSecretFromMockK8sClient(
 		)
 	default:
 		mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-			func(_ context.Context, key types.NamespacedName, secret *corev1.Secret, _ ...interface{}) error {
+			func(_ context.Context, key types.NamespacedName, secret *corev1.Secret, _ ...any) error {
 				Expect(ns.Name).To(Equal(key.Name))
 				secret.Data = data
 				secret.Type = corev1.SecretType(secretType)

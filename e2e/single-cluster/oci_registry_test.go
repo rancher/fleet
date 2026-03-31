@@ -20,7 +20,7 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -54,13 +54,13 @@ func createOCIRegistrySecret(
 			Namespace: namespace,
 		},
 		Data: map[string][]byte{
-			ocistorage.OCISecretReference:     []byte(reference),
-			ocistorage.OCISecretUsername:      []byte(username),
-			ocistorage.OCISecretPassword:      []byte(password),
-			ocistorage.OCISecretAgentUsername: []byte(agentUsername),
-			ocistorage.OCISecretAgentPassword: []byte(agentPassword),
-			ocistorage.OCISecretInsecure:      []byte(strconv.FormatBool(insecure)),
-			ocistorage.OCISecretBasicHTTP:     []byte(strconv.FormatBool(false)),
+			ocistorage.OCISecretReference:       []byte(reference),
+			ocistorage.OCISecretUsername:        []byte(username),
+			ocistorage.OCISecretPassword:        []byte(password),
+			ocistorage.OCISecretAgentUsername:   []byte(agentUsername),
+			ocistorage.OCISecretAgentPassword:   []byte(agentPassword),
+			ocistorage.OCISecretInsecureSkipTLS: []byte(strconv.FormatBool(insecure)),
+			ocistorage.OCISecretBasicHTTP:       []byte(strconv.FormatBool(false)),
 		},
 		Type: corev1.SecretType(fleet.SecretTypeOCIStorage),
 	}
@@ -103,8 +103,8 @@ func checkEnvVariable(k kubectl.Command, component string, env string) (string, 
 	ns := "cattle-fleet-system"
 	out, err := k.Namespace(ns).Run("set", "env", component, "--list")
 	Expect(err).ToNot(HaveOccurred())
-	lines := strings.Split(out, "\n")
-	for _, line := range lines {
+	lines := strings.SplitSeq(out, "\n")
+	for line := range lines {
 		if strings.Contains(line, env) {
 			keyValue := strings.Split(line, "=")
 			Expect(keyValue).To(HaveLen(2))
@@ -112,7 +112,7 @@ func checkEnvVariable(k kubectl.Command, component string, env string) (string, 
 			if err != nil {
 				return "", err
 			}
-			return fmt.Sprintf("%t", boolVal), nil
+			return strconv.FormatBool(boolVal), nil
 		}
 	}
 	return "unset", nil
@@ -150,7 +150,7 @@ func updateOCIStorageFlagValue(k kubectl.Command, value string) {
 	strEnvValue := ""
 	if value == "unset" {
 		// if the value is unset it adds a '-' at the end so kubectl deletes the env variable.
-		strEnvValue = fmt.Sprintf("%s-", ocistorage.OCIStorageFlag)
+		strEnvValue = ocistorage.OCIStorageFlag + "-"
 	} else {
 		strEnvValue = fmt.Sprintf("%s=%s", ocistorage.OCIStorageFlag, value)
 	}
@@ -260,7 +260,7 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 		tempDir = GinkgoT().TempDir()
 		externalIP := getOCIRegistryExternalIP(k)
 		Expect(net.ParseIP(externalIP)).ShouldNot(BeNil())
-		defaultOCIRegistry = fmt.Sprintf("%s:8082", externalIP)
+		defaultOCIRegistry = externalIP + ":8082"
 		ociRegistry = defaultOCIRegistry
 
 		// store the actual value of the env value
@@ -757,13 +757,13 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 				By("checking that the previous oci bundle key was deleted", func() {
 					Eventually(func(g Gomega) {
 						err := clientUpstream.Get(context.TODO(), client.ObjectKey{Name: previousContentsID, Namespace: env.Namespace}, &corev1.Secret{})
-						g.Expect(errors.IsNotFound(err)).To(BeTrue())
+						g.Expect(apierrors.IsNotFound(err)).To(BeTrue())
 					}).Should(Succeed())
 				})
 				By("checking that the previous oci bundle deployment key was deleted", func() {
 					Eventually(func(g Gomega) {
 						err := clientUpstream.Get(context.TODO(), client.ObjectKey{Name: previousContentsID, Namespace: downstreamNamespace}, &corev1.Secret{})
-						g.Expect(errors.IsNotFound(err)).To(BeTrue())
+						g.Expect(apierrors.IsNotFound(err)).To(BeTrue())
 					}).Should(Succeed())
 				})
 				By("checking that the previous oci artifact was deleted", func() {
@@ -805,7 +805,7 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 				useNoDeleterUser = true
 			})
 
-			It("redeploys the gitrepo and and keeps the previous oci artifact", func() {
+			It("redeploys the gitrepo and keeps the previous oci artifact", func() {
 				var bundle fleet.Bundle
 				By("creating the bundle", func() {
 					k8sclient.GetObjectShouldSucceed(clientUpstream, "sample-simple-chart-oci", env.Namespace, &bundle)
@@ -862,7 +862,7 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 				By("checking that the previous oci bundle deployment key was deleted", func() {
 					Eventually(func(g Gomega) {
 						err := clientUpstream.Get(context.TODO(), client.ObjectKey{Name: previousContentsID, Namespace: downstreamNamespace}, &corev1.Secret{})
-						g.Expect(errors.IsNotFound(err)).To(BeTrue())
+						g.Expect(apierrors.IsNotFound(err)).To(BeTrue())
 					}).Should(Succeed())
 				})
 				By("checking that the previous oci artifact was not deleted", func() {

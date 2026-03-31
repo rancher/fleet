@@ -150,6 +150,8 @@ type ClusterSpec struct {
 	// Allows for provisioning of network related bundles (CNI configuration).
 	HostNetwork *bool `json:"hostNetwork,omitempty"`
 
+	// +nullable
+	// +optional
 	AgentSchedulingCustomization *AgentSchedulingCustomization `json:"agentSchedulingCustomization,omitempty"`
 }
 

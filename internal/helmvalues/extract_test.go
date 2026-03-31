@@ -97,7 +97,7 @@ func TestExtractValues(t *testing.T) {
 					BundleDeploymentOptions: fleet.BundleDeploymentOptions{
 						Helm: &fleet.HelmOptions{
 							Values: &fleet.GenericMap{
-								Data: map[string]interface{}{"key": "value"},
+								Data: map[string]any{"key": "value"},
 							},
 						},
 					},
@@ -107,7 +107,7 @@ func TestExtractValues(t *testing.T) {
 							BundleDeploymentOptions: fleet.BundleDeploymentOptions{
 								Helm: &fleet.HelmOptions{
 									Values: &fleet.GenericMap{
-										Data: map[string]interface{}{"newkey": "value"},
+										Data: map[string]any{"newkey": "value"},
 									},
 								},
 							},
@@ -224,13 +224,13 @@ func TestExtractOptions(t *testing.T) {
 				bd: &fleet.BundleDeployment{Spec: fleet.BundleDeploymentSpec{
 					Options: fleet.BundleDeploymentOptions{
 						Helm: &fleet.HelmOptions{
-							Values: &fleet.GenericMap{Data: map[string]interface{}{}},
+							Values: &fleet.GenericMap{Data: map[string]any{}},
 						},
 					},
 					StagedOptions: fleet.BundleDeploymentOptions{
 						Helm: &fleet.HelmOptions{
 							TakeOwnership: true,
-							Values:        &fleet.GenericMap{Data: map[string]interface{}{}},
+							Values:        &fleet.GenericMap{Data: map[string]any{}},
 						},
 					},
 				}},
@@ -247,7 +247,7 @@ func TestExtractOptions(t *testing.T) {
 					Options: fleet.BundleDeploymentOptions{
 						Helm: &fleet.HelmOptions{
 							Values: &fleet.GenericMap{
-								Data: map[string]interface{}{"key": "value"},
+								Data: map[string]any{"key": "value"},
 							},
 						},
 					},
@@ -265,14 +265,14 @@ func TestExtractOptions(t *testing.T) {
 					Options: fleet.BundleDeploymentOptions{
 						Helm: &fleet.HelmOptions{
 							Values: &fleet.GenericMap{
-								Data: map[string]interface{}{"key": "value"},
+								Data: map[string]any{"key": "value"},
 							},
 						},
 					},
 					StagedOptions: fleet.BundleDeploymentOptions{
 						Helm: &fleet.HelmOptions{
 							Values: &fleet.GenericMap{
-								Data: map[string]interface{}{"newkey": "value"},
+								Data: map[string]any{"newkey": "value"},
 							},
 						},
 					},

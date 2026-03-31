@@ -1,6 +1,7 @@
 package webhook
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -23,7 +24,7 @@ const (
 	azurePassword      = "azure-password"
 )
 
-func parseWebhook(r *http.Request, secret *corev1.Secret) (interface{}, error) {
+func parseWebhook(r *http.Request, secret *corev1.Secret) (any, error) {
 	switch {
 	// Gogs needs to be checked before Github since it carries both Gogs and (incompatible) Github headers
 	case r.Header.Get("X-Gogs-Event") != "":
@@ -45,7 +46,7 @@ func parseWebhook(r *http.Request, secret *corev1.Secret) (interface{}, error) {
 
 func getValue(secret *corev1.Secret, key string) (string, error) {
 	if secret == nil {
-		return "", fmt.Errorf("secret is nil")
+		return "", errors.New("secret is nil")
 	}
 
 	value, ok := secret.Data[key]
@@ -56,7 +57,7 @@ func getValue(secret *corev1.Secret, key string) (string, error) {
 	return string(value), nil
 }
 
-func parseGogs(r *http.Request, secret *corev1.Secret) (interface{}, error) {
+func parseGogs(r *http.Request, secret *corev1.Secret) (any, error) {
 	var hook *gogs.Webhook
 	var err error
 
@@ -78,7 +79,7 @@ func parseGogs(r *http.Request, secret *corev1.Secret) (interface{}, error) {
 	return hook.Parse(r, gogs.PushEvent)
 }
 
-func parseGithub(r *http.Request, secret *corev1.Secret) (interface{}, error) {
+func parseGithub(r *http.Request, secret *corev1.Secret) (any, error) {
 	var hook *github.Webhook
 	var err error
 
@@ -102,7 +103,7 @@ func parseGithub(r *http.Request, secret *corev1.Secret) (interface{}, error) {
 	return hook.Parse(r, github.PushEvent)
 }
 
-func parseGitlab(r *http.Request, secret *corev1.Secret) (interface{}, error) {
+func parseGitlab(r *http.Request, secret *corev1.Secret) (any, error) {
 	var hook *gitlab.Webhook
 	var err error
 
@@ -124,7 +125,7 @@ func parseGitlab(r *http.Request, secret *corev1.Secret) (interface{}, error) {
 	return hook.Parse(r, gitlab.PushEvents, gitlab.TagEvents)
 }
 
-func parseBitbucket(r *http.Request, secret *corev1.Secret) (interface{}, error) {
+func parseBitbucket(r *http.Request, secret *corev1.Secret) (any, error) {
 	var hook *bitbucket.Webhook
 	var err error
 
@@ -146,7 +147,7 @@ func parseBitbucket(r *http.Request, secret *corev1.Secret) (interface{}, error)
 	return hook.Parse(r, bitbucket.RepoPushEvent)
 }
 
-func parseBitbucketServer(r *http.Request, secret *corev1.Secret) (interface{}, error) {
+func parseBitbucketServer(r *http.Request, secret *corev1.Secret) (any, error) {
 	var hook *bitbucketserver.Webhook
 	var err error
 
@@ -168,7 +169,7 @@ func parseBitbucketServer(r *http.Request, secret *corev1.Secret) (interface{}, 
 	return hook.Parse(r, bitbucketserver.RepositoryReferenceChangedEvent)
 }
 
-func parseAzureDevops(r *http.Request, secret *corev1.Secret) (interface{}, error) {
+func parseAzureDevops(r *http.Request, secret *corev1.Secret) (any, error) {
 	var hook *azuredevops.Webhook
 	var err error
 

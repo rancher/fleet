@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"slices"
 	"strconv"
@@ -19,7 +20,7 @@ import (
 	ssh "github.com/rancher/fleet/internal/ssh"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/cert"
-	fleetevent "github.com/rancher/fleet/pkg/event"
+	fleetgit "github.com/rancher/fleet/pkg/git"
 	"github.com/rancher/fleet/pkg/sharding"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -70,7 +71,14 @@ func (r *GitJobReconciler) createJobAndResources(ctx context.Context, gitrepo *v
 		return fmt.Errorf("error creating git job: %w", err)
 	}
 
-	r.Recorder.Event(gitrepo, fleetevent.Normal, "Created", "GitJob was created")
+	r.Recorder.Eventf(
+		gitrepo,
+		nil,
+		corev1.EventTypeNormal,
+		"Created",
+		"CreateGitJob",
+		"GitJob was created",
+	)
 	return nil
 }
 
@@ -199,8 +207,8 @@ func (r *GitJobReconciler) newGitJob(ctx context.Context, obj *v1alpha1.GitRepo)
 				"commit":     obj.Status.Commit,
 			},
 			Labels: map[string]string{
-				forceSyncGenerationLabel: fmt.Sprintf("%d", obj.Spec.ForceSyncGeneration),
-				generationLabel:          fmt.Sprintf("%d", obj.Generation),
+				forceSyncGenerationLabel: strconv.FormatInt(obj.Spec.ForceSyncGeneration, 10),
+				generationLabel:          strconv.FormatInt(obj.Generation, 10),
 			},
 			Namespace: obj.Namespace,
 			Name:      jobName(obj),
@@ -391,6 +399,10 @@ func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.Git
 		volumeMounts = append(volumeMounts, volMnts...)
 	}
 
+	// spec.InsecureSkipTLSverify applies to all git operations, including
+	// Helm-chart-from-git fetches in fleet apply.
+	helmInsecure = helmInsecure || gitrepo.Spec.InsecureSkipTLSverify
+
 	// In case no Helm secret volume has been created, because Helm secrets don't exist or don't contain a CA
 	// bundle, mount a volume with a Rancher CA bundle.
 	if !certVolCreated {
@@ -431,9 +443,7 @@ func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.Git
 			return nil, fmt.Errorf("could not decode shard node selector: %w", err)
 		}
 
-		for k, v := range shardNodeSelector {
-			nodeSelector[k] = v
-		}
+		maps.Copy(nodeSelector, shardNodeSelector)
 	}
 
 	saName := names.SafeConcatName("git", gitrepo.Name)
@@ -442,7 +452,6 @@ func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.Git
 		gitrepo,
 		logger,
 		CACertsFilePathOverride,
-		r.KnownHosts,
 		drivenScanSeparator,
 		helmInsecure,
 		helmBasicHTTP,
@@ -652,7 +661,6 @@ func argsAndEnvs(
 	gitrepo *v1alpha1.GitRepo,
 	logger logr.Logger,
 	pathOverrideCACerts string,
-	knownHosts KnownHostsGetter,
 	drivenScanSeparator string,
 	helmInsecureSkipTLS bool,
 	helmBasicHTTP bool,
@@ -736,8 +744,6 @@ func argsAndEnvs(
 		}
 
 		args = append(args, helmArgs...)
-		// for ssh go-getter
-		env = append(env, gitSSHCommandEnvVar(knownHosts.IsStrict()))
 	} else if gitrepo.Spec.HelmSecretName != "" {
 		helmArgs := []string{
 			"--password-file",
@@ -757,8 +763,6 @@ func argsAndEnvs(
 			helmArgs = append(helmArgs, "--helm-repo-url-regex", gitrepo.Spec.HelmRepoURLRegex)
 		}
 		args = append(args, helmArgs...)
-		// for ssh go-getter
-		env = append(env, gitSSHCommandEnvVar(knownHosts.IsStrict()))
 		env = append(env,
 			corev1.EnvVar{
 				Name: "HELM_USERNAME",
@@ -783,7 +787,6 @@ func argsAndEnvs(
 			helmArgs = append(helmArgs, "--helm-repo-url-regex", gitrepo.Spec.HelmRepoURLRegex)
 		}
 		args = append(args, helmArgs...)
-		env = append(env, gitSSHCommandEnvVar(knownHosts.IsStrict()))
 	}
 
 	if !ocistorage.OCIIsEnabled() {
@@ -864,7 +867,7 @@ func volumes(targetsConfigName string) ([]corev1.Volume, []corev1.VolumeMount) {
 	return volumes, volumeMounts
 }
 
-// volumesFromSecret generates volumes and volume mounts from a Helm secret, assuming that that secret exists.
+// volumesFromSecret generates volumes and volume mounts from a Helm secret, assuming that secret exists.
 // If the secret has a cacerts key, it will be mounted into /etc/ssl/certs, too.
 // It also returns a struct containing boolean values indicating if a volume has
 // been created for CA bundles, along with values (defaulting to false) of the
@@ -903,7 +906,7 @@ func volumesFromSecret(
 	_ = c.Get(ctx, types.NamespacedName{Namespace: namespace, Name: secretName}, secret)
 	if _, ok := secret.Data["cacerts"]; ok {
 		volumes = append(volumes, corev1.Volume{
-			Name: fmt.Sprintf("%s-cert", volumeName),
+			Name: volumeName + "-cert",
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
 					SecretName: secretName,
@@ -917,7 +920,7 @@ func volumesFromSecret(
 			},
 		})
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
-			Name:      fmt.Sprintf("%s-cert", volumeName),
+			Name:      volumeName + "-cert",
 			MountPath: "/etc/ssl/certs",
 		})
 
@@ -954,26 +957,13 @@ func volumesFromSecret(
 
 func proxyEnvVars() []corev1.EnvVar {
 	var envVars []corev1.EnvVar
-	for _, envVar := range []string{"HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY"} {
+	for _, envVar := range []string{"HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", fleetgit.ProxyCABundleEnvVar} {
 		if val, ok := os.LookupEnv(envVar); ok {
 			envVars = append(envVars, corev1.EnvVar{Name: envVar, Value: val})
 		}
 	}
 
 	return envVars
-}
-
-func gitSSHCommandEnvVar(strictChecks bool) corev1.EnvVar {
-	strictVal := "no"
-
-	if strictChecks {
-		strictVal = "yes"
-	}
-
-	return corev1.EnvVar{
-		Name:  "GIT_SSH_COMMAND",
-		Value: fmt.Sprintf("ssh -o stricthostkeychecking=%s", strictVal),
-	}
 }
 
 // getDrivenScanSeparator returns a separator that is valid for all the Bundle
@@ -1013,9 +1003,9 @@ func jobName(obj *v1alpha1.GitRepo) string {
 }
 
 func caBundleName(obj *v1alpha1.GitRepo) string {
-	return fmt.Sprintf("%s-cabundle", obj.Name)
+	return obj.Name + "-cabundle"
 }
 
 func rancherCABundleName(obj *v1alpha1.GitRepo) string {
-	return fmt.Sprintf("%s-rancher-cabundle", obj.Name)
+	return obj.Name + "-rancher-cabundle"
 }

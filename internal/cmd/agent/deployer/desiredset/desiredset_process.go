@@ -190,7 +190,7 @@ func (o *desiredSet) list(ctx context.Context, informer cache.SharedIndexInforme
 		return listByHash(indexer, hash, namespace)
 	}
 
-	if err := cache.ListAllByNamespace(indexer, namespace, selector, func(obj interface{}) {
+	if err := cache.ListAllByNamespace(indexer, namespace, selector, func(obj any) {
 		if err := addObjectToMap(objs, obj); err != nil {
 			errs = append(errs, err)
 		}
@@ -239,7 +239,7 @@ func sortObjectKeys(keys []objectset.ObjectKey) {
 	})
 }
 
-func addObjectToMap(objs objectset.ObjectByKey, obj interface{}) error {
+func addObjectToMap(objs objectset.ObjectByKey, obj any) error {
 	metadata, err := meta.Accessor(obj)
 	if err != nil {
 		return err
@@ -297,7 +297,7 @@ func getIndexableHash(indexer cache.Indexer, selector labels.Selector) (string, 
 }
 
 // inNamespace checks whether a given object is a Kubernetes object and is part of the provided namespace
-func inNamespace(namespace string, obj interface{}) bool {
+func inNamespace(namespace string, obj any) bool {
 	metadata, err := meta.Accessor(obj)
 	return err == nil && metadata.GetNamespace() == namespace
 }

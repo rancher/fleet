@@ -63,7 +63,7 @@ type Getter interface {
 type OCIRegistrySpec struct {
 	Reference       string
 	Username        string
-	Password        string //nolint:gosec // G117 false positive: Password is an intentional field in the apply options
+	Password        string
 	BasicHTTP       bool
 	InsecureSkipTLS bool
 }
@@ -354,7 +354,9 @@ func pruneBundlesNotFoundInRepo(
 ) error {
 	filter := labels.SelectorFromSet(labels.Set{fleet.RepoLabel: repoName})
 	bundleList := &fleet.BundleList{}
-	err := c.List(ctx, bundleList, &client.ListOptions{LabelSelector: filter, Namespace: ns})
+	if err := c.List(ctx, bundleList, &client.ListOptions{LabelSelector: filter, Namespace: ns}); err != nil {
+		return err
+	}
 
 	for _, bundle := range bundleList.Items {
 		if _, ok := gitRepoBundlesMap[bundle.Name]; !ok {
@@ -404,13 +406,12 @@ func pruneBundlesNotFoundInRepo(
 					}
 				}
 			}
-			err = c.Delete(ctx, &bundle)
-			if err != nil {
+			if err := c.Delete(ctx, &bundle); err != nil {
 				return err
 			}
 		}
 	}
-	return err
+	return nil
 }
 
 // newBundle reads bundle data from a source and returns a bundle with the
@@ -608,8 +609,8 @@ func save(ctx context.Context, c client.Client, bundle *fleet.Bundle) (*fleet.Bu
 			// this bundle was previously deployed to an OCI registry.
 			// Delete the OCI artifact as it's no longer required.
 			if err := deleteOCIManifest(ctx, c, bundle, ocistorage.OCIOpts{}); err != nil {
-				// we log the error and continue, since the OCI registry is an external entity to the the cluster
-				// we may encounter various types of transient errors (such as connection or access issues).
+				// return the error, since the OCI registry is an external entity to the cluster
+				// and we may encounter various types of transient errors (such as connection or access issues).
 				logrus.Warnf("deleting OCI artifact: %v", err)
 				return err
 
@@ -669,7 +670,7 @@ func saveOCIBundle(ctx context.Context, c client.Client, r record.EventRecorder,
 		// delete the previous OCI artifact
 		if bundle.Spec.ContentsID != "" && bundle.Spec.ContentsID != manifestID {
 			if err := deleteOCIManifest(ctx, c, bundle, opts); err != nil {
-				// we log the error and continue, since the OCI registry is an external entity to the the cluster
+				// we log the error and continue, since the OCI registry is an external entity to the cluster
 				// we may encounter various types of transient errors (such as connection or access issues).
 				logrus.Warnf("deleting OCI artifact: %v", err)
 				sendWarningEvent(r, bundle.Namespace, bundle.Spec.ContentsID, err)
@@ -757,13 +758,13 @@ func newOCISecret(manifestID string, bundle *fleet.Bundle, opts ocistorage.OCIOp
 			},
 		},
 		Data: map[string][]byte{
-			ocistorage.OCISecretReference:     []byte(opts.Reference),
-			ocistorage.OCISecretUsername:      []byte(opts.Username),
-			ocistorage.OCISecretPassword:      []byte(opts.Password),
-			ocistorage.OCISecretAgentUsername: []byte(opts.AgentUsername),
-			ocistorage.OCISecretAgentPassword: []byte(opts.AgentPassword),
-			ocistorage.OCISecretBasicHTTP:     []byte(strconv.FormatBool(opts.BasicHTTP)),
-			ocistorage.OCISecretInsecure:      []byte(strconv.FormatBool(opts.InsecureSkipTLS)),
+			ocistorage.OCISecretReference:       []byte(opts.Reference),
+			ocistorage.OCISecretUsername:        []byte(opts.Username),
+			ocistorage.OCISecretPassword:        []byte(opts.Password),
+			ocistorage.OCISecretAgentUsername:   []byte(opts.AgentUsername),
+			ocistorage.OCISecretAgentPassword:   []byte(opts.AgentPassword),
+			ocistorage.OCISecretBasicHTTP:       []byte(strconv.FormatBool(opts.BasicHTTP)),
+			ocistorage.OCISecretInsecureSkipTLS: []byte(strconv.FormatBool(opts.InsecureSkipTLS)),
 		},
 		Type: fleet.SecretTypeOCIStorage,
 	}
@@ -935,7 +936,7 @@ func GetBundleCreationMaxConcurrency() (int, error) {
 
 type k8sWithNS struct {
 	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.ObjectMeta `json:"metadata"`
 }
 
 func getKindNS(br fleet.BundleResource, bundleName string) (fleet.OverwrittenResource, error) {

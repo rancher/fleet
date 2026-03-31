@@ -178,7 +178,7 @@ func applyPatch(liveBytes []byte, patchBytes []byte, newVersionedObject func() (
 		// 3) Unmarshall into a map[string]interface{}, then back into byte[], to ensure the fields
 		// are sorted in a consistent order (we do the same below, so that they can be
 		// lexicographically compared with one another)
-		var result map[string]interface{}
+		var result map[string]any
 		err = json.Unmarshal(predictedLiveBytes, &result)
 		if err != nil {
 			return nil, nil, err
@@ -210,7 +210,7 @@ func applyPatch(liveBytes []byte, patchBytes []byte, newVersionedObject func() (
 		}
 
 		// Ensure the fields are sorted in a consistent order (as above)
-		var result map[string]interface{}
+		var result map[string]any
 		err = json.Unmarshal(liveBytes, &result)
 		if err != nil {
 			return nil, nil, err
@@ -298,14 +298,14 @@ func stripTypeInformation(un *unstructured.Unstructured) *unstructured.Unstructu
 func removeNamespaceAnnotation(orig *unstructured.Unstructured) *unstructured.Unstructured {
 	orig = orig.DeepCopy()
 	if metadataIf, ok := orig.Object["metadata"]; ok {
-		metadata := metadataIf.(map[string]interface{})
+		metadata := metadataIf.(map[string]any)
 		delete(metadata, "namespace")
 		if annotationsIf, ok := metadata["annotations"]; ok {
 			shouldDelete := false
 			if annotationsIf == nil {
 				shouldDelete = true
 			} else {
-				annotation, ok := annotationsIf.(map[string]interface{})
+				annotation, ok := annotationsIf.(map[string]any)
 				if ok && len(annotation) == 0 {
 					shouldDelete = true
 				}
@@ -488,7 +488,6 @@ func normalizeEndpoint(un *unstructured.Unstructured, o options) {
 	if gvk.Group != "" || gvk.Kind != "Endpoints" {
 		return
 	}
-	//nolint:staticcheck // Endpoints is deprecated but still supported; see fleet#3760.
 	var ep corev1.Endpoints
 	err := runtime.DefaultUnstructuredConverter.FromUnstructured(un.Object, &ep)
 	if err != nil {
@@ -531,7 +530,7 @@ func normalizeRole(un *unstructured.Unstructured, o options) {
 	if o.ignoreAggregatedRoles {
 		aggrIf, ok := un.Object["aggregationRule"]
 		if ok {
-			_, ok = aggrIf.(map[string]interface{})
+			_, ok = aggrIf.(map[string]any)
 			if !ok {
 				o.log.Info(fmt.Sprintf("Malformed aggregationRule in resource '%s', won't modify.", un.GetName()))
 			} else {
@@ -544,7 +543,7 @@ func normalizeRole(un *unstructured.Unstructured, o options) {
 	if !ok {
 		return
 	}
-	rules, ok := rulesIf.([]interface{})
+	rules, ok := rulesIf.([]any)
 	if !ok {
 		return
 	}
@@ -555,7 +554,7 @@ func normalizeRole(un *unstructured.Unstructured, o options) {
 }
 
 // CreateTwoWayMergePatch is a helper to construct a two-way merge patch from objects (instead of bytes)
-func CreateTwoWayMergePatch(orig, new, dataStruct interface{}) ([]byte, bool, error) {
+func CreateTwoWayMergePatch(orig, new, dataStruct any) ([]byte, bool, error) {
 	origBytes, err := json.Marshal(orig)
 	if err != nil {
 		return nil, false, err
@@ -602,7 +601,7 @@ func HideSecretData(target *unstructured.Unstructured, live *unstructured.Unstru
 		nextReplacement := "++++++++"
 		valToReplacement := make(map[string]string)
 		for _, obj := range []*unstructured.Unstructured{target, live, orig} {
-			var data map[string]interface{}
+			var data map[string]any
 			if obj != nil {
 				// handles an edge case when secret data has nil value
 				// https://github.com/argoproj/argo-cd/issues/5584
@@ -619,7 +618,7 @@ func HideSecretData(target *unstructured.Unstructured, live *unstructured.Unstru
 				}
 			}
 			if data == nil {
-				data = make(map[string]interface{})
+				data = make(map[string]any)
 			}
 			valData, ok := data[k]
 			if !ok {
@@ -654,7 +653,7 @@ func HideSecretData(target *unstructured.Unstructured, live *unstructured.Unstru
 	return target, live, nil
 }
 
-func toString(val interface{}) string {
+func toString(val any) string {
 	if val == nil {
 		return ""
 	}

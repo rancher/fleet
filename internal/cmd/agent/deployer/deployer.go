@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"reflect"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/rancher/fleet/internal/bundlereader"
@@ -242,9 +244,7 @@ func (d *Deployer) fetchNamespace(ctx context.Context, releaseID string) (*corev
 
 // addLabelsFromOptions updates nsLabels so that it only contains all labels specified in optLabels, plus the `kubernetes.io/metadata.name` labels added by kubernetes when creating the namespace.
 func addLabelsFromOptions(nsLabels map[string]string, optLabels map[string]string) {
-	for k, v := range optLabels {
-		nsLabels[k] = v
-	}
+	maps.Copy(nsLabels, optLabels)
 
 	// Delete labels not defined in the options.
 	// Keep the `kubernetes.io/metadata.name` label as it is added by kubernetes when creating the namespace.
@@ -257,9 +257,7 @@ func addLabelsFromOptions(nsLabels map[string]string, optLabels map[string]strin
 
 // addAnnotationsFromOptions updates nsAnnotations so that it only contains all annotations specified in optAnnotations.
 func addAnnotationsFromOptions(nsAnnotations map[string]string, optAnnotations map[string]string) {
-	for k, v := range optAnnotations {
-		nsAnnotations[k] = v
-	}
+	maps.Copy(nsAnnotations, optAnnotations)
 
 	// Delete Annotations not defined in the options.
 	for k := range nsAnnotations {
@@ -285,7 +283,8 @@ func deployErrToStatus(err error, status fleet.BundleDeploymentStatus) (bool, fl
 			"(chart requires kubeVersion)|" + // kubeVersion mismatch
 			"(annotation validation error)|" + // annotations fail to pass validation
 			"(failed, and has been rolled back due to atomic being set)|" + // atomic is set and a rollback occurs
-			"(YAML parse error)|" + // YAML is broken in source files
+			"(YAML parse error)|" + // YAML is broken in source files (Helm v3)
+			"(MalformedYAMLError)|" + // YAML is broken in source files (Helm v4)
 			"(Forbidden: updates to [0-9A-Za-z]+ spec for fields other than [0-9A-Za-z ']+ are forbidden)|" + // trying to update fields that cannot be updated
 			"(Forbidden: spec is immutable after creation)|" + // trying to modify immutable spec
 			"(chart requires kubeVersion: [0-9A-Za-z\\.\\-<>=]+ which is incompatible with Kubernetes)", // trying to deploy to incompatible Kubernetes
@@ -307,7 +306,7 @@ func deployErrToStatus(err error, status fleet.BundleDeploymentStatus) (bool, fl
 		// returned a new condition is being captured. Ready is the
 		// condition that displays for status in general and it is used
 		// for the readiness of resources. Only when we cannot capture
-		// the status of resources, like here, can use use it for a
+		// the status of resources, like here, can use it for a
 		// message like the above. The Installed condition lets us have
 		// a condition to capture the error that can be bubbled up for
 		// Bundles and Gitrepos to consume.
@@ -380,12 +379,7 @@ func isStateAccepted(currentState fleet.BundleState, acceptedStates []fleet.Bund
 	if len(acceptedStates) == 0 {
 		return currentState == fleet.Ready
 	}
-	for _, s := range acceptedStates {
-		if currentState == s {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(acceptedStates, currentState)
 }
 
 // isDependencyReady checks if a BundleDeployment dependency is in an acceptable state.

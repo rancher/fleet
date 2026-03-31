@@ -21,15 +21,12 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-// Those tests are specifically targeting one feature of go-getter, namely cloning of git
-// repositories using HTTPS. That is, because TLS certificates are only used in HTTPS URLs, not if
-// SSH keys are used to clone those repositories. Since go-getter shells out to the `git` CLI for
-// cloning git repositories, the configuration of TLS certificates or ignoring those needs to be
-// configured with `git` typical environment variables. Those are the tests for that implementation.
-// For go-getter to be used, the `helm.chart` field in `fleet.yaml` needs to point to a URL that
-// tells go-getter to use the git protocol over HTTPS. Such an URL is prefixed with `git::https://`.
-// The contents fetched from those repositories are expected to be helm charts.
-var _ = Describe("Testing go-getter CA bundles and insecureSkipVerify for cloning git repositories", Label("infra-setup"), func() {
+// These tests cover HTTPS cloning of git repositories via the `git::https://` URL prefix in
+// `helm.chart`, including TLS certificate configuration (custom CA bundles and InsecureSkipVerify).
+// The implementation uses go-git directly; the `git::` prefix is detected by Fleet's source parser
+// and dispatched to the go-git–based fetcher. The contents fetched from those repositories are
+// expected to be helm charts.
+var _ = Describe("Testing CA bundles and insecureSkipVerify for cloning git repositories", Label("infra-setup"), func() {
 	const (
 		sleeper    = "sleeper"
 		entrypoint = "entrypoint"
@@ -74,7 +71,7 @@ var _ = Describe("Testing go-getter CA bundles and insecureSkipVerify for clonin
 	createInvalidCACertFile := func() *os.File {
 		tmpFile, err := os.CreateTemp("", "invalid-ca-*.crt")
 		Expect(err).ToNot(HaveOccurred(), "failed to create temp file for invalid CA bundle")
-		_, err = tmpFile.Write([]byte("invalid-ca-bundle"))
+		_, err = tmpFile.WriteString("invalid-ca-bundle")
 		Expect(err).ToNot(HaveOccurred(), "failed to write invalid CA bundle to temp file")
 		err = tmpFile.Close()
 		Expect(err).ToNot(HaveOccurred(), "failed to close temp file for invalid CA bundle")
@@ -167,7 +164,7 @@ var _ = Describe("Testing go-getter CA bundles and insecureSkipVerify for clonin
 		tmpAssetDir := path.Join(tmpDir, "entryPoint")
 		err = os.Mkdir(tmpAssetDir, 0755)
 		Expect(err).ToNot(HaveOccurred())
-		url := "git::" + gh.GetInClusterURL(host, HTTPSPort, "repo?ref="+sleeper)
+		url := "git::" + gh.GetInClusterURL(host, HTTPSPort, "repo//"+sleeper)
 		err = os.WriteFile(
 			path.Join(tmpAssetDir, "fleet.yaml"),
 			fmt.Appendf([]byte{}, "helm:\n  chart: %s\n", url),
@@ -185,7 +182,7 @@ var _ = Describe("Testing go-getter CA bundles and insecureSkipVerify for clonin
 		_, _ = k.Delete("ns", targetNamespace)
 	})
 
-	When("testing custom CA bundles for cloning git with HTTPS using go-getter (fleet.yaml)", func() {
+	When("testing custom CA bundles for cloning git with HTTPS (fleet.yaml)", func() {
 		It("should succeed when not configuring any CA", func() {
 			// Create and apply GitRepo, don't configure CABundle, InsecureSkipTLSVerify,
 			// helmSecretName, or helmSecretNameForPath in GitRepo.spec which makes it fall back to
@@ -267,7 +264,7 @@ var _ = Describe("Testing go-getter CA bundles and insecureSkipVerify for clonin
 		})
 	})
 
-	When("testing ignoring insecure certificates for cloning git repositories with HTTPS using go-getter (fleet.yaml)", func() {
+	When("testing ignoring insecure certificates for cloning git repositories with HTTPS (fleet.yaml)", func() {
 		It("should succeed when using the incorrect CA bundle provided in GitRepo's CABundle field but setting InsecureSkipTLSVerify to true", func() {
 			// But it should fail in gitcloner already, not later in fleet apply.
 			encodedCert := base64.StdEncoding.EncodeToString([]byte("invalid-ca-bundle"))

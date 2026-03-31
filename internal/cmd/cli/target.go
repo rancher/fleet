@@ -1,8 +1,8 @@
 package cli
 
 import (
+	"errors"
 	"flag"
-	"fmt"
 	"os"
 	"reflect"
 
@@ -81,7 +81,7 @@ func (t *Target) Run(cmd *cobra.Command, args []string) error {
 
 	empty := &v1alpha1.Bundle{TypeMeta: metav1.TypeMeta{APIVersion: "v1"}}
 	if reflect.DeepEqual(bundle, empty) {
-		return fmt.Errorf("failed to read bundle from file, bundle is empty")
+		return errors.New("failed to read bundle from file, bundle is empty")
 	}
 
 	if t.Namespace != "" {
@@ -152,11 +152,7 @@ func (t *Target) Run(cmd *cobra.Command, args []string) error {
 	cmd.Println("---")
 	cmd.Println(string(b))
 
-	// Needs to be set to print all targets. UpdatePartitions will only
-	// create this many deployments if the bundle is new.
-	bundle.Status.MaxNew = len(matchedTargets)
-
-	if err := target.UpdatePartitions(&bundle.Status, matchedTargets); err != nil {
+	if err := stageAllTargets(bundle, matchedTargets); err != nil {
 		return err
 	}
 	for _, target := range matchedTargets {
@@ -176,4 +172,21 @@ func (t *Target) Run(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
+}
+
+// stageAllTargets overrides maxNew to the total number of matched targets so
+// that UpdatePartitions stages a deployment for every target, not just the
+// first target.DefaultMaxNew.
+//
+// NOTE: mutating bundle.Spec.RolloutStrategy is visible to UpdatePartitions
+// because target.Manager.Targets() stores the same bundle pointer in every
+// target's Bundle field, and UpdatePartitions reads MaxNew from
+// targets[0].Bundle.Spec.RolloutStrategy.
+func stageAllTargets(bundle *v1alpha1.Bundle, matchedTargets []*target.Target) error {
+	count := len(matchedTargets)
+	if bundle.Spec.RolloutStrategy == nil {
+		bundle.Spec.RolloutStrategy = &v1alpha1.RolloutStrategy{}
+	}
+	bundle.Spec.RolloutStrategy.MaxNew = &count
+	return target.UpdatePartitions(&bundle.Status, matchedTargets)
 }

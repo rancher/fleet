@@ -14,13 +14,13 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-var knownTypes = map[string]func() interface{}{}
+var knownTypes = map[string]func() any{}
 
 const Group string = "argoproj.io"
 
 type knownTypeField struct {
 	fieldPath  []string
-	newFieldFn func() interface{}
+	newFieldFn func() any
 }
 
 type knownTypesNormalizer struct {
@@ -51,7 +51,7 @@ func (n *knownTypesNormalizer) ensureDefaultCRDsConfigured() {
 	if _, ok := n.typeFields[rolloutGK]; !ok {
 		n.typeFields[rolloutGK] = []knownTypeField{{
 			fieldPath: []string{"spec", "template", "spec"},
-			newFieldFn: func() interface{} {
+			newFieldFn: func() any {
 				return &v1.PodSpec{}
 			},
 		}}
@@ -86,15 +86,15 @@ func (n *knownTypesNormalizer) addKnownField(gk schema.GroupKind, fieldPath stri
 	return nil
 }
 
-func normalize(obj map[string]interface{}, field knownTypeField, fieldPath []string) error {
+func normalize(obj map[string]any, field knownTypeField, fieldPath []string) error {
 	for i := range fieldPath {
 		if nestedField, ok, err := unstructured.NestedFieldNoCopy(obj, fieldPath[:i+1]...); err == nil && ok {
-			items, ok := nestedField.([]interface{})
+			items, ok := nestedField.([]any)
 			if !ok {
 				continue
 			}
 			for j := range items {
-				item, ok := items[j].(map[string]interface{})
+				item, ok := items[j].(map[string]any)
 				if !ok {
 					continue
 				}
@@ -130,7 +130,7 @@ func normalize(obj map[string]interface{}, field knownTypeField, fieldPath []str
 	return nil
 }
 
-func nremarshal(fieldVal map[string]interface{}, field knownTypeField) (map[string]interface{}, error) {
+func nremarshal(fieldVal map[string]any, field knownTypeField) (map[string]any, error) {
 	data, err := json.Marshal(fieldVal)
 	if err != nil {
 		return nil, err
@@ -144,7 +144,7 @@ func nremarshal(fieldVal map[string]interface{}, field knownTypeField) (map[stri
 	if err != nil {
 		return nil, err
 	}
-	newFieldVal := map[string]interface{}{}
+	newFieldVal := map[string]any{}
 	err = json.Unmarshal(data, &newFieldVal)
 	if err != nil {
 		return nil, err

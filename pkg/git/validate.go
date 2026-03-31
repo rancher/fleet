@@ -2,6 +2,7 @@ package git
 
 import (
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"strings"
 	"unicode"
@@ -49,7 +50,7 @@ const (
 func validateBranch(name string) error {
 	switch {
 	case len(name) > branchMaxLength:
-		return fmt.Errorf("invalid branch name: too long")
+		return errors.New("invalid branch name: too long")
 	case strings.HasSuffix(name, branchInvalidSuffix):
 		return fmt.Errorf("invalid branch name: cannot end with %q", branchInvalidSuffix)
 	case strings.HasPrefix(name, branchInvalidPrefix):
@@ -66,7 +67,7 @@ func validateBranch(name string) error {
 
 	for _, r := range name {
 		if unicode.IsControl(r) {
-			return fmt.Errorf("invalid branch name: control chars are not supported")
+			return errors.New("invalid branch name: control chars are not supported")
 		}
 	}
 
@@ -90,7 +91,7 @@ func validateCommit(commit string) error {
 func validateURL(u string) error {
 	switch {
 	case u == "":
-		return fmt.Errorf("invalid url: cannot be empty")
+		return errors.New("invalid url: cannot be empty")
 	case len(u) > urlMaxLength:
 		return fmt.Errorf("invalid url: exceeds max length %d", urlMaxLength)
 	default:

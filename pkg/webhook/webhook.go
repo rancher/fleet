@@ -59,7 +59,7 @@ func New(namespace string, client client.Client) (*Webhook, error) {
 
 func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	// credit from https://github.com/argoproj/argo-cd/blob/97003caebcaafe1683e71934eb483a88026a4c33/util/webhook/webhook.go#L327-L350
-	var payload interface{}
+	var payload any
 	var err error
 	ctx := r.Context()
 
@@ -109,7 +109,7 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		path := strings.Replace(u.EscapedPath()[1:], "/_git/", "(/_git)?/", 1)
 
 		regexpStr := `(?i)(http://|https://|\w+@|ssh://(\w+@)?|git@(ssh\.)?)` + u.Hostname() +
-			"(:[0-9]+|)[:/](v\\d/)?" + path + "(\\.git)?"
+			"(:[0-9]+|)[:/](v\\d/)?" + path + "(\\.git)?$"
 		repoRegexp, err := regexp.Compile(regexpStr)
 		if err != nil {
 			w.logAndReturn(rw, err)
@@ -199,8 +199,7 @@ func HandleHooks(ctx context.Context, namespace string, client client.Client, cl
 
 func (w *Webhook) logAndReturn(rw http.ResponseWriter, err error) {
 	w.log.Error(err, "Webhook processing failed")
-	rw.WriteHeader(getErrorCodeFromErr(err))
-	_, _ = rw.Write([]byte(err.Error()))
+	http.Error(rw, "Webhook processing failed", getErrorCodeFromErr(err))
 }
 
 func (w *Webhook) getSecret(ctx context.Context, gitrepo fleet.GitRepo) (*corev1.Secret, error) {
@@ -257,12 +256,12 @@ func getErrorCodeFromErr(err error) int {
 
 // git ref docs: https://git-scm.com/book/en/v2/Git-Internals-Git-References
 func getBranchTagFromRef(ref string) (string, string) {
-	if strings.HasPrefix(ref, branchRefPrefix) {
-		return strings.TrimPrefix(ref, branchRefPrefix), ""
+	if after, ok := strings.CutPrefix(ref, branchRefPrefix); ok {
+		return after, ""
 	}
 
-	if strings.HasPrefix(ref, tagRefPrefix) {
-		return "", strings.TrimPrefix(ref, tagRefPrefix)
+	if after, ok := strings.CutPrefix(ref, tagRefPrefix); ok {
+		return "", after
 	}
 
 	return "", ""
@@ -270,7 +269,7 @@ func getBranchTagFromRef(ref string) (string, string) {
 
 // parsePayload extracts git information from a request payload, depending on its type.
 // Returns a revision, branch, tag and a slice of repo URLs.
-func parsePayload(payload interface{}) (revision, branch, tag string, repoURLs []string) {
+func parsePayload(payload any) (revision, branch, tag string, repoURLs []string) {
 	// credit from https://github.com/argoproj/argo-cd/blob/97003caebcaafe1683e71934eb483a88026a4c33/util/webhook/webhook.go#L84-L87
 	switch t := payload.(type) {
 	case github.PushPayload:
@@ -301,8 +300,8 @@ func parsePayload(payload interface{}) (revision, branch, tag string, repoURLs [
 			tag = change.New.Name
 		}
 	case bitbucketserver.RepositoryReferenceChangedPayload:
-		for _, l := range t.Repository.Links["clone"].([]interface{}) {
-			link := l.(map[string]interface{})
+		for _, l := range t.Repository.Links["clone"].([]any) {
+			link := l.(map[string]any)
 			if link["name"] == "http" {
 				repoURLs = append(repoURLs, link["href"].(string))
 			}

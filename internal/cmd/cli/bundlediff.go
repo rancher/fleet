@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -105,7 +106,7 @@ func (d *BundleDiff) PersistentPre(_ *cobra.Command, _ []string) error {
 
 func (d *BundleDiff) Run(cmd *cobra.Command, args []string) error {
 	if d.JSON && d.FleetYAML {
-		return fmt.Errorf("cannot specify both --json and --fleet-yaml")
+		return errors.New("cannot specify both --json and --fleet-yaml")
 	}
 
 	cfg, err := ctrl.GetConfig()
@@ -122,7 +123,7 @@ func (d *BundleDiff) Run(cmd *cobra.Command, args []string) error {
 	}
 
 	if d.FleetYAML && d.BundleDeployment == "" {
-		return fmt.Errorf("--fleet-yaml requires --bundle-deployment to be specified")
+		return errors.New("--fleet-yaml requires --bundle-deployment to be specified")
 	}
 
 	diffs := []DiffOutput{}
@@ -186,9 +187,9 @@ func (d *BundleDiff) encodeJSON(out io.Writer, diffs []DiffOutput) error {
 
 // patchOperation represents a JSON Patch operation
 type patchOperation struct {
-	Op    string      `json:"op"`
-	Path  string      `json:"path"`
-	Value interface{} `json:"value,omitempty"`
+	Op    string `json:"op"`
+	Path  string `json:"path"`
+	Value any    `json:"value,omitempty"`
 }
 
 // resourceKey returns a string representation of a resource for logging
@@ -207,7 +208,7 @@ func escapeJSONPointerToken(token string) string {
 
 // convertMergePatchToRemoveOps converts a JSON Merge Patch object to JSON Patch remove operations
 // This allows users to ignore drift on fields that differ between desired and deployed resources
-func convertMergePatchToRemoveOps(patch map[string]interface{}, basePath string) []patchOperation {
+func convertMergePatchToRemoveOps(patch map[string]any, basePath string) []patchOperation {
 	var ops []patchOperation
 
 	// Sort keys for deterministic output order
@@ -222,7 +223,7 @@ func convertMergePatchToRemoveOps(patch map[string]interface{}, basePath string)
 		escapedKey := escapeJSONPointerToken(key)
 		path := basePath + "/" + escapedKey
 
-		if nested, ok := value.(map[string]interface{}); ok {
+		if nested, ok := value.(map[string]any); ok {
 			if len(nested) == 0 {
 				// An empty object {} means the entire field was cleared/emptied.
 				// Generate a remove operation for the field itself rather than
@@ -315,7 +316,7 @@ func (d *BundleDiff) printFleetYAML(ctx context.Context, k8sClient client.Client
 			resKey := resourceKey(mod.Kind, mod.APIVersion, mod.Namespace, mod.Name)
 
 			// Fleet always produces JSON Merge Patch format from strategic merge or JSON merge patch
-			var mergePatch map[string]interface{}
+			var mergePatch map[string]any
 			if err := json.Unmarshal([]byte(mod.Patch), &mergePatch); err != nil {
 				ctrl.Log.Error(err, "failed to parse patch, skipping resource", "resource", resKey)
 				continue
@@ -408,11 +409,13 @@ func (d *BundleDiff) outputFleetYAMLDiff(ctx context.Context, k8sClient client.C
 
 	// Format as fleet.yaml snippet with proper indentation
 	output := "diff:\n"
-	for _, line := range strings.Split(string(yamlOutput), "\n") {
+	var outputSb411 strings.Builder
+	for line := range strings.SplitSeq(string(yamlOutput), "\n") {
 		if line != "" {
-			output += "  " + line + "\n"
+			outputSb411.WriteString("  " + line + "\n")
 		}
 	}
+	output += outputSb411.String()
 
 	fmt.Fprint(out, output)
 	return nil
@@ -629,7 +632,7 @@ func (d *BundleDiff) printNonReadyResourceIndented(out io.Writer, nr fleet.NonRe
 }
 
 func (d *BundleDiff) formatPatch(patch string) string {
-	var patchObj interface{}
+	var patchObj any
 	if err := json.Unmarshal([]byte(patch), &patchObj); err != nil {
 		return "    " + patch
 	}
@@ -644,7 +647,7 @@ func (d *BundleDiff) formatPatch(patch string) string {
 }
 
 func (d *BundleDiff) formatPatchWithIndent(patch string, indent string) string {
-	var patchObj interface{}
+	var patchObj any
 	if err := json.Unmarshal([]byte(patch), &patchObj); err != nil {
 		return indent + patch
 	}

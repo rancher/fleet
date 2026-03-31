@@ -81,14 +81,14 @@ func (g *HelmOperator) Run(cmd *cobra.Command, args []string) error {
 
 	var shardIDSuffix string
 	if g.ShardID != "" {
-		shardIDSuffix = fmt.Sprintf("-%s", g.ShardID)
+		shardIDSuffix = "-" + g.ShardID
 	}
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                  scheme,
 		Metrics:                 g.setupMetrics(),
 		LeaderElection:          g.EnableLeaderElection,
-		LeaderElectionID:        fmt.Sprintf("fleet-helmops-leader-election-shard%s", shardIDSuffix),
+		LeaderElectionID:        "fleet-helmops-leader-election-shard" + shardIDSuffix,
 		LeaderElectionNamespace: namespace,
 		LeaseDuration:           &leaderOpts.LeaseDuration,
 		RenewDeadline:           &leaderOpts.RenewDeadline,
@@ -119,7 +119,7 @@ func (g *HelmOperator) Run(cmd *cobra.Command, args []string) error {
 		Scheduler: sched,
 		Workers:   workers,
 		ShardID:   g.ShardID,
-		Recorder:  mgr.GetEventRecorderFor(fmt.Sprintf("fleet-helmops%s", shardIDSuffix)),
+		Recorder:  mgr.GetEventRecorder("fleet-helmops" + shardIDSuffix),
 	}
 
 	helmOpStatusReconciler := &reconciler.HelmOpStatusReconciler{

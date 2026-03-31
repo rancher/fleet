@@ -24,6 +24,7 @@ import (
 	"github.com/reugn/go-quartz/quartz"
 
 	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -264,7 +265,7 @@ func TestReconcile_Validate(t *testing.T) {
 			namespacedName := types.NamespacedName{Name: c.helmop.Name, Namespace: c.helmop.Namespace}
 			client := mocks.NewMockK8sClient(mockCtrl)
 			client.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
-				func(ctx context.Context, req types.NamespacedName, fh *fleet.HelmOp, opts ...interface{}) error {
+				func(ctx context.Context, req types.NamespacedName, fh *fleet.HelmOp, opts ...any) error {
 					fh.Name = c.helmop.Name
 					fh.Namespace = c.helmop.Namespace
 					fh.Spec = c.helmop.Spec
@@ -276,7 +277,7 @@ func TestReconcile_Validate(t *testing.T) {
 
 			client.EXPECT().Get(gomock.Any(), namespacedName, matchesBundle(c.helmop.Name, c.helmop.Namespace), gomock.Any()).
 				DoAndReturn(
-					func(ctx context.Context, req types.NamespacedName, bundle *fleet.Bundle, opts ...interface{}) error {
+					func(ctx context.Context, req types.NamespacedName, bundle *fleet.Bundle, opts ...any) error {
 						bundle.ObjectMeta = metav1.ObjectMeta{
 							Name:      c.helmop.Name,
 							Namespace: c.helmop.Namespace,
@@ -337,7 +338,7 @@ func TestReconcile_ErrorCreatingBundleIsShownInStatus(t *testing.T) {
 		namespacedName := types.NamespacedName{Name: helmop.Name, Namespace: helmop.Namespace}
 		client := mocks.NewMockK8sClient(mockCtrl)
 		client.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
-			func(ctx context.Context, req types.NamespacedName, fh *fleet.HelmOp, opts ...interface{}) error {
+			func(ctx context.Context, req types.NamespacedName, fh *fleet.HelmOp, opts ...any) error {
 				fh.Name = helmop.Name
 				fh.Namespace = helmop.Namespace
 				fh.Spec.Helm = &fleet.HelmOptions{
@@ -351,13 +352,13 @@ func TestReconcile_ErrorCreatingBundleIsShownInStatus(t *testing.T) {
 		)
 
 		client.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
-			func(ctx context.Context, req types.NamespacedName, bundle *fleet.Bundle, opts ...interface{}) error {
-				return fmt.Errorf("this is a test error")
+			func(ctx context.Context, req types.NamespacedName, bundle *fleet.Bundle, opts ...any) error {
+				return errors.New("this is a test error")
 			},
 		)
 
 		client.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
-			func(ctx context.Context, req types.NamespacedName, bundle *fleet.HelmOp, opts ...interface{}) error {
+			func(ctx context.Context, req types.NamespacedName, bundle *fleet.HelmOp, opts ...any) error {
 				return nil
 			},
 		)
@@ -365,7 +366,7 @@ func TestReconcile_ErrorCreatingBundleIsShownInStatus(t *testing.T) {
 		statusClient := mocks.NewMockStatusWriter(mockCtrl)
 		client.EXPECT().Status().Return(statusClient).Times(1)
 		statusClient.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Do(
-			func(ctx context.Context, helmop *fleet.HelmOp, patch crclient.Patch, opts ...interface{}) {
+			func(ctx context.Context, helmop *fleet.HelmOp, patch crclient.Patch, opts ...any) {
 				c, found := getCondition(helmop, fleet.HelmOpAcceptedCondition)
 				if !found {
 					t.Errorf("expecting to find the %s condition and could not find it.", fleet.HelmOpAcceptedCondition)
@@ -425,7 +426,7 @@ func TestReconcile_ErrorCreatingBundleIsShownInStatus(t *testing.T) {
 		namespacedName := types.NamespacedName{Name: helmop.Name, Namespace: helmop.Namespace}
 		client := mocks.NewMockK8sClient(mockCtrl)
 		client.EXPECT().Get(gomock.Any(), gomock.Any(), OfType(&fleet.HelmOp{}), gomock.Any()).Times(1).DoAndReturn(
-			func(ctx context.Context, req types.NamespacedName, fh *fleet.HelmOp, opts ...interface{}) error {
+			func(ctx context.Context, req types.NamespacedName, fh *fleet.HelmOp, opts ...any) error {
 				fh.Name = helmop.Name
 				fh.Namespace = helmop.Namespace
 				fh.Spec = helmop.Spec
@@ -437,22 +438,25 @@ func TestReconcile_ErrorCreatingBundleIsShownInStatus(t *testing.T) {
 		)
 
 		client.EXPECT().Get(gomock.Any(), gomock.Any(), OfType(&fleet.Bundle{}), gomock.Any()).AnyTimes().DoAndReturn(
-			func(ctx context.Context, req types.NamespacedName, bundle *fleet.Bundle, opts ...interface{}) error {
+			func(ctx context.Context, req types.NamespacedName, bundle *fleet.Bundle, opts ...any) error {
 				bundle.Spec.HelmOpOptions = &fleet.BundleHelmOptions{}
 				return nil
 			},
 		)
 
 		client.EXPECT().Get(gomock.Any(), gomock.Any(), OfType(&fleet.HelmOp{}), gomock.Any()).AnyTimes().DoAndReturn(
-			func(ctx context.Context, req types.NamespacedName, helmOp *fleet.HelmOp, opts ...interface{}) error {
+			func(ctx context.Context, req types.NamespacedName, helmOp *fleet.HelmOp, opts ...any) error {
 				return nil
 			},
 		)
 
+		// Fall-back CA bundle look-up (cattle-system/tls-ca and tls-ca-additional).
+		expectCABundleLookup(client)
+
 		statusClient := mocks.NewMockStatusWriter(mockCtrl)
 		client.EXPECT().Status().Return(statusClient).Times(1)
 		statusClient.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Do(
-			func(ctx context.Context, helmop *fleet.HelmOp, patch crclient.Patch, opts ...interface{}) {
+			func(ctx context.Context, helmop *fleet.HelmOp, patch crclient.Patch, opts ...any) {
 				c, found := getCondition(helmop, fleet.HelmOpAcceptedCondition)
 				if !found {
 					t.Errorf("expecting to find the %s condition and could not find it.", fleet.HelmOpAcceptedCondition)
@@ -476,7 +480,7 @@ func TestReconcile_ErrorCreatingBundleIsShownInStatus(t *testing.T) {
 		}
 
 		errRegex := "could not get a chart version.*error code: 404"
-		match, rErr := regexp.Match(errRegex, []byte(err.Error()))
+		match, rErr := regexp.MatchString(errRegex, err.Error())
 		if rErr != nil {
 			t.Errorf("something went wrong when compiling the regex: %v", rErr)
 		}
@@ -505,7 +509,7 @@ func TestReconcile_ErrorCreatingBundleIfBundleWithSameNameExists(t *testing.T) {
 	namespacedName := types.NamespacedName{Name: helmop.Name, Namespace: helmop.Namespace}
 	client := mocks.NewMockK8sClient(mockCtrl)
 	client.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
-		func(ctx context.Context, req types.NamespacedName, fh *fleet.HelmOp, opts ...interface{}) error {
+		func(ctx context.Context, req types.NamespacedName, fh *fleet.HelmOp, opts ...any) error {
 			fh.Name = helmop.Name
 			fh.Namespace = helmop.Namespace
 			fh.Spec.Helm = &fleet.HelmOptions{
@@ -519,7 +523,7 @@ func TestReconcile_ErrorCreatingBundleIfBundleWithSameNameExists(t *testing.T) {
 	)
 
 	client.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), fleet.Bundle{}).AnyTimes().DoAndReturn(
-		func(ctx context.Context, req types.NamespacedName, bundle *fleet.Bundle, opts ...interface{}) error {
+		func(ctx context.Context, req types.NamespacedName, bundle *fleet.Bundle, opts ...any) error {
 			bundle.ObjectMeta = metav1.ObjectMeta{
 				Name:      "my-workload",
 				Namespace: "default",
@@ -532,7 +536,7 @@ func TestReconcile_ErrorCreatingBundleIfBundleWithSameNameExists(t *testing.T) {
 	client.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
 
 	client.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), fleet.HelmOp{}).AnyTimes().DoAndReturn(
-		func(ctx context.Context, req types.NamespacedName, bundle *fleet.HelmOp, opts ...interface{}) error {
+		func(ctx context.Context, req types.NamespacedName, bundle *fleet.HelmOp, opts ...any) error {
 			return nil
 		},
 	)
@@ -541,7 +545,7 @@ func TestReconcile_ErrorCreatingBundleIfBundleWithSameNameExists(t *testing.T) {
 	statusClient := mocks.NewMockStatusWriter(mockCtrl)
 	client.EXPECT().Status().Return(statusClient).Times(1)
 	statusClient.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Do(
-		func(ctx context.Context, helmop *fleet.HelmOp, patch crclient.Patch, opts ...interface{}) {
+		func(ctx context.Context, helmop *fleet.HelmOp, patch crclient.Patch, opts ...any) {
 			c, found := getCondition(helmop, fleet.HelmOpAcceptedCondition)
 			if !found {
 				t.Errorf("expecting to find the %s condition and could not find it.", fleet.HelmOpAcceptedCondition)
@@ -590,7 +594,7 @@ func TestReconcile_CreatesBundleAndUpdatesStatus(t *testing.T) {
 	namespacedName := types.NamespacedName{Name: helmop.Name, Namespace: helmop.Namespace}
 	client := mocks.NewMockK8sClient(mockCtrl)
 	client.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
-		func(ctx context.Context, req types.NamespacedName, fh *fleet.HelmOp, opts ...interface{}) error {
+		func(ctx context.Context, req types.NamespacedName, fh *fleet.HelmOp, opts ...any) error {
 			fh.Name = helmop.Name
 			fh.Namespace = helmop.Namespace
 			fh.Spec.InsecureSkipTLSverify = true
@@ -608,28 +612,31 @@ func TestReconcile_CreatesBundleAndUpdatesStatus(t *testing.T) {
 
 	client.EXPECT().Get(gomock.Any(), namespacedName, gomock.Any(), gomock.Any()).Times(2).
 		DoAndReturn(
-			func(ctx context.Context, req types.NamespacedName, bundle *fleet.Bundle, opts ...interface{}) error {
+			func(ctx context.Context, req types.NamespacedName, bundle *fleet.Bundle, opts ...any) error {
 				return k8serrors.NewNotFound(schema.GroupResource{}, "Not found")
 			},
 		)
 
 	client.EXPECT().Create(gomock.Any(), matchesBundle(helmop.Name, helmop.Namespace), gomock.Any()).
 		DoAndReturn(
-			func(ctx context.Context, bundle *fleet.Bundle, opts ...interface{}) error {
+			func(ctx context.Context, bundle *fleet.Bundle, opts ...any) error {
 				return nil
 			},
 		)
 
 	client.EXPECT().Get(gomock.Any(), gomock.Any(), &fleet.HelmOp{}, gomock.Any()).Times(1).DoAndReturn(
-		func(ctx context.Context, req types.NamespacedName, _ *fleet.HelmOp, opts ...interface{}) error {
+		func(ctx context.Context, req types.NamespacedName, _ *fleet.HelmOp, opts ...any) error {
 			return nil
 		},
 	)
 
+	// Fall-back CA bundle look-up (cattle-system/tls-ca and tls-ca-additional).
+	expectCABundleLookup(client)
+
 	statusClient := mocks.NewMockStatusWriter(mockCtrl)
 	client.EXPECT().Status().Return(statusClient).Times(1)
 	statusClient.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Do(
-		func(ctx context.Context, helmop *fleet.HelmOp, patch crclient.Patch, opts ...interface{}) {
+		func(ctx context.Context, helmop *fleet.HelmOp, patch crclient.Patch, opts ...any) {
 			// version in status should be the one in the spec
 			if helmop.Status.Version != "0.2.0" {
 				t.Errorf("expecting Status.Version == 0.2.0, got %q", helmop.Status.Version)
@@ -842,7 +849,7 @@ func TestReconcile_ManagePollingJobs(t *testing.T) {
 					BundleSpec: fleet.BundleSpec{
 						BundleDeploymentOptions: fleet.BundleDeploymentOptions{
 							Helm: &fleet.HelmOptions{
-								Chart: fmt.Sprintf("%s/alpine/alpine-0.1.0.tgz", svr1.URL),
+								Chart: svr1.URL + "/alpine/alpine-0.1.0.tgz",
 							},
 						},
 					},
@@ -867,7 +874,7 @@ func TestReconcile_ManagePollingJobs(t *testing.T) {
 					BundleSpec: fleet.BundleSpec{
 						BundleDeploymentOptions: fleet.BundleDeploymentOptions{
 							Helm: &fleet.HelmOptions{
-								Chart: fmt.Sprintf("%s/alpine/alpine-0.1.0.tgz", svr1.URL),
+								Chart: svr1.URL + "/alpine/alpine-0.1.0.tgz",
 							},
 						},
 					},
@@ -1205,7 +1212,7 @@ func TestReconcile_ManagePollingJobs(t *testing.T) {
 
 			// Initial reconcile get
 			client.EXPECT().Get(gomock.Any(), gomock.Any(), &fleet.HelmOp{}, gomock.Any()).DoAndReturn(
-				func(ctx context.Context, req types.NamespacedName, fh *fleet.HelmOp, opts ...interface{}) error {
+				func(ctx context.Context, req types.NamespacedName, fh *fleet.HelmOp, opts ...any) error {
 					fh.Name = c.helmOp.Name
 					fh.Namespace = c.helmOp.Namespace
 					fh.UID = c.helmOp.UID
@@ -1216,7 +1223,7 @@ func TestReconcile_ManagePollingJobs(t *testing.T) {
 
 			// Check to create or update the bundle
 			client.EXPECT().Get(gomock.Any(), namespacedName, matchesBundle(c.helmOp.Name, c.helmOp.Namespace), gomock.Any()).DoAndReturn(
-				func(ctx context.Context, req types.NamespacedName, b *fleet.Bundle, opts ...interface{}) error {
+				func(ctx context.Context, req types.NamespacedName, b *fleet.Bundle, opts ...any) error {
 					b.Spec.HelmOpOptions = &fleet.BundleHelmOptions{
 						SecretName: "foo", // prevent collision errors; the value does not matter.
 					}
@@ -1224,7 +1231,7 @@ func TestReconcile_ManagePollingJobs(t *testing.T) {
 				}).AnyTimes()
 
 			client.EXPECT().Get(gomock.Any(), namespacedName, &fleet.Bundle{}, gomock.Any()).DoAndReturn(
-				func(ctx context.Context, req types.NamespacedName, b *fleet.Bundle, opts ...interface{}) error {
+				func(ctx context.Context, req types.NamespacedName, b *fleet.Bundle, opts ...any) error {
 					b.Spec.HelmOpOptions = &fleet.BundleHelmOptions{
 						SecretName: "foo", // prevent collision errors; the value does not matter.
 					}
@@ -1233,6 +1240,9 @@ func TestReconcile_ManagePollingJobs(t *testing.T) {
 
 			// Only expected in happy cases. If errors happen, only status updates are expected.
 			client.EXPECT().Update(gomock.Any(), matchesBundle(c.helmOp.Name, c.helmOp.Namespace), gomock.Any()).Return(nil).AnyTimes()
+
+			// Fall-back CA bundle look-up (cattle-system/tls-ca and tls-ca-additional).
+			expectCABundleLookup(client)
 
 			statusClient := mocks.NewMockStatusWriter(mockCtrl)
 			statusClient.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
@@ -1260,7 +1270,7 @@ func matchesBundle(name, namespace string) gomock.Matcher {
 	return &bundleMatcher{name: name, namespace: namespace}
 }
 
-func (b *bundleMatcher) Matches(x interface{}) bool {
+func (b *bundleMatcher) Matches(x any) bool {
 	ho, ok := x.(*fleet.Bundle)
 	if !ok {
 		return false
@@ -1282,7 +1292,7 @@ func matchesJobDetailReplace(helmop fleet.HelmOp) gomock.Matcher {
 	return &scheduledJobMatcher{replaceExisting: true, key: quartz.NewJobKey(string(helmop.UID))}
 }
 
-func (s *scheduledJobMatcher) Matches(x interface{}) bool {
+func (s *scheduledJobMatcher) Matches(x any) bool {
 	jd, ok := x.(*quartz.JobDetail)
 	if !ok {
 		return false
@@ -1303,16 +1313,39 @@ func (s *scheduledJobMatcher) String() string {
 	return fmt.Sprintf("matches replace %t and job key %s", s.replaceExisting, s.key)
 }
 
-type typeMatcher struct{ t interface{} }
+type typeMatcher struct{ t any }
 
-func OfType(t interface{}) gomock.Matcher {
+func OfType(t any) gomock.Matcher {
 	return &typeMatcher{t}
 }
 
-func (tm *typeMatcher) Matches(x interface{}) bool {
+func (tm *typeMatcher) Matches(x any) bool {
 	return reflect.TypeOf(x) == reflect.TypeOf(tm.t)
 }
 
 func (tm *typeMatcher) String() string {
 	return "is of type " + reflect.TypeOf(tm.t).String()
+}
+
+// expectCABundleLookup sets up narrow mock expectations for the two cattle-system
+// secrets read by GetRancherCABundle (tls-ca and tls-ca-additional), returning
+// NotFound for both. This avoids an overly broad matcher that would silently
+// absorb unrelated Secret Gets.
+func expectCABundleLookup(client *mocks.MockK8sClient) {
+	client.EXPECT().Get(
+		gomock.Any(),
+		types.NamespacedName{Namespace: "cattle-system", Name: "tls-ca"},
+		OfType(&corev1.Secret{}),
+		gomock.Any(),
+	).AnyTimes().DoAndReturn(func(_ context.Context, _ types.NamespacedName, _ *corev1.Secret, _ ...any) error {
+		return k8serrors.NewNotFound(schema.GroupResource{}, "tls-ca")
+	})
+	client.EXPECT().Get(
+		gomock.Any(),
+		types.NamespacedName{Namespace: "cattle-system", Name: "tls-ca-additional"},
+		OfType(&corev1.Secret{}),
+		gomock.Any(),
+	).AnyTimes().DoAndReturn(func(_ context.Context, _ types.NamespacedName, _ *corev1.Secret, _ ...any) error {
+		return k8serrors.NewNotFound(schema.GroupResource{}, "tls-ca-additional")
+	})
 }

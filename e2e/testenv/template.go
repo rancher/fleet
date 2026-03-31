@@ -89,7 +89,7 @@ func CreateCluster(
 	labels map[string]string,
 	spec map[string]string,
 ) error {
-	return ApplyTemplate(k, AssetPath(clusterTemplate), map[string]interface{}{
+	return ApplyTemplate(k, AssetPath(clusterTemplate), map[string]any{
 		"Name":      name,
 		"Namespace": namespace,
 		"Labels":    labels,
@@ -105,7 +105,7 @@ func CreateClusterGroup(
 	matchLabels map[string]string,
 	labels map[string]string,
 ) error {
-	return ApplyTemplate(k, AssetPath(clustergroupTemplate), map[string]interface{}{
+	return ApplyTemplate(k, AssetPath(clustergroupTemplate), map[string]any{
 		"Name":        name,
 		"Namespace":   namespace,
 		"MatchLabels": matchLabels,
@@ -114,7 +114,7 @@ func CreateClusterGroup(
 }
 
 // ApplyTemplate templates a file and applies it to the cluster.
-func ApplyTemplate(k kubectl.Command, asset string, data interface{}) error {
+func ApplyTemplate(k kubectl.Command, asset string, data any) error {
 	tmpdir, _ := os.MkdirTemp("", "fleet-")
 	defer os.RemoveAll(tmpdir)
 

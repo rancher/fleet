@@ -23,13 +23,13 @@ import (
 func Test_multiNamespaceList(t *testing.T) {
 	results := map[string]*unstructured.UnstructuredList{
 		"ns1": {Items: []unstructured.Unstructured{
-			{Object: map[string]interface{}{"name": "o1", "namespace": "ns1"}},
-			{Object: map[string]interface{}{"name": "o2", "namespace": "ns1"}},
-			{Object: map[string]interface{}{"name": "o3", "namespace": "ns1"}},
+			{Object: map[string]any{"name": "o1", "namespace": "ns1"}},
+			{Object: map[string]any{"name": "o2", "namespace": "ns1"}},
+			{Object: map[string]any{"name": "o3", "namespace": "ns1"}},
 		}},
 		"ns2": {Items: []unstructured.Unstructured{
-			{Object: map[string]interface{}{"name": "o4", "namespace": "ns2"}},
-			{Object: map[string]interface{}{"name": "o5", "namespace": "ns2"}},
+			{Object: map[string]any{"name": "o4", "namespace": "ns2"}},
+			{Object: map[string]any{"name": "o5", "namespace": "ns2"}},
 		}},
 		"ns3": {Items: []unstructured.Unstructured{}},
 	}
@@ -126,7 +126,7 @@ func Test_getIndexableHash(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	indexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{byHash: func(obj interface{}) ([]string, error) {
+	indexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{byHash: func(obj any) ([]string, error) {
 		return nil, nil
 	}})
 	type args struct {
@@ -168,7 +168,7 @@ func Test_getIndexableHash(t *testing.T) {
 func Test_inNamespace(t *testing.T) {
 	type args struct {
 		namespace string
-		obj       interface{}
+		obj       any
 	}
 	tests := []struct {
 		name string
