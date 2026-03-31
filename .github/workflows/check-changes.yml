@@ -2,6 +2,9 @@ name: Check for unallowed changes
 
 on:
   pull_request:
+  push:
+    branches:
+    - '*-hotfix-*'
 
 env:
   MAIN_BRANCH: origin/main
@@ -33,4 +36,5 @@ jobs:
         run: ./.github/scripts/check-for-auto-generated-changes.sh
       -
         name: known-hosts
-        run: ./.github/scripts/check-for-known-hosts-changes.sh $GITHUB_BASE_REF
+        if: github.event_name == 'pull_request'
+        run: ./.github/scripts/check-for-known-hosts-changes.sh "$GITHUB_BASE_REF"
