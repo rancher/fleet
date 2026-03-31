@@ -30,15 +30,14 @@ func (h *Helm) RemoveExternalChanges(ctx context.Context, bd *fleet.BundleDeploy
 	}
 
 	r := action.NewRollback(cfg)
-	// When using ForceReplace, must disable ServerSideApply
-	// ForceReplace and ServerSideApply cannot be used together in Helm v4
-	// Set to "false" (not "auto" or empty string) to explicitly disable server-side apply
+	// Always disable ServerSideApply for rollback. SSA tracks field ownership
+	// per field manager, so it only reverts fields owned by Helm's manager.
+	// Manual changes are owned by a different manager and would be silently
+	// ignored. Client-side three-way merge compares the full resource state
+	// and patches all drifted fields regardless of ownership.
+	r.ServerSideApply = "false"
 	if bd.Spec.CorrectDrift.Force {
-		r.ServerSideApply = "false"
 		r.ForceReplace = true
-	} else {
-		// For non-force mode, use "auto" to preserve the apply method from the original release
-		r.ServerSideApply = "auto"
 	}
 	// WaitStrategy must be set in Helm v4 to avoid "unknown wait strategy" error
 	// HookOnlyStrategy is the default behavior (equivalent to not waiting)
