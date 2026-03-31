@@ -14,6 +14,7 @@ import (
 	gogit "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 	httpgit "github.com/go-git/go-git/v5/plumbing/transport/http"
+	"github.com/sirupsen/logrus"
 
 	fleetssh "github.com/rancher/fleet/internal/ssh"
 	fleetgit "github.com/rancher/fleet/pkg/git"
@@ -24,9 +25,13 @@ import (
 // rawURL may include ?ref=, ?sshkey=, and ?depth= query parameters. The auth
 // struct provides credentials, TLS settings, and optional SSH known-hosts.
 //
-// When auth.CABundle is non-empty, TLS verification uses the system cert pool
-// augmented with those CA certificates, so that both the explicit CA and any
-// system-trusted CA are accepted.
+// TLS verification uses the system cert pool augmented with auth.CABundle (if
+// non-empty). PROXY_CA_BUNDLE is appended to auth.CABundle before passing to
+// go-git, so that HTTPS repos cloned through an HTTPS proxy with a custom
+// certificate are trusted while well-known public CAs remain accepted.
+// For SSH repos via HTTPS proxy, the CONNECT tunnel is established by
+// newHTTPConnectDialer in pkg/git/proxy.go, which likewise starts from the
+// system cert pool and appends PROXY_CA_BUNDLE.
 func gitDownload(ctx context.Context, dst, rawURL string, auth Auth) error {
 	u, err := url.Parse(rawURL)
 	if err != nil {
@@ -61,10 +66,27 @@ func gitDownload(ctx context.Context, dst, rawURL string, auth Auth) error {
 		}
 	}
 
+	// Merge PROXY_CA_BUNDLE so that HTTPS repos cloned through an HTTPS proxy
+	// with a custom CA certificate are trusted. Make a defensive copy of
+	// auth.CABundle so the caller's slice is never modified.
+	caBundle := append([]byte(nil), auth.CABundle...)
+	if proxyCAPEM, ok := os.LookupEnv(fleetgit.ProxyCABundleEnvVar); ok && proxyCAPEM != "" {
+		proxyBytes := []byte(proxyCAPEM)
+		tmpPool := x509.NewCertPool()
+		if !tmpPool.AppendCertsFromPEM(proxyBytes) {
+			logrus.Warnf("%s is set but contains no valid PEM certificates; ignoring proxy CA bundle", fleetgit.ProxyCABundleEnvVar)
+		} else {
+			if len(caBundle) > 0 && caBundle[len(caBundle)-1] != '\n' {
+				caBundle = append(caBundle, '\n')
+			}
+			caBundle = append(caBundle, proxyBytes...)
+		}
+	}
+
 	cloneOpts := &gogit.CloneOptions{
 		URL:             cloneURL.String(),
 		InsecureSkipTLS: auth.InsecureSkipVerify,
-		CABundle:        auth.CABundle,
+		CABundle:        caBundle,
 		ProxyOptions:    fleetgit.ProxyOptsFromEnvironment(cloneURL.String()),
 	}
 	if err := setGitAuth(cloneOpts, &cloneURL, sshKeyPEM, auth); err != nil {
