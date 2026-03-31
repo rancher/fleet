@@ -24,7 +24,6 @@ concurrency:
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
-  SETUP_K3D_VERSION: "v5.8.3"
   SETUP_K3S_VERSION: "v1.35.1-k3s1"
   # Defaults for both manual and scheduled runs
   BENCH_TIMEOUT: ${{ github.event.inputs.timeout || '2m' }}
@@ -60,8 +59,24 @@ jobs:
           docker --version
           docker info
 
+      - name: Cache k3d CLI
+        id: cache-k3d
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: ~/.local/bin/k3d
+          key: ${{ runner.os }}-k3d-${{ hashFiles('.github/scripts/install-k3d.sh') }}
+          restore-keys: |
+            ${{ runner.os }}-k3d-
+
       - name: Install k3d
-        run: curl --silent --fail https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | TAG=${{ env.SETUP_K3D_VERSION }} bash
+        run: |
+          if [ "${{ steps.cache-k3d.outputs.cache-hit }}" != "true" ]; then
+            ./.github/scripts/install-k3d.sh
+          else
+            echo "Using cached k3d"
+            chmod +x ~/.local/bin/k3d
+          fi
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Verify k3d installation
         run: |

@@ -56,7 +56,7 @@ jobs:
           check-latest: true
       -
         name: Install Ginkgo CLI
-        run: go install github.com/onsi/ginkgo/v2/ginkgo
+        run: go install github.com/onsi/ginkgo/v2/ginkgo@$(go list -m -f '{{.Version}}' github.com/onsi/ginkgo/v2)
       -
         name: integration-tests-group1
         env:
@@ -78,7 +78,7 @@ jobs:
           check-latest: true
       -
         name: Install Ginkgo CLI
-        run: go install github.com/onsi/ginkgo/v2/ginkgo
+        run: go install github.com/onsi/ginkgo/v2/ginkgo@$(go list -m -f '{{.Version}}' github.com/onsi/ginkgo/v2)
       -
         name: integration-tests-group2
         env:

@@ -27,7 +27,7 @@ jobs:
           check-latest: true
       -
         name: Install Ginkgo CLI
-        run: go install github.com/onsi/ginkgo/v2/ginkgo
+        run: go install github.com/onsi/ginkgo/v2/ginkgo@$(go list -m -f '{{.Version}}' github.com/onsi/ginkgo/v2)
       -
         name: go.mod
         run: ./.github/scripts/check-for-go-mod-changes.sh

@@ -38,7 +38,6 @@ on:
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
-  SETUP_K3D_VERSION: 'v5.8.3'
 
 jobs:
   rancher-fleet-upgrade:
@@ -57,57 +56,63 @@ jobs:
           check-latest: true
       -
         name: Install Ginkgo CLI
-        run: go install github.com/onsi/ginkgo/v2/ginkgo
-      -
-        name: Determine cache key
-        id: cache-key
-        run: ./.github/scripts/determine-cache-key.sh
+        run: go install github.com/onsi/ginkgo/v2/ginkgo@$(go list -m -f '{{.Version}}' github.com/onsi/ginkgo/v2)
       -
         name: Cache crust-gather CLI
         id: cache-crust
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ~/.local/bin/crust-gather
-          key: ${{ runner.os }}-crust-gather-${{ steps.cache-key.outputs.value }}
+          key: ${{ runner.os }}-crust-gather-${{ hashFiles('.github/scripts/install-crust-gather.sh') }}
           restore-keys: |
             ${{ runner.os }}-crust-gather-
       -
         name: Install crust-gather CLI
         run: |
           if [ "${{ steps.cache-crust.outputs.cache-hit }}" != "true" ]; then
-            echo "Cache not found, downloading from source"
-            mkdir -p ~/.local/bin
-            if curl -sSfL https://github.com/crust-gather/crust-gather/raw/main/install.sh | sh -s -- --yes; then
-              # Cache the binary for future runs
-              if [ ! -f ~/.local/bin/crust-gather ]; then
-                which crust-gather && cp $(which crust-gather) ~/.local/bin/
-              fi
-            else
-              echo "Failed to download crust-gather"
-              exit 1
-            fi
+            ./.github/scripts/install-crust-gather.sh
           else
             echo "Using cached crust-gather CLI"
             chmod +x ~/.local/bin/crust-gather
-            sudo ln -sf ~/.local/bin/crust-gather /usr/local/bin/
           fi
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       -
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         id: rancher-cli-cache
         with:
-          path: /home/runner/.local/bin
-          key: ${{ runner.os }}-rancher-cli-2.6.0
+          path: /home/runner/.local/bin/rancher
+          key: ${{ runner.os }}-rancher-cli-${{ hashFiles('.github/workflows/e2e-rancher-upgrade-fleet.yml') }}
       -
         name: Install Rancher CLI
         if: steps.rancher-cli-cache.outputs.cache-hit != 'true'
         run: |
           mkdir -p /home/runner/.local/bin
-          wget -q https://github.com/rancher/cli/releases/download/v2.12.0/rancher-linux-amd64-v2.12.0.tar.gz
-          tar -xz --strip-components=2 -f rancher-linux-amd64-v2.12.0.tar.gz -C /home/runner/.local/bin
-          rancher --version
+          # renovate: datasource=github-releases depName=rancher/cli
+          RANCHER_CLI_VERSION="v2.14.0"
+          # renovate: datasource=github-release-attachments depName=rancher/cli digestVersion=v2.14.0
+          RANCHER_CLI_SUM_amd64="d05e207d9830f22171e62801dc51a32417125ecb7aaf50c073bf423e7da36a94"
+          ARCHIVE="rancher-linux-amd64-${RANCHER_CLI_VERSION}.tar.gz"
+          wget -q "https://github.com/rancher/cli/releases/download/${RANCHER_CLI_VERSION}/${ARCHIVE}"
+          echo "${RANCHER_CLI_SUM_amd64}  ${ARCHIVE}" | sha256sum -c -
+          tar -xz --strip-components=2 -f "${ARCHIVE}" -C /home/runner/.local/bin
+      -
+        name: Cache k3d CLI
+        id: cache-k3d
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: ~/.local/bin/k3d
+          key: ${{ runner.os }}-k3d-${{ hashFiles('.github/scripts/install-k3d.sh') }}
+          restore-keys: |
+            ${{ runner.os }}-k3d-
       -
         name: Install k3d
-        run: curl --silent --fail https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | TAG=${{ env.SETUP_K3D_VERSION }} bash
+        run: |
+          if [ "${{ steps.cache-k3d.outputs.cache-hit }}" != "true" ]; then
+            ./.github/scripts/install-k3d.sh
+          else
+            echo "Using cached k3d"
+            chmod +x ~/.local/bin/k3d
+          fi
       -
         name: Set up k3d control-plane cluster
         run: |
