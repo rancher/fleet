@@ -52,22 +52,25 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
+          path: fleet
 
       -
         name: Install Go
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
-          go-version-file: 'go.mod'
+          go-version-file: "fleet/go.mod"
           check-latest: true
 
       -
         name: Install Ginkgo CLI
-        run: go install github.com/onsi/ginkgo/v2/ginkgo
+        run: |
+          cd fleet
+          go install github.com/onsi/ginkgo/v2/ginkgo
 
       -
         name: Determine cache key
         id: cache-key
-        run: ./.github/scripts/determine-cache-key.sh
+        run: "./fleet/.github/scripts/determine-cache-key.sh"
       -
         name: Cache crust-gather CLI
         id: cache-crust
