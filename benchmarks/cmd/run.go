@@ -127,3 +127,4 @@ func (f matchStringOnly) SnapshotCoverage()                       {}
 func (f matchStringOnly) InitRuntimeCoverage() (mode string, tearDown func(string, string) (string, error), snapcov func() float64) {
 	return
 }
+func (f matchStringOnly) ModulePath() string { return "" }
