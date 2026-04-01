@@ -1,0 +1,25 @@
+suite: leader election values test for fleet agent
+templates:
+  - deployment.yaml
+tests:
+  - it: should set the environment variable to the duration
+    set:
+      agent:
+        leaderElection:
+          leaseDuration: 60s
+          retryPeriod: 5s
+          renewDeadline: 10s
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: spec.template.spec.containers[?(@.name == 'fleet-agentmanagement')].env[?(@.name == 'FLEET_AGENT_ELECTION_LEASE_DURATION')].value
+          value: "60s"
+      - equal:
+          path: spec.template.spec.containers[?(@.name == 'fleet-agentmanagement')].env[?(@.name == 'FLEET_AGENT_ELECTION_RETRY_PERIOD')].value
+          value: "5s"
+      - equal:
+          path: spec.template.spec.containers[?(@.name == 'fleet-agentmanagement')].env[?(@.name == 'FLEET_AGENT_ELECTION_RENEW_DEADLINE')].value
+          value: "10s"
+
+
