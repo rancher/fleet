@@ -80,7 +80,7 @@ jobs:
         uses: sigstore/cosign-installer@ba7bc0a3fef59531c69a25acd34668d6d3fe6f22 # v4.1.0
 
       - name: Install Slsactl
-        uses: rancherlabs/slsactl/actions/install-slsactl@3dc09f73d4b3a03fbb87eff19ed0262c231d8757 # v0.1.22
+        uses: rancherlabs/slsactl/actions/install-slsactl@a5177a3699b7cabfa4797e883314dde7e40523cc # v0.1.22
         with:
           # renovate: datasource=github-releases depName=rancherlabs/slsactl
           version: v0.1.22
