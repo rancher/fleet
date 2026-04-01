@@ -82,6 +82,7 @@ jobs:
       - name: Install Slsactl
         uses: rancherlabs/slsactl/actions/install-slsactl@3dc09f73d4b3a03fbb87eff19ed0262c231d8757 # v0.1.22
         with:
+          # renovate: datasource=github-releases depName=rancherlabs/slsactl
           version: v0.1.22
 
       - name: "Read Vault Secrets"
