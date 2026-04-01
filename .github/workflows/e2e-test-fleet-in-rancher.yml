@@ -244,11 +244,13 @@ jobs:
       -
         name: Register Rancher's downstream clusters
         run: |
+          until kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}'; do sleep 3; done
           ip=$(kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 
           export PATH=~/.local/bin:$PATH
           export public_hostname=$ip.sslip.io
 
+          cd fleet
           ./.github/scripts/wait-for-loadbalancer.sh
           ./.github/scripts/register-downstream-clusters.sh
 
