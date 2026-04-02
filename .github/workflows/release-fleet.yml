@@ -8,13 +8,14 @@ on:
 
 permissions:
   contents: write
-  packages: write
   id-token: write # this is important, it's how we authenticate with Vault
+  pull-requests: read
+  checks: read
 
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
-  SETUP_K3D_VERSION: 'v5.5.1'
+  RELEASE_TAG: ${{ github.ref_name }}
 
 jobs:
   build-fleet:
@@ -27,64 +28,60 @@ jobs:
     if: github.repository == 'rancher/fleet'
     steps:
       - name: Check out Fleet
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
+
+      - name: Verify CI passed on tagged commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          COMMIT_SHA=$(git rev-list -n 1 "$RELEASE_TAG")
+          echo "Verifying CI checks for ${RELEASE_TAG} (${COMMIT_SHA})"
+
+          PR_NUMBER=$(gh api \
+            "repos/${{ github.repository }}/commits/${COMMIT_SHA}/pulls" \
+            --jq '[.[] | select(.merged_at != null)] | first | .number // empty')
+
+          if [[ -n "${PR_NUMBER:-}" ]]; then
+            echo "Found PR #${PR_NUMBER}, verifying required checks..."
+            gh pr checks "${PR_NUMBER}" \
+              --repo "${{ github.repository }}" \
+              --required
+          else
+            echo "No merged PR found (hotfix), verifying all commit checks..."
+            ISSUES=$(gh api \
+              "repos/${{ github.repository }}/commits/${COMMIT_SHA}/check-runs" \
+              --jq 'if .total_count == 0 then "no CI checks found" else ([.check_runs[] | select(.status != "completed" or (.conclusion != "success" and .conclusion != "skipped")) | .name] | join(", ")) end')
+
+            if [[ -n "${ISSUES}" ]]; then
+              echo "ERROR: ${ISSUES}"
+              exit 1
+            fi
+
+            echo "✓ All checks passed for ${RELEASE_TAG} (${COMMIT_SHA})"
+          fi
 
       - name: Set up Go
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version-file: 'go.mod'
-          check-latest: true
-
-      - name: "Read Vault Secrets"
-        uses: rancher-eio/read-vault-secrets@main
-        with:
-          secrets: |
-            secret/data/github/repo/${{ github.repository }}/fossa/credential token | FOSSA_API_KEY
-
-      - name: Run FOSSA scan
-        uses: fossas/fossa-action@09bcf127dc0ccb4b5a023f6f906728878e8610ba # v1.4.0
-        with:
-          api-key: ${{ env.FOSSA_API_KEY }}
-
-      - name: Run FOSSA tests
-        uses: fossas/fossa-action@09bcf127dc0ccb4b5a023f6f906728878e8610ba # v1.4.0
-        with:
-          api-key: ${{ env.FOSSA_API_KEY }}
-          run-tests: false
-
-      - name: Install goimports
-        run: go install golang.org/x/tools/cmd/goimports@latest
-
-      - name: Check for code changes
-        continue-on-error: ${{ contains(github.ref, 'rc') }}
-        run: |
-          ./.github/scripts/check-for-auto-generated-changes.sh
-          go mod verify
-
-      - name: Run unit tests
-        continue-on-error: ${{ contains(github.ref, 'rc') }}
-        run: go test -cover -tags=test $(go list ./... | grep -v -e /e2e -e /integrationtests)
-
-      - name: Install Ginkgo CLI
-        run: go install github.com/onsi/ginkgo/v2/ginkgo
-
-      - name: Run integration tests
-        continue-on-error: ${{ contains(github.ref, 'rc') }}
-        env:
-          SETUP_ENVTEST_VER: v0.0.0-20250218120612-6f6111124902
-          ENVTEST_K8S_VERSION: 1.31
-        run: ./.github/scripts/run-integration-tests.sh
+          cache: false
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3
+        uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
+        with:
+          # renovate: datasource=docker depName=tonistiigi/binfmt extractVersion=^qemu-v(?<version>.+)$
+          image: tonistiigi/binfmt:qemu-v10.2.1-65@sha256:d3b963f787999e6c0219a48dba02978769286ff61a5f4d26245cb6a6e5567ea3
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+
+
 
       - name: "Read Vault Secrets"
-        uses: rancher-eio/read-vault-secrets@main
+        uses: rancher-eio/read-vault-secrets@0da85151ad1f19ed7986c41587e45aac1ace74b6 # v3
         with:
           secrets: |
             secret/data/github/repo/${{ github.repository }}/dockerhub/rancher/credentials username | DOCKER_USERNAME ;
@@ -93,14 +90,14 @@ jobs:
             secret/data/github/repo/${{ github.repository }}/rancher-prime-stg-registry/credentials password | STAGE_REGISTRY_PASSWORD ;
 
       - name: Log into Docker Container registry
-        uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3
+        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
         if: ${{ env.IS_HOTFIX == 'false' }}
         with:
           username: ${{ env.DOCKER_USERNAME }}
           password: ${{ env.DOCKER_PASSWORD }}
 
       - name: Log into Staging registry
-        uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3
+        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
         if: ${{ env.IS_HOTFIX == 'true' }}
         with:
           username: ${{ env.STAGE_REGISTRY_USERNAME }}
@@ -108,12 +105,13 @@ jobs:
           registry: ${{ env.REGISTRY }}
 
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6
+        uses: goreleaser/goreleaser-action@ec59f474b9834571250b370d4735c50f8e2d1e29 # v7.0.0
         id: goreleaser
         with:
           distribution: goreleaser
-          version: '~> v2'
-          args: release --clean --verbose
+          # renovate: datasource=github-releases depName=goreleaser/goreleaser
+          version: v2.14.3
+          args: release --clean --draft --verbose
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GORELEASER_CURRENT_TAG: ${{ github.ref_name }}
@@ -186,3 +184,9 @@ jobs:
 
           git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git
           git push origin "$charts_branch"
+
+      - name: Publish Release
+        if: ${{ env.IS_HOTFIX == 'false' }}
+        run: gh release edit "${RELEASE_TAG}" --draft=false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

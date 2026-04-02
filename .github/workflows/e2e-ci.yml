@@ -10,7 +10,6 @@ on:
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
-  SETUP_K3D_VERSION: 'v5.7.4'
 
 jobs:
   e2e-fleet-test:
@@ -35,50 +34,35 @@ jobs:
 
     steps:
       -
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
       -
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version-file: 'go.mod'
-          check-latest: true
       -
         name: Install Ginkgo CLI
         run: go install github.com/onsi/ginkgo/v2/ginkgo
       -
-        name: Determine cache key
-        id: cache-key
-        run: echo "value=$(date +%Y-%m)" >> "$GITHUB_OUTPUT"
-      -
         name: Cache crust-gather CLI
         id: cache-crust
-        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ~/.local/bin/crust-gather
-          key: ${{ runner.os }}-crust-gather-${{ steps.cache-key.outputs.value }}
+          key: ${{ runner.os }}-crust-gather-${{ hashFiles('.github/scripts/install-crust-gather.sh') }}
           restore-keys: |
             ${{ runner.os }}-crust-gather-
       -
         name: Install crust-gather CLI
         run: |
           if [ "${{ steps.cache-crust.outputs.cache-hit }}" != "true" ]; then
-            echo "Cache not found, downloading from source"
-            mkdir -p ~/.local/bin
-            if curl -sSfL https://github.com/crust-gather/crust-gather/raw/main/install.sh | sh -s -- --yes; then
-              # Cache the binary for future runs
-              if [ ! -f ~/.local/bin/crust-gather ]; then
-                which crust-gather && cp $(which crust-gather) ~/.local/bin/
-              fi
-            else
-              echo "Failed to download crust-gather"
-              exit 1
-            fi
+            ./.github/scripts/install-crust-gather.sh
           else
             echo "Using cached crust-gather CLI"
             chmod +x ~/.local/bin/crust-gather
-            sudo ln -sf ~/.local/bin/crust-gather /usr/local/bin/
           fi
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       -
         name: Build Fleet
         run: |
@@ -95,8 +79,23 @@ jobs:
           # Buildkit needed here for proper here-document support
           DOCKER_BUILDKIT=1 docker build -f Dockerfile.gitserver -t nginx-git:test --build-arg="passwd=$(openssl passwd foo)" .
       -
+        name: Cache k3d CLI
+        id: cache-k3d
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: ~/.local/bin/k3d
+          key: ${{ runner.os }}-k3d-${{ hashFiles('.github/scripts/install-k3d.sh') }}
+          restore-keys: |
+            ${{ runner.os }}-k3d-
+      -
         name: Install k3d
-        run: curl --silent --fail https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | TAG=${{ env.SETUP_K3D_VERSION }} bash
+        run: |
+          if [ "${{ steps.cache-k3d.outputs.cache-hit }}" != "true" ]; then
+            ./.github/scripts/install-k3d.sh
+          else
+            echo "Using cached k3d"
+            chmod +x ~/.local/bin/k3d
+          fi
       -
         name: Provision k3d Cluster
         run: |
@@ -191,7 +190,7 @@ jobs:
           ginkgo --github-output e2e/require-secrets
       -
         name: Upload Logs
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         if: failure()
         with:
           name: gha-fleet-e2e-logs-${{ github.sha }}-${{ matrix.k3s.version }}-${{ matrix.test_type.name }}-${{ github.run_id }}
