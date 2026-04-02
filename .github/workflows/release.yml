@@ -126,8 +126,6 @@ jobs:
           PRIME_REGISTRY: ${{ env.PRIME_REGISTRY }}
 
       - name: Attest provenance
-        # Note: This step only works if the release process was triggered by a commit
-        # (push with a tag). Manual workflow_dispatch runs will not have valid provenance.
         shell: bash
         env:
           STAGE_REGISTRY: ${{ env.STAGE_REGISTRY }}
