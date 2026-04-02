@@ -5,7 +5,7 @@
 # the matching K3D_SUM_<arch> checksum variables for that version.
 #
 # renovate: datasource=github-releases depName=k3d-io/k3d
-K3D_VERSION="${K3D_VERSION:-v5.8.3}"
+K3D_VERSION="v3.4.0
 
 # shellcheck disable=SC2034
 # renovate: datasource=github-release-attachments depName=k3d-io/k3d digestVersion=v5.8.3
