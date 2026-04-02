@@ -1,18 +1,17 @@
 #!/bin/bash
 
 # Install k3d from a pinned release, verifying the SHA-256 checksum before
-# placing the binary on PATH. To use a different release, set K3D_VERSION and
-# the matching K3D_SUM_<arch> checksum variables for that version.
+# placing the binary on PATH.
 #
 # renovate: datasource=github-releases depName=k3d-io/k3d
-K3D_VERSION="${K3D_VERSION:-v5.8.3}"
+K3D_VERSION="v5.8.3"
 
 # shellcheck disable=SC2034
 # renovate: datasource=github-release-attachments depName=k3d-io/k3d digestVersion=v5.8.3
-K3D_SUM_amd64="${K3D_SUM_amd64:-dbaa79a76ace7f4ca230a1ff41dc7d8a5036a8ad0309e9c54f9bf3836dbe853e}"
+K3D_SUM_amd64="dbaa79a76ace7f4ca230a1ff41dc7d8a5036a8ad0309e9c54f9bf3836dbe853e"
 # shellcheck disable=SC2034
 # renovate: datasource=github-release-attachments depName=k3d-io/k3d digestVersion=v5.8.3
-K3D_SUM_arm64="${K3D_SUM_arm64:-0b8110f2229631af7402fb828259330985918b08fefd38b7f1b788a1c8687216}"
+K3D_SUM_arm64="0b8110f2229631af7402fb828259330985918b08fefd38b7f1b788a1c8687216"
 
 set -euo pipefail
 
