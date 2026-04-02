@@ -101,9 +101,14 @@ func (m *Manager) Targets(ctx context.Context, bundle *fleet.Bundle, manifestID 
 			}
 			// check if there is any matching targetCustomization that should be applied
 			targetOpts := target.BundleDeploymentOptions
-			targetCustomized := bm.MatchTargetCustomizations(cluster.Name, clusterGroupsAsLabelMap, cluster.Labels)
-			if targetCustomized != nil {
-				targetOpts = targetCustomized.BundleDeploymentOptions
+			if bundle.Spec.TargetCustomizationMode == fleet.TargetCustomizationModeAllMatches {
+				for _, tc := range bm.MatchAllTargetCustomizations(cluster.Name, clusterGroupsAsLabelMap, cluster.Labels) {
+					targetOpts = options.Merge(targetOpts, tc.BundleDeploymentOptions)
+				}
+			} else {
+				if targetCustomized := bm.MatchTargetCustomizations(cluster.Name, clusterGroupsAsLabelMap, cluster.Labels); targetCustomized != nil {
+					targetOpts = targetCustomized.BundleDeploymentOptions
+				}
 			}
 
 			opts := options.Merge(bundle.Spec.BundleDeploymentOptions, targetOpts)

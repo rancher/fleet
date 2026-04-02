@@ -105,6 +105,7 @@ data:
 						{
 							Name:         "default",
 							ClusterGroup: "default",
+							Source:       "gitrepo",
 						},
 					},
 				},
