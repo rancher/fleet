@@ -66,6 +66,7 @@ jobs:
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version-file: 'go.mod'
+          cache: false
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
@@ -80,8 +81,9 @@ jobs:
         uses: sigstore/cosign-installer@ba7bc0a3fef59531c69a25acd34668d6d3fe6f22 # v4.1.0
 
       - name: Install Slsactl
-        uses: rancherlabs/slsactl/actions/install-slsactl@3dc09f73d4b3a03fbb87eff19ed0262c231d8757 # v0.1.22
+        uses: rancherlabs/slsactl/actions/install-slsactl@a5177a3699b7cabfa4797e883314dde7e40523cc # v0.1.22
         with:
+          # renovate: datasource=github-releases depName=rancherlabs/slsactl
           version: v0.1.22
 
       - name: "Read Vault Secrets"
@@ -114,6 +116,7 @@ jobs:
         id: goreleaser
         with:
           distribution: goreleaser
+          # renovate: datasource=github-releases depName=goreleaser/goreleaser
           version: v2.14.3
           args: release --clean --draft --verbose
         env:
@@ -123,8 +126,6 @@ jobs:
           PRIME_REGISTRY: ${{ env.PRIME_REGISTRY }}
 
       - name: Attest provenance
-        # Note: This step only works if the release process was triggered by a commit
-        # (push with a tag). Manual workflow_dispatch runs will not have valid provenance.
         shell: bash
         env:
           STAGE_REGISTRY: ${{ env.STAGE_REGISTRY }}
