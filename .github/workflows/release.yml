@@ -5,16 +5,17 @@ on:
   push:
     tags:
       - v**
-  workflow_dispatch:
 
 permissions:
   contents: write
-  packages: write
   id-token: write # this is important, it's how we authenticate with Vault
+  pull-requests: read
+  checks: read
 
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
+  RELEASE_TAG: ${{ github.ref_name }}
 
 jobs:
   build-fleet:
@@ -26,101 +27,67 @@ jobs:
     if: github.repository == 'rancher/fleet'
     steps:
       - name: Check out Fleet
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
 
-      - name: Verify Rancher is not in code freeze (alpha/beta only)
+      - name: Verify CI passed on tagged commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          set -x
-          FLEET_VERSION="${GITHUB_REF_NAME#v}"
+          set -euo pipefail
+          COMMIT_SHA=$(git rev-list -n 1 "$RELEASE_TAG")
+          echo "Verifying CI checks for ${RELEASE_TAG} (${COMMIT_SHA})"
 
-          if [[ ! "${FLEET_VERSION}" =~ (alpha|beta) ]]; then
-            echo "Skipping code freeze check for non-alpha/beta release"
-            exit 0
-          fi
+          PR_NUMBER=$(gh api \
+            "repos/${{ github.repository }}/commits/${COMMIT_SHA}/pulls" \
+            --jq '[.[] | select(.merged_at != null)] | first | .number // empty')
 
-          FLEET_MINOR=$(echo "${FLEET_VERSION}" | cut -d'.' -f2)
-          RANCHER_VERSION="2.$((FLEET_MINOR - 1))"
+          if [[ -n "${PR_NUMBER:-}" ]]; then
+            echo "Found PR #${PR_NUMBER}, verifying required checks..."
+            gh pr checks "${PR_NUMBER}" \
+              --repo "${{ github.repository }}" \
+              --required
+          else
+            echo "No merged PR found (hotfix), verifying all commit checks..."
+            ISSUES=$(gh api \
+              "repos/${{ github.repository }}/commits/${COMMIT_SHA}/check-runs" \
+              --jq 'if .total_count == 0 then "no CI checks found" else ([.check_runs[] | select(.status != "completed" or (.conclusion != "success" and .conclusion != "skipped")) | .name] | join(", ")) end')
 
-          if ! CHART_DEFAULT_BRANCH=$(curl -sf "https://raw.githubusercontent.com/rancher/rancher/release/v${RANCHER_VERSION}/package/Dockerfile" | grep "ARG CHART_DEFAULT_BRANCH=" | cut -d'=' -f2); then
-            echo "Release branch release/v${RANCHER_VERSION} not found, assuming main branch which can not be in code freeze"
-            exit 0
-          fi
+            if [[ -n "${ISSUES}" ]]; then
+              echo "ERROR: ${ISSUES}"
+              exit 1
+            fi
 
-          if [[ "${CHART_DEFAULT_BRANCH}" != "dev-v${RANCHER_VERSION}" ]]; then
-            echo "ERROR: CHART_DEFAULT_BRANCH does not match the expected dev branch!"
-            exit 1
-          fi
-
-          LATEST_RANCHER_RELEASE=$(curl -sf "https://api.github.com/repos/rancher/rancher/releases" | jq -r "[.[] | select(.tag_name | startswith(\"v${RANCHER_VERSION}.\"))] | first | .tag_name")
-          if [ -z "${LATEST_RANCHER_RELEASE}" ]; then
-            echo "No Rancher ${RANCHER_VERSION}.x release found, assuming pre-release state"
-            exit 0
-          fi
-
-          if [[ "${LATEST_RANCHER_RELEASE}" =~ -rc ]]; then
-            echo "ERROR: Latest Rancher ${RANCHER_VERSION}.x release is an RC (${LATEST_RANCHER_RELEASE}), indicating code freeze!"
-            exit 1
+            echo "✓ All checks passed for ${RELEASE_TAG} (${COMMIT_SHA})"
           fi
 
       - name: Set up Go
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version-file: 'go.mod'
-          check-latest: true
-
-      - name: "Read Vault Secrets"
-        uses: rancher-eio/read-vault-secrets@main
-        with:
-          secrets: |
-            secret/data/github/repo/${{ github.repository }}/fossa/credential token | FOSSA_API_KEY
-
-      - name: Run FOSSA scan
-        uses: fossas/fossa-action@3ebcea1862c6ffbd5cf1b4d0bd6b3fe7bd6f2cac # v1.7.0
-        with:
-          api-key: ${{ env.FOSSA_API_KEY }}
-
-      - name: Run FOSSA tests
-        uses: fossas/fossa-action@3ebcea1862c6ffbd5cf1b4d0bd6b3fe7bd6f2cac # v1.7.0
-        with:
-          api-key: ${{ env.FOSSA_API_KEY }}
-          run-tests: false
-
-      - name: Install Ginkgo CLI
-        run: go install github.com/onsi/ginkgo/v2/ginkgo
-
-      - name: Check for code changes
-        continue-on-error: ${{ contains(github.ref, 'rc') }}
-        run: |
-          ./.github/scripts/check-for-auto-generated-changes.sh
-          go mod verify
-
-      - name: Run unit tests
-        continue-on-error: ${{ contains(github.ref, 'rc') }}
-        run: go test -cover -tags=test $(go list ./... | grep -v -e /e2e -e /integrationtests -e /benchmarks)
-
-      - name: Run integration tests
-        continue-on-error: ${{ contains(github.ref, 'rc') }}
-        env:
-          SETUP_ENVTEST_VER: v0.0.0-20250218120612-6f6111124902
-          ENVTEST_K8S_VERSION: 1.32
-        run: ./.github/scripts/run-integration-tests.sh
+          cache: false
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3
+        uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
+        with:
+          # renovate: datasource=docker depName=tonistiigi/binfmt extractVersion=^qemu-v(?<version>.+)$
+          image: tonistiigi/binfmt:qemu-v10.2.1-65@sha256:d3b963f787999e6c0219a48dba02978769286ff61a5f4d26245cb6a6e5567ea3
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
 
       - name: Install Cosign
-        uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad # v4.0.0
-      - uses: rancherlabs/slsactl/actions/install-slsactl@3dc09f73d4b3a03fbb87eff19ed0262c231d8757 # v0.1.20
+        uses: sigstore/cosign-installer@ba7bc0a3fef59531c69a25acd34668d6d3fe6f22 # v4.1.0
+
+      - name: Install Slsactl
+        uses: rancherlabs/slsactl/actions/install-slsactl@a5177a3699b7cabfa4797e883314dde7e40523cc # v0.1.22
         with:
+          # renovate: datasource=github-releases depName=rancherlabs/slsactl
           version: v0.1.22
 
       - name: "Read Vault Secrets"
-        uses: rancher-eio/read-vault-secrets@main
+        uses: rancher-eio/read-vault-secrets@0da85151ad1f19ed7986c41587e45aac1ace74b6 # v3
         with:
           secrets: |
             secret/data/github/repo/${{ github.repository }}/dockerhub/rancher/credentials username | DOCKER_USERNAME ;
@@ -136,29 +103,30 @@ jobs:
           sudo systemctl restart docker
 
       - name: Log into Docker Container registry
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3
+        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
         if: ${{ env.IS_HOTFIX == 'false' }}
         with:
           username: ${{ env.DOCKER_USERNAME }}
           password: ${{ env.DOCKER_PASSWORD }}
 
       - name: Log into Staging registry
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3
+        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
         with:
           username: ${{ env.STAGE_REGISTRY_USERNAME }}
           password: ${{ env.STAGE_REGISTRY_PASSWORD }}
           registry: ${{ env.STAGE_REGISTRY }}
 
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6
+        uses: goreleaser/goreleaser-action@ec59f474b9834571250b370d4735c50f8e2d1e29 # v7.0.0
         id: goreleaser
         with:
           distribution: goreleaser
-          version: '~> v2'
-          args: release --clean --verbose
+          # renovate: datasource=github-releases depName=goreleaser/goreleaser
+          version: v2.14.3
+          args: release --clean --draft --verbose
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GORELEASER_CURRENT_TAG: ${{ github.ref_name }}
+          GORELEASER_CURRENT_TAG: ${{ env.RELEASE_TAG }}
           STAGE_REGISTRY: ${{ env.STAGE_REGISTRY }}
           PRIME_REGISTRY: ${{ env.PRIME_REGISTRY }}
 
@@ -243,7 +211,7 @@ jobs:
 
           find charts/ -maxdepth 1 -mindepth 1 -type d -exec helm package --version="$version" --app-version="$version" -d ./dist {} \;
 
-          find dist/ -name '*.tgz' -exec gh release upload $tag {} +
+          find dist/ -name '*.tgz' -exec gh release upload "$tag" {} +
 
       - name: Add charts to branch
         if: ${{ env.IS_HOTFIX == 'false' }}
@@ -282,5 +250,11 @@ jobs:
           git add charts/**/*
           git commit -m "Update charts to version $version"
 
-          git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git
+          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git"
           git push origin "$charts_branch"
+
+      - name: Publish Release
+        if: ${{ env.IS_HOTFIX == 'false' }}
+        run: gh release edit "${RELEASE_TAG}" --draft=false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
