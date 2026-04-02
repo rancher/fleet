@@ -588,6 +588,73 @@ var _ = Describe("Bundle targets", Ordered, func() {
 			}
 		})
 	})
+
+	// AllMatches mode: every matching targetCustomization is applied in order,
+	// so a cluster that matches two customizations receives the merged options
+	// from both, whereas FirstMatch would stop at the first.
+	When("TargetCustomizationMode is AllMatches and two customizations match cluster one", func() {
+		BeforeEach(func() {
+			bundleName = "all-matches-mode"
+			bdLabels = map[string]string{
+				"fleet.cattle.io/bundle-name":      bundleName,
+				"fleet.cattle.io/bundle-namespace": namespace,
+			}
+			expectedNumberOfBundleDeployments = 3
+
+			// Customization 1: only cluster group "one" → sets region
+			// Customization 2: all clusters → sets env
+			// GitRepo target: all clusters (no extra values)
+			targetsInGitRepo := []v1alpha1.BundleTarget{
+				{ClusterGroup: "all"},
+			}
+			targets = []v1alpha1.BundleTarget{
+				{
+					BundleDeploymentOptions: v1alpha1.BundleDeploymentOptions{
+						Helm: &v1alpha1.HelmOptions{
+							Values: &v1alpha1.GenericMap{Data: map[string]interface{}{"region": "us-west"}},
+						},
+					},
+					ClusterGroup: "one",
+				},
+				{
+					BundleDeploymentOptions: v1alpha1.BundleDeploymentOptions{
+						Helm: &v1alpha1.HelmOptions{
+							Values: &v1alpha1.GenericMap{Data: map[string]interface{}{"env": "prod"}},
+						},
+					},
+					ClusterGroup: "all",
+				},
+			}
+			targetRestrictions = make([]v1alpha1.BundleTarget, len(targetsInGitRepo))
+			copy(targetRestrictions, targetsInGitRepo)
+			targets = append(targets, targetsInGitRepo...)
+		})
+
+		JustBeforeEach(func() {
+			// The outer JustBeforeEach already created the bundle with FirstMatch
+			// (the default). Patch it to AllMatches so the reconciler re-evaluates.
+			mod := bundle.DeepCopy()
+			mod.Spec.TargetCustomizationMode = v1alpha1.TargetCustomizationModeAllMatches
+			Expect(k8sClient.Patch(ctx, mod, client.MergeFrom(bundle))).ToNot(HaveOccurred())
+			bundle = mod
+		})
+
+		It("merges all matching customizations into cluster one's BundleDeployment", func() {
+			bdList := verifyBundlesDeploymentsAreCreated(expectedNumberOfBundleDeployments, bdLabels, bundleName)
+			for _, bd := range bdList.Items {
+				values, _ := loadValues(bd)
+				if strings.Contains(bd.Namespace, "cluster-one") {
+					// cluster "one" matches both customizations: both keys must be present
+					Expect(values).To(HaveKeyWithValue("region", "us-west"), "cluster-one should have region from cust1")
+					Expect(values).To(HaveKeyWithValue("env", "prod"), "cluster-one should have env from cust2")
+				} else {
+					// other clusters match only cust2
+					Expect(values).ToNot(HaveKey("region"), "non-one clusters should not have region")
+					Expect(values).To(HaveKeyWithValue("env", "prod"), "non-one clusters should have env from cust2")
+				}
+			}
+		})
+	})
 })
 
 func verifyBundlesDeploymentsAreCreated(numBundleDeployments int, bdLabels map[string]string, bundleName string) *v1alpha1.BundleDeploymentList {

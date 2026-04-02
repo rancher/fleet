@@ -242,6 +242,7 @@ func (r *HelmOpReconciler) calculateBundle(helmop *fleet.HelmOp) *fleet.Bundle {
 			{
 				Name:         "default",
 				ClusterGroup: "default",
+				Source:       "helmop",
 			},
 		}
 	}
