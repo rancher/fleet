@@ -18,7 +18,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/utils/ptr"
 )
 
 func Test_Diff_IgnoreResources(t *testing.T) {
@@ -158,7 +157,7 @@ func Test_Diff_HPA(t *testing.T) {
 		{
 			name: "statefulset with diff is referenced by v2 HPA and has replicas within HPA's interval",
 			releaseObj: []runtime.Object{
-				hpa("my-ns", "my-hpa", ptr.To(int32(2)), 5, "apps/v1", "StatefulSet", "nginx"),
+				hpa("my-ns", "my-hpa", new(int32(2)), 5, "apps/v1", "StatefulSet", "nginx"),
 				statefulSet("my-ns", "nginx", 3),
 			},
 			plan: desiredset.Plan{
@@ -171,7 +170,7 @@ func Test_Diff_HPA(t *testing.T) {
 					},
 				},
 				Objects: []runtime.Object{
-					hpa("my-ns", "my-hpa", ptr.To(int32(2)), 5, "apps/v1", "StatefulSet", "nginx"),
+					hpa("my-ns", "my-hpa", new(int32(2)), 5, "apps/v1", "StatefulSet", "nginx"),
 					// different replica count from release, but still within HPA's interval
 					statefulSet("my-ns", "nginx", 4),
 				},
@@ -218,7 +217,7 @@ func Test_Diff_HPA(t *testing.T) {
 		{
 			name: "deployment with diff is referenced by v2 HPA with empty API version and has replicas within HPA's interval",
 			releaseObj: []runtime.Object{
-				hpa("my-ns", "my-hpa", ptr.To(int32(2)), 5, "", "Deployment", "nginx"),
+				hpa("my-ns", "my-hpa", new(int32(2)), 5, "", "Deployment", "nginx"),
 				deployment("my-ns", "nginx", 3),
 			},
 			plan: desiredset.Plan{
@@ -231,7 +230,7 @@ func Test_Diff_HPA(t *testing.T) {
 					},
 				},
 				Objects: []runtime.Object{
-					hpa("my-ns", "my-hpa", ptr.To(int32(2)), 5, "", "Deployment", "nginx"),
+					hpa("my-ns", "my-hpa", new(int32(2)), 5, "", "Deployment", "nginx"),
 					// different replica count from release, but still within HPA's interval
 					deployment("my-ns", "nginx", 4),
 				},
@@ -245,7 +244,7 @@ func Test_Diff_HPA(t *testing.T) {
 		{
 			name: "deployment with multiple fields in diff is referenced by v2 HPA with empty API version and has replicas within HPA's interval",
 			releaseObj: []runtime.Object{
-				hpa("my-ns", "my-hpa", ptr.To(int32(2)), 5, "", "Deployment", "nginx"),
+				hpa("my-ns", "my-hpa", new(int32(2)), 5, "", "Deployment", "nginx"),
 				deployment("my-ns", "nginx", 3, func(d *appsv1.Deployment) { d.Spec.MinReadySeconds = 42 }),
 			},
 			plan: desiredset.Plan{
@@ -258,7 +257,7 @@ func Test_Diff_HPA(t *testing.T) {
 					},
 				},
 				Objects: []runtime.Object{
-					hpa("my-ns", "my-hpa", ptr.To(int32(2)), 5, "", "Deployment", "nginx"),
+					hpa("my-ns", "my-hpa", new(int32(2)), 5, "", "Deployment", "nginx"),
 					// different replica count from release, but still within HPA's interval
 					deployment("my-ns", "nginx", 4, func(d *appsv1.Deployment) { d.Spec.MinReadySeconds = 12 }),
 				},
@@ -277,7 +276,7 @@ func Test_Diff_HPA(t *testing.T) {
 		{
 			name: "v2 HPA references another deployment (wrong API version) although deployment has replicas within HPA's interval",
 			releaseObj: []runtime.Object{
-				hpa("my-ns", "my-hpa", ptr.To(int32(2)), 5, "apps/v2", "Deployment", "nginx"),
+				hpa("my-ns", "my-hpa", new(int32(2)), 5, "apps/v2", "Deployment", "nginx"),
 				deployment("my-ns", "nginx", 3),
 			},
 			plan: desiredset.Plan{
@@ -290,7 +289,7 @@ func Test_Diff_HPA(t *testing.T) {
 					},
 				},
 				Objects: []runtime.Object{
-					hpa("my-ns", "my-hpa", ptr.To(int32(2)), 5, "apps/v2", "Deployment", "nginx"),
+					hpa("my-ns", "my-hpa", new(int32(2)), 5, "apps/v2", "Deployment", "nginx"),
 					// different replica count from release, but still within HPA's interval
 					deployment("my-ns", "nginx", 4),
 				},
@@ -309,7 +308,7 @@ func Test_Diff_HPA(t *testing.T) {
 		{
 			name: "v2 HPA references another deployment (wrong kind) although deployment has replicas within HPA's interval",
 			releaseObj: []runtime.Object{
-				hpa("my-ns", "my-hpa", ptr.To(int32(2)), 5, "apps/v1", "NotADeployment", "nginx"),
+				hpa("my-ns", "my-hpa", new(int32(2)), 5, "apps/v1", "NotADeployment", "nginx"),
 				deployment("my-ns", "nginx", 3),
 			},
 			plan: desiredset.Plan{
@@ -322,7 +321,7 @@ func Test_Diff_HPA(t *testing.T) {
 					},
 				},
 				Objects: []runtime.Object{
-					hpa("my-ns", "my-hpa", ptr.To(int32(2)), 5, "apps/v1", "NotADeployment", "nginx"),
+					hpa("my-ns", "my-hpa", new(int32(2)), 5, "apps/v1", "NotADeployment", "nginx"),
 					// different replica count from release, but still within HPA's interval
 					deployment("my-ns", "nginx", 4),
 				},
@@ -341,7 +340,7 @@ func Test_Diff_HPA(t *testing.T) {
 		{
 			name: "v2 HPA references another deployment (wrong name) although deployment has replicas within HPA's interval",
 			releaseObj: []runtime.Object{
-				hpa("my-ns", "my-hpa", ptr.To(int32(2)), 5, "apps/v1", "NotADeployment", "not-nginx"),
+				hpa("my-ns", "my-hpa", new(int32(2)), 5, "apps/v1", "NotADeployment", "not-nginx"),
 				deployment("my-ns", "nginx", 3),
 			},
 			plan: desiredset.Plan{
@@ -354,7 +353,7 @@ func Test_Diff_HPA(t *testing.T) {
 					},
 				},
 				Objects: []runtime.Object{
-					hpa("my-ns", "my-hpa", ptr.To(int32(2)), 5, "apps/v1", "NotADeployment", "not-nginx"),
+					hpa("my-ns", "my-hpa", new(int32(2)), 5, "apps/v1", "NotADeployment", "not-nginx"),
 					// different replica count from release, but still within HPA's interval
 					deployment("my-ns", "nginx", 4),
 				},
@@ -373,7 +372,7 @@ func Test_Diff_HPA(t *testing.T) {
 		{
 			name: "deployment with diff is referenced by v2 HPA and has replicas within HPA's interval",
 			releaseObj: []runtime.Object{
-				hpa("my-ns", "my-hpa", ptr.To(int32(2)), 5, "apps/v1", "Deployment", "nginx"),
+				hpa("my-ns", "my-hpa", new(int32(2)), 5, "apps/v1", "Deployment", "nginx"),
 				deployment("my-ns", "nginx", 3),
 			},
 			plan: desiredset.Plan{
@@ -386,7 +385,7 @@ func Test_Diff_HPA(t *testing.T) {
 					},
 				},
 				Objects: []runtime.Object{
-					hpa("my-ns", "my-hpa", ptr.To(int32(2)), 5, "apps/v1", "Deployment", "nginx"),
+					hpa("my-ns", "my-hpa", new(int32(2)), 5, "apps/v1", "Deployment", "nginx"),
 					// different replica count from release, but still within HPA's interval
 					deployment("my-ns", "nginx", 4),
 				},
@@ -400,7 +399,7 @@ func Test_Diff_HPA(t *testing.T) {
 		{
 			name: "deployment with diff is referenced by v1 HPA and has replicas within HPA's interval",
 			releaseObj: []runtime.Object{
-				hpav1("my-ns", "my-hpa", ptr.To(int32(2)), 5, "apps/v1", "Deployment", "nginx"),
+				hpav1("my-ns", "my-hpa", new(int32(2)), 5, "apps/v1", "Deployment", "nginx"),
 				deployment("my-ns", "nginx", 3),
 			},
 			plan: desiredset.Plan{
@@ -413,7 +412,7 @@ func Test_Diff_HPA(t *testing.T) {
 					},
 				},
 				Objects: []runtime.Object{
-					hpav1("my-ns", "my-hpa", ptr.To(int32(2)), 5, "apps/v1", "Deployment", "nginx"),
+					hpav1("my-ns", "my-hpa", new(int32(2)), 5, "apps/v1", "Deployment", "nginx"),
 					// different replica count from release, but still within HPA's interval
 					deployment("my-ns", "nginx", 4),
 				},
@@ -427,7 +426,7 @@ func Test_Diff_HPA(t *testing.T) {
 		{
 			name: "deployment with diff is referenced by HPA and has replicas below HPA's interval",
 			releaseObj: []runtime.Object{
-				hpa("my-ns", "my-hpa", ptr.To(int32(2)), 5, "apps/v1", "Deployment", "nginx"),
+				hpa("my-ns", "my-hpa", new(int32(2)), 5, "apps/v1", "Deployment", "nginx"),
 				deployment("my-ns", "nginx", 3),
 			},
 			plan: desiredset.Plan{
@@ -440,7 +439,7 @@ func Test_Diff_HPA(t *testing.T) {
 					},
 				},
 				Objects: []runtime.Object{
-					hpa("my-ns", "my-hpa", ptr.To(int32(2)), 5, "apps/v1", "Deployment", "nginx"),
+					hpa("my-ns", "my-hpa", new(int32(2)), 5, "apps/v1", "Deployment", "nginx"),
 					deployment("my-ns", "nginx", 1),
 				},
 			},
@@ -458,7 +457,7 @@ func Test_Diff_HPA(t *testing.T) {
 		{
 			name: "deployment with diff is referenced by HPA and has replicas above HPA's interval",
 			releaseObj: []runtime.Object{
-				hpa("my-ns", "my-hpa", ptr.To(int32(2)), 5, "apps/v1", "Deployment", "nginx"),
+				hpa("my-ns", "my-hpa", new(int32(2)), 5, "apps/v1", "Deployment", "nginx"),
 				deployment("my-ns", "nginx", 3),
 			},
 			plan: desiredset.Plan{
@@ -471,7 +470,7 @@ func Test_Diff_HPA(t *testing.T) {
 					},
 				},
 				Objects: []runtime.Object{
-					hpa("my-ns", "my-hpa", ptr.To(int32(2)), 5, "apps/v1", "Deployment", "nginx"),
+					hpa("my-ns", "my-hpa", new(int32(2)), 5, "apps/v1", "Deployment", "nginx"),
 					deployment("my-ns", "nginx", 6),
 				},
 			},
@@ -489,7 +488,7 @@ func Test_Diff_HPA(t *testing.T) {
 		{
 			name: "deployment with diff has replicas within HPA's interval but HPA lives in another namespace",
 			releaseObj: []runtime.Object{
-				hpa("my-other-ns", "my-hpa", ptr.To(int32(2)), 5, "apps/v1", "Deployment", "nginx"),
+				hpa("my-other-ns", "my-hpa", new(int32(2)), 5, "apps/v1", "Deployment", "nginx"),
 				deployment("my-ns", "nginx", 3),
 			},
 			plan: desiredset.Plan{
@@ -502,7 +501,7 @@ func Test_Diff_HPA(t *testing.T) {
 					},
 				},
 				Objects: []runtime.Object{
-					hpa("my-other-ns", "my-hpa", ptr.To(int32(2)), 5, "apps/v1", "Deployment", "nginx"),
+					hpa("my-other-ns", "my-hpa", new(int32(2)), 5, "apps/v1", "Deployment", "nginx"),
 					deployment("my-ns", "nginx", 4),
 				},
 			},
@@ -520,7 +519,7 @@ func Test_Diff_HPA(t *testing.T) {
 		{
 			name: "deployment with diff has replicas within HPA's interval and diff does not affect spec",
 			releaseObj: []runtime.Object{
-				hpa("my-ns", "my-hpa", ptr.To(int32(2)), 5, "apps/v1", "Deployment", "nginx"),
+				hpa("my-ns", "my-hpa", new(int32(2)), 5, "apps/v1", "Deployment", "nginx"),
 				deployment("my-ns", "nginx", 3, func(d *appsv1.Deployment) {
 					d.Labels = make(map[string]string)
 					d.Labels["foo"] = "bar"
@@ -536,7 +535,7 @@ func Test_Diff_HPA(t *testing.T) {
 					},
 				},
 				Objects: []runtime.Object{
-					hpa("my-other-ns", "my-hpa", ptr.To(int32(2)), 5, "apps/v1", "Deployment", "nginx"),
+					hpa("my-other-ns", "my-hpa", new(int32(2)), 5, "apps/v1", "Deployment", "nginx"),
 					deployment("my-ns", "nginx", 3, func(d *appsv1.Deployment) {
 						d.Labels = make(map[string]string)
 						d.Labels["foo"] = "new-value"
@@ -664,7 +663,7 @@ func deployment(ns, name string, replicas int, modifiers ...func(*appsv1.Deploym
 			Namespace: ns,
 		},
 		Spec: appsv1.DeploymentSpec{
-			Replicas: ptr.To(int32(replicas)),
+			Replicas: new(int32(replicas)),
 		},
 	}
 
@@ -686,7 +685,7 @@ func statefulSet(ns, name string, replicas int) *appsv1.StatefulSet {
 			Namespace: ns,
 		},
 		Spec: appsv1.StatefulSetSpec{
-			Replicas: ptr.To(int32(replicas)),
+			Replicas: new(int32(replicas)),
 		},
 	}
 }

@@ -37,7 +37,6 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
@@ -752,8 +751,8 @@ func newOCISecret(manifestID string, bundle *fleet.Bundle, opts ocistorage.OCIOp
 					Kind:               "Bundle",
 					Name:               bundle.GetName(),
 					UID:                bundle.GetUID(),
-					BlockOwnerDeletion: ptr.To(true),
-					Controller:         ptr.To(true),
+					BlockOwnerDeletion: new(true),
+					Controller:         new(true),
 				},
 			},
 		},
@@ -782,8 +781,8 @@ func newValuesSecret(bundle *fleet.Bundle, data map[string][]byte) *corev1.Secre
 					Kind:               "Bundle",
 					Name:               bundle.Name,
 					UID:                bundle.GetUID(),
-					BlockOwnerDeletion: ptr.To(true),
-					Controller:         ptr.To(true),
+					BlockOwnerDeletion: new(true),
+					Controller:         new(true),
 				},
 			},
 			Labels: bundle.Labels,
