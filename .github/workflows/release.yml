@@ -1,36 +1,29 @@
 # Fleet release workflow
 name: Fleet release
-
 on:
   push:
     tags:
       - v**
-
 permissions:
   contents: write
   id-token: write # this is important, it's how we authenticate with Vault
   pull-requests: read
   checks: read
-
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
   RELEASE_TAG: ${{ github.ref_name }}
-
 jobs:
   build-fleet:
     runs-on: runs-on,runner=8cpu-linux-x64,mem=16,run-id=${{ github.run_id }}
-
     env:
       IS_HOTFIX: ${{ contains(github.ref, '-hotfix-') }}
-
     if: github.repository == 'rancher/fleet'
     steps:
       - name: Check out Fleet
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
-
       - name: Verify CI passed on tagged commit
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -61,31 +54,25 @@ jobs:
 
             echo "✓ All checks passed for ${RELEASE_TAG} (${COMMIT_SHA})"
           fi
-
       - name: Set up Go
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version-file: 'go.mod'
           cache: false
-
       - name: Set up QEMU
         uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
         with:
           # renovate: datasource=docker depName=tonistiigi/binfmt extractVersion=^qemu-v(?<version>.+)$
           image: tonistiigi/binfmt:qemu-v10.2.1-65@sha256:d3b963f787999e6c0219a48dba02978769286ff61a5f4d26245cb6a6e5567ea3
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
-
       - name: Install Cosign
         uses: sigstore/cosign-installer@ba7bc0a3fef59531c69a25acd34668d6d3fe6f22 # v4.1.0
-
       - name: Install Slsactl
         uses: rancherlabs/slsactl/actions/install-slsactl@a5177a3699b7cabfa4797e883314dde7e40523cc # v0.1.22
         with:
           # renovate: datasource=github-releases depName=rancherlabs/slsactl
           version: v0.1.22
-
       - name: "Read Vault Secrets"
         uses: rancher-eio/read-vault-secrets@0da85151ad1f19ed7986c41587e45aac1ace74b6 # v3
         with:
@@ -96,35 +83,60 @@ jobs:
             secret/data/github/repo/${{ github.repository }}/rancher-prime-stg-registry/credentials password | STAGE_REGISTRY_PASSWORD ;
             secret/data/github/repo/${{ github.repository }}/rancher-prime-stg-registry/credentials registry | STAGE_REGISTRY ;
             secret/data/github/repo/${{ github.repository }}/rancher-prime-registry/credentials registry | PRIME_REGISTRY ;
-
       - name: Log into Docker Container registry
         uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
         if: ${{ env.IS_HOTFIX == 'false' }}
         with:
           username: ${{ env.DOCKER_USERNAME }}
           password: ${{ env.DOCKER_PASSWORD }}
-
       - name: Log into Staging registry
         uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
         with:
           username: ${{ env.STAGE_REGISTRY_USERNAME }}
           password: ${{ env.STAGE_REGISTRY_PASSWORD }}
           registry: ${{ env.STAGE_REGISTRY }}
+      - name: Setup goreleaser
+        shell: bash
+        run: |-
+          OS="Linux"
+          if [[ ${RUNNER_OS} != "Linux" ]]; then
+          	echo "Unsupported OS: ${RUNNER_OS}"
+          	exit 1
+          fi
 
-      - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@ec59f474b9834571250b370d4735c50f8e2d1e29 # v7.0.0
-        id: goreleaser
-        with:
-          distribution: goreleaser
-          # renovate: datasource=github-releases depName=goreleaser/goreleaser
-          version: v2.14.3
-          args: release --clean --draft --verbose
+          # renovate-local: goreleaser-x86_64
+          GORELASER_VERSION="v2.15.2"
+          # renovate-local: goreleaser-x86_64=v2.15.2
+          GORELEASER_CHECKSUM_x86_64="0ebdbf0353aba566b969dde746cc4e4806f96c27aa2f3971b229a9df7611fedc"
+
+          ARCH=$(uname -m)
+          CHECKSUM="${GORELEASER_CHECKSUM_x86_64}"
+          if [[ "${ARCH}" != "x86_64" ]]; then
+          	echo "Unsupported architecture: ${ARCH}"
+          	exit 1
+          fi
+
+          FILE="goreleaser_${OS}_${ARCH}.tar.gz"
+
+          echo "Installing ${FILE}"
+          curl -LO "https://github.com/goreleaser/goreleaser/releases/download/${GORELEASER_VERSION}/${FILE}"
+          echo "${CHECKSUM} ${FILE}" | sha256sum -c
+          tar -xf "${FILE}" goreleaser
+
+          if sudo -l &> /dev/null; then
+          	sudo install -m 755 goreleaser /usr/local/bin/goreleaser
+          else
+          	install -m 755 goreleaser /usr/local/bin/goreleaser
+          fi
+          rm -f "${FILE}" goreleaser
+      - name: Run goreleaser
+        shell: bash
+        run: goreleaser release --clean --draft --verbose
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GORELEASER_CURRENT_TAG: ${{ env.RELEASE_TAG }}
           STAGE_REGISTRY: ${{ env.STAGE_REGISTRY }}
           PRIME_REGISTRY: ${{ env.PRIME_REGISTRY }}
-
       - name: Attest provenance
         shell: bash
         env:
@@ -195,7 +207,6 @@ jobs:
 
           echo ""
           echo "✓ Provenance attestation completed for all images"
-
       - name: Upload charts to release
         if: ${{ env.IS_HOTFIX == 'false' }}
         env:
@@ -220,7 +231,6 @@ jobs:
           find charts/ -maxdepth 1 -mindepth 1 -type d -exec helm package --version="$version" --app-version="$version" -d ./dist {} \;
 
           find dist/ -name '*.tgz' -exec gh release upload "$tag" {} +
-
       - name: Add charts to branch
         if: ${{ env.IS_HOTFIX == 'false' }}
         env:
@@ -260,7 +270,6 @@ jobs:
 
           git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git"
           git push origin "$charts_branch"
-
       - name: Publish Release
         if: ${{ env.IS_HOTFIX == 'false' }}
         run: gh release edit "${RELEASE_TAG}" --draft=false
