@@ -130,6 +130,7 @@ jobs:
           fi
           rm -f "${FILE}" goreleaser
       - name: Run goreleaser
+        id: goreleaser
         shell: bash
         run: goreleaser release --clean --draft --verbose
         env:
