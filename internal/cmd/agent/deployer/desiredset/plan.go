@@ -2,7 +2,7 @@ package desiredset
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"strings"
 
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/objectset"
@@ -87,7 +87,7 @@ func GetSetID(bundleID, labelPrefix, labelSuffix string) string {
 // "objectset.rio.cattle.io/hash" and owners, to be able to use apply.DryRun
 func GetLabelsAndAnnotations(setID string) (map[string]string, map[string]string, error) {
 	if setID == "" {
-		return nil, nil, fmt.Errorf("set ID or owner must be set")
+		return nil, nil, errors.New("set ID or owner must be set")
 	}
 
 	annotations := map[string]string{

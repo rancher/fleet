@@ -3,6 +3,7 @@ package git
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -91,13 +92,21 @@ func NewRemote(url string, opts *options) (*Remote, error) {
 		return nil, fmt.Errorf("SSH private key file is required for SSH/SCP-style URLs: %s", url)
 	}
 
+	caBundle := append([]byte(nil), opts.CABundle...) // defensive copy
+	if proxyCAPEM, ok := os.LookupEnv(ProxyCABundleEnvVar); ok && proxyCAPEM != "" {
+		if len(caBundle) > 0 && caBundle[len(caBundle)-1] != '\n' {
+			caBundle = append(caBundle, '\n')
+		}
+		caBundle = append(caBundle, []byte(proxyCAPEM)...)
+	}
+
 	return &Remote{
 		URL:     url,
 		Options: opts,
 		Lister: &GoGitRemoteLister{
 			URL:             url,
 			Auth:            auth,
-			CABundle:        opts.CABundle,
+			CABundle:        caBundle,
 			InsecureSkipTLS: opts.InsecureTLSVerify,
 			ProxyOptions:    ProxyOptsFromEnvironment(url),
 		},
@@ -169,7 +178,7 @@ func (r *Remote) LatestBranchCommit(ctx context.Context, branch string) (string,
 }
 
 func formatRefForBranch(branch string) string {
-	return fmt.Sprintf("refs/heads/%s", branch)
+	return "refs/heads/" + branch
 }
 
 func formatRefForTag(tag string, annotated bool) string {

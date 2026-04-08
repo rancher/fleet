@@ -2,20 +2,20 @@
 // It allows reading/writing to these values without having to convert to structured items.
 package data
 
-func GetValueN(data map[string]interface{}, keys ...string) interface{} {
+func GetValueN(data map[string]any, keys ...string) any {
 	val, _ := getValue(data, keys...)
 	return val
 }
 
 // getValue works similar to GetValueFromAny, but can only process maps. Kept this way to avoid breaking changes with
 // the previous interface, GetValueFromAny should be used in most cases since that can handle slices as well.
-func getValue(data map[string]interface{}, keys ...string) (interface{}, bool) {
+func getValue(data map[string]any, keys ...string) (any, bool) {
 	for i, key := range keys {
 		if i == len(keys)-1 {
 			val, ok := data[key]
 			return val, ok
 		}
-		data, _ = data[key].(map[string]interface{})
+		data, _ = data[key].(map[string]any)
 	}
 	return nil, false
 }

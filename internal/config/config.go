@@ -97,7 +97,7 @@ type Config struct {
 	SystemDefaultRegistry string `json:"systemDefaultRegistry,omitempty"`
 
 	// AgentCheckinInterval determines how often agents update their clusters status, defaults to 15m
-	AgentCheckinInterval metav1.Duration `json:"agentCheckinInterval,omitempty"`
+	AgentCheckinInterval metav1.Duration `json:"agentCheckinInterval,omitzero"`
 
 	// ManageAgent if present and set to false, no bundles will be created to manage agents
 	ManageAgent *bool `json:"manageAgent,omitempty"`
@@ -129,7 +129,7 @@ type Config struct {
 	// +optional
 	APIServerCA []byte `json:"apiServerCA,omitempty"`
 
-	Bootstrap Bootstrap `json:"bootstrap,omitempty"`
+	Bootstrap Bootstrap `json:"bootstrap,omitzero"`
 
 	// IgnoreClusterRegistrationLabels if set to true, the labels on the cluster registration resource will not be copied to the cluster resource.
 	IgnoreClusterRegistrationLabels bool `json:"ignoreClusterRegistrationLabels,omitempty"`
@@ -143,13 +143,13 @@ type Config struct {
 	// canceling the request.  Used to retrieve the latest commit of configured
 	// git repositories. A non-existent value or 0 will result in a timeout of
 	// 30 seconds.
-	GitClientTimeout metav1.Duration `json:"gitClientTimeout,omitempty"`
+	GitClientTimeout metav1.Duration `json:"gitClientTimeout,omitzero"`
 
 	// GarbageCollectionInterval determines how often agents clean up obsolete Helm releases.
-	GarbageCollectionInterval metav1.Duration `json:"garbageCollectionInterval,omitempty"`
+	GarbageCollectionInterval metav1.Duration `json:"garbageCollectionInterval,omitzero"`
 
 	// AgentWorkers specifies the maximum number of workers for each agent reconciler.
-	AgentWorkers AgentWorkers `json:"agentWorkers,omitempty"`
+	AgentWorkers AgentWorkers `json:"agentWorkers,omitzero"`
 }
 
 type AgentWorkers struct {

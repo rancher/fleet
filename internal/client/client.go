@@ -1,7 +1,7 @@
 package client
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
@@ -22,7 +22,7 @@ type Getter struct {
 
 func (g *Getter) Get() (*Client, error) {
 	if g == nil {
-		return nil, fmt.Errorf("client is not configured, please set client getter")
+		return nil, errors.New("client is not configured, please set client getter")
 	}
 	return newClient(g.Kubeconfig, g.Context, g.Namespace)
 }

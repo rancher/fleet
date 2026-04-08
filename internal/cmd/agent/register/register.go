@@ -272,7 +272,7 @@ func values(data map[string][]byte) map[string][]byte {
 	}
 	// never reached? FIXME maybe use config.KubeConfigValuesKey or config.ImportTokenSecretValuesKey
 
-	newData := map[string]interface{}{}
+	newData := map[string]any{}
 	if err := yaml.Unmarshal(values, &newData); err != nil {
 		return data
 	}

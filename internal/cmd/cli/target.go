@@ -1,8 +1,8 @@
 package cli
 
 import (
+	"errors"
 	"flag"
-	"fmt"
 	"os"
 	"reflect"
 
@@ -81,7 +81,7 @@ func (t *Target) Run(cmd *cobra.Command, args []string) error {
 
 	empty := &v1alpha1.Bundle{TypeMeta: metav1.TypeMeta{APIVersion: "v1"}}
 	if reflect.DeepEqual(bundle, empty) {
-		return fmt.Errorf("failed to read bundle from file, bundle is empty")
+		return errors.New("failed to read bundle from file, bundle is empty")
 	}
 
 	if t.Namespace != "" {

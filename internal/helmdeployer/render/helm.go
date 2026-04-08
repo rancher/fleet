@@ -62,8 +62,8 @@ func move(m *manifest.Manifest, from, to string) (result []fleet.BundleResource)
 		from += "/"
 	}
 	for _, resource := range m.Resources {
-		if strings.HasPrefix(resource.Name, from) {
-			resource.Name = to + strings.TrimPrefix(resource.Name, from)
+		if after, ok := strings.CutPrefix(resource.Name, from); ok {
+			resource.Name = to + after
 			result = append(result, resource)
 		}
 	}

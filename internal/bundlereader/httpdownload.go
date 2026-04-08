@@ -39,7 +39,7 @@ import (
 func httpDownload(ctx context.Context, dst, src string, auth Auth) error {
 	u, err := url.Parse(src)
 	if err != nil {
-		return fmt.Errorf("parsing URL %q: %w", src, err)
+		return fmt.Errorf("parsing URL %q: %w", redactURL(src), err)
 	}
 
 	q := u.Query()
@@ -69,7 +69,7 @@ func httpDownload(ctx context.Context, dst, src string, auth Auth) error {
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, src, nil)
 	if err != nil {
-		return fmt.Errorf("building request for %q: %w", src, err)
+		return fmt.Errorf("building request for %q: %w", u.Redacted(), err)
 	}
 	if auth.Username != "" && auth.Password != "" {
 		req.SetBasicAuth(auth.Username, auth.Password)
@@ -77,12 +77,12 @@ func httpDownload(ctx context.Context, dst, src string, auth Auth) error {
 
 	resp, err := getHTTPClient(auth).Do(req)
 	if err != nil {
-		return fmt.Errorf("downloading %q: %w", src, err)
+		return fmt.Errorf("downloading %q: %w", u.Redacted(), err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("downloading %q: unexpected status %d", src, resp.StatusCode)
+		return fmt.Errorf("downloading %q: unexpected status %d", u.Redacted(), resp.StatusCode)
 	}
 
 	if err := os.MkdirAll(dst, 0750); err != nil {
@@ -94,8 +94,13 @@ func httpDownload(ctx context.Context, dst, src string, auth Auth) error {
 		checksum.hash.Reset()
 		body = io.TeeReader(resp.Body, checksum.hash)
 	}
-
-	if err := extractResponse(dst, u.Path, archiveOverride, body); err != nil {
+	// Limit the total compressed bytes read from the server before extracting.
+	// This covers all archive formats uniformly; without it a streaming format
+	// like tar.gz could pipe an unbounded compressed stream through the
+	// decompressor until MaxDecompressedBytes fires, consuming CPU and I/O
+	// with no bound on how much compressed data is transferred.
+	lr := &downloadLimitReader{r: body, limit: MaxCompressedBytes}
+	if err := extractResponse(dst, u.Path, archiveOverride, lr); err != nil {
 		return err
 	}
 
@@ -109,7 +114,32 @@ func httpDownload(ctx context.Context, dst, src string, auth Auth) error {
 	return nil
 }
 
-// checksumSpec holds the parsed ?checksum= parameter.
+// MaxCompressedBytes caps the total number of compressed bytes accepted from
+// a single download. It applies uniformly to all archive formats and prevents
+// an arbitrarily large server response from consuming CPU and disk I/O before
+// the total per-archive decompressed limit (MaxDecompressedBytes) enforced
+// during extraction has a chance to fire.
+var MaxCompressedBytes int64 = 2 * 1024 * 1024 * 1024
+
+// downloadLimitReader wraps an io.Reader and returns an error once more than
+// limit bytes have been read. Unlike io.LimitReader, it surfaces the overrun
+// as an explicit error rather than a silent EOF, so callers receive a clear
+// message instead of a confusing "unexpected EOF" from an archive parser.
+type downloadLimitReader struct {
+	r     io.Reader
+	read  int64
+	limit int64
+}
+
+func (d *downloadLimitReader) Read(p []byte) (int, error) {
+	n, err := d.r.Read(p)
+	d.read += int64(n)
+	if d.read > d.limit {
+		return n, fmt.Errorf("download exceeds the %d byte limit", d.limit)
+	}
+	return n, err
+}
+
 type checksumSpec struct {
 	hashType string
 	hash     hash.Hash

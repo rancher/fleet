@@ -22,6 +22,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/rancher/fleet/internal/cmd/cli/gitcloner/submodule"
 	fleetssh "github.com/rancher/fleet/internal/ssh"
+	fleetgit "github.com/rancher/fleet/pkg/git"
 	golangssh "golang.org/x/crypto/ssh"
 )
 
@@ -750,4 +751,92 @@ func TestCreateAuthFromOpts(t *testing.T) {
 			t.Fatalf("expected user 'git', got %q", pubKeys.User)
 		}
 	})
+}
+
+// TestGetCABundleFromFile covers all combinations of the file path and the
+// PROXY_CA_BUNDLE environment variable: neither set, only the env var, only
+// the file, and both together.
+func TestGetCABundleFromFile(t *testing.T) {
+	const (
+		filePEM  = "-----BEGIN CERTIFICATE-----\nfilecert\n-----END CERTIFICATE-----"
+		proxyPEM = "-----BEGIN CERTIFICATE-----\nproxycert\n-----END CERTIFICATE-----"
+	)
+
+	origReadFile := readFile
+	readFile = func(name string) ([]byte, error) {
+		if name == "ca.pem" {
+			return []byte(filePEM), nil
+		}
+		return nil, errors.New("file not found")
+	}
+	defer func() { readFile = origReadFile }()
+
+	tests := []struct {
+		name         string
+		path         string
+		envVal       string
+		wantErr      bool
+		wantContains []string
+		wantEmpty    bool
+	}{
+		{
+			name:      "no file no env returns nil",
+			path:      "",
+			envVal:    "",
+			wantEmpty: true,
+		},
+		{
+			name:         "only PROXY_CA_BUNDLE returns proxy PEM",
+			path:         "",
+			envVal:       proxyPEM,
+			wantContains: []string{proxyPEM},
+		},
+		{
+			name:         "only file returns file PEM",
+			path:         "ca.pem",
+			envVal:       "",
+			wantContains: []string{filePEM},
+		},
+		{
+			name:         "file and PROXY_CA_BUNDLE are concatenated",
+			path:         "ca.pem",
+			envVal:       proxyPEM,
+			wantContains: []string{filePEM, proxyPEM},
+		},
+		{
+			name:    "file read error propagates",
+			path:    "nonexistent",
+			envVal:  "",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv(fleetgit.ProxyCABundleEnvVar, tt.envVal)
+
+			got, err := getCABundleFromFile(tt.path)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if tt.wantEmpty {
+				if len(got) != 0 {
+					t.Errorf("expected empty result, got %q", string(got))
+				}
+				return
+			}
+			gotStr := string(got)
+			for _, want := range tt.wantContains {
+				if !strings.Contains(gotStr, want) {
+					t.Errorf("expected result to contain %q, got %q", want, gotStr)
+				}
+			}
+		})
+	}
 }

@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	glog "log"
@@ -83,7 +84,7 @@ func (a *FleetAgent) Run(cmd *cobra.Command, args []string) error {
 	ctrl.SetLogger(logger)
 
 	if a.Namespace == "" {
-		return fmt.Errorf("--namespace or env NAMESPACE is required to be set")
+		return errors.New("--namespace or env NAMESPACE is required to be set")
 	}
 
 	ctx := log.IntoContext(cmd.Context(), ctrl.Log)

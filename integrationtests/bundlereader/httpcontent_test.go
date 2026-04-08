@@ -2,6 +2,7 @@ package bundlereader_test
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"bytes"
 	"compress/gzip"
 	"context"
@@ -39,13 +40,13 @@ func newTarGz(files map[string][]byte) []byte {
 
 var _ = Describe("GetContent fetches HTTP sources", func() {
 	var (
-		srv *httptest.Server
+		srv          *httptest.Server
 		archiveBytes []byte
 	)
 
 	BeforeEach(func() {
 		archiveBytes = newTarGz(map[string][]byte{
-			"README.md":        []byte("hello"),
+			"README.md":          []byte("hello"),
 			"subdir/config.yaml": []byte("key: value"),
 		})
 	})
@@ -141,6 +142,115 @@ var _ = Describe("GetContent fetches HTTP sources", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(files).To(HaveKey("data.txt"))
 			Expect(files["data.txt"]).To(Equal(content))
+		})
+	})
+})
+
+// newTarGzBomb returns a tar.gz whose single entry inflates to inflatedSize bytes.
+// The entry is compressed with the default gzip settings so the archive payload is small.
+func newTarGzBomb(inflatedSize int64) []byte {
+	payload := bytes.Repeat([]byte("A"), int(inflatedSize))
+	var buf bytes.Buffer
+	gw := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gw)
+	Expect(tw.WriteHeader(&tar.Header{
+		Typeflag: tar.TypeReg,
+		Name:     "bomb.txt",
+		Size:     inflatedSize,
+		Mode:     0600,
+	})).To(Succeed())
+	_, err := tw.Write(payload)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(tw.Close()).To(Succeed())
+	Expect(gw.Close()).To(Succeed())
+	return buf.Bytes()
+}
+
+// newZipBomb returns a zip archive whose single entry inflates to inflatedSize bytes.
+func newZipBomb(inflatedSize int) []byte {
+	payload := bytes.Repeat([]byte("A"), inflatedSize)
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	w, err := zw.Create("bomb.txt")
+	Expect(err).NotTo(HaveOccurred())
+	_, err = w.Write(payload)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(zw.Close()).To(Succeed())
+	return buf.Bytes()
+}
+
+var _ = Describe("GetContent enforces extraction limits", func() {
+	var srv *httptest.Server
+
+	AfterEach(func() {
+		if srv != nil {
+			srv.Close()
+			srv = nil
+		}
+	})
+
+	When("a tar.gz archive inflates beyond the size limit", func() {
+		It("returns a size-limit error", func() {
+			// Patch the limit to something small so the test does not
+			// write gigabytes to disk.
+			orig := bundlereader.MaxDecompressedBytes
+			bundlereader.MaxDecompressedBytes = 512
+			DeferCleanup(func() { bundlereader.MaxDecompressedBytes = orig })
+
+			bomb := newTarGzBomb(1024) // 1 KB inflated, limit set to 512 B
+			srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_, _ = w.Write(bomb)
+			}))
+
+			_, err := bundlereader.GetContent(
+				context.Background(), GinkgoT().TempDir(), srv.URL+"/bomb.tar.gz", "",
+				bundlereader.Auth{}, false, nil,
+			)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("byte limit"))
+		})
+	})
+
+	When("a zip archive inflates beyond the size limit", func() {
+		It("returns a size-limit error", func() {
+			orig := bundlereader.MaxDecompressedBytes
+			bundlereader.MaxDecompressedBytes = 512
+			DeferCleanup(func() { bundlereader.MaxDecompressedBytes = orig })
+
+			bomb := newZipBomb(1024)
+			srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_, _ = w.Write(bomb)
+			}))
+
+			_, err := bundlereader.GetContent(
+				context.Background(), GinkgoT().TempDir(), srv.URL+"/bomb.zip", "",
+				bundlereader.Auth{}, false, nil,
+			)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("byte limit"))
+		})
+	})
+
+	When("an archive contains more files than the entry limit", func() {
+		It("returns a file-count error", func() {
+			orig := bundlereader.MaxArchiveFiles
+			bundlereader.MaxArchiveFiles = 3
+			DeferCleanup(func() { bundlereader.MaxArchiveFiles = orig })
+
+			archive := newTarGz(map[string][]byte{
+				"a.txt": []byte("1"), "b.txt": []byte("2"),
+				"c.txt": []byte("3"), "d.txt": []byte("4"), "e.txt": []byte("5"),
+			})
+			srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_, _ = w.Write(archive)
+			}))
+
+			_, err := bundlereader.GetContent(
+				context.Background(), GinkgoT().TempDir(), srv.URL+"/bundle.tar.gz", "",
+				bundlereader.Auth{}, false, nil,
+			)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("too many files"))
 		})
 	})
 })

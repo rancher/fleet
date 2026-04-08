@@ -2,9 +2,9 @@ package data
 
 import "github.com/rancher/fleet/internal/cmd/agent/deployer/data/convert"
 
-type List []map[string]interface{}
+type List []map[string]any
 
-type Object map[string]interface{}
+type Object map[string]any
 
 func (o Object) Map(names ...string) Object {
 	v := GetValueN(o, names...)

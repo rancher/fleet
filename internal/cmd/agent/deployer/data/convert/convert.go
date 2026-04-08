@@ -11,14 +11,14 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-func singular(value interface{}) interface{} {
+func singular(value any) any {
 	if slice, ok := value.([]string); ok {
 		if len(slice) == 0 {
 			return nil
 		}
 		return slice[0]
 	}
-	if slice, ok := value.([]interface{}); ok {
+	if slice, ok := value.([]any); ok {
 		if len(slice) == 0 {
 			return nil
 		}
@@ -27,7 +27,7 @@ func singular(value interface{}) interface{} {
 	return value
 }
 
-func toStringNoTrim(value interface{}) string {
+func toStringNoTrim(value any) string {
 	if t, ok := value.(time.Time); ok {
 		return t.Format(time.RFC3339)
 	}
@@ -38,11 +38,11 @@ func toStringNoTrim(value interface{}) string {
 	return fmt.Sprint(single)
 }
 
-func ToString(value interface{}) string {
+func ToString(value any) string {
 	return strings.TrimSpace(toStringNoTrim(value))
 }
 
-func ToTimestamp(value interface{}) (int64, error) {
+func ToTimestamp(value any) (int64, error) {
 	str := ToString(value)
 	if str == "" {
 		return 0, errors.New("invalid date")
@@ -54,7 +54,7 @@ func ToTimestamp(value interface{}) (int64, error) {
 	return t.UnixNano() / 1000000, nil
 }
 
-func ToBool(value interface{}) bool {
+func ToBool(value any) bool {
 	value = singular(value)
 
 	b, ok := value.(bool)
@@ -66,21 +66,21 @@ func ToBool(value interface{}) bool {
 	return str == "true" || str == "t" || str == "yes" || str == "y"
 }
 
-func ToInterfaceSlice(obj interface{}) []interface{} {
-	if v, ok := obj.([]interface{}); ok {
+func ToInterfaceSlice(obj any) []any {
+	if v, ok := obj.([]any); ok {
 		return v
 	}
 	return nil
 }
 
-func ToMapSlice(obj interface{}) []map[string]interface{} {
-	if v, ok := obj.([]map[string]interface{}); ok {
+func ToMapSlice(obj any) []map[string]any {
+	if v, ok := obj.([]map[string]any); ok {
 		return v
 	}
-	vs, _ := obj.([]interface{})
-	var result []map[string]interface{}
+	vs, _ := obj.([]any)
+	var result []map[string]any
 	for _, item := range vs {
-		if v, ok := item.(map[string]interface{}); ok {
+		if v, ok := item.(map[string]any); ok {
 			result = append(result, v)
 		} else {
 			return nil
@@ -90,11 +90,11 @@ func ToMapSlice(obj interface{}) []map[string]interface{} {
 	return result
 }
 
-func ToStringSlice(data interface{}) []string {
+func ToStringSlice(data any) []string {
 	if v, ok := data.([]string); ok {
 		return v
 	}
-	if v, ok := data.([]interface{}); ok {
+	if v, ok := data.([]any); ok {
 		var result []string
 		for _, item := range v {
 			result = append(result, ToString(item))
@@ -107,12 +107,12 @@ func ToStringSlice(data interface{}) []string {
 	return nil
 }
 
-func ToMapInterface(obj interface{}) map[string]interface{} {
-	v, _ := obj.(map[string]interface{})
+func ToMapInterface(obj any) map[string]any {
+	v, _ := obj.(map[string]any)
 	return v
 }
 
-func ToObj(data interface{}, into interface{}) error {
+func ToObj(data any, into any) error {
 	bytes, err := json.Marshal(data)
 	if err != nil {
 		return err
@@ -120,8 +120,8 @@ func ToObj(data interface{}, into interface{}) error {
 	return json.Unmarshal(bytes, into)
 }
 
-func EncodeToMap(obj interface{}) (map[string]interface{}, error) {
-	if m, ok := obj.(map[string]interface{}); ok {
+func EncodeToMap(obj any) (map[string]any, error) {
+	if m, ok := obj.(map[string]any); ok {
 		return m, nil
 	}
 
@@ -133,7 +133,7 @@ func EncodeToMap(obj interface{}) (map[string]interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	result := map[string]interface{}{}
+	result := map[string]any{}
 	dec := json.NewDecoder(bytes.NewBuffer(b))
 	dec.UseNumber()
 	return result, dec.Decode(&result)

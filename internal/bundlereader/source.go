@@ -243,3 +243,43 @@ func detectSCPSSH(src string) (string, bool) {
 	}
 	return "git::" + repoURL.String(), true
 }
+
+// redactURL redacts credentials embedded in a raw Fleet source string.
+//
+// It strips any password from URL userinfo and removes the sshkey query
+// parameter (which can carry a private key). It also handles Fleet-specific
+// notations that url.Parse alone cannot deal with: forced-scheme prefixes
+// ("git::https://…", "ssh::…") and the "//" subdirectory separator
+// ("git::https://user:pass@host/repo//charts").
+// For strings that carry neither credentials nor sensitive query params, or
+// that cannot be parsed, the input is returned unchanged.
+func redactURL(src string) string {
+	forcedScheme, stripped := splitForcedScheme(src)
+	cleanSrc, subDir := splitSubdir(stripped)
+
+	u, err := url.Parse(cleanSrc)
+	if err != nil {
+		return src
+	}
+
+	// Remove sshkey query param; it can carry a private key.
+	hasSensitiveQuery := u.Query().Has("sshkey")
+	if u.User == nil && !hasSensitiveQuery {
+		return src
+	}
+
+	if hasSensitiveQuery {
+		q := u.Query()
+		q.Del("sshkey")
+		u.RawQuery = q.Encode()
+	}
+
+	redacted := u.Redacted()
+	if subDir != "" {
+		redacted += "//" + subDir
+	}
+	if forcedScheme != "" {
+		return forcedScheme + "::" + redacted
+	}
+	return redacted
+}

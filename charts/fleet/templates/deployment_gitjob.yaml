@@ -94,6 +94,10 @@ spec:
             - name: NO_PROXY
               value: {{ $.Values.noProxy }}
           {{- end }}
+          {{- if $.Values.proxyCACert }}
+            - name: PROXY_CA_BUNDLE
+              value: {{ $.Values.proxyCACert | quote }}
+          {{- end }}
           {{- if $.Values.gitops.syncPeriod }}
             - name: GITREPO_SYNC_PERIOD
               value: {{ quote $.Values.gitops.syncPeriod }}

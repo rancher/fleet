@@ -1,6 +1,7 @@
 package zothelper
 
 import (
+	"errors"
 	"fmt"
 	"net"
 
@@ -14,7 +15,7 @@ func GetOCIReference(k kubectl.Command) (string, error) {
 		return "", err
 	}
 	if net.ParseIP(externalIP) == nil {
-		return "", fmt.Errorf("external ip is not valid")
+		return "", errors.New("external ip is not valid")
 	}
 	return fmt.Sprintf("oci://%s:8082", externalIP), err
 }

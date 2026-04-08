@@ -115,7 +115,7 @@ func TestConvertMergePatchToRemoveOps(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			var mergePatch map[string]interface{}
+			var mergePatch map[string]any
 			if err := json.Unmarshal([]byte(tc.patch), &mergePatch); err != nil {
 				t.Fatalf("failed to parse patch: %v", err)
 			}

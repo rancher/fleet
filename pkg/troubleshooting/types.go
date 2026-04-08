@@ -38,7 +38,7 @@ type GitRepoInfo struct {
 	Commit              string        `json:"commit,omitempty"`
 	PollingCommit       string        `json:"pollingCommit,omitempty"`
 	WebhookCommit       string        `json:"webhookCommit,omitempty"`
-	LastPollingTime     time.Time     `json:"lastPollingTime,omitempty"`
+	LastPollingTime     time.Time     `json:"lastPollingTime,omitzero"`
 	PollingInterval     time.Duration `json:"pollingInterval,omitempty"`
 	ForceSyncGeneration int64         `json:"forceSyncGeneration,omitempty"`
 	Ready               bool          `json:"ready"`

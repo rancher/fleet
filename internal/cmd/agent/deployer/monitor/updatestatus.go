@@ -454,12 +454,12 @@ func excludeIgnoredConditions(obj *unstructured.Unstructured, ignoreOptions *fle
 	if err != nil {
 		return err
 	}
-	conditionsWithoutIgnored := make([]interface{}, 0)
+	conditionsWithoutIgnored := make([]any, 0)
 
 	for _, condition := range conditions {
-		condition, ok := condition.(map[string]interface{})
+		condition, ok := condition.(map[string]any)
 		if !ok {
-			return fmt.Errorf("condition: %#v can't be converted to map[string]interface{}", condition)
+			return fmt.Errorf("condition: %#v can't be converted to map[string]any", condition)
 		}
 		excludeCondition := false
 		for _, ignoredCondition := range ignoreOptions.Conditions {
@@ -482,7 +482,7 @@ func excludeIgnoredConditions(obj *unstructured.Unstructured, ignoreOptions *fle
 }
 
 // shouldExcludeCondition returns true if all the elements of ignoredConditions are inside conditions
-func shouldExcludeCondition(conditions map[string]interface{}, ignoredConditions map[string]string) bool {
+func shouldExcludeCondition(conditions map[string]any, ignoredConditions map[string]string) bool {
 	if len(ignoredConditions) > len(conditions) {
 		return false
 	}

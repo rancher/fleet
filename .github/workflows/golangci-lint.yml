@@ -20,7 +20,6 @@ jobs:
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version-file: 'go.mod'
-          check-latest: true
           cache: false
 
       - name: Generate Golang
@@ -31,7 +30,7 @@ jobs:
         uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20 # v9.2.0
         with:
           # Required: the version of golangci-lint is required; we pin a specific patch version for reproducible results.
-          version: v2.11.3
+          version: v2.11.4
 
           args: --timeout=10m --config=.golangci.json
 

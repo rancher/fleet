@@ -9,8 +9,8 @@ import (
 	"cmp"
 	"context"
 	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"sort"
 
 	"github.com/sirupsen/logrus"
@@ -149,7 +149,7 @@ func hashStatusField(field any) (string, error) {
 		return "", err
 	}
 	hasher.Write(b)
-	return fmt.Sprintf("%x", hasher.Sum(nil)), nil
+	return hex.EncodeToString(hasher.Sum(nil)), nil
 }
 
 func hashChanged(field any, statusHash string) (bool, string, error) {

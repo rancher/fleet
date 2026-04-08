@@ -67,20 +67,16 @@ func TestGetBundleCreationMaxConcurrency(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Save and restore the environment variable
-			oldVal, wasSet := os.LookupEnv(BundleCreationMaxConcurrencyEnv)
-			defer func() {
-				if wasSet {
-					os.Setenv(BundleCreationMaxConcurrencyEnv, oldVal)
-				} else {
-					os.Unsetenv(BundleCreationMaxConcurrencyEnv)
-				}
-			}()
-
 			if tt.envValue != "" {
-				os.Setenv(BundleCreationMaxConcurrencyEnv, tt.envValue)
+				t.Setenv(BundleCreationMaxConcurrencyEnv, tt.envValue)
 			} else {
+				oldVal, wasSet := os.LookupEnv(BundleCreationMaxConcurrencyEnv)
 				os.Unsetenv(BundleCreationMaxConcurrencyEnv)
+				t.Cleanup(func() {
+					if wasSet {
+						os.Setenv(BundleCreationMaxConcurrencyEnv, oldVal) //nolint:usetesting // t.Setenv inside t.Cleanup is not meaningful
+					}
+				})
 			}
 
 			got, err := GetBundleCreationMaxConcurrency()

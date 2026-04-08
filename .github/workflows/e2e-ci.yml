@@ -5,12 +5,11 @@ on:
   pull_request:
   push:
     branches:
-    - 'release/*'
+    - '*-hotfix-*'
 
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
-  SETUP_K3D_VERSION: 'v5.8.3'
 
 jobs:
   e2e-fleet-test:
@@ -47,43 +46,28 @@ jobs:
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version-file: 'go.mod'
-          check-latest: true
       -
         name: Install Ginkgo CLI
         run: go install github.com/onsi/ginkgo/v2/ginkgo
-      -
-        name: Determine cache key
-        id: cache-key
-        run: ./.github/scripts/determine-cache-key.sh
       -
         name: Cache crust-gather CLI
         id: cache-crust
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ~/.local/bin/crust-gather
-          key: ${{ runner.os }}-crust-gather-${{ steps.cache-key.outputs.value }}
+          key: ${{ runner.os }}-crust-gather-${{ hashFiles('.github/scripts/install-crust-gather.sh') }}
           restore-keys: |
             ${{ runner.os }}-crust-gather-
       -
         name: Install crust-gather CLI
         run: |
           if [ "${{ steps.cache-crust.outputs.cache-hit }}" != "true" ]; then
-            echo "Cache not found, downloading from source"
-            mkdir -p ~/.local/bin
-            if curl -sSfL https://github.com/crust-gather/crust-gather/raw/main/install.sh | sh -s -- --yes; then
-              # Cache the binary for future runs
-              if [ ! -f ~/.local/bin/crust-gather ]; then
-                which crust-gather && cp $(which crust-gather) ~/.local/bin/
-              fi
-            else
-              echo "Failed to download crust-gather"
-              exit 1
-            fi
+            ./.github/scripts/install-crust-gather.sh
           else
             echo "Using cached crust-gather CLI"
             chmod +x ~/.local/bin/crust-gather
-            sudo ln -sf ~/.local/bin/crust-gather /usr/local/bin/
           fi
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       -
         name: Build Fleet
         run: |
@@ -100,8 +84,23 @@ jobs:
           # Buildkit needed here for proper here-document support
           DOCKER_BUILDKIT=1 docker build -f Dockerfile.gitserver -t nginx-git:test --build-arg="passwd=$(openssl passwd foo)" .
       -
+        name: Cache k3d CLI
+        id: cache-k3d
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: ~/.local/bin/k3d
+          key: ${{ runner.os }}-k3d-${{ hashFiles('.github/scripts/install-k3d.sh') }}
+          restore-keys: |
+            ${{ runner.os }}-k3d-
+      -
         name: Install k3d
-        run: curl --silent --fail https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | TAG=${{ env.SETUP_K3D_VERSION }} bash
+        run: |
+          if [ "${{ steps.cache-k3d.outputs.cache-hit }}" != "true" ]; then
+            ./.github/scripts/install-k3d.sh
+          else
+            echo "Using cached k3d"
+            chmod +x ~/.local/bin/k3d
+          fi
       -
         name: Provision k3d Cluster
         run: |
