@@ -139,6 +139,16 @@ jobs:
         shell: bash
         run: |-
           goreleaser release --clean --draft --verbose
+
+          if [[ ! -f dist/metadata.json ]] || [[ ! -s dist/metadata.json ]]; then
+            echo "ERROR: dist/metadata.json not found or empty after GoReleaser run"
+            exit 1
+          fi
+
+          if [[ ! -f dist/artifacts.json ]] || [[ ! -s dist/artifacts.json ]]; then
+            echo "ERROR: dist/artifacts.json not found or empty after GoReleaser run"
+            exit 1
+          fi
           echo "metadata=$(tr -d '\n\r' < dist/metadata.json)" >> "${GITHUB_OUTPUT}"
           echo "artifacts=$(tr -d '\n\r' < dist/artifacts.json)" >> "${GITHUB_OUTPUT}"
       - name: Attest provenance
