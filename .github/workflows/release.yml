@@ -111,19 +111,66 @@ jobs:
           password: ${{ env.STAGE_REGISTRY_PASSWORD }}
           registry: ${{ env.STAGE_REGISTRY }}
 
+      - name: Setup goreleaser
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          OS="Linux"
+          if [[ ${RUNNER_OS} != "Linux" ]]; then
+            echo "Unsupported OS: ${RUNNER_OS}"
+            exit 1
+          fi
+
+          # renovate-local: goreleaser-x86_64
+          GORELEASER_VERSION="v2.14.3"
+          # renovate-local: goreleaser-x86_64=v2.14.3
+          GORELEASER_CHECKSUM_x86_64="dc7faeeeb6da8bdfda788626263a4ae725892a8c7504b975c3234127d4a44579"
+
+          ARCH=$(uname -m)
+          CHECKSUM="${GORELEASER_CHECKSUM_x86_64}"
+          if [[ "${ARCH}" != "x86_64" ]]; then
+            echo "Unsupported architecture: ${ARCH}"
+            exit 1
+          fi
+
+          FILE="goreleaser_${OS}_${ARCH}.tar.gz"
+
+          echo "Installing ${FILE}"
+          curl --fail --location -O "https://github.com/goreleaser/goreleaser/releases/download/${GORELEASER_VERSION}/${FILE}"
+          echo "${CHECKSUM} ${FILE}" | sha256sum -c
+          tar -xf "${FILE}" goreleaser
+
+          mkdir -p "${HOME}/.local/bin"
+          install -m 755 goreleaser "${HOME}/.local/bin/goreleaser"
+          echo "${HOME}/.local/bin" >> "${GITHUB_PATH}"
+
+          rm -f "${FILE}" goreleaser
+
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@ec59f474b9834571250b370d4735c50f8e2d1e29 # v7.0.0
         id: goreleaser
-        with:
-          distribution: goreleaser
-          # renovate: datasource=github-releases depName=goreleaser/goreleaser
-          version: v2.14.3
-          args: release --clean --draft --verbose
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GORELEASER_CURRENT_TAG: ${{ env.RELEASE_TAG }}
           STAGE_REGISTRY: ${{ env.STAGE_REGISTRY }}
           PRIME_REGISTRY: ${{ env.PRIME_REGISTRY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          goreleaser release --clean --draft --verbose
+
+          if [[ ! -f dist/metadata.json ]] || [[ ! -s dist/metadata.json ]]; then
+            echo "ERROR: dist/metadata.json not found or empty after GoReleaser run"
+            exit 1
+          fi
+
+          if [[ ! -f dist/artifacts.json ]] || [[ ! -s dist/artifacts.json ]]; then
+            echo "ERROR: dist/artifacts.json not found or empty after GoReleaser run"
+            exit 1
+          fi
+          echo "metadata=$(tr -d '\n\r' < dist/metadata.json)" >> "${GITHUB_OUTPUT}"
+          echo "artifacts=$(tr -d '\n\r' < dist/artifacts.json)" >> "${GITHUB_OUTPUT}"
 
       - name: Attest provenance
         shell: bash
