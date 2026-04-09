@@ -341,6 +341,221 @@ func TestReconcile_Error_WhenSecretDoesNotExist(t *testing.T) {
 	}
 }
 
+// setupMissingCommitReconciler builds a GitJobReconciler backed by a mock client
+// configured for the "validateExternalSecretExist fails" error path.
+// Returns the reconciler and a writtenRepo channel that receives the repo
+// passed to statusClient.Update exactly once.
+func setupMissingCommitReconciler(
+	t *testing.T,
+	gitRepo fleetv1.GitRepo,
+	setupGitRepo func(*fleetv1.GitRepo),
+	nJobGets int,
+) (*GitJobReconciler, <-chan *fleetv1.GitRepo) {
+	t.Helper()
+	mockCtrl := gomock.NewController(t)
+	t.Cleanup(mockCtrl.Finish)
+
+	scheme := runtime.NewScheme()
+	utilruntime.Must(batchv1.AddToScheme(scheme))
+	utilruntime.Must(fleetv1.AddToScheme(scheme))
+
+	mockClient := mocks.NewMockK8sClient(mockCtrl)
+	mockClient.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
+
+	// GitRepo Gets: initial fetch, removeDisplayNameLabel, updateStatus
+	mockClient.EXPECT().
+		Get(gomock.Any(), gomock.Any(), &gitRepoPointerMatcher{}, gomock.Any()).
+		Times(3).
+		DoAndReturn(func(ctx context.Context, req types.NamespacedName, gr *fleetv1.GitRepo, opts ...any) error {
+			gr.Name = gitRepo.Name
+			gr.Namespace = gitRepo.Namespace
+			controllerutil.AddFinalizer(gr, finalize.GitRepoFinalizer)
+			setupGitRepo(gr)
+			return nil
+		})
+
+	// Job Gets: always NotFound (deletePreviousJob + manageGitJob check)
+	mockClient.EXPECT().
+		Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&batchv1.Job{}), gomock.Any()).
+		Times(nJobGets).
+		DoAndReturn(func(ctx context.Context, req types.NamespacedName, job *batchv1.Job, opts ...any) error {
+			return apierrors.NewNotFound(schema.GroupResource{Resource: "jobs"}, req.Name)
+		})
+
+	// Secret Gets: both return NotFound
+	// - hasReferencedSecretChanged → (false, nil) because no annotation
+	// - validateExternalSecretExist → returns error
+	mockClient.EXPECT().
+		Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{}), gomock.Any()).
+		Times(2).
+		DoAndReturn(func(ctx context.Context, req types.NamespacedName, secret *corev1.Secret, opts ...any) error {
+			return apierrors.NewNotFound(schema.GroupResource{Resource: "secrets"}, req.Name)
+		})
+
+	recorderMock := mocks.NewMockEventRecorder(mockCtrl)
+	recorderMock.EXPECT().Eventf(
+		&gitRepoMatcher{gitRepo},
+		nil,
+		corev1.EventTypeWarning,
+		"FailedValidatingSecret",
+		"ValidateSecret",
+		"%v",
+		gomock.Any(),
+	).Times(1)
+
+	writtenRepo := make(chan *fleetv1.GitRepo, 1)
+	statusClient := mocks.NewMockStatusWriter(mockCtrl)
+	mockClient.EXPECT().Status().Times(1).Return(statusClient)
+	statusClient.EXPECT().Update(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, repo *fleetv1.GitRepo, opts ...any) error {
+			writtenRepo <- repo.DeepCopy()
+			return nil
+		})
+
+	r := &GitJobReconciler{
+		Client:   mockClient,
+		Scheme:   scheme,
+		Image:    "test",
+		Clock:    RealClock{},
+		Recorder: recorderMock,
+	}
+	return r, writtenRepo
+}
+
+// Test_CommitNotPromotedOnGitJobError proves that when manageGitJob fails,
+// the new webhook commit that was promoted into gitrepo.Status.Commit in-memory
+// is not persisted to k8s by updateErrorStatus.
+//
+// Refers to: https://github.com/rancher/fleet/issues/4948
+func Test_CommitNotPromotedOnGitJobError(t *testing.T) {
+	const (
+		oldCommit = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+		newCommit = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	)
+
+	gitRepo := fleetv1.GitRepo{
+		ObjectMeta: metav1.ObjectMeta{Name: "gitrepo", Namespace: "default"},
+	}
+	namespacedName := types.NamespacedName{Name: gitRepo.Name, Namespace: gitRepo.Namespace}
+
+	// commit changes (2 job Gets: deletePreviousJob + manageGitJob check)
+	r, writtenRepo := setupMissingCommitReconciler(t, gitRepo,
+		func(gr *fleetv1.GitRepo) {
+			gr.Spec.Repo = "repo"
+			gr.Spec.HelmSecretNameForPaths = "helm-secret"
+			gr.Status.Commit = oldCommit
+			gr.Status.WebhookCommit = newCommit // triggers shouldCreateJob via commit != oldCommit
+		},
+		2,
+	)
+
+	_, err := r.Reconcile(context.TODO(), ctrl.Request{NamespacedName: namespacedName})
+	if err == nil {
+		t.Fatal("expected reconcile error, got nil")
+	}
+
+	written := <-writtenRepo
+
+	// The commit must NOT have been advanced to newCommit.
+	// On the buggy code this assertion fails because status.Commit == newCommit.
+	if written.Status.Commit != oldCommit {
+		t.Errorf("status.Commit was promoted despite gitjob failure: got %q, want %q",
+			written.Status.Commit, oldCommit)
+	}
+}
+
+// Test_ForceSyncGenerationNotConsumedOnGitJobError proves that when manageGitJob
+// fails, the spec.forceSyncGeneration bump that was consumed into
+// gitrepo.Status.UpdateGeneration in-memory is not persisted to k8s by
+// updateErrorStatus.
+//
+// Refers to: https://github.com/rancher/fleet/issues/4948
+func Test_ForceSyncGenerationNotConsumedOnGitJobError(t *testing.T) {
+	const (
+		existingCommit      = "cccccccccccccccccccccccccccccccccccccccc"
+		oldUpdateGeneration = int64(3)
+		forceSyncGeneration = int64(5)
+	)
+
+	gitRepo := fleetv1.GitRepo{
+		ObjectMeta: metav1.ObjectMeta{Name: "gitrepo", Namespace: "default"},
+	}
+	namespacedName := types.NamespacedName{Name: gitRepo.Name, Namespace: gitRepo.Namespace}
+
+	// commit is stable (1 job Get: manageGitJob check only; deletePreviousJob is a no-op)
+	r, writtenRepo := setupMissingCommitReconciler(t, gitRepo,
+		func(gr *fleetv1.GitRepo) {
+			gr.Spec.Repo = "repo"
+			gr.Spec.HelmSecretNameForPaths = "helm-secret"
+			gr.Spec.ForceSyncGeneration = forceSyncGeneration
+			gr.Status.Commit = existingCommit
+			gr.Status.UpdateGeneration = oldUpdateGeneration
+		},
+		1,
+	)
+
+	_, err := r.Reconcile(context.TODO(), ctrl.Request{NamespacedName: namespacedName})
+	if err == nil {
+		t.Fatal("expected reconcile error, got nil")
+	}
+
+	written := <-writtenRepo
+
+	// UpdateGeneration must NOT have been advanced to forceSyncGeneration.
+	if written.Status.UpdateGeneration != oldUpdateGeneration {
+		t.Errorf("status.UpdateGeneration was consumed despite gitjob failure: got %d, want %d",
+			written.Status.UpdateGeneration, oldUpdateGeneration)
+	}
+}
+
+// Test_ObservedGenerationNotConsumedOnGitJobError proves that when manageGitJob
+// fails, the spec generation change that was consumed into
+// gitrepo.Status.ObservedGeneration in-memory is not persisted to k8s by
+// updateErrorStatus.
+//
+// Refers to: https://github.com/rancher/fleet/issues/4948
+func Test_ObservedGenerationNotConsumedOnGitJobError(t *testing.T) {
+	const (
+		existingCommit        = "dddddddddddddddddddddddddddddddddddddddd"
+		currentGeneration     = int64(5)
+		oldObservedGeneration = int64(3) // must be > 0 for generationChanged() to trigger
+	)
+
+	gitRepo := fleetv1.GitRepo{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       "gitrepo",
+			Namespace:  "default",
+			Generation: currentGeneration,
+		},
+	}
+	namespacedName := types.NamespacedName{Name: gitRepo.Name, Namespace: gitRepo.Namespace}
+
+	// commit is stable (1 job Get)
+	r, writtenRepo := setupMissingCommitReconciler(t, gitRepo,
+		func(gr *fleetv1.GitRepo) {
+			gr.Spec.Repo = "repo"
+			gr.Spec.HelmSecretNameForPaths = "helm-secret"
+			gr.Generation = currentGeneration
+			gr.Status.Commit = existingCommit
+			gr.Status.ObservedGeneration = oldObservedGeneration
+		},
+		1,
+	)
+
+	_, err := r.Reconcile(context.TODO(), ctrl.Request{NamespacedName: namespacedName})
+	if err == nil {
+		t.Fatal("expected reconcile error, got nil")
+	}
+
+	written := <-writtenRepo
+
+	// ObservedGeneration must NOT have been advanced to currentGeneration.
+	if written.Status.ObservedGeneration != oldObservedGeneration {
+		t.Errorf("status.ObservedGeneration was consumed despite gitjob failure: got %d, want %d",
+			written.Status.ObservedGeneration, oldObservedGeneration)
+	}
+}
+
 func TestNewJob(t *testing.T) {
 	securityContext := &corev1.SecurityContext{
 		AllowPrivilegeEscalation: &[]bool{false}[0],
