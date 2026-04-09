@@ -14,7 +14,7 @@ import (
 )
 
 func ptr[T any](v T) *T {
-	return &v
+	return new(v)
 }
 
 var _ = Describe("Agent Scheduling Customization", func() {

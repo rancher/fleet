@@ -40,7 +40,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/utils/ptr"
 )
 
 const (
@@ -445,7 +444,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 				PrivateRepoURL:    cluster.Spec.PrivateRepoURL,
 				AgentAffinity:     cluster.Spec.AgentAffinity,
 				AgentResources:    cluster.Spec.AgentResources,
-				HostNetwork:       *cmp.Or(cluster.Spec.HostNetwork, ptr.To(false)),
+				HostNetwork:       *cmp.Or(cluster.Spec.HostNetwork, new(false)),
 				AgentReplicas:     agentReplicas,
 				PriorityClassName: priorityClassName,
 			},

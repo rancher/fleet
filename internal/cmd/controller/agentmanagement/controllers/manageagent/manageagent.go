@@ -32,7 +32,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/utils/ptr"
 )
 
 func sortTolerations(tols []corev1.Toleration) {
@@ -220,7 +219,7 @@ func (h *handler) updateClusterStatus(cluster *fleet.Cluster, status fleet.Clust
 		changed = true
 	}
 
-	if hostNetwork := *cmp.Or(cluster.Spec.HostNetwork, ptr.To(false)); status.AgentHostNetwork != hostNetwork {
+	if hostNetwork := *cmp.Or(cluster.Spec.HostNetwork, new(false)); status.AgentHostNetwork != hostNetwork {
 		status.AgentHostNetwork = hostNetwork
 		changed = true
 	}
@@ -346,7 +345,7 @@ func (h *handler) newAgentBundle(ns string, cluster *fleet.Cluster) (runtime.Obj
 			PrivateRepoURL:   cluster.Spec.PrivateRepoURL,
 			AgentAffinity:    cluster.Spec.AgentAffinity,
 			AgentResources:   cluster.Spec.AgentResources,
-			HostNetwork:      *cmp.Or(cluster.Spec.HostNetwork, ptr.To(false)),
+			HostNetwork:      *cmp.Or(cluster.Spec.HostNetwork, new(false)),
 
 			// keep in sync with agent/agent.go
 			AgentImage:              cfg.AgentImage,

@@ -12,7 +12,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/utils/ptr"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -383,14 +382,14 @@ func TestOnClusterChangeHostNetwork(t *testing.T) {
 		},
 		{
 			name:           "Equal HostNetwork",
-			cluster:        &fleet.Cluster{Spec: fleet.ClusterSpec{HostNetwork: ptr.To(true)}},
+			cluster:        &fleet.Cluster{Spec: fleet.ClusterSpec{HostNetwork: new(true)}},
 			status:         fleet.ClusterStatus{AgentHostNetwork: true},
 			expectedStatus: fleet.ClusterStatus{AgentHostNetwork: true},
 			enqueues:       0,
 		},
 		{
 			name:           "Changed HostNetwork",
-			cluster:        &fleet.Cluster{Spec: fleet.ClusterSpec{HostNetwork: ptr.To(true)}},
+			cluster:        &fleet.Cluster{Spec: fleet.ClusterSpec{HostNetwork: new(true)}},
 			status:         fleet.ClusterStatus{AgentHostNetwork: false},
 			expectedStatus: fleet.ClusterStatus{AgentHostNetwork: true},
 			enqueues:       1,

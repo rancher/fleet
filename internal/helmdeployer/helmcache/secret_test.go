@@ -29,11 +29,6 @@ var defaultSecret = corev1.Secret{
 	},
 }
 
-// ptr returns a pointer to the given string
-func ptr(s string) *string {
-	return &s
-}
-
 func TestGet(t *testing.T) {
 	scheme := runtime.NewScheme()
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
@@ -187,8 +182,8 @@ func TestApply(t *testing.T) {
 	namespace := secretNamespace
 	secretApplied, err := secretClient.Apply(context.TODO(), &applycorev1.SecretApplyConfiguration{
 		TypeMetaApplyConfiguration: v1.TypeMetaApplyConfiguration{
-			APIVersion: ptr("v1"),
-			Kind:       ptr("Secret"),
+			APIVersion: new("v1"),
+			Kind:       new("Secret"),
 		},
 		ObjectMetaApplyConfiguration: &v1.ObjectMetaApplyConfiguration{
 			Name:      &secretName,

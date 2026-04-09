@@ -13,8 +13,9 @@ import (
 	schedulingv1 "k8s.io/api/scheduling/v1"
 )
 
+//go:fix inline
 func ptr[T any](v T) *T {
-	return &v
+	return new(v)
 }
 
 func TestPodDisruptionBudget(t *testing.T) {
@@ -33,17 +34,17 @@ func TestPodDisruptionBudget(t *testing.T) {
 		{
 			name:   "maxUnavailable set as int",
 			spec:   &fleet.PodDisruptionBudgetSpec{MaxUnavailable: "1"},
-			wantMU: ptr(intstr.FromInt(1)),
+			wantMU: new(intstr.FromInt(1)),
 		},
 		{
 			name:   "maxUnavailable set as percent string",
 			spec:   &fleet.PodDisruptionBudgetSpec{MaxUnavailable: "50%"},
-			wantMU: ptr(intstr.FromString("50%")),
+			wantMU: new(intstr.FromString("50%")),
 		},
 		{
 			name:   "minAvailable set as int",
 			spec:   &fleet.PodDisruptionBudgetSpec{MinAvailable: "2"},
-			wantMA: ptr(intstr.FromInt(2)),
+			wantMA: new(intstr.FromInt(2)),
 		},
 		{
 			name:    "both values set should result in an error",
@@ -53,22 +54,22 @@ func TestPodDisruptionBudget(t *testing.T) {
 		{
 			name:   "having both values, MinAvailable as zero, should disable the zero value",
 			spec:   &fleet.PodDisruptionBudgetSpec{MinAvailable: "0", MaxUnavailable: "1"},
-			wantMU: ptr(intstr.FromInt(1)),
+			wantMU: new(intstr.FromInt(1)),
 		},
 		{
 			name:   "having both values, MaxUnavailable as zero, should disable the zero value",
 			spec:   &fleet.PodDisruptionBudgetSpec{MinAvailable: "1", MaxUnavailable: "0"},
-			wantMA: ptr(intstr.FromInt(1)),
+			wantMA: new(intstr.FromInt(1)),
 		},
 		{
 			name:   "having a percent value while MinAvailable is zero should disable the zero value",
 			spec:   &fleet.PodDisruptionBudgetSpec{MinAvailable: "0", MaxUnavailable: "10%"},
-			wantMU: ptr(intstr.FromString("10%")),
+			wantMU: new(intstr.FromString("10%")),
 		},
 		{
 			name:   "having a percent value while MaxUnavailable is zero should disable the zero value",
 			spec:   &fleet.PodDisruptionBudgetSpec{MinAvailable: "10%", MaxUnavailable: "0"},
-			wantMA: ptr(intstr.FromString("10%")),
+			wantMA: new(intstr.FromString("10%")),
 		},
 		{
 			name:    "two non-zero values shouldn't work",

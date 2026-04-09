@@ -136,11 +136,6 @@ func partitionsEqual(got, want []partition) error {
 	return nil
 }
 
-// intPtr is a helper function to create an int pointer
-func intPtr(i int) *int {
-	return &i
-}
-
 // createNewTargets creates targets without existing Deployments, simulating
 // clusters that do not yet have a BundleDeployment.
 func createNewTargets(count int) []*Target {
@@ -252,7 +247,7 @@ func Test_autoPartition(t *testing.T) {
 		{
 			name: "AutoPartitionThreshold set to 50 should partition with 50 targets",
 			rollout: &fleet.RolloutStrategy{
-				AutoPartitionThreshold: intPtr(50),
+				AutoPartitionThreshold: new(50),
 				AutoPartitionSize:      &intstr.IntOrString{Type: intstr.String, StrVal: "50%"},
 			},
 			targets: createTargets(1, 50),
@@ -264,7 +259,7 @@ func Test_autoPartition(t *testing.T) {
 		{
 			name: "AutoPartitionThreshold set to 50 should not partition with 49 targets",
 			rollout: &fleet.RolloutStrategy{
-				AutoPartitionThreshold: intPtr(50),
+				AutoPartitionThreshold: new(50),
 				AutoPartitionSize:      &intstr.IntOrString{Type: intstr.String, StrVal: "50%"},
 			},
 			targets: createTargets(1, 49),
@@ -276,7 +271,7 @@ func Test_autoPartition(t *testing.T) {
 		{
 			name: "AutoPartitionThreshold disabled with value 0 should put all in one partition",
 			rollout: &fleet.RolloutStrategy{
-				AutoPartitionThreshold: intPtr(0),
+				AutoPartitionThreshold: new(0),
 				AutoPartitionSize:      &intstr.IntOrString{Type: intstr.String, StrVal: "25%"},
 			},
 			targets: createTargets(1, 500),
@@ -509,19 +504,19 @@ func Test_UpdatePartitions_MaxNew(t *testing.T) {
 	}{
 		{
 			name:             "maxNew configured on rollout strategy limits newly created deployments",
-			maxNew:           intPtr(10),
+			maxNew:           new(10),
 			targetCount:      100,
 			wantNewlyCreated: 10,
 		},
 		{
 			name:             "maxNew larger than target count creates all deployments",
-			maxNew:           intPtr(200),
+			maxNew:           new(200),
 			targetCount:      20,
 			wantNewlyCreated: 20,
 		},
 		{
 			name:             "maxNew of 0 creates no new deployments",
-			maxNew:           intPtr(0),
+			maxNew:           new(0),
 			targetCount:      10,
 			wantNewlyCreated: 0,
 		},
