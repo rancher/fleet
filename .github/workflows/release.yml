@@ -122,7 +122,7 @@ jobs:
             exit 1
           fi
 
-          # renovate: datasource=github-releases depName=goreleaser/goreleaser
+          # renovate-local: goreleaser-x86_64
           GORELEASER_VERSION="v2.14.3"
           # renovate-local: goreleaser-x86_64=v2.14.3
           GORELEASER_CHECKSUM_x86_64="dc7faeeeb6da8bdfda788626263a4ae725892a8c7504b975c3234127d4a44579"
