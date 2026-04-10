@@ -265,12 +265,28 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	matchedTargets, secretsMissing, err := r.Builder.Targets(ctx, bundle, manifestID)
 	if err != nil {
+		wrappedErr := fmt.Errorf("targeting error: %w", err)
+		if errors.Is(err, fleetutil.ErrHashMismatch) {
+			// The BD options secret and BD.Spec.ValuesHash are inconsistent. This
+			// happens when manageOptionsSecret wrote the secret but
+			// createBundleDeployment failed in a previous reconcile cycle.
+			// Make the error visible on the bundle status, then repair by clearing
+			// ValuesHash on affected BDs so the next reconcile can re-sync the secret.
+			SetCondition(string(fleet.Ready), &bundle.Status, wrappedErr)
+			if statusErr := r.updateStatus(ctx, bundleOrig, bundle); statusErr != nil {
+				return ctrl.Result{}, statusErr
+			}
+			if repairErr := r.repairHashMismatch(ctx, bundle); repairErr != nil {
+				logger.Error(repairErr, "failed to repair BD secret/ValuesHash inconsistency")
+			}
+			return ctrl.Result{RequeueAfter: durations.DefaultRequeueAfter}, nil
+		}
 		return ctrl.Result{},
 			r.updateErrorStatus(
 				ctx,
 				bundleOrig,
 				bundle,
-				fmt.Errorf("targeting error: %w", err),
+				wrappedErr,
 			)
 	}
 
@@ -589,6 +605,48 @@ func (r *BundleReconciler) manageOptionsSecret(
 	}
 
 	return hash, secret, nil
+}
+
+// repairHashMismatch finds all BundleDeployments for the given bundle whose options secret
+// content does not match their ValuesHash, and clears their ValuesHash so the next reconcile
+// can re-sync the secret via manageOptionsSecret.
+func (r *BundleReconciler) repairHashMismatch(ctx context.Context, bundle *fleet.Bundle) error {
+	bdList := &fleet.BundleDeploymentList{}
+	if err := r.List(ctx, bdList, client.MatchingLabels{
+		fleet.BundleLabel:          bundle.Name,
+		fleet.BundleNamespaceLabel: bundle.Namespace,
+	}); err != nil {
+		return err
+	}
+
+	for i := range bdList.Items {
+		bd := &bdList.Items[i]
+		if bd.Spec.ValuesHash == "" {
+			continue
+		}
+
+		secret := &corev1.Secret{}
+		if err := r.Client.Get(ctx, client.ObjectKey{Namespace: bd.Namespace, Name: bd.Name}, secret); err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			return err
+		}
+
+		h := helmvalues.HashOptions(secret.Data[helmvalues.ValuesKey], secret.Data[helmvalues.StagedValuesKey])
+		if h == bd.Spec.ValuesHash {
+			continue
+		}
+
+		// Clear ValuesHash so the next reconcile re-syncs the secret via manageOptionsSecret.
+		patch := client.MergeFrom(bd.DeepCopy())
+		bd.Spec.ValuesHash = ""
+		if err := r.Patch(ctx, bd, patch); err != nil {
+			return fmt.Errorf("failed to clear ValuesHash on bundledeployment %s/%s: %w", bd.Namespace, bd.Name, err)
+		}
+	}
+
+	return nil
 }
 
 // ensureOwnerReferences sets bd as the owner of s, and returns any error occurring in the process.
