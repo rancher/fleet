@@ -2,6 +2,7 @@ package deployer
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -195,6 +196,40 @@ func TestIsStateAccepted(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := isStateAccepted(tc.state, tc.accepted); got != tc.want {
 				t.Errorf("isStateAccepted(%q, %v) = %v, want %v", tc.state, tc.accepted, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestDeployErrToStatus(t *testing.T) {
+	tests := []struct {
+		name      string
+		errMsg    string
+		wantMatch bool
+	}{
+		{"nil error", "", false},
+		{"YAML parse error (Helm v3)", "YAML parse error on foo.yaml: yaml: line 1: did not find expected node content", true},
+		{"MalformedYAMLError (Helm v4)", "MalformedYAMLError on foo.yaml: yaml: unmarshal errors", true},
+		{"error validating data (client-side schema)", `error validating "": error validating data: ValidationError(Deployment.spec.template.spec.containers[0].lifecycle): unknown field "preStart" in io.k8s.api.core.v1.Lifecycle`, true},
+		{"unknown field via SSA (API server strict validation)", `Deployment.apps "test" is invalid: spec.template.spec.containers[0].lifecycle.preStart: Invalid value: "null": unknown field`, true},
+		{"unknown field via strict decoding", `strict decoding error: unknown field "spec.template.spec.containers[0].lifecycle.preStart"`, true},
+		{"immutable spec", "Forbidden: spec is immutable after creation", true},
+		{"forbidden update", "Forbidden: updates to statefulset spec for fields other than 'replicas' are forbidden", true},
+		{"timed out", "timed out waiting for the condition", true},
+		{"transient error (should not match)", "dial tcp: connection refused", false},
+		{"not found (should not match)", "resource not found", false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var err error
+			if tc.errMsg != "" {
+				err = fmt.Errorf("%s", tc.errMsg)
+			}
+			status := fleet.BundleDeploymentStatus{}
+			got, _ := deployErrToStatus(err, status)
+			if got != tc.wantMatch {
+				t.Errorf("deployErrToStatus(%q) matched = %v, want %v", tc.errMsg, got, tc.wantMatch)
 			}
 		})
 	}
