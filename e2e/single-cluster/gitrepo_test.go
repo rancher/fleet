@@ -152,6 +152,12 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 				out, _ := k.Namespace(targetNamespace).Get("deployments")
 				return out
 			}, testenv.MediumTimeout, testenv.ShortTimeout).Should(ContainSubstring("newsleep"))
+
+			By("checking that events are generated")
+			Eventually(func() string {
+				out, _ := k.Get("events", "--field-selector=reason=GotNewCommit")
+				return out
+			}).Should(ContainSubstring(commit))
 		})
 	})
 
