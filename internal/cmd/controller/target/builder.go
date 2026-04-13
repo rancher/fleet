@@ -72,6 +72,7 @@ func (m *Manager) Targets(ctx context.Context, bundle *fleet.Bundle, manifestID 
 		if err != nil {
 			return nil, false, err
 		}
+	clusterLoop:
 		for _, cluster := range clusters.Items {
 			logger.V(4).Info("Cluster has namespace?", "cluster", cluster.Name, "namespace", cluster.Status.Namespace)
 			clusterGroups, err := m.clusterGroupsForCluster(ctx, &cluster)
@@ -85,28 +86,50 @@ func (m *Manager) Targets(ctx context.Context, bundle *fleet.Bundle, manifestID 
 			if target == nil {
 				continue
 			}
-			// Check all matching targetCustomizations for doNotDeploy, not just the first match.
-			// This ensures that a doNotDeploy entry is honoured even when a broader-matching
-			// target appears before it in the target list (fixes first-match bypass).
-			doNotDeploy := target.DoNotDeploy || bm.HasDoNotDeployTarget(cluster.Name, clusterGroupsAsLabelMap, cluster.Labels)
-			if doNotDeploy {
+			// Check if the GitRepo target has doNotDeploy set
+			if target.DoNotDeploy {
 				logger.V(1).Info("Skipping BundleDeployment creation because doNotDeploy is set to true.",
 					"bundle", bundle.Name,
 					"bundleNamespace", bundle.Namespace,
 					"cluster", cluster.Name,
 					"clusterNamespace", cluster.Namespace,
-					"reason", "doNotDeploy",
+					"reason", "doNotDeploy on GitRepo target",
 				)
 				continue
 			}
 			// check if there is any matching targetCustomization that should be applied
 			targetOpts := target.BundleDeploymentOptions
 			if bundle.Spec.TargetCustomizationMode == fleet.TargetCustomizationModeAllMatches {
-				for _, tc := range bm.MatchAllTargetCustomizations(cluster.Name, clusterGroupsAsLabelMap, cluster.Labels) {
+				// AllMatches mode: merge all matching customizations
+				// Check if any matching customization has doNotDeploy=true (OR logic)
+				matchedCustomizations := bm.MatchAllTargetCustomizations(cluster.Name, clusterGroupsAsLabelMap, cluster.Labels)
+				for _, tc := range matchedCustomizations {
+					if tc.DoNotDeploy {
+						logger.V(1).Info("Skipping BundleDeployment creation because doNotDeploy is set to true.",
+							"bundle", bundle.Name,
+							"bundleNamespace", bundle.Namespace,
+							"cluster", cluster.Name,
+							"clusterNamespace", cluster.Namespace,
+							"reason", "doNotDeploy on targetCustomization (AllMatches mode)",
+						)
+						continue clusterLoop
+					}
 					targetOpts = options.Merge(targetOpts, tc.BundleDeploymentOptions)
 				}
 			} else {
+				// FirstMatch mode: apply only the first matching customization
 				if targetCustomized := bm.MatchTargetCustomizations(cluster.Name, clusterGroupsAsLabelMap, cluster.Labels); targetCustomized != nil {
+					// Check if the first matching targetCustomization has doNotDeploy set
+					if targetCustomized.DoNotDeploy {
+						logger.V(1).Info("Skipping BundleDeployment creation because doNotDeploy is set to true.",
+							"bundle", bundle.Name,
+							"bundleNamespace", bundle.Namespace,
+							"cluster", cluster.Name,
+							"clusterNamespace", cluster.Namespace,
+							"reason", "doNotDeploy on targetCustomization (FirstMatch mode)",
+						)
+						continue
+					}
 					targetOpts = targetCustomized.BundleDeploymentOptions
 				}
 			}

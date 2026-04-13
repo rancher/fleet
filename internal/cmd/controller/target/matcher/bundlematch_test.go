@@ -220,6 +220,7 @@ func TestDetermineIsCustomization_Hybrid(t *testing.T) {
 		target            fleet.BundleTarget
 		index             int
 		numCustomizations int
+		numRestrictions   int
 		want              bool
 	}{
 		{
@@ -227,6 +228,7 @@ func TestDetermineIsCustomization_Hybrid(t *testing.T) {
 			target:            fleet.BundleTarget{Name: "edge", Source: "customization"},
 			index:             0,
 			numCustomizations: 1,
+			numRestrictions:   1,
 			want:              true,
 		},
 		{
@@ -234,6 +236,7 @@ func TestDetermineIsCustomization_Hybrid(t *testing.T) {
 			target:            fleet.BundleTarget{Name: "prod", Source: "gitrepo"},
 			index:             1,
 			numCustomizations: 1,
+			numRestrictions:   1,
 			want:              false,
 		},
 		{
@@ -241,6 +244,7 @@ func TestDetermineIsCustomization_Hybrid(t *testing.T) {
 			target:            fleet.BundleTarget{Name: "edge", Source: ""}, // empty
 			index:             0,
 			numCustomizations: 1,
+			numRestrictions:   1,
 			want:              true, // index < numCustomizations
 		},
 		{
@@ -248,6 +252,7 @@ func TestDetermineIsCustomization_Hybrid(t *testing.T) {
 			target:            fleet.BundleTarget{Name: "prod", Source: ""}, // empty
 			index:             1,
 			numCustomizations: 1,
+			numRestrictions:   1,
 			want:              false, // index >= numCustomizations
 		},
 		{
@@ -255,6 +260,7 @@ func TestDetermineIsCustomization_Hybrid(t *testing.T) {
 			target:            fleet.BundleTarget{Name: "prod", ClusterSelector: labelSelector(map[string]string{"env": "prod"}), Source: ""},
 			index:             0, // First in list
 			numCustomizations: 1,
+			numRestrictions:   1,
 			want:              true, // Treated as customization via position, bug fixed!
 		},
 		{
@@ -262,6 +268,7 @@ func TestDetermineIsCustomization_Hybrid(t *testing.T) {
 			target:            fleet.BundleTarget{Name: "test", Source: "gitrepo"},
 			index:             0, // Position suggests customization
 			numCustomizations: 1,
+			numRestrictions:   1,
 			want:              false, // But Source field says gitrepo, so not a customization
 		},
 		{
@@ -269,13 +276,23 @@ func TestDetermineIsCustomization_Hybrid(t *testing.T) {
 			target:            fleet.BundleTarget{Name: "target", Source: ""},
 			index:             0,
 			numCustomizations: 0, // All targets are gitrepo targets
+			numRestrictions:   1,
 			want:              false,
+		},
+		{
+			name:              "old bundle - standalone bundle (no restrictions)",
+			target:            fleet.BundleTarget{Name: "target", Source: ""},
+			index:             0,
+			numCustomizations: 1,     // Would be calculated as 1 if there were restrictions
+			numRestrictions:   0,     // But no restrictions means not a GitRepo bundle
+			want:              false, // All targets treated as regular targets
 		},
 		{
 			name:              "old bundle - multiple customizations",
 			target:            fleet.BundleTarget{Name: "custom2", Source: ""},
 			index:             2, // Third target (index 2)
 			numCustomizations: 3, // First 3 are customizations
+			numRestrictions:   2,
 			want:              true,
 		},
 		{
@@ -283,6 +300,7 @@ func TestDetermineIsCustomization_Hybrid(t *testing.T) {
 			target:            fleet.BundleTarget{Name: "last-custom", Source: ""},
 			index:             2, // Third target (index 2)
 			numCustomizations: 3, // First 3 are customizations (indices 0, 1, 2)
+			numRestrictions:   1,
 			want:              true,
 		},
 		{
@@ -290,13 +308,14 @@ func TestDetermineIsCustomization_Hybrid(t *testing.T) {
 			target:            fleet.BundleTarget{Name: "first-gitrepo", Source: ""},
 			index:             3, // Fourth target (index 3)
 			numCustomizations: 3, // First 3 are customizations (indices 0, 1, 2)
+			numRestrictions:   1,
 			want:              false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := determineIsCustomization(tt.target, tt.index, tt.numCustomizations)
+			got := determineIsCustomization(tt.target, tt.index, tt.numCustomizations, tt.numRestrictions)
 			assert.Equal(t, tt.want, got)
 		})
 	}
