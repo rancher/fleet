@@ -626,7 +626,7 @@ func (r *BundleReconciler) repairHashMismatch(ctx context.Context, bundle *fleet
 		}
 
 		secret := &corev1.Secret{}
-		if err := r.Client.Get(ctx, client.ObjectKey{Namespace: bd.Namespace, Name: bd.Name}, secret); err != nil {
+		if err := r.Get(ctx, client.ObjectKey{Namespace: bd.Namespace, Name: bd.Name}, secret); err != nil {
 			if apierrors.IsNotFound(err) {
 				continue
 			}
