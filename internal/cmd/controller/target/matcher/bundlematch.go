@@ -75,30 +75,6 @@ func (a *BundleMatch) MatchAllTargetCustomizations(clusterName string, clusterGr
 	return result
 }
 
-// HasDoNotDeployTarget returns true if any bundle target matching the given cluster
-// has DoNotDeploy set to true. Unlike MatchTargetCustomizations, this scans all matching
-// bundle targets instead of stopping at the first match, so a doNotDeploy entry does not have to
-// appear before a broader-matching entry in the target list.
-func (a *BundleMatch) HasDoNotDeployTarget(clusterName string, clusterGroups map[string]map[string]string, clusterLabels map[string]string) bool {
-	for _, tm := range a.matcher.matches {
-		if !tm.bundleTarget.DoNotDeploy {
-			continue
-		}
-		if len(clusterGroups) == 0 {
-			if criteriaWithoutRestrictions(tm, clusterName, "", nil, clusterLabels) {
-				return true
-			}
-		} else {
-			for cg, cgLabels := range clusterGroups {
-				if criteriaWithoutRestrictions(tm, clusterName, cg, cgLabels, clusterLabels) {
-					return true
-				}
-			}
-		}
-	}
-	return false
-}
-
 type targetMatch struct {
 	bundleTarget    *fleet.BundleTarget
 	criteria        *ClusterMatcher
@@ -126,7 +102,7 @@ func (a *BundleMatch) initMatcher() error {
 		t := targetMatch{
 			bundleTarget:    &a.bundle.Spec.Targets[i],
 			criteria:        clusterMatcher,
-			isCustomization: determineIsCustomization(target, i, numCustomizations),
+			isCustomization: determineIsCustomization(target, i, numCustomizations, numRestrictions),
 		}
 
 		m.matches = append(m.matches, t)
@@ -146,7 +122,7 @@ func (a *BundleMatch) initMatcher() error {
 
 // determineIsCustomization uses explicit Source field if present,
 // falls back to position-based detection for backward compatibility.
-func determineIsCustomization(target fleet.BundleTarget, index int, numCustomizations int) bool {
+func determineIsCustomization(target fleet.BundleTarget, index int, numCustomizations int, numRestrictions int) bool {
 	// NEW BUNDLES: Source field is populated by bundlereader
 	// This is the preferred method for long-term maintainability
 	if target.Source != "" {
@@ -160,7 +136,15 @@ func determineIsCustomization(target fleet.BundleTarget, index int, numCustomiza
 	// - Therefore: first N targets are customizations
 	//   where N = len(Targets) - len(TargetRestrictions)
 	//
+	// SPECIAL CASE: If there are no targetRestrictions, this bundle wasn't
+	// created by a GitRepo (e.g., CLI-loaded bundles, standalone bundles).
+	// In this case, treat all targets as regular bundle targets (not customizations)
+	// to maintain backward compatibility with bundles that predate the Source field.
+	//
 	// This fixes the collision bug for old Bundles without requiring recreation
+	if numRestrictions == 0 {
+		return false
+	}
 	return index < numCustomizations
 }
 
@@ -180,21 +164,18 @@ func (m *matcher) isRestricted(clusterName, clusterGroup string, clusterGroupLab
 }
 
 // criteriaWithRestrictions checks that the cluster passes the restriction allowlist
-// and matches the target's cluster selector. Used for GitRepo targets.
+// and matches the target's cluster selector. Used for GitRepo targets only;
+// customization targets (from fleet.yaml) are excluded.
 func (m *matcher) criteriaWithRestrictions(targetMatch targetMatch, clusterName, clusterGroup string, clusterGroupLabels, clusterLabels map[string]string) bool {
+	if targetMatch.isCustomization {
+		return false
+	}
 	if !m.isRestricted(clusterName, clusterGroup, clusterGroupLabels, clusterLabels) &&
 		targetMatch.criteria.Match(clusterName, clusterGroup, clusterGroupLabels, clusterLabels) {
 		return true
 	}
 
 	return false
-}
-
-// criteriaWithoutRestrictions checks targetMatch's criteria for a match on the specified cluster
-// name, group and labels, without checking if target is inside the targetRestrictions.
-// This is used for TargetCustomizations.
-func criteriaWithoutRestrictions(targetMatch targetMatch, clusterName, clusterGroup string, clusterGroupLabels, clusterLabels map[string]string) bool {
-	return targetMatch.criteria.Match(clusterName, clusterGroup, clusterGroupLabels, clusterLabels)
 }
 
 // match returns the first BundleTarget, from the matcher's target matches, which matches the specified cluster name, groups and labels, using matching logic implemented via findCriteriaMatch.
