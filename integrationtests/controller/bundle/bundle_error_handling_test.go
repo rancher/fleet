@@ -442,4 +442,115 @@ var _ = Describe("Bundle controller error handling", Ordered, func() {
 			Expect(readyCond.Reason).To(BeEmpty(), "Ready condition Reason should be empty when Status is True")
 		})
 	})
+
+	// Issue #594 - stale error is suppressed once the spec advances past the bad commit, even
+	// when the cluster agent is offline and has not applied the fix yet.
+	// This covers the scenario where the agent's deployErrToStatus routes an "unknown field"
+	// type error into the Installed condition (Deployed=True, AppliedDeploymentID=errorID).
+	// The controller must suppress that stale Installed message once DeploymentID advances.
+	Context("Issue #594 - stale error suppressed when cluster is offline after unknown-field deploy failure", func() {
+		var (
+			bundle     *v1alpha1.Bundle
+			cluster    *v1alpha1.Cluster
+			bundleName string
+			testID     string
+			clusterNS  string
+		)
+
+		BeforeEach(func() {
+			testID = generateTestID()
+			bundleName = "bundle-594-" + testID
+			clusterNS = "cluster-ns-594-" + testID
+
+			createNamespace(clusterNS)
+			cluster = createCluster("cluster-594-"+testID, bundleNS, clusterNS, map[string]string{"env": "test-594-" + testID})
+			bundle = createBundle(bundleName, bundleNS, "default", "cm-594", []v1alpha1.BundleTarget{{
+				ClusterSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"env": "test-594-" + testID}},
+			}})
+		})
+
+		AfterEach(func() {
+			_ = k8sClient.Delete(ctx, bundle)
+			Eventually(func() int {
+				return len(getBundleDeployments(bundleName, bundleNS).Items)
+			}).Should(Equal(0))
+			_ = k8sClient.Delete(ctx, cluster)
+			_ = k8sClient.Delete(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: clusterNS}})
+		})
+
+		It("does not retain stale unknown-field error while cluster is offline and spec has advanced", func() {
+			By("waiting for the bundle deployment to be created")
+			var bd v1alpha1.BundleDeployment
+			var errorCommitID string
+			Eventually(func(g Gomega) {
+				bdList := getBundleDeployments(bundleName, bundleNS)
+				g.Expect(bdList.Items).To(HaveLen(1))
+				bd = bdList.Items[0]
+				errorCommitID = bd.Spec.DeploymentID
+				g.Expect(errorCommitID).NotTo(BeEmpty())
+			}).Should(Succeed())
+
+			By("simulating the agent reporting an unknown-field error via deployErrToStatus")
+			// deployErrToStatus now matches "unknown field" errors and:
+			//   - sets AppliedDeploymentID = Spec.DeploymentID (errorCommitID)
+			//   - returns (status, nil), so the reconciler sets Deployed=True
+			//   - stores the error in the Installed condition
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: bd.Name, Namespace: bd.Namespace}, &bd)).To(Succeed())
+				bd.Status.Ready = false
+				bd.Status.NonModified = true
+				bd.Status.AppliedDeploymentID = errorCommitID
+				bd.Status.Conditions = []genericcondition.GenericCondition{
+					{Type: "Deployed", Status: "True"},
+					{
+						Type:   "Installed",
+						Status: "False",
+						Message: `not installed: Deployment.apps "test" is invalid: ` +
+							`spec.template.spec.containers[0].lifecycle.preStart: ` +
+							`Invalid value: "null": unknown field`,
+					},
+				}
+				g.Expect(k8sClient.Status().Update(ctx, &bd)).To(Succeed())
+			}).Should(Succeed())
+
+			By("verifying the bundle surfaces the unknown-field error before the spec advances")
+			// IDs match (AppliedDeploymentID == Spec.DeploymentID), Deployed=True, Ready=false
+			// → GetDeploymentState → NotReady
+			// → MessageFromDeployment: IDs match → surfaces Installed message → "unknown field" appears
+			Eventually(func(g Gomega) {
+				b := &v1alpha1.Bundle{}
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: bundleName, Namespace: bundleNS}, b)).To(Succeed())
+				g.Expect(b.Status.Summary.NotReady).To(Equal(1))
+				readyCond := getCondition(b.Status.Conditions, "Ready")
+				g.Expect(readyCond).NotTo(BeNil())
+				g.Expect(readyCond.Message).To(ContainSubstring("unknown field"))
+			}).Should(Succeed())
+
+			By("advancing the bundle spec to simulate a fix commit while the cluster stays offline")
+			// Changing DefaultNamespace causes the bundle controller to compute a new DeploymentID.
+			// The cluster is "offline": we do not update BD.Status, so AppliedDeploymentID stays at errorCommitID.
+			updateBundleDefaultNamespace(bundle, "kube-system")
+
+			By("waiting for the controller to write the new DeploymentID into the bundle deployment spec")
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: bd.Name, Namespace: bd.Namespace}, &bd)).To(Succeed())
+				g.Expect(bd.Spec.DeploymentID).NotTo(Equal(errorCommitID))
+			}).Should(Succeed())
+
+			By("verifying the stale unknown-field error is suppressed while the cluster is still offline")
+			// effectiveDeployment uses the new spec ID (fixID), which differs from AppliedDeploymentID (errorCommitID).
+			// IDs differ, Deployed=True → WaitApplied (not ErrApplied).
+			// MessageFromDeployment: IDs differ → Installed message suppressed → no "unknown field" in bundle.
+			Eventually(func(g Gomega) {
+				b := &v1alpha1.Bundle{}
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: bundleName, Namespace: bundleNS}, b)).To(Succeed())
+				g.Expect(b.Status.Summary.WaitApplied).To(Equal(1), "expected WaitApplied while agent is offline")
+				g.Expect(b.Status.Summary.ErrApplied).To(Equal(0), "should not be ErrApplied since Deployed=True")
+				readyCond := getCondition(b.Status.Conditions, "Ready")
+				g.Expect(readyCond).NotTo(BeNil())
+				g.Expect(readyCond.Message).NotTo(ContainSubstring("unknown field"),
+					"stale unknown-field error should be suppressed once spec advances past the bad commit")
+			}).Should(Succeed())
+		})
+	})
 })
