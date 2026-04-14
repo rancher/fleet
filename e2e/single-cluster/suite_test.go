@@ -9,6 +9,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -18,6 +19,7 @@ import (
 	"github.com/rancher/fleet/e2e/testenv"
 	"github.com/rancher/fleet/e2e/testenv/infra/cmd"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -33,11 +35,14 @@ const (
 var (
 	env            *testenv.Env
 	clientUpstream client.Client
+	restConfig     *rest.Config
 )
 
 var _ = BeforeSuite(func() {
 	SetDefaultEventuallyTimeout(testenv.Timeout)
 	SetDefaultEventuallyPollingInterval(time.Second)
+	SetDefaultConsistentlyDuration(time.Minute)
+	SetDefaultConsistentlyPollingInterval(1 * time.Second)
 	testenv.SetRoot("../..")
 
 	env = testenv.New()
@@ -54,7 +59,8 @@ func getClientForContext(contextName string) client.Client {
 
 	clientConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, configOverrides)
 
-	restConfig, err := clientConfig.ClientConfig()
+	var err error
+	restConfig, err = clientConfig.ClientConfig()
 	Expect(err).ToNot(HaveOccurred())
 
 	// Set up scheme

@@ -2,6 +2,9 @@ name: Check for unallowed changes
 
 on:
   pull_request:
+  push:
+    branches:
+    - '*-hotfix-*'
 
 env:
   MAIN_BRANCH: origin/main
@@ -14,14 +17,13 @@ jobs:
 
     steps:
       -
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
       -
-        uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version-file: 'go.mod'
-          check-latest: true
       -
         name: Install Ginkgo CLI
         run: go install github.com/onsi/ginkgo/v2/ginkgo
@@ -33,4 +35,5 @@ jobs:
         run: ./.github/scripts/check-for-auto-generated-changes.sh
       -
         name: known-hosts
-        run: ./.github/scripts/check-for-known-hosts-changes.sh $GITHUB_BASE_REF
+        if: github.event_name == 'pull_request'
+        run: ./.github/scripts/check-for-known-hosts-changes.sh "$GITHUB_BASE_REF"

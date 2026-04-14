@@ -6,6 +6,7 @@ package singlecluster_test
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/rand"
 	"os"
@@ -30,6 +31,19 @@ const (
 	port      = 8080
 	HTTPSPort = 4343
 )
+
+type gitRepoTestValues struct {
+	Name                   string
+	Repo                   string
+	Branch                 string
+	PollingInterval        string
+	TargetNamespace        string
+	Path                   string
+	CABundle               string
+	HelmSecretName         string
+	HelmSecretNameForPaths string
+	InsecureSkipTLSVerify  bool
+}
 
 var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"), func() {
 	var (
@@ -59,7 +73,7 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 
 		addr, err := githelper.GetExternalRepoAddr(env, gitServerPort, localRepoName)
 		Expect(err).ToNot(HaveOccurred())
-		addr = strings.Replace(addr, "http://", fmt.Sprintf("%s://", gitProtocol), 1)
+		addr = strings.Replace(addr, "http://", gitProtocol+"://", 1)
 		gh = githelper.NewHTTP(addr)
 
 		inClusterRepoURL = gh.GetInClusterURL(host, gitServerPort, localRepoName)
@@ -81,7 +95,7 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 				"bundledeployments",
 				"-A",
 				"-l",
-				fmt.Sprintf("fleet.cattle.io/repo-name=%s", gitrepoName),
+				"fleet.cattle.io/repo-name="+gitrepoName,
 			)
 			g.Expect(out).To(ContainSubstring("No resources found"))
 		}).Should(Succeed())
@@ -100,18 +114,12 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 		})
 
 		JustBeforeEach(func() {
-			err := testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo.yaml"), struct {
-				Name            string
-				Repo            string
-				Branch          string
-				PollingInterval string
-				TargetNamespace string
-			}{
-				gitrepoName,
-				inClusterRepoURL,
-				gh.Branch,
-				"15s",           // default
-				targetNamespace, // to avoid conflicts with other tests
+			err := testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo.yaml"), gitRepoTestValues{
+				Name:            gitrepoName,
+				Repo:            inClusterRepoURL,
+				Branch:          gh.Branch,
+				PollingInterval: "15s",           // default
+				TargetNamespace: targetNamespace, // to avoid conflicts with other tests
 			})
 			Expect(err).ToNot(HaveOccurred())
 
@@ -144,6 +152,12 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 				out, _ := k.Namespace(targetNamespace).Get("deployments")
 				return out
 			}, testenv.MediumTimeout, testenv.ShortTimeout).Should(ContainSubstring("newsleep"))
+
+			By("checking that events are generated")
+			Eventually(func() string {
+				out, _ := k.Get("events", "--field-selector=reason=GotNewCommit")
+				return out
+			}).Should(ContainSubstring(commit))
 		})
 	})
 
@@ -157,18 +171,12 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 		})
 
 		JustBeforeEach(func() {
-			err := testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo.yaml"), struct {
-				Name            string
-				Repo            string
-				Branch          string
-				PollingInterval string
-				TargetNamespace string
-			}{
-				gitrepoName,
-				inClusterRepoURL,
-				gh.Branch,
-				"15s",           // default
-				targetNamespace, // to avoid conflicts with other tests
+			err := testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo.yaml"), gitRepoTestValues{
+				Name:            gitrepoName,
+				Repo:            inClusterRepoURL,
+				Branch:          gh.Branch,
+				PollingInterval: "15s",           // default
+				TargetNamespace: targetNamespace, // to avoid conflicts with other tests
 			})
 			Expect(err).ToNot(HaveOccurred())
 
@@ -208,6 +216,9 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 		BeforeEach(func() {
 			localRepoName = "webhook-test"
 			targetNamespace = testenv.NewNamespaceName("target", r)
+
+			gitServerPort = port
+			gitProtocol = "http"
 		})
 
 		JustBeforeEach(func() {
@@ -266,27 +277,29 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 				return err
 			}).ShouldNot(HaveOccurred(), out)
 
-			// Clone previously created repo
-			clone, err = gh.Create(clonedir, testenv.AssetPath("gitrepo/sleeper-chart"), "examples")
+			// Create the GitRepo resource first, before pushing content
+			// This ensures the webhook will find the GitRepo when the push triggers it
+			err = testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo.yaml"), gitRepoTestValues{
+				Name:            gitrepoName,
+				Repo:            inClusterRepoURL,
+				Branch:          gh.Branch,
+				PollingInterval: "24h",           // prevent polling
+				TargetNamespace: targetNamespace, // to avoid conflicts with other tests
+			})
 			Expect(err).ToNot(HaveOccurred())
 
-			err = testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo.yaml"), struct {
-				Name            string
-				Repo            string
-				Branch          string
-				PollingInterval string
-				TargetNamespace string
-			}{
-				gitrepoName,
-				inClusterRepoURL,
-				gh.Branch,
-				"24h",           // prevent polling
-				targetNamespace, // to avoid conflicts with other tests
-			})
+			// Now push content, which will trigger the webhook
+			clone, err = gh.Create(clonedir, testenv.AssetPath("gitrepo/sleeper-chart"), "examples")
 			Expect(err).ToNot(HaveOccurred())
 		})
 
 		It("updates the deployment", func() {
+			By("waiting for the gitrepo to be ready")
+			Eventually(func(g Gomega) {
+				status := getGitRepoStatus(g, k, gitrepoName)
+				g.Expect(status.Commit).ToNot(BeEmpty(), "GitRepo should have synced initially")
+			}, testenv.MediumTimeout, testenv.ShortTimeout).Should(Succeed())
+
 			By("checking the pod exists")
 			Eventually(func() string {
 				out, _ := k.Namespace(targetNamespace).Get("pods")
@@ -407,10 +420,10 @@ func matchGitRepoStatus(expected fleet.GitRepoStatus) types.GomegaMatcher {
 	return &gitRepoStatusMatcher{expected: expected}
 }
 
-func (matcher *gitRepoStatusMatcher) Match(actual interface{}) (success bool, err error) {
+func (matcher *gitRepoStatusMatcher) Match(actual any) (success bool, err error) {
 	got, ok := actual.(fleet.GitRepoStatus)
 	if !ok {
-		return false, fmt.Errorf("gitRepoStatusMatcher expects a GitRepoStatus")
+		return false, errors.New("gitRepoStatusMatcher expects a GitRepoStatus")
 	}
 
 	want := matcher.expected
@@ -447,10 +460,10 @@ func (matcher *gitRepoStatusMatcher) Match(actual interface{}) (success bool, er
 		nil
 }
 
-func (matcher *gitRepoStatusMatcher) FailureMessage(actual interface{}) (message string) {
+func (matcher *gitRepoStatusMatcher) FailureMessage(actual any) (message string) {
 	return fmt.Sprintf("Expected\n\t%#v\nto match status\n\t%#v", actual, matcher.expected)
 }
 
-func (matcher *gitRepoStatusMatcher) NegatedFailureMessage(actual interface{}) (message string) {
+func (matcher *gitRepoStatusMatcher) NegatedFailureMessage(actual any) (message string) {
 	return fmt.Sprintf("Expected\n\t%#v\nnot to match status\n\t%#v", actual, matcher.expected)
 }

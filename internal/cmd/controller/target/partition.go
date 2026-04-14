@@ -1,6 +1,8 @@
 package target
 
 import (
+	"reflect"
+
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -15,6 +17,12 @@ type partition struct {
 // It creates Deployments in allTargets if they are missing.
 // It updates Deployments in allTargets if they are out of sync (DeploymentID != StagedDeploymentID).
 func UpdatePartitions(status *fleet.BundleStatus, allTargets []*Target) (err error) {
+	rollout := getRollout(allTargets)
+	maxNew := DefaultMaxNew
+	if rollout.MaxNew != nil {
+		maxNew = *rollout.MaxNew
+	}
+
 	partitions, err := partitions(allTargets)
 	if err != nil {
 		return err
@@ -28,8 +36,8 @@ func UpdatePartitions(status *fleet.BundleStatus, allTargets []*Target) (err err
 
 	for _, partition := range partitions {
 		for _, target := range partition.Targets {
-			// for a new bundledeployment, only stage the first maxNew (50) targets
-			if target.Deployment == nil && status.NewlyCreated < status.MaxNew {
+			// for a new bundledeployment, only stage the first maxNew targets
+			if target.Deployment == nil && status.NewlyCreated < maxNew {
 				status.NewlyCreated++
 				target.Deployment = &fleet.BundleDeployment{
 					ObjectMeta: metav1.ObjectMeta{
@@ -77,6 +85,17 @@ func maxUnavailablePartitions(partitions []partition, targets []*Target) (int, e
 // updateDeploymentFromStaged will update DeploymentID and Options for the target to the
 // staging values, if it's in a deployable state
 func updateDeploymentFromStaged(t *Target, bundleStatus *fleet.BundleStatus, partitionStatus *fleet.PartitionStatus) {
+	if t.Deployment != nil &&
+		!t.IsPaused() &&
+		t.Deployment.Spec.StagedDeploymentID != "" &&
+		t.Deployment.Spec.DeploymentID == t.Deployment.Spec.StagedDeploymentID &&
+		!reflect.DeepEqual(t.Deployment.Spec.Options.Diff, t.Deployment.Spec.StagedOptions.Diff) {
+		// Keep diff options in sync even when the DeploymentID is unchanged.
+		// This enables diff updates to be propagated downstream to resolve modified statuses
+		// (for instance after updating bundle diffs in a fleet.yaml).
+		t.Deployment.Spec.Options.Diff = t.Deployment.Spec.StagedOptions.Diff
+	}
+
 	if t.Deployment != nil &&
 		// Not Paused
 		!t.IsPaused() &&

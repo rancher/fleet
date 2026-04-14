@@ -1,4 +1,4 @@
-//go:generate mockgen --build_flags=--mod=mod -destination=../mocks/oci_client_mock.go -package=mocks oras.land/oras-go/v2/registry/remote Client
+//go:generate mockgen --build_flags=--mod=mod -destination=../mocks/oci_client_mock.go -package=mocks -mock_names=Client=MockOCIClient oras.land/oras-go/v2/registry/remote Client
 package bundlereader_test
 
 import (
@@ -14,6 +14,8 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"oras.land/oras-go/v2/registry/remote"
+
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
 func Test_getOCITag(t *testing.T) {
@@ -114,6 +116,62 @@ func Test_getOCITag(t *testing.T) {
 
 			if tag != c.expectedTag {
 				t.Errorf("expected tag %q, got %q", c.expectedTag, tag)
+			}
+		})
+	}
+}
+
+func Test_ChartURL(t *testing.T) {
+	cases := []struct {
+		name     string
+		options  fleet.HelmOptions
+		expected string
+	}{
+		{
+			name: "repo URL with trailing slash",
+			options: fleet.HelmOptions{
+				Chart:   "rancher",
+				Repo:    "https://releases.rancher.com/server-charts/latest/",
+				Version: "2.13.0",
+			},
+			expected: "https://releases.rancher.com/server-charts/latest/rancher-2.13.0.tgz",
+		},
+		{
+			name: "repo URL without trailing slash",
+			options: fleet.HelmOptions{
+				Chart:   "rancher",
+				Repo:    "https://releases.rancher.com/server-charts/latest",
+				Version: "2.13.0",
+			},
+			expected: "https://releases.rancher.com/server-charts/latest/rancher-2.13.0.tgz",
+		},
+		{
+			name: "OCI URL in helm.repo",
+			options: fleet.HelmOptions{
+				Repo:    "oci://ghcr.io/rancher/fleet-test-configmap-chart",
+				Version: "0.1.0",
+			},
+			expected: "oci://ghcr.io/rancher/fleet-test-configmap-chart",
+		},
+		{
+			name: "OCI URL in helm.chart (backwards compatibility)",
+			options: fleet.HelmOptions{
+				Chart:   "oci://ghcr.io/rancher/fleet-test-configmap-chart",
+				Version: "0.1.0",
+			},
+			expected: "oci://ghcr.io/rancher/fleet-test-configmap-chart",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			url, err := bundlereader.ChartURL(context.Background(), c.options, bundlereader.Auth{})
+			if err != nil {
+				t.Errorf("expected no error, got %v", err)
+			}
+
+			if url != c.expected {
+				t.Errorf("expected %q, got %q", c.expected, url)
 			}
 		})
 	}

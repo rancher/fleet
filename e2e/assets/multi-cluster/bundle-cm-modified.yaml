@@ -1,0 +1,21 @@
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: Bundle
+metadata:
+  labels:
+    role: root-modified
+  name: {{.Name}}
+  namespace: {{.ClusterRegistrationNamespace}}
+spec:
+  defaultNamespace: {{.ProjectNamespace}}
+  resources:
+  - content: |
+      kind: ConfigMap
+      apiVersion: v1
+      metadata:
+        name: root-will-be-modified
+      data:
+        value: original
+    name: cm.yaml
+  targets:
+  - clusterSelector: {}

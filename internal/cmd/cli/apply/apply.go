@@ -37,7 +37,6 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
@@ -94,6 +93,7 @@ type Options struct {
 	DrivenScanSeparator          string
 	JobNameEnvVar                string
 	BundleCreationMaxConcurrency int
+	ImagescanEnabled             bool
 }
 
 type bundleWithOpts struct {
@@ -353,7 +353,9 @@ func pruneBundlesNotFoundInRepo(
 ) error {
 	filter := labels.SelectorFromSet(labels.Set{fleet.RepoLabel: repoName})
 	bundleList := &fleet.BundleList{}
-	err := c.List(ctx, bundleList, &client.ListOptions{LabelSelector: filter, Namespace: ns})
+	if err := c.List(ctx, bundleList, &client.ListOptions{LabelSelector: filter, Namespace: ns}); err != nil {
+		return err
+	}
 
 	for _, bundle := range bundleList.Items {
 		if _, ok := gitRepoBundlesMap[bundle.Name]; !ok {
@@ -403,13 +405,12 @@ func pruneBundlesNotFoundInRepo(
 					}
 				}
 			}
-			err = c.Delete(ctx, &bundle)
-			if err != nil {
+			if err := c.Delete(ctx, &bundle); err != nil {
 				return err
 			}
 		}
 	}
-	return err
+	return nil
 }
 
 // newBundle reads bundle data from a source and returns a bundle with the
@@ -441,6 +442,7 @@ func newBundle(ctx context.Context, name, baseDir string, opts Options) (*fleet.
 				Force:           opts.CorrectDriftForce,
 				KeepFailHistory: opts.CorrectDriftKeepFailHistory,
 			},
+			ImagescanEnabled: opts.ImagescanEnabled,
 		})
 		if err != nil {
 			return nil, nil, err
@@ -606,8 +608,8 @@ func save(ctx context.Context, c client.Client, bundle *fleet.Bundle) (*fleet.Bu
 			// this bundle was previously deployed to an OCI registry.
 			// Delete the OCI artifact as it's no longer required.
 			if err := deleteOCIManifest(ctx, c, bundle, ocistorage.OCIOpts{}); err != nil {
-				// we log the error and continue, since the OCI registry is an external entity to the the cluster
-				// we may encounter various types of transient errors (such as connection or access issues).
+				// return the error, since the OCI registry is an external entity to the cluster
+				// and we may encounter various types of transient errors (such as connection or access issues).
 				logrus.Warnf("deleting OCI artifact: %v", err)
 				return err
 
@@ -667,7 +669,7 @@ func saveOCIBundle(ctx context.Context, c client.Client, r record.EventRecorder,
 		// delete the previous OCI artifact
 		if bundle.Spec.ContentsID != "" && bundle.Spec.ContentsID != manifestID {
 			if err := deleteOCIManifest(ctx, c, bundle, opts); err != nil {
-				// we log the error and continue, since the OCI registry is an external entity to the the cluster
+				// we log the error and continue, since the OCI registry is an external entity to the cluster
 				// we may encounter various types of transient errors (such as connection or access issues).
 				logrus.Warnf("deleting OCI artifact: %v", err)
 				sendWarningEvent(r, bundle.Namespace, bundle.Spec.ContentsID, err)
@@ -749,19 +751,19 @@ func newOCISecret(manifestID string, bundle *fleet.Bundle, opts ocistorage.OCIOp
 					Kind:               "Bundle",
 					Name:               bundle.GetName(),
 					UID:                bundle.GetUID(),
-					BlockOwnerDeletion: ptr.To(true),
-					Controller:         ptr.To(true),
+					BlockOwnerDeletion: new(true),
+					Controller:         new(true),
 				},
 			},
 		},
 		Data: map[string][]byte{
-			ocistorage.OCISecretReference:     []byte(opts.Reference),
-			ocistorage.OCISecretUsername:      []byte(opts.Username),
-			ocistorage.OCISecretPassword:      []byte(opts.Password),
-			ocistorage.OCISecretAgentUsername: []byte(opts.AgentUsername),
-			ocistorage.OCISecretAgentPassword: []byte(opts.AgentPassword),
-			ocistorage.OCISecretBasicHTTP:     []byte(strconv.FormatBool(opts.BasicHTTP)),
-			ocistorage.OCISecretInsecure:      []byte(strconv.FormatBool(opts.InsecureSkipTLS)),
+			ocistorage.OCISecretReference:       []byte(opts.Reference),
+			ocistorage.OCISecretUsername:        []byte(opts.Username),
+			ocistorage.OCISecretPassword:        []byte(opts.Password),
+			ocistorage.OCISecretAgentUsername:   []byte(opts.AgentUsername),
+			ocistorage.OCISecretAgentPassword:   []byte(opts.AgentPassword),
+			ocistorage.OCISecretBasicHTTP:       []byte(strconv.FormatBool(opts.BasicHTTP)),
+			ocistorage.OCISecretInsecureSkipTLS: []byte(strconv.FormatBool(opts.InsecureSkipTLS)),
 		},
 		Type: fleet.SecretTypeOCIStorage,
 	}
@@ -779,8 +781,8 @@ func newValuesSecret(bundle *fleet.Bundle, data map[string][]byte) *corev1.Secre
 					Kind:               "Bundle",
 					Name:               bundle.Name,
 					UID:                bundle.GetUID(),
-					BlockOwnerDeletion: ptr.To(true),
-					Controller:         ptr.To(true),
+					BlockOwnerDeletion: new(true),
+					Controller:         new(true),
 				},
 			},
 			Labels: bundle.Labels,
@@ -933,7 +935,7 @@ func GetBundleCreationMaxConcurrency() (int, error) {
 
 type k8sWithNS struct {
 	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.ObjectMeta `json:"metadata"`
 }
 
 func getKindNS(br fleet.BundleResource, bundleName string) (fleet.OverwrittenResource, error) {

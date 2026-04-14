@@ -1,7 +1,7 @@
 package metrics
 
 import (
-	"fmt"
+	"strconv"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
@@ -170,7 +170,7 @@ func collectClusterMetrics(obj any, metrics map[string]prometheus.Collector) {
 		"namespace":            cluster.Namespace,
 		"cluster_name":         cluster.Labels[clusterNameLabel],
 		"cluster_display_name": cluster.Labels[clusterDisplayNameLabel],
-		"generation":           fmt.Sprintf("%d", cluster.Generation),
+		"generation":           strconv.FormatInt(cluster.Generation, 10),
 		"state":                cluster.Status.Display.State,
 	}
 

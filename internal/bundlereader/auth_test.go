@@ -185,13 +185,13 @@ func TestReadHelmAuthFromSecret(t *testing.T) {
 	for _, c := range cases {
 		if c.getError != "" {
 			mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-				func(_ context.Context, _ types.NamespacedName, secret *corev1.Secret, _ ...interface{}) error {
+				func(_ context.Context, _ types.NamespacedName, secret *corev1.Secret, _ ...any) error {
 					return fmt.Errorf("%v", c.getError)
 				},
 			)
 		} else {
 			mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-				func(_ context.Context, _ types.NamespacedName, secret *corev1.Secret, _ ...interface{}) error {
+				func(_ context.Context, _ types.NamespacedName, secret *corev1.Secret, _ ...any) error {
 					secret.Data = c.secretData
 					return nil
 				},

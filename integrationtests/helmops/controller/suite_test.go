@@ -19,6 +19,8 @@ import (
 	"github.com/rancher/fleet/internal/manifest"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
@@ -88,7 +90,7 @@ var _ = BeforeSuite(func() {
 	err = (&reconciler.HelmOpReconciler{
 		Client:    mgr.GetClient(),
 		Scheme:    mgr.GetScheme(),
-		Recorder:  mgr.GetEventRecorderFor("helmops-controller"),
+		Recorder:  mgr.GetEventRecorder("helmops-controller"),
 		Scheduler: sched,
 		Workers:   50,
 	}).SetupWithManager(mgr)
@@ -106,12 +108,13 @@ var _ = BeforeSuite(func() {
 	store := manifest.NewStore(mgr.GetClient())
 	builder := target.New(mgr.GetClient(), mgr.GetAPIReader())
 	err = (&ctrlreconciler.BundleReconciler{
-		Client:  mgr.GetClient(),
-		Scheme:  mgr.GetScheme(),
-		Builder: builder,
-		Store:   store,
-		Query:   builder,
-		Workers: 50,
+		Client:    mgr.GetClient(),
+		Scheme:    mgr.GetScheme(),
+		APIReader: mgr.GetAPIReader(),
+		Builder:   builder,
+		Store:     store,
+		Query:     builder,
+		Workers:   50,
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred(), "failed to set up manager")
 
@@ -128,6 +131,22 @@ var _ = BeforeSuite(func() {
 		err = mgr.Start(ctx)
 		Expect(err).ToNot(HaveOccurred(), "failed to run manager")
 	}()
+
+	// Create Rancher-like namespace for CA bundle secrets
+	err = k8sClient.Create(ctx, &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "cattle-system",
+		},
+	})
+	Expect(err).ToNot(HaveOccurred())
+
+	DeferCleanup(func() {
+		_ = k8sClient.Delete(ctx, &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "cattle-system",
+			},
+		})
+	})
 })
 
 var _ = AfterSuite(func() {

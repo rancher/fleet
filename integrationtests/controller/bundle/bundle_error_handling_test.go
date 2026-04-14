@@ -8,6 +8,7 @@ import (
 
 	"github.com/rancher/fleet/integrationtests/utils"
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/wrangler/v3/pkg/genericcondition"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -16,6 +17,16 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
+
+// getCondition returns the condition with the given type from the list of conditions
+func getCondition(conditions []genericcondition.GenericCondition, condType string) *genericcondition.GenericCondition {
+	for _, c := range conditions {
+		if c.Type == condType {
+			return &c
+		}
+	}
+	return nil
+}
 
 const (
 	testFinalizer   = "test.fleet.cattle.io/block-deletion"
@@ -312,6 +323,123 @@ var _ = Describe("Bundle controller error handling", Ordered, func() {
 			}).Should(Succeed())
 
 			removeFinalizer(cluster1Namespace, testFinalizerNS)
+		})
+	})
+
+	// Issue #4561 - Ready condition Reason not cleared when transitioning from error to ready
+	Context("Issue #4561 - Ready condition Reason not cleared when becoming ready", func() {
+		var (
+			bundle     *v1alpha1.Bundle
+			cluster    *v1alpha1.Cluster
+			bundleName string
+			testID     string
+			clusterNS  string
+		)
+
+		BeforeEach(func() {
+			bundleName = "test-bundle-reason"
+			testID = generateTestID()
+			clusterNS = "cluster-ns-" + testID
+
+			createNamespace(clusterNS)
+
+			cluster = createCluster("cluster-reason", bundleNS, clusterNS, map[string]string{"env": "test"})
+		})
+
+		AfterEach(func() {
+			if bundle != nil {
+				cleanupResources(bundle, bundleName, testID, cluster)
+			} else {
+				_ = k8sClient.Delete(ctx, cluster)
+			}
+			_ = k8sClient.Delete(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: clusterNS}})
+		})
+
+		It("should clear the Reason field when Ready status becomes True", func() {
+			By("creating a bundle with an invalid label selector to trigger a targeting error")
+			// An invalid MatchExpressions operator will cause a targeting error
+			bundle = &v1alpha1.Bundle{
+				ObjectMeta: metav1.ObjectMeta{Name: bundleName, Namespace: bundleNS},
+				Spec: v1alpha1.BundleSpec{
+					BundleDeploymentOptions: v1alpha1.BundleDeploymentOptions{DefaultNamespace: "default"},
+					Targets: []v1alpha1.BundleTarget{{
+						ClusterSelector: &metav1.LabelSelector{
+							MatchExpressions: []metav1.LabelSelectorRequirement{{
+								Key:      "env",
+								Operator: metav1.LabelSelectorOperator("InvalidOperator"), // Invalid operator causes error
+								Values:   []string{"test"},
+							}},
+						},
+					}},
+					Resources: []v1alpha1.BundleResource{{
+						Name:    "test.yaml",
+						Content: "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: test-reason\ndata:\n  key: value",
+					}},
+				},
+			}
+			Expect(k8sClient.Create(ctx, bundle)).ToNot(HaveOccurred())
+
+			By("verifying the Ready condition has Status=False and Reason=Error due to targeting error")
+			Eventually(func(g Gomega) {
+				latestBundle := &v1alpha1.Bundle{}
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: bundleName, Namespace: bundleNS}, latestBundle)).To(Succeed())
+				readyCond := getCondition(latestBundle.Status.Conditions, "Ready")
+				g.Expect(readyCond).NotTo(BeNil(), "Ready condition should exist")
+				g.Expect(string(readyCond.Status)).To(Equal("False"), "Ready status should be False during error")
+				g.Expect(readyCond.Reason).To(Equal("Error"), "Ready reason should be Error during error state")
+				g.Expect(readyCond.Message).To(ContainSubstring("targeting error"), "Message should mention targeting error")
+			}).Should(Succeed())
+
+			By("fixing the bundle by updating to a valid label selector")
+			Eventually(func(g Gomega) {
+				latestBundle := &v1alpha1.Bundle{}
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: bundleName, Namespace: bundleNS}, latestBundle)).To(Succeed())
+				// Fix the target with a valid label selector
+				latestBundle.Spec.Targets = []v1alpha1.BundleTarget{{
+					ClusterSelector: &metav1.LabelSelector{
+						MatchLabels: map[string]string{"env": "test"},
+					},
+				}}
+				g.Expect(k8sClient.Update(ctx, latestBundle)).To(Succeed())
+			}).Should(Succeed())
+
+			By("waiting for the bundledeployment to be created")
+			Eventually(func(g Gomega) {
+				bdList := getBundleDeployments(bundleName, bundleNS)
+				g.Expect(bdList.Items).To(HaveLen(1))
+			}).Should(Succeed())
+
+			By("setting the bundledeployment to ready state")
+			Eventually(func(g Gomega) {
+				bdList := getBundleDeployments(bundleName, bundleNS)
+				g.Expect(bdList.Items).To(HaveLen(1))
+				bd := &bdList.Items[0]
+				bd.Status.Display.State = "Ready"
+				bd.Status.AppliedDeploymentID = bd.Spec.DeploymentID
+				bd.Status.Ready = true
+				bd.Status.NonModified = true
+				g.Expect(k8sClient.Status().Update(ctx, bd)).To(Succeed())
+			}).Should(Succeed())
+
+			By("waiting for the Bundle to become ready with Status=True")
+			Eventually(func(g Gomega) {
+				latestBundle := &v1alpha1.Bundle{}
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: bundleName, Namespace: bundleNS}, latestBundle)).To(Succeed())
+				g.Expect(latestBundle.Status.Summary.Ready).To(Equal(1))
+				readyCond := getCondition(latestBundle.Status.Conditions, "Ready")
+				g.Expect(readyCond).NotTo(BeNil())
+				g.Expect(string(readyCond.Status)).To(Equal("True"), "Ready status should be True")
+			}).Should(Succeed())
+
+			By("checking the Ready condition")
+			latestBundle := &v1alpha1.Bundle{}
+			Expect(k8sClient.Get(ctx, types.NamespacedName{Name: bundleName, Namespace: bundleNS}, latestBundle)).To(Succeed())
+			readyCond := getCondition(latestBundle.Status.Conditions, "Ready")
+			Expect(readyCond).NotTo(BeNil(), "Ready condition should exist")
+			Expect(string(readyCond.Status)).To(Equal("True"), "Ready status should be True when bundle is ready")
+
+			// This is the actual bug assertion - when fixed, this should pass
+			Expect(readyCond.Reason).To(BeEmpty(), "Ready condition Reason should be empty when Status is True")
 		})
 	})
 })

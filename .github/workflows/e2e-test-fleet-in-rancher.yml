@@ -15,7 +15,7 @@ on:
       charts_branch:
         description: Branch from which to source Fleet charts
         required: true
-        default: "dev-v2.12"
+        default: "dev-v2.14"
         type: string
   push:
     tags: [ 'v*' ]
@@ -25,8 +25,7 @@ on:
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
-  SETUP_K3D_VERSION: 'v5.8.3'
-  SETUP_K3S_VERSION: 'v1.33.4-k3s1'
+  SETUP_K3S_VERSION: 'v1.35.1-k3s1'
 
 jobs:
   release-against-test-charts:
@@ -49,97 +48,116 @@ jobs:
 
       -
         name: Checkout
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
+          path: fleet
 
       -
         name: Install Go
-        uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
-          go-version-file: 'go.mod'
-          check-latest: true
+          go-version-file: "fleet/go.mod"
 
       -
         name: Install Ginkgo CLI
-        run: go install github.com/onsi/ginkgo/v2/ginkgo
-
-      -
-        name: Determine cache key
-        id: cache-key
         run: |
-          DAY_OF_YEAR=$(date +%j)
-          if [ $(($DAY_OF_YEAR % 28)) -eq 0 ]; then
-            echo "value=$(date +%Y-%m-%d)" >> $GITHUB_OUTPUT
-          else
-            echo "value=latest" >> $GITHUB_OUTPUT
-          fi
+          cd fleet
+          go install github.com/onsi/ginkgo/v2/ginkgo
+
       -
         name: Cache crust-gather CLI
         id: cache-crust
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ~/.local/bin/crust-gather
-          key: ${{ runner.os }}-crust-gather-${{ steps.cache-key.outputs.value }}
+          key: ${{ runner.os }}-crust-gather-${{ hashFiles('.github/scripts/install-crust-gather.sh') }}
           restore-keys: |
             ${{ runner.os }}-crust-gather-
       -
         name: Install crust-gather CLI
         run: |
           if [ "${{ steps.cache-crust.outputs.cache-hit }}" != "true" ]; then
-            echo "Cache not found, downloading from source"
-            mkdir -p ~/.local/bin
-            if curl -sSfL https://github.com/crust-gather/crust-gather/raw/main/install.sh | sh -s -- --yes; then
-              # Cache the binary for future runs
-              if [ ! -f ~/.local/bin/crust-gather ]; then
-                which crust-gather && cp $(which crust-gather) ~/.local/bin/
-              fi
-            else
-              echo "Failed to download crust-gather"
-              exit 1
-            fi
+            ./.github/scripts/install-crust-gather.sh
           else
             echo "Using cached crust-gather CLI"
             chmod +x ~/.local/bin/crust-gather
-            sudo ln -sf ~/.local/bin/crust-gather /usr/local/bin/
           fi
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       -
         name: Set up build cache
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         id: rancher-cli-cache
         with:
-          path: ~/.local/bin
-          key: ${{ runner.os }}-rancher-cli
+          path: ~/.local/bin/rancher
+          key: ${{ runner.os }}-rancher-cli-${{ hashFiles('.github/workflows/e2e-test-fleet-in-rancher.yml') }}
+
+      -
+        name: Cache kubectl and helm
+        id: deps-cache
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: |
+            ~/.local/bin/kubectl
+            ~/.local/bin/helm
+          key: ${{ runner.os }}-deps-${{ hashFiles('.github/workflows/e2e-test-fleet-in-rancher.yml') }}
 
       -
         name: Install Dependencies
         run: |
-          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-          mv kubectl ~/.local/bin/
-          chmod +x ~/.local/bin/kubectl
-          kubectl version --client
+          mkdir -p ~/.local/bin
+          if [ "${{ steps.deps-cache.outputs.cache-hit }}" != "true" ]; then
+            # renovate: datasource=github-releases depName=kubernetes/kubernetes
+            KUBECTL_VERSION="v1.35.3"
+            # renovate: datasource=github-release-attachments depName=kubernetes/kubernetes digestVersion=v1.35.3
+            KUBECTL_SUM_amd64="fd31c7d7129260e608f6faf92d5984c3267ad0b5ead3bced2fe125686e286ad6"
+            curl -sSfL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl" -o kubectl
+            echo "${KUBECTL_SUM_amd64}  kubectl" | sha256sum -c -
+            mv kubectl ~/.local/bin/
+            chmod +x ~/.local/bin/kubectl
 
-          curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-4
-          chmod 700 get_helm.sh
-          HELM_INSTALL_DIR=~/.local/bin ./get_helm.sh
-          helm version
-
-          sudo apt-get update && sudo apt install -y wget
+            # renovate: datasource=github-releases depName=helm/helm
+            HELM_VERSION="v4.1.3"
+            # renovate: datasource=github-release-attachments depName=helm/helm digestVersion=v4.1.3
+            HELM_SUM_amd64="02ce9722d541238f81459938b84cf47df2fdf1187493b4bfb2346754d82a4700"
+            curl -sSfL "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz" -o helm.tar.gz
+            echo "${HELM_SUM_amd64}  helm.tar.gz" | sha256sum -c -
+            tar -xzf helm.tar.gz linux-amd64/helm
+            mv linux-amd64/helm ~/.local/bin/
+          fi
 
       -
         name: Install Rancher CLI
         if: steps.rancher-cli-cache.outputs.cache-hit != 'true'
         run: |
-          latest_version=$(curl -ILs -o /dev/null -w %{url_effective} github.com/rancher/cli/releases/latest | sed 's,.*/,,')
-
-          wget -q https://github.com/rancher/cli/releases/download/$latest_version/rancher-linux-amd64-$latest_version.tar.gz
-          tar -xz --strip-components=2 -f rancher-linux-amd64-$latest_version.tar.gz -C ~/.local/bin
-          export PATH=~/.local/bin:$PATH
-          rancher --version
+          mkdir -p ~/.local/bin
+          # renovate: datasource=github-releases depName=rancher/cli
+          RANCHER_CLI_VERSION="v2.14.0"
+          # renovate: datasource=github-release-attachments depName=rancher/cli digestVersion=v2.14.0
+          RANCHER_CLI_SUM_amd64="d05e207d9830f22171e62801dc51a32417125ecb7aaf50c073bf423e7da36a94"
+          curl -fsSL -o "rancher-linux-amd64-${RANCHER_CLI_VERSION}.tar.gz" \
+            "https://github.com/rancher/cli/releases/download/${RANCHER_CLI_VERSION}/rancher-linux-amd64-${RANCHER_CLI_VERSION}.tar.gz"
+          echo "${RANCHER_CLI_SUM_amd64}  rancher-linux-amd64-${RANCHER_CLI_VERSION}.tar.gz" | sha256sum -c -
+          tar -xz --strip-components=2 -f "rancher-linux-amd64-${RANCHER_CLI_VERSION}.tar.gz" -C ~/.local/bin
 
       -
+        name: Cache k3d CLI
+        id: cache-k3d
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: ~/.local/bin/k3d
+          key: ${{ runner.os }}-k3d-${{ hashFiles('.github/scripts/install-k3d.sh') }}
+          restore-keys: |
+            ${{ runner.os }}-k3d-
+      -
         name: Install k3d
-        run: curl --silent --fail https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | TAG=${{ env.SETUP_K3D_VERSION }} bash
+        run: |
+          if [ "${{ steps.cache-k3d.outputs.cache-hit }}" != "true" ]; then
+            ./.github/scripts/install-k3d.sh
+          else
+            echo "Using cached k3d"
+            chmod +x ~/.local/bin/k3d
+          fi
 
       -
         name: Set up k3d control-plane cluster
@@ -152,7 +170,8 @@ jobs:
             --k3s-arg '--kubelet-arg=eviction-hard=imagefs.available<1%,nodefs.available<1%@agent:*' \
             --k3s-arg '--kubelet-arg=eviction-minimum-reclaim=imagefs.available=1%,nodefs.available=1%@agent:*' \
             --network "nw01" \
-            --image docker.io/rancher/k3s:${{ env.SETUP_K3S_VERSION }}
+            --image docker.io/rancher/k3s:${{ env.SETUP_K3S_VERSION }} \
+            --k3s-arg "--cluster-init@server:0"
 
       -
         name: Set up k3d downstream cluster
@@ -165,7 +184,8 @@ jobs:
             --k3s-arg '--kubelet-arg=eviction-hard=imagefs.available<1%,nodefs.available<1%@agent:*' \
             --k3s-arg '--kubelet-arg=eviction-minimum-reclaim=imagefs.available=1%,nodefs.available=1%@agent:*' \
             --network "nw01" \
-            --image docker.io/rancher/k3s:${{ env.SETUP_K3S_VERSION }}
+            --image docker.io/rancher/k3s:${{ env.SETUP_K3S_VERSION }} \
+            --k3s-arg "--cluster-init@server:0"
 
       -
         name: Set up latest Rancher
@@ -227,7 +247,7 @@ jobs:
 
       -
         name: Checkout rancher/rancher
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
           repository: rancher/rancher
@@ -245,11 +265,13 @@ jobs:
       -
         name: Register Rancher's downstream clusters
         run: |
+          until kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}'; do sleep 3; done
           ip=$(kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 
           export PATH=~/.local/bin:$PATH
           export public_hostname=$ip.sslip.io
 
+          cd fleet
           ./.github/scripts/wait-for-loadbalancer.sh
           ./.github/scripts/register-downstream-clusters.sh
 
@@ -280,7 +302,7 @@ jobs:
 
       -
         name: Upload logs
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         if: failure()
         with:
           name: gha-fleet-rancher-logs-${{ github.sha }}-${{ github.run_id }}

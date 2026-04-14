@@ -85,6 +85,10 @@ spec:
             - name: NO_PROXY
               value: {{ $.Values.noProxy }}
           {{- end }}
+          {{- if $.Values.proxyCACert }}
+            - name: PROXY_CA_BUNDLE
+              value: {{ $.Values.proxyCACert | quote }}
+          {{- end }}
           {{- if $.Values.controller.reconciler.workers.gitrepo }}
             - name: HELMOPS_RECONCILER_WORKERS
               value: {{ quote $.Values.controller.reconciler.workers.gitrepo }}
@@ -105,6 +109,7 @@ spec:
                 drop:
                 - ALL
           {{- end }}
+          {{- include "fleet.container-resources" (dict "root" $ "containerName" "helmops") | nindent 10 }}
           volumeMounts:
             - mountPath: /tmp
               name: tmp
@@ -123,10 +128,6 @@ spec:
 {{- end }}
       {{- with $.Values.affinity }}
       affinity:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with $.Values.resources }}
-      resources:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       {{- if $.Values.priorityClassName }}

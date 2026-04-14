@@ -52,7 +52,7 @@ var _ = Describe("Helm deploy options", func() {
 						"jsonpath={.items[*].metadata.name}",
 					)
 
-					for _, bdName := range strings.Split(bundleDeploymentNames, " ") {
+					for bdName := range strings.SplitSeq(bundleDeploymentNames, " ") {
 						if strings.HasPrefix(bdName, "test-target-customization-namespace-labels") {
 							bundleDeploymentName = bdName
 							break
@@ -118,7 +118,7 @@ var _ = Describe("Helm deploy options", func() {
 						"jsonpath={.items[*].metadata.name}",
 					)
 
-					for _, bdName := range strings.Split(bundleDeploymentNames, " ") {
+					for bdName := range strings.SplitSeq(bundleDeploymentNames, " ") {
 						if strings.HasPrefix(bdName, "test-target-customization-namespace-labels") {
 							bundleDeploymentName = bdName
 							break

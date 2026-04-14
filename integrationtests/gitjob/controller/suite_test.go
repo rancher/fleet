@@ -17,6 +17,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 
+	"github.com/rancher/fleet/internal/cmd/controller/gitops"
 	"github.com/rancher/fleet/internal/cmd/controller/gitops/reconciler"
 	ctrlreconciler "github.com/rancher/fleet/internal/cmd/controller/reconciler"
 	"github.com/rancher/fleet/internal/cmd/controller/target"
@@ -89,16 +90,33 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).ToNot(HaveOccurred())
 
+	Expect(gitops.AddRepoNameLabelIndexer(ctx, mgr)).ToNot(HaveOccurred())
+	Expect(gitops.AddImageScanGitRepoIndexer(ctx, mgr, true)).ToNot(HaveOccurred())
+	Expect(gitops.AddGitRepoClientSecretNameIndexer(ctx, mgr)).ToNot(HaveOccurred())
+	Expect(gitops.AddGitRepoHelmSecretNameIndexer(ctx, mgr)).ToNot(HaveOccurred())
+	Expect(gitops.AddGitRepoHelmSecretNameForPathsIndexer(ctx, mgr)).ToNot(HaveOccurred())
+
 	ctlr := gomock.NewController(GinkgoT())
 
 	// redirect logs to a buffer that we can read in the tests
 	GinkgoWriter.TeeTo(&logsBuffer)
 	ctrl.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 
-	// return whatever commit the test is expecting
+	// return whatever commit the test is expecting, but simulate failure if secret is missing
 	fetcherMock := mocks.NewMockGitFetcher(ctlr)
 	fetcherMock.EXPECT().LatestCommit(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(
-		func(ctx context.Context, gitrepo *v1alpha1.GitRepo, client client.Client) (string, error) {
+		func(ctx context.Context, gitrepo *v1alpha1.GitRepo, c client.Client) (string, error) {
+			// Check if the referenced client secret exists (simulating real git auth behavior)
+			if gitrepo.Spec.ClientSecretName != "" {
+				secret := &corev1.Secret{}
+				err := c.Get(ctx, types.NamespacedName{
+					Name:      gitrepo.Spec.ClientSecretName,
+					Namespace: gitrepo.Namespace,
+				}, secret)
+				if err != nil {
+					return "", fmt.Errorf("failed to get client secret: %w", err)
+				}
+			}
 			return expectedCommit, nil
 		},
 	)
@@ -148,7 +166,7 @@ var _ = BeforeSuite(func() {
 		Scheduler:       sched,
 		GitFetcher:      fetcherMock,
 		Clock:           reconciler.RealClock{},
-		Recorder:        mgr.GetEventRecorderFor("gitjob-controller"),
+		Recorder:        mgr.GetEventRecorder("gitjob-controller"),
 		Workers:         50,
 		SystemNamespace: "default",
 		KnownHosts:      ssh.KnownHosts{},
@@ -167,12 +185,13 @@ var _ = BeforeSuite(func() {
 	store := manifest.NewStore(mgr.GetClient())
 	builder := target.New(mgr.GetClient(), mgr.GetAPIReader())
 	err = (&ctrlreconciler.BundleReconciler{
-		Client:  mgr.GetClient(),
-		Scheme:  mgr.GetScheme(),
-		Builder: builder,
-		Store:   store,
-		Query:   builder,
-		Workers: 50,
+		Client:    mgr.GetClient(),
+		Scheme:    mgr.GetScheme(),
+		APIReader: mgr.GetAPIReader(),
+		Builder:   builder,
+		Store:     store,
+		Query:     builder,
+		Workers:   50,
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred(), "failed to set up manager")
 

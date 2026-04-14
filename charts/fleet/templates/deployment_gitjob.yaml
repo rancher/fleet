@@ -94,6 +94,10 @@ spec:
             - name: NO_PROXY
               value: {{ $.Values.noProxy }}
           {{- end }}
+          {{- if $.Values.proxyCACert }}
+            - name: PROXY_CA_BUNDLE
+              value: {{ $.Values.proxyCACert | quote }}
+          {{- end }}
           {{- if $.Values.gitops.syncPeriod }}
             - name: GITREPO_SYNC_PERIOD
               value: {{ quote $.Values.gitops.syncPeriod }}
@@ -101,6 +105,10 @@ spec:
           {{- if $.Values.controller.reconciler.workers.gitrepo }}
             - name: GITREPO_RECONCILER_WORKERS
               value: {{ quote $.Values.controller.reconciler.workers.gitrepo }}
+          {{- end }}
+          {{- if $.Values.imagescan.enabled }}
+            - name: IMAGESCAN_ENABLED
+              value: {{ quote $.Values.imagescan.enabled }}
           {{- end }}
 {{- if $.Values.extraEnv }}
 {{ toYaml $.Values.extraEnv | indent 12}}
@@ -118,6 +126,7 @@ spec:
                 drop:
                 - ALL
           {{- end }}
+          {{- include "fleet.container-resources" (dict "root" $ "containerName" "gitjob") | nindent 10 }}
           volumeMounts:
             - mountPath: /tmp
               name: tmp
@@ -136,10 +145,6 @@ spec:
 {{- end }}
       {{- with $.Values.affinity }}
       affinity:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with $.Values.resources }}
-      resources:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       {{- if $.Values.priorityClassName }}

@@ -2,60 +2,120 @@ name: Release Fleet against rancher/rancher
 on:
   workflow_dispatch:
     inputs:
-      rancher_ref:
-        description: "Submit PR against the following rancher/rancher branch (e.g. release/v2.13 or main if there is no according release branch yet)"
+      fleet_branch:
+        description: "Fleet branch to release from (main = next unreleased minor version)"
         required: true
         default: "main"
-      new_fleet:
-        description: "New Fleet version (e.g. 0.14.0-rc.1)"
-        required: true
-        default: ""
-      new_chart:
-        description: "New Rancher Chart version (e.g. 108.0.0)"
-        required: true
-        default: ""
-      should_bump_api:
-        description: "Should the Fleet api be bumped in the Rancher repo? (If the API in github.com/rancher/fleet/pkg/apis has changed or the release is for a final release, then the API needs to be bumped (set to true ), otherwise use false .)"
-        required: true
-        default: "false"
-      go_version:
-        description: "Go version used for bumping the api. This should be the same version as in the go.mod file of the project."
-        required: true
-        default: '1.25.*'
+        type: choice
+        # NOTE: Maintenance required for minor version bumps:
+        # - New Fleet minor version (every ~4 months): Add new release/v0.X branch below and remove EOL ones
+        # NOTE: Maintenance required for major version bumps:
+        # - Rancher major version bump: Update 'dev-v2' and 'release/v2' to 'dev-v3'/'release/v3' in
+        #   compute-rancher-versions.sh (lines with charts_branch and rancher_ref)
+        # - Fleet major version bump: Update 'v0' pattern in compute-rancher-versions.sh
+        #   (grep -oE 'v0\.[0-9]+') and add new versions to list below
+        # - Version relationship change: Update rancher_minor calculation in compute-rancher-versions.sh
+        #   (currently: Fleet minor - 1 = Rancher minor)
+        options:
+          - main
+          - release/v0.15
+          - release/v0.14
+          - release/v0.13
+          - release/v0.12
+          - release/v0.11
 
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
-  SETUP_GO_VERSION: ${{github.event.inputs.go_version}}
 
 jobs:
   create-rancher-pr:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
           path: fleet
+          persist-credentials: false
+
+      - name: Compute versions
+        id: versions
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FLEET_BRANCH: ${{ inputs.fleet_branch }}
+        run: fleet/.github/scripts/compute-rancher-versions.sh
+
       - name: Checkout rancher/rancher
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
           repository: rancher/rancher
-          ref: ${{github.event.inputs.rancher_ref}}
+          ref: ${{ steps.versions.outputs.rancher_ref }}
           path: rancher
-      - uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6
+          persist-credentials: false
+
+      - name: Pre-flight checks
+        env:
+          NEW_FLEET: ${{ steps.versions.outputs.new_fleet }}
+        run: |
+          set -euo pipefail
+
+          # Skip all checks for pre-releases.
+          if [[ "${NEW_FLEET}" =~ - ]]; then
+            echo "Pre-release version ${NEW_FLEET}; skipping pre-flight checks"
+            exit 0
+          fi
+
+          # For a new final minor version, pkg/apis must be tagged in the fleet repo.
+          if [[ "${NEW_FLEET}" =~ \.0$ ]]; then
+            if ! git -C fleet tag -l "pkg/apis/v${NEW_FLEET}" | grep -q .; then
+              {
+                printf 'ERROR: pkg/apis/v%s tag not found in the fleet repo!\n' "${NEW_FLEET}"
+                printf 'For a new final minor version, pkg/apis must be bumped first.\n'
+                printf 'Please create the tag: git tag pkg/apis/v%s\n' "${NEW_FLEET}"
+              } >&2
+              exit 1
+            fi
+          fi
+
+          # For any final version, rancher/rancher must not reference a pre-release Fleet API
+          # so there must be a Fleet `pkg/apis/v<VERSION>` tag that the api is bumped in this action
+          if ! git -C fleet tag -l "pkg/apis/v${NEW_FLEET}" | grep -q .; then
+            # Tag doesn't exist; check if rancher/rancher has a pre-release version that does not need to be bumped.
+            RANCHER_FLEET_API_VERSION=$(grep 'github.com/rancher/fleet/pkg/apis' rancher/pkg/apis/go.mod | awk '{print $NF}')
+            if [[ "${RANCHER_FLEET_API_VERSION:-}" =~ - ]]; then
+              {
+                printf 'ERROR: rancher/rancher uses pre-release Fleet API %s, but pkg/apis/v%s tag not found\n' "${RANCHER_FLEET_API_VERSION}" "${NEW_FLEET}"
+                printf 'Please create the tag: git tag pkg/apis/v%s\n' "${NEW_FLEET}"
+              } >&2
+              exit 1
+            fi
+          fi
+
+      - uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
-          go-version: ${{ env.SETUP_GO_VERSION }}
+          go-version-file: ./rancher/go.mod
+          cache-dependency-path: ./rancher/go.sum
+
       - name: Install controller-gen
         run: go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.17.2
+
       - name: Run release script
         run: |
-          export CHARTS_DIR="${GITHUB_WORKSPACE}/rancher"
-          ./fleet/.github/scripts/release-against-rancher.sh ${{github.event.inputs.new_fleet}} ${{github.event.inputs.new_chart}} ${{github.event.inputs.should_bump_api}}
+          ./fleet/.github/scripts/release-against-rancher.sh \
+            "${{ steps.versions.outputs.new_fleet }}" \
+            "${{ steps.versions.outputs.new_chart }}"
+
       - name: Create Pull Request
         env:
           GITHUB_TOKEN: ${{ secrets.PUSH_TO_FORKS_SUBMIT_PRS }}
         working-directory: ./rancher/
         run: |
-          ../fleet/.github/scripts/create-pr.sh ${{github.event.inputs.rancher_ref}} ${{github.event.inputs.new_fleet}} ${{github.event.inputs.new_chart}} rancher
+          ../fleet/.github/scripts/create-pr.sh \
+            "${{ steps.versions.outputs.rancher_ref }}" \
+            "${{ steps.versions.outputs.new_fleet }}" \
+            "${{ steps.versions.outputs.new_chart }}" \
+            rancher

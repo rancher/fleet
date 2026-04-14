@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.19.0
+    controller-gen.kubebuilder.io/version: v0.20.1
   name: bundledeployments.fleet.cattle.io
 spec:
   group: fleet.cattle.io
@@ -93,6 +93,25 @@ spec:
                     before this bundle can be deployed.
                   items:
                     properties:
+                      acceptedStates:
+                        description: 'AcceptedStates is a list of BundleDeployment
+                          state that are considered acceptable for this dependency.
+
+                          If the dependency is in one of these states, it will not
+                          block the deployment of the dependent bundle.
+
+                          Valid Values should match the StateRank keys.
+
+                          If not specified, default to ["Ready"]: only fully ready
+                          dependencies are accepted
+
+                          Example: ["Ready", "Modified"] will accept dependencies
+                          that are either ready or have drifted from their desired
+                          state.'
+                        items:
+                          type: string
+                        nullable: true
+                        type: array
                       name:
                         description: Name of the bundle.
                         nullable: true
@@ -162,12 +181,33 @@ spec:
                   description: DeploymentID is the ID of the currently applied deployment.
                   nullable: true
                   type: string
+                downstreamResourcesGeneration:
+                  description: 'DownstreamResourcesGeneration is used to track changes
+                    to DownstreamResources.
+
+                    It is incremented every time DownstreamResources are modified.'
+                  format: int64
+                  type: integer
                 helmChartOptions:
                   description: 'HelmChartOptions is not nil and has the helm chart
                     config details when contents
 
                     should be downloaded from a helm chart'
                   properties:
+                    helmOpCABundle:
+                      description: 'CABundle is a PEM encoded CA bundle used to validate
+                        TLS connections to
+
+                        the Helm registry. It is resolved by the controller (which
+                        has access to
+
+                        Rancher''s cattle-system CA secrets, if any) and stored here
+                        so the agent can use
+
+                        it without requiring access to those secrets.'
+                      format: byte
+                      nullable: true
+                      type: string
                     helmOpInsecureSkipTLSVerify:
                       description: InsecureSkipTLSverify will use insecure HTTPS to
                         clone the helm app resource.
@@ -199,6 +239,68 @@ spec:
                   description: Options are the deployment options, that are currently
                     applied.
                   properties:
+                    allowedTargetNamespaceSelector:
+                      description: 'AllowedTargetNamespaceSelector restricts deployments
+                        to namespaces matching this selector.
+
+                        Propagated from GitRepoRestriction and validated by the agent
+                        on the downstream cluster.'
+                      nullable: true
+                      properties:
+                        matchExpressions:
+                          description: matchExpressions is a list of label selector
+                            requirements. The requirements are ANDed.
+                          items:
+                            description: 'A label selector requirement is a selector
+                              that contains values, a key, and an operator that
+
+                              relates the key and values.'
+                            properties:
+                              key:
+                                description: key is the label key that the selector
+                                  applies to.
+                                type: string
+                              operator:
+                                description: 'operator represents a key''s relationship
+                                  to a set of values.
+
+                                  Valid operators are In, NotIn, Exists and DoesNotExist.'
+                                type: string
+                              values:
+                                description: 'values is an array of string values.
+                                  If the operator is In or NotIn,
+
+                                  the values array must be non-empty. If the operator
+                                  is Exists or DoesNotExist,
+
+                                  the values array must be empty. This array is replaced
+                                  during a strategic
+
+                                  merge patch.'
+                                items:
+                                  type: string
+                                type: array
+                                x-kubernetes-list-type: atomic
+                            required:
+                              - key
+                              - operator
+                            type: object
+                          type: array
+                          x-kubernetes-list-type: atomic
+                        matchLabels:
+                          additionalProperties:
+                            type: string
+                          description: 'matchLabels is a map of {key,value} pairs.
+                            A single {key,value} in the matchLabels
+
+                            map is equivalent to an element of matchExpressions, whose
+                            key field is "key", the
+
+                            operator is "In", and the values array contains only "value".
+                            The requirements are ANDed.'
+                          type: object
+                      type: object
+                      x-kubernetes-map-type: atomic
                     correctDrift:
                       description: CorrectDrift specifies how drift correction should
                         work.
@@ -603,6 +705,68 @@ spec:
 
                     the next deployment.'
                   properties:
+                    allowedTargetNamespaceSelector:
+                      description: 'AllowedTargetNamespaceSelector restricts deployments
+                        to namespaces matching this selector.
+
+                        Propagated from GitRepoRestriction and validated by the agent
+                        on the downstream cluster.'
+                      nullable: true
+                      properties:
+                        matchExpressions:
+                          description: matchExpressions is a list of label selector
+                            requirements. The requirements are ANDed.
+                          items:
+                            description: 'A label selector requirement is a selector
+                              that contains values, a key, and an operator that
+
+                              relates the key and values.'
+                            properties:
+                              key:
+                                description: key is the label key that the selector
+                                  applies to.
+                                type: string
+                              operator:
+                                description: 'operator represents a key''s relationship
+                                  to a set of values.
+
+                                  Valid operators are In, NotIn, Exists and DoesNotExist.'
+                                type: string
+                              values:
+                                description: 'values is an array of string values.
+                                  If the operator is In or NotIn,
+
+                                  the values array must be non-empty. If the operator
+                                  is Exists or DoesNotExist,
+
+                                  the values array must be empty. This array is replaced
+                                  during a strategic
+
+                                  merge patch.'
+                                items:
+                                  type: string
+                                type: array
+                                x-kubernetes-list-type: atomic
+                            required:
+                              - key
+                              - operator
+                            type: object
+                          type: array
+                          x-kubernetes-list-type: atomic
+                        matchLabels:
+                          additionalProperties:
+                            type: string
+                          description: 'matchLabels is a map of {key,value} pairs.
+                            A single {key,value} in the matchLabels
+
+                            map is equivalent to an element of matchExpressions, whose
+                            key field is "key", the
+
+                            operator is "In", and the values array contains only "value".
+                            The requirements are ANDed.'
+                          type: object
+                      type: object
+                      x-kubernetes-map-type: atomic
                     correctDrift:
                       description: CorrectDrift specifies how drift correction should
                         work.
@@ -994,6 +1158,18 @@ spec:
                     the bundle.
                   nullable: true
                   type: string
+                waitingForValues:
+                  description: 'WaitingForValues is set to true by the bundle controller
+                    when the
+
+                    options secret for this BundleDeployment could not be found (e.g.
+
+                    due to transient API server pressure). While true, the agent skips
+
+                    reconciliation to avoid deploying with missing Helm values. The
+
+                    controller clears this flag once the secret is successfully loaded.'
+                  type: boolean
               type: object
             status:
               properties:
@@ -1043,6 +1219,16 @@ spec:
                       nullable: true
                       type: string
                   type: object
+                downstreamResourcesGeneration:
+                  description: 'DownstreamResourcesGeneration is used to track changes
+                    to DownstreamResources.
+
+                    It is incremented every time DownstreamResources are modified
+                    and reflects the value in the spec
+
+                    after it has been processed.'
+                  format: int64
+                  type: integer
                 incompleteState:
                   description: IncompleteState is true if there are more than 10 non-ready
                     or modified resources, meaning that the lists in those fields
@@ -1215,7 +1401,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.19.0
+    controller-gen.kubebuilder.io/version: v0.20.1
   name: bundlenamespacemappings.fleet.cattle.io
 spec:
   group: fleet.cattle.io
@@ -1395,7 +1581,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.19.0
+    controller-gen.kubebuilder.io/version: v0.20.1
   name: bundles.fleet.cattle.io
 spec:
   group: fleet.cattle.io
@@ -1466,6 +1652,68 @@ spec:
               type: object
             spec:
               properties:
+                allowedTargetNamespaceSelector:
+                  description: 'AllowedTargetNamespaceSelector restricts deployments
+                    to namespaces matching this selector.
+
+                    Propagated from GitRepoRestriction and validated by the agent
+                    on the downstream cluster.'
+                  nullable: true
+                  properties:
+                    matchExpressions:
+                      description: matchExpressions is a list of label selector requirements.
+                        The requirements are ANDed.
+                      items:
+                        description: 'A label selector requirement is a selector that
+                          contains values, a key, and an operator that
+
+                          relates the key and values.'
+                        properties:
+                          key:
+                            description: key is the label key that the selector applies
+                              to.
+                            type: string
+                          operator:
+                            description: 'operator represents a key''s relationship
+                              to a set of values.
+
+                              Valid operators are In, NotIn, Exists and DoesNotExist.'
+                            type: string
+                          values:
+                            description: 'values is an array of string values. If
+                              the operator is In or NotIn,
+
+                              the values array must be non-empty. If the operator
+                              is Exists or DoesNotExist,
+
+                              the values array must be empty. This array is replaced
+                              during a strategic
+
+                              merge patch.'
+                            items:
+                              type: string
+                            type: array
+                            x-kubernetes-list-type: atomic
+                        required:
+                          - key
+                          - operator
+                        type: object
+                      type: array
+                      x-kubernetes-list-type: atomic
+                    matchLabels:
+                      additionalProperties:
+                        type: string
+                      description: 'matchLabels is a map of {key,value} pairs. A single
+                        {key,value} in the matchLabels
+
+                        map is equivalent to an element of matchExpressions, whose
+                        key field is "key", the
+
+                        operator is "In", and the values array contains only "value".
+                        The requirements are ANDed.'
+                      type: object
+                  type: object
+                  x-kubernetes-map-type: atomic
                 contentsId:
                   description: ContentsID stores the contents id when deploying contents
                     using an OCI registry.
@@ -1511,6 +1759,25 @@ spec:
                     before this bundle can be deployed.
                   items:
                     properties:
+                      acceptedStates:
+                        description: 'AcceptedStates is a list of BundleDeployment
+                          state that are considered acceptable for this dependency.
+
+                          If the dependency is in one of these states, it will not
+                          block the deployment of the dependent bundle.
+
+                          Valid Values should match the StateRank keys.
+
+                          If not specified, default to ["Ready"]: only fully ready
+                          dependencies are accepted
+
+                          Example: ["Ready", "Modified"] will accept dependencies
+                          that are either ready or have drifted from their desired
+                          state.'
+                        items:
+                          type: string
+                        nullable: true
+                        type: array
                       name:
                         description: Name of the bundle.
                         nullable: true
@@ -1826,6 +2093,20 @@ spec:
                     not a git repository.'
                   nullable: true
                   properties:
+                    helmOpCABundle:
+                      description: 'CABundle is a PEM encoded CA bundle used to validate
+                        TLS connections to
+
+                        the Helm registry. It is resolved by the controller (which
+                        has access to
+
+                        Rancher''s cattle-system CA secrets, if any) and stored here
+                        so the agent can use
+
+                        it without requiring access to those secrets.'
+                      format: byte
+                      nullable: true
+                      type: string
                     helmOpInsecureSkipTLSVerify:
                       description: InsecureSkipTLSverify will use insecure HTTPS to
                         clone the helm app resource.
@@ -1958,6 +2239,33 @@ spec:
                         default: 25%'
                       nullable: true
                       x-kubernetes-int-or-string: true
+                    autoPartitionThreshold:
+                      description: 'AutoPartitionThreshold is the minimum number of
+                        clusters that need to be
+
+                        present before auto-partitioning is enabled. If the number
+                        of target
+
+                        clusters is less than this value, all clusters will be placed
+                        in a single
+
+                        partition.
+
+                        default: 200'
+                      nullable: true
+                      type: integer
+                    maxNew:
+                      description: 'MaxNew is the maximum number of new BundleDeployments
+                        that can be created
+
+                        in a single reconciliation. This limits the rate at which
+                        new deployments
+
+                        are staged when a bundle is first applied to many clusters.
+
+                        default: 50'
+                      nullable: true
+                      type: integer
                     maxUnavailable:
                       anyOf:
                         - type: integer
@@ -2315,6 +2623,68 @@ spec:
 
                       BundleDeploymentOptions from customizations into this struct.'
                     properties:
+                      allowedTargetNamespaceSelector:
+                        description: 'AllowedTargetNamespaceSelector restricts deployments
+                          to namespaces matching this selector.
+
+                          Propagated from GitRepoRestriction and validated by the
+                          agent on the downstream cluster.'
+                        nullable: true
+                        properties:
+                          matchExpressions:
+                            description: matchExpressions is a list of label selector
+                              requirements. The requirements are ANDed.
+                            items:
+                              description: 'A label selector requirement is a selector
+                                that contains values, a key, and an operator that
+
+                                relates the key and values.'
+                              properties:
+                                key:
+                                  description: key is the label key that the selector
+                                    applies to.
+                                  type: string
+                                operator:
+                                  description: 'operator represents a key''s relationship
+                                    to a set of values.
+
+                                    Valid operators are In, NotIn, Exists and DoesNotExist.'
+                                  type: string
+                                values:
+                                  description: 'values is an array of string values.
+                                    If the operator is In or NotIn,
+
+                                    the values array must be non-empty. If the operator
+                                    is Exists or DoesNotExist,
+
+                                    the values array must be empty. This array is
+                                    replaced during a strategic
+
+                                    merge patch.'
+                                  items:
+                                    type: string
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                              required:
+                                - key
+                                - operator
+                              type: object
+                            type: array
+                            x-kubernetes-list-type: atomic
+                          matchLabels:
+                            additionalProperties:
+                              type: string
+                            description: 'matchLabels is a map of {key,value} pairs.
+                              A single {key,value} in the matchLabels
+
+                              map is equivalent to an element of matchExpressions,
+                              whose key field is "key", the
+
+                              operator is "In", and the values array contains only
+                              "value". The requirements are ANDed.'
+                            type: object
+                        type: object
+                        x-kubernetes-map-type: atomic
                       clusterGroup:
                         description: ClusterGroup to match a specific cluster group
                           by name.
@@ -2951,12 +3321,6 @@ spec:
                       nullable: true
                       type: string
                   type: object
-                maxNew:
-                  description: 'MaxNew is always 50. A bundle change can only stage
-                    50
-
-                    bundledeployments at a time.'
-                  type: integer
                 maxUnavailable:
                   description: 'MaxUnavailable is the maximum number of unavailable
                     deployments. See
@@ -3432,7 +3796,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.19.0
+    controller-gen.kubebuilder.io/version: v0.20.1
   name: clustergroups.fleet.cattle.io
 spec:
   group: fleet.cattle.io
@@ -3859,7 +4223,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.19.0
+    controller-gen.kubebuilder.io/version: v0.20.1
   name: clusterregistrations.fleet.cattle.io
 spec:
   group: fleet.cattle.io
@@ -3963,7 +4327,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.19.0
+    controller-gen.kubebuilder.io/version: v0.20.1
   name: clusterregistrationtokens.fleet.cattle.io
 spec:
   group: fleet.cattle.io
@@ -4042,7 +4406,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.19.0
+    controller-gen.kubebuilder.io/version: v0.20.1
   name: clusters.fleet.cattle.io
 spec:
   group: fleet.cattle.io
@@ -5762,6 +6126,7 @@ spec:
                       type: object
                   type: object
                 agentSchedulingCustomization:
+                  nullable: true
                   properties:
                     podDisruptionBudget:
                       properties:
@@ -5807,12 +6172,16 @@ spec:
                         description: 'Operator represents a key''s relationship to
                           the value.
 
-                          Valid operators are Exists and Equal. Defaults to Equal.
+                          Valid operators are Exists, Equal, Lt, and Gt. Defaults
+                          to Equal.
 
                           Exists is equivalent to wildcard for value, so that a pod
                           can
 
-                          tolerate all taints of a particular category.'
+                          tolerate all taints of a particular category.
+
+                          Lt and Gt perform numeric comparisons (requires feature
+                          gate TaintTolerationComparisonOperators).'
                         type: string
                       tolerationSeconds:
                         description: 'TolerationSeconds represents the period of time
@@ -6330,7 +6699,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.19.0
+    controller-gen.kubebuilder.io/version: v0.20.1
   name: contents.fleet.cattle.io
 spec:
   group: fleet.cattle.io
@@ -6388,6 +6757,14 @@ spec:
             sha256sum:
               description: SHA256Sum of the Content field
               type: string
+            status:
+              description: ContentStatus defines the observed state of Content
+              properties:
+                referenceCount:
+                  description: ReferenceCount is the number of BundleDeployments that
+                    currently reference this Content resource.
+                  type: integer
+              type: object
           type: object
       served: true
       storage: true
@@ -6398,7 +6775,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.19.0
+    controller-gen.kubebuilder.io/version: v0.20.1
   name: gitreporestrictions.fleet.cattle.io
 spec:
   group: fleet.cattle.io
@@ -6447,13 +6824,83 @@ spec:
                 type: string
               nullable: true
               type: array
+            allowedTargetNamespaceSelector:
+              description: 'AllowedTargetNamespaceSelector is a label selector to
+                match labels defined on the downstream
+
+                cluster''s namespaces. When labels defined on the namespace resources
+                match the selector labels,
+
+                the namespace on the downstream cluster will be a target namespace
+                that bundles can be deployed to.
+
+                A namespace is allowed if it either matches this selector or is listed
+                in AllowedTargetNamespaces (OR semantics).'
+              nullable: true
+              properties:
+                matchExpressions:
+                  description: matchExpressions is a list of label selector requirements.
+                    The requirements are ANDed.
+                  items:
+                    description: 'A label selector requirement is a selector that
+                      contains values, a key, and an operator that
+
+                      relates the key and values.'
+                    properties:
+                      key:
+                        description: key is the label key that the selector applies
+                          to.
+                        type: string
+                      operator:
+                        description: 'operator represents a key''s relationship to
+                          a set of values.
+
+                          Valid operators are In, NotIn, Exists and DoesNotExist.'
+                        type: string
+                      values:
+                        description: 'values is an array of string values. If the
+                          operator is In or NotIn,
+
+                          the values array must be non-empty. If the operator is Exists
+                          or DoesNotExist,
+
+                          the values array must be empty. This array is replaced during
+                          a strategic
+
+                          merge patch.'
+                        items:
+                          type: string
+                        type: array
+                        x-kubernetes-list-type: atomic
+                    required:
+                      - key
+                      - operator
+                    type: object
+                  type: array
+                  x-kubernetes-list-type: atomic
+                matchLabels:
+                  additionalProperties:
+                    type: string
+                  description: 'matchLabels is a map of {key,value} pairs. A single
+                    {key,value} in the matchLabels
+
+                    map is equivalent to an element of matchExpressions, whose key
+                    field is "key", the
+
+                    operator is "In", and the values array contains only "value".
+                    The requirements are ANDed.'
+                  type: object
+              type: object
+              x-kubernetes-map-type: atomic
             allowedTargetNamespaces:
               description: 'AllowedTargetNamespaces restricts TargetNamespace to the
                 given
 
                 namespaces. If AllowedTargetNamespaces is set, TargetNamespace must
 
-                be set.'
+                be set. A target namespace is allowed if it is listed here or if it
+
+                matches AllowedTargetNamespaceSelector (OR semantics).'
               items:
                 type: string
               nullable: true
@@ -6504,7 +6951,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.19.0
+    controller-gen.kubebuilder.io/version: v0.20.1
   name: gitrepos.fleet.cattle.io
 spec:
   group: fleet.cattle.io
@@ -7363,7 +7810,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.19.0
+    controller-gen.kubebuilder.io/version: v0.20.1
   name: helmops.fleet.cattle.io
 spec:
   group: fleet.cattle.io
@@ -7428,6 +7875,68 @@ spec:
               type: object
             spec:
               properties:
+                allowedTargetNamespaceSelector:
+                  description: 'AllowedTargetNamespaceSelector restricts deployments
+                    to namespaces matching this selector.
+
+                    Propagated from GitRepoRestriction and validated by the agent
+                    on the downstream cluster.'
+                  nullable: true
+                  properties:
+                    matchExpressions:
+                      description: matchExpressions is a list of label selector requirements.
+                        The requirements are ANDed.
+                      items:
+                        description: 'A label selector requirement is a selector that
+                          contains values, a key, and an operator that
+
+                          relates the key and values.'
+                        properties:
+                          key:
+                            description: key is the label key that the selector applies
+                              to.
+                            type: string
+                          operator:
+                            description: 'operator represents a key''s relationship
+                              to a set of values.
+
+                              Valid operators are In, NotIn, Exists and DoesNotExist.'
+                            type: string
+                          values:
+                            description: 'values is an array of string values. If
+                              the operator is In or NotIn,
+
+                              the values array must be non-empty. If the operator
+                              is Exists or DoesNotExist,
+
+                              the values array must be empty. This array is replaced
+                              during a strategic
+
+                              merge patch.'
+                            items:
+                              type: string
+                            type: array
+                            x-kubernetes-list-type: atomic
+                        required:
+                          - key
+                          - operator
+                        type: object
+                      type: array
+                      x-kubernetes-list-type: atomic
+                    matchLabels:
+                      additionalProperties:
+                        type: string
+                      description: 'matchLabels is a map of {key,value} pairs. A single
+                        {key,value} in the matchLabels
+
+                        map is equivalent to an element of matchExpressions, whose
+                        key field is "key", the
+
+                        operator is "In", and the values array contains only "value".
+                        The requirements are ANDed.'
+                      type: object
+                  type: object
+                  x-kubernetes-map-type: atomic
                 contentsId:
                   description: ContentsID stores the contents id when deploying contents
                     using an OCI registry.
@@ -7473,6 +7982,25 @@ spec:
                     before this bundle can be deployed.
                   items:
                     properties:
+                      acceptedStates:
+                        description: 'AcceptedStates is a list of BundleDeployment
+                          state that are considered acceptable for this dependency.
+
+                          If the dependency is in one of these states, it will not
+                          block the deployment of the dependent bundle.
+
+                          Valid Values should match the StateRank keys.
+
+                          If not specified, default to ["Ready"]: only fully ready
+                          dependencies are accepted
+
+                          Example: ["Ready", "Modified"] will accept dependencies
+                          that are either ready or have drifted from their desired
+                          state.'
+                        items:
+                          type: string
+                        nullable: true
+                        type: array
                       name:
                         description: Name of the bundle.
                         nullable: true
@@ -7788,6 +8316,20 @@ spec:
                     not a git repository.'
                   nullable: true
                   properties:
+                    helmOpCABundle:
+                      description: 'CABundle is a PEM encoded CA bundle used to validate
+                        TLS connections to
+
+                        the Helm registry. It is resolved by the controller (which
+                        has access to
+
+                        Rancher''s cattle-system CA secrets, if any) and stored here
+                        so the agent can use
+
+                        it without requiring access to those secrets.'
+                      format: byte
+                      nullable: true
+                      type: string
                     helmOpInsecureSkipTLSVerify:
                       description: InsecureSkipTLSverify will use insecure HTTPS to
                         clone the helm app resource.
@@ -7944,6 +8486,33 @@ spec:
                         default: 25%'
                       nullable: true
                       x-kubernetes-int-or-string: true
+                    autoPartitionThreshold:
+                      description: 'AutoPartitionThreshold is the minimum number of
+                        clusters that need to be
+
+                        present before auto-partitioning is enabled. If the number
+                        of target
+
+                        clusters is less than this value, all clusters will be placed
+                        in a single
+
+                        partition.
+
+                        default: 200'
+                      nullable: true
+                      type: integer
+                    maxNew:
+                      description: 'MaxNew is the maximum number of new BundleDeployments
+                        that can be created
+
+                        in a single reconciliation. This limits the rate at which
+                        new deployments
+
+                        are staged when a bundle is first applied to many clusters.
+
+                        default: 50'
+                      nullable: true
+                      type: integer
                     maxUnavailable:
                       anyOf:
                         - type: integer
@@ -8301,6 +8870,68 @@ spec:
 
                       BundleDeploymentOptions from customizations into this struct.'
                     properties:
+                      allowedTargetNamespaceSelector:
+                        description: 'AllowedTargetNamespaceSelector restricts deployments
+                          to namespaces matching this selector.
+
+                          Propagated from GitRepoRestriction and validated by the
+                          agent on the downstream cluster.'
+                        nullable: true
+                        properties:
+                          matchExpressions:
+                            description: matchExpressions is a list of label selector
+                              requirements. The requirements are ANDed.
+                            items:
+                              description: 'A label selector requirement is a selector
+                                that contains values, a key, and an operator that
+
+                                relates the key and values.'
+                              properties:
+                                key:
+                                  description: key is the label key that the selector
+                                    applies to.
+                                  type: string
+                                operator:
+                                  description: 'operator represents a key''s relationship
+                                    to a set of values.
+
+                                    Valid operators are In, NotIn, Exists and DoesNotExist.'
+                                  type: string
+                                values:
+                                  description: 'values is an array of string values.
+                                    If the operator is In or NotIn,
+
+                                    the values array must be non-empty. If the operator
+                                    is Exists or DoesNotExist,
+
+                                    the values array must be empty. This array is
+                                    replaced during a strategic
+
+                                    merge patch.'
+                                  items:
+                                    type: string
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                              required:
+                                - key
+                                - operator
+                              type: object
+                            type: array
+                            x-kubernetes-list-type: atomic
+                          matchLabels:
+                            additionalProperties:
+                              type: string
+                            description: 'matchLabels is a map of {key,value} pairs.
+                              A single {key,value} in the matchLabels
+
+                              map is equivalent to an element of matchExpressions,
+                              whose key field is "key", the
+
+                              operator is "In", and the values array contains only
+                              "value". The requirements are ANDed.'
+                            type: object
+                        type: object
+                        x-kubernetes-map-type: atomic
                       clusterGroup:
                         description: ClusterGroup to match a specific cluster group
                           by name.
@@ -9342,7 +9973,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.19.0
+    controller-gen.kubebuilder.io/version: v0.20.1
   name: imagescans.fleet.cattle.io
 spec:
   group: fleet.cattle.io
@@ -9558,7 +10189,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.19.0
+    controller-gen.kubebuilder.io/version: v0.20.1
   name: schedules.fleet.cattle.io
 spec:
   group: fleet.cattle.io

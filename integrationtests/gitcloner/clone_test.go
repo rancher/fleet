@@ -2,21 +2,14 @@ package apply
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
-	"crypto/tls"
-	"crypto/x509"
-	"encoding/pem"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/rancher/fleet/internal/cmd/cli/gitcloner"
 
-	dockercontainer "github.com/docker/docker/api/types/container"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing/object"
@@ -24,8 +17,6 @@ import (
 	"github.com/gogits/go-gogs-client"
 	cp "github.com/otiai10/copy"
 	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/wait"
-	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/knownhosts"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -44,13 +35,7 @@ and uses data and conf from assets/gitserver. These files are mounted into the g
 It contains an already created user whose credentials are provided as constants.
 */
 const (
-	gogsUser      = "test"
-	gogsPass      = "pass"
-	gogsHTTPSPort = "3000"
-	gogsSSHPort   = "22"
-	testRepoName  = "test-repo"
-	timeout       = 240 * time.Second
-	interval      = 10 * time.Second
+	testRepoName = "test-repo"
 )
 
 var (
@@ -75,7 +60,7 @@ var _ = Describe("Applying a git job gets content from git repo", Label("network
 
 	BeforeAll(func() {
 		var err error
-		container, err = createGogsContainerWithHTTPS()
+		container, gogsCABundle, gogsClient, err = utils.CreateGogsContainerWithHTTPS(context.Background(), "assets/gitserver")
 		Expect(err).NotTo(HaveOccurred())
 		DeferCleanup(func() {
 			if container != nil {
@@ -86,12 +71,12 @@ var _ = Describe("Applying a git job gets content from git repo", Label("network
 
 	When("Cloning an https repo", func() {
 		JustBeforeEach(func() {
-			url, err := getHTTPSURL(context.Background(), container)
+			url, err := utils.GetGogsHTTPSURL(context.Background(), container)
 			Expect(err).NotTo(HaveOccurred())
 			repoName, initialCommit, err = createRepo(url, "assets/repo", private)
 			Expect(err).NotTo(HaveOccurred())
 			opts.Repo = url + "/test/" + repoName
-			tmp = createTempFolder()
+			tmp = utils.CreateTempFolder("gogs")
 			opts.Path = tmp
 		})
 
@@ -166,7 +151,7 @@ var _ = Describe("Applying a git job gets content from git repo", Label("network
 					private = true
 					opts = &gitcloner.GitCloner{
 						InsecureSkipTLS: true,
-						Username:        gogsUser,
+						Username:        utils.GogsUser,
 						PasswordFile:    "assets/gogs/password",
 					}
 				})
@@ -231,27 +216,76 @@ var _ = Describe("Applying a git job gets content from git repo", Label("network
 				Expect(err).NotTo(HaveOccurred())
 			})
 		})
+
+		// This test verifies that the HTTPS transport is restored to the default
+		// after a CA bundle clone. Without transport restoration, a subsequent
+		// clone without a CA bundle would erroneously trust the custom CA still
+		// installed in the global transport.
+		//
+		// This is the integration-level regression test for the exclusive cert pool
+		// fix: a Rancher CA bundle mounted in gitjob pods must not prevent subsequent
+		// connections to servers signed by well-known CAs (e.g. GitHub).
+		When("CA bundle clone is followed by a no-bundle clone", func() {
+			It("restores the default transport so the no-bundle clone fails TLS", func() {
+				url, err := utils.GetGogsHTTPSURL(context.Background(), container)
+				Expect(err).NotTo(HaveOccurred())
+				repoName, _, err := createRepo(url, "assets/repo", false)
+				Expect(err).NotTo(HaveOccurred())
+
+				caBundleFile, err := os.CreateTemp("", "gitcloner-ca")
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { _ = os.Remove(caBundleFile.Name()) }()
+				_, err = caBundleFile.Write(gogsCABundle)
+				Expect(err).NotTo(HaveOccurred())
+
+				tmp1 := utils.CreateTempFolder("gogs-ca")
+				defer func() { _ = os.RemoveAll(tmp1) }()
+
+				// First: clone with CA bundle — must succeed.
+				c := gitcloner.New()
+				Expect(c.CloneRepo(&gitcloner.GitCloner{
+					Repo:         url + "/test/" + repoName,
+					Path:         tmp1,
+					Branch:       "master",
+					CABundleFile: caBundleFile.Name(),
+				})).NotTo(HaveOccurred(), "CA bundle clone should succeed")
+
+				// Second: clone without CA bundle — must fail TLS.
+				// If the transport is not restored, the gogs self-signed cert would
+				// still be trusted and the clone would incorrectly succeed.
+				tmp2 := utils.CreateTempFolder("gogs-nocert")
+				defer func() { _ = os.RemoveAll(tmp2) }()
+
+				noCertErr := c.CloneRepo(&gitcloner.GitCloner{
+					Repo:   url + "/test/" + repoName,
+					Path:   tmp2,
+					Branch: "master",
+				})
+				Expect(noCertErr).To(HaveOccurred(), "clone without CA bundle should fail TLS")
+				Expect(noCertErr.Error()).To(ContainSubstring("certificate"))
+			})
+		})
 	})
 
 	When("Cloning an ssh repo", func() {
 		var tmpKey string
 
 		JustBeforeEach(func() {
-			url, err := getHTTPSURL(context.Background(), container)
+			url, err := utils.GetGogsHTTPSURL(context.Background(), container)
 			Expect(err).NotTo(HaveOccurred())
 			repoName, _, err = createRepo(url, "assets/repo", private)
 			Expect(err).NotTo(HaveOccurred())
-			sshURL, err := getSSHURL(context.Background(), container)
+			sshURL, err := utils.GetGogsSSHURL(context.Background(), container)
 			Expect(err).NotTo(HaveOccurred())
 			opts.Repo = sshURL + "/test/" + repoName
-			tmp = createTempFolder()
+			tmp = utils.CreateTempFolder("gogs")
 			opts.Path = tmp
 			// create private key, and register public key in gogs
 			key, err := createAndAddKeys()
 			Expect(err).NotTo(HaveOccurred())
 			tmpFile, err := os.CreateTemp("", "testkey")
 			Expect(err).NotTo(HaveOccurred())
-			_, err = tmpFile.Write([]byte(key))
+			_, err = tmpFile.WriteString(key)
 			Expect(err).NotTo(HaveOccurred())
 			tmpKey = tmpFile.Name()
 			opts.SSHPrivateKeyFile = tmpKey
@@ -348,111 +382,6 @@ var _ = Describe("Applying a git job gets content from git repo", Label("network
 	})
 })
 
-// createGogsContainerWithHTTPS creates a container that runs gogs. It creates a certificate for tls, and stores the ca bundle in gogsCABundle
-func createGogsContainerWithHTTPS() (testcontainers.Container, error) {
-	tmpDir := createTempFolder()
-	err := cp.Copy("assets/gitserver", tmpDir)
-	if err != nil {
-		return nil, err
-	}
-	req := testcontainers.ContainerRequest{
-		Image:        "gogs/gogs:0.13",
-		ExposedPorts: []string{gogsHTTPSPort + "/tcp", gogsSSHPort + "/tcp"},
-		WaitingFor:   wait.ForListeningPort("22/tcp").WithStartupTimeout(timeout),
-		HostConfigModifier: func(hostConfig *dockercontainer.HostConfig) {
-			// Use Binds instead of Mounts to support SELinux relabeling with :z flag
-			// The :z flag allows the bind mount to be shared between containers and
-			// automatically relabels the content for SELinux
-			hostConfig.Binds = []string{tmpDir + ":/data:z"}
-		},
-	}
-	container, err := testcontainers.GenericContainer(context.Background(), testcontainers.GenericContainerRequest{
-		ContainerRequest: req,
-		Started:          true,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	// create ca bundle and certs needed for https
-	_, _, err = container.Exec(context.Background(), []string{"./gogs", "cert", "-ca=true", "-duration=8760h0m0s", "-host=localhost"})
-	if err != nil {
-		return container, err
-	}
-	_, _, err = container.Exec(context.Background(), []string{"chown", "git:git", "cert.pem", "key.pem"})
-	if err != nil {
-		return container, err
-	}
-	caReader, err := container.CopyFileFromContainer(context.Background(), "/app/gogs/cert.pem")
-	if err != nil {
-		return container, err
-	}
-	gogsCABundle, err = io.ReadAll(caReader)
-	if err != nil {
-		return container, err
-	}
-
-	// restart gogs container to make sure https certs are picked
-	err = container.Stop(context.Background(), &[]time.Duration{timeout}[0])
-	if err != nil {
-		return container, err
-	}
-	err = container.Start(context.Background())
-	if err != nil {
-		return container, err
-	}
-
-	url, err := getHTTPSURL(context.Background(), container)
-	if err != nil {
-		return container, err
-	}
-
-	// create access token, we need to wait until the https server is available. We can't check this in testcontainers.WaitFor
-	// because we need to create the certificates first.
-	Eventually(func() error {
-		c := gogs.NewClient(url, "")
-
-		conf := &tls.Config{InsecureSkipVerify: true}
-
-		// only continue if it's a TLS connection
-		addr := strings.Replace(url, "https://", "", 1)
-		dialer := &tls.Dialer{Config: conf}
-		if _, err := dialer.DialContext(context.Background(), "tcp", addr); err != nil {
-			GinkgoWriter.Printf("error dialing: %v", err)
-			orgErr := err
-
-			// debug the connection
-			dialer := &tls.Dialer{Config: nil}
-			conn, err := dialer.DialContext(context.Background(), "tcp", addr)
-			if err != nil {
-				GinkgoWriter.Printf("error dialing without tls: %v", err)
-				return orgErr
-			}
-			body, _ := io.ReadAll(conn)
-			GinkgoWriter.Printf("tcp connection response: %s", body)
-
-			return orgErr
-		}
-
-		tr := &http.Transport{TLSClientConfig: conf}
-		httpClient := &http.Client{Transport: tr} // #nosec G402
-		c.SetHTTPClient(httpClient)
-		token, err := c.CreateAccessToken(gogsUser, gogsPass, gogs.CreateAccessTokenOption{
-			Name: "test",
-		})
-		if err != nil {
-			GinkgoWriter.Printf("error creating access token: %v", err)
-			return err
-		}
-		gogsClient = gogs.NewClient(url, token.Sha1)
-		gogsClient.SetHTTPClient(httpClient)
-
-		return nil
-	}, timeout, interval).ShouldNot(HaveOccurred())
-
-	return container, nil
-}
-
 // createRepo creates a git repo for testing
 // returns the initial commit and a unique repo name.
 func createRepo(url string, path string, private bool) (string, string, error) {
@@ -465,7 +394,7 @@ func createRepo(url string, path string, private bool) (string, string, error) {
 	if err != nil {
 		return "", "", err
 	}
-	repoURL := url + "/" + gogsUser + "/" + repoName
+	repoURL := url + "/" + utils.GogsUser + "/" + repoName
 
 	// add initial commit
 	tmp, err := os.MkdirTemp("", repoName)
@@ -520,8 +449,8 @@ func createRepo(url string, path string, private bool) (string, string, error) {
 		RemoteName: "upstream",
 		RemoteURL:  repoURL,
 		Auth: &httpgit.BasicAuth{
-			Username: gogsUser,
-			Password: gogsPass,
+			Username: utils.GogsUser,
+			Password: utils.GogsPass,
 		},
 		InsecureSkipTLS: true,
 	})
@@ -532,50 +461,10 @@ func createRepo(url string, path string, private bool) (string, string, error) {
 	return repoName, commit.String(), nil
 }
 
-func getHTTPSURL(ctx context.Context, container testcontainers.Container) (string, error) {
-	mappedPort, err := container.MappedPort(ctx, gogsHTTPSPort)
-	if err != nil {
-		return "", err
-	}
-	host, err := container.Host(ctx)
-	if err != nil {
-		return "", err
-	}
-	url := "https://" + host + ":" + mappedPort.Port()
-
-	return url, nil
-}
-
-func getSSHURL(ctx context.Context, container testcontainers.Container) (string, error) {
-	mappedPort, err := container.MappedPort(ctx, gogsSSHPort)
-	if err != nil {
-		return "", err
-	}
-	host, err := container.Host(ctx)
-	if err != nil {
-		return "", err
-	}
-	url := "ssh://git@" + host + ":" + mappedPort.Port()
-
-	return url, nil
-}
-
-// createTempFolder uses testing tempDir if running in local, which will cleanup the files at the end of the tests.
-// cleanup fails in github actions, that's why we use os.MkdirTemp instead. Container will be removed at the end in
-// github actions, so no resources are left orphaned.
-func createTempFolder() string {
-	if os.Getenv("GITHUB_ACTIONS") == "true" {
-		tmp, err := os.MkdirTemp("", "gogs")
-		Expect(err).ToNot(HaveOccurred())
-		return tmp
-	}
-
-	return GinkgoT().TempDir()
-}
-
-// createAndAddKeys creates a public private key pair. It adds the public key to gogs, and returns the private key.
+// createAndAddKeys creates a public/private key pair, registers the public key in gogs,
+// and returns the private key in PEM format.
 func createAndAddKeys() (string, error) {
-	publicKey, privateKey, err := makeSSHKeyPair()
+	publicKey, privateKey, err := utils.MakeSSHKeyPair()
 	if err != nil {
 		return "", err
 	}
@@ -592,7 +481,7 @@ func createAndAddKeys() (string, error) {
 }
 
 func getKnownHostEntry(container testcontainers.Container) (string, error) {
-	mappedPort, err := container.MappedPort(context.Background(), gogsSSHPort)
+	mappedPort, err := container.MappedPort(context.Background(), utils.GogsSSHPort)
 	if err != nil {
 		return "", err
 	}
@@ -611,25 +500,4 @@ func getKnownHostEntry(container testcontainers.Container) (string, error) {
 	hostKey := fields[1]
 
 	return fmt.Sprintf("[localhost]:%s %s %s", port, algorithm, hostKey), nil
-}
-
-func makeSSHKeyPair() (string, string, error) {
-	privateKey, err := rsa.GenerateKey(rand.Reader, 4096)
-	if err != nil {
-		return "", "", err
-	}
-
-	var privKeyBuf strings.Builder
-	privateKeyPEM := &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(privateKey)}
-	if err := pem.Encode(&privKeyBuf, privateKeyPEM); err != nil {
-		return "", "", err
-	}
-	pub, err := ssh.NewPublicKey(&privateKey.PublicKey)
-	if err != nil {
-		return "", "", err
-	}
-	var pubKeyBuf strings.Builder
-	pubKeyBuf.Write(ssh.MarshalAuthorizedKey(pub))
-
-	return pubKeyBuf.String(), privKeyBuf.String(), nil
 }

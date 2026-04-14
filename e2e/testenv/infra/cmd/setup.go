@@ -153,7 +153,7 @@ var setupCmd = &cobra.Command{
 				externalIP = waitForLoadbalancer(k, "zot-service")
 			}
 
-			OCIHost := fmt.Sprintf("%s:8082", externalIP)
+			OCIHost := externalIP + ":8082"
 
 			fmt.Printf("logging into OCI registry at %s...\n", OCIHost)
 			_ = eventually(func() (string, error) {
@@ -173,7 +173,7 @@ var setupCmd = &cobra.Command{
 			if err != nil {
 				fail(fmt.Errorf("reading helm chart: %w", err))
 			}
-			if _, err := OCIClient.Push(chartArchive, fmt.Sprintf("%s/sleeper-chart:0.1.0", OCIHost)); err != nil {
+			if _, err := OCIClient.Push(chartArchive, OCIHost+"/sleeper-chart:0.1.0"); err != nil {
 				fail(fmt.Errorf("push to OCI registry: %w", err))
 			}
 		}
@@ -349,9 +349,9 @@ func waitForPodReady(k kubectl.Command, appName string) {
 			"wait",
 			"--for=condition=Ready",
 			"pod",
-			"--timeout=30s",
+			fmt.Sprintf("--timeout=%s", testenv.PodReadyTimeout),
 			"-l",
-			fmt.Sprintf("app=%s", appName),
+			"app="+appName,
 		)
 
 		if err != nil {

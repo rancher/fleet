@@ -3,12 +3,9 @@ package bundlereader
 import (
 	"bufio"
 	"context"
-	"crypto/tls"
-	"crypto/x509"
-	"encoding/base64"
 	"fmt"
+	"io"
 	"io/fs"
-	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -17,13 +14,13 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/hashicorp/go-getter/v2"
-	"github.com/rancher/fleet/internal/content"
-	"github.com/rancher/fleet/internal/helmupdater"
-	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"helm.sh/helm/v4/pkg/downloader"
 	helmgetter "helm.sh/helm/v4/pkg/getter"
 	"helm.sh/helm/v4/pkg/registry"
+
+	"github.com/rancher/fleet/internal/content"
+	"github.com/rancher/fleet/internal/helmupdater"
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
 // ignoreTree represents a tree of ignored paths (read from .fleetignore files), each node being a directory.
@@ -177,7 +174,7 @@ func loadDirectory(ctx context.Context, opts loadOpts, dir directory) ([]fleet.B
 		if opts.compress || !utf8.Valid(data) {
 			content, err := content.Base64GZ(data)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("decoding compressed base64 data: %w", err)
 			}
 			r.Content = content
 			r.Encoding = "base64+gz"
@@ -193,7 +190,7 @@ func loadDirectory(ctx context.Context, opts loadOpts, dir directory) ([]fleet.B
 	return resources, nil
 }
 
-// GetContent uses go-getter (and Helm for OCI) to read the files from directories and servers.
+// GetContent uses fetchToDir (and Helm for OCI) to read the files from directories and servers.
 func GetContent(ctx context.Context, base, source, version string, auth Auth, disableDepsUpdate bool, ignoreApplyConfigs []string) (map[string][]byte, error) {
 	temp, err := os.MkdirTemp("", "fleet")
 	if err != nil {
@@ -203,13 +200,11 @@ func GetContent(ctx context.Context, base, source, version string, auth Auth, di
 
 	orgSource := source
 
-	// go-getter does not support downloading OCI registry based files yet
-	// until this is implemented we use Helm to download charts from OCI based registries
-	// and provide the downloaded file to go-getter locally
+	// OCI registries are handled via Helm; the downloaded chart is then read locally.
 	if strings.HasPrefix(source, ociURLPrefix) {
 		source, err = downloadOCIChart(source, version, temp, auth)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("downloading OCI chart from %q: %w", redactURL(orgSource), err)
 		}
 	}
 
@@ -220,40 +215,8 @@ func GetContent(ctx context.Context, base, source, version string, auth Auth, di
 		return nil, err
 	}
 
-	if auth.SSHPrivateKey != nil {
-		if !strings.ContainsAny(source, "?") {
-			source += "?"
-		} else {
-			source += "&"
-		}
-		source += fmt.Sprintf("sshkey=%s", base64.StdEncoding.EncodeToString(auth.SSHPrivateKey))
-	}
-
-	customGetters := []getter.Getter{}
-	for _, g := range getter.Getters {
-		// Replace default HTTP(S) getter with our customized one
-		if _, ok := g.(*getter.HttpGetter); ok {
-			continue
-		}
-		customGetters = append(customGetters, g)
-	}
-
-	httpGetter := newHttpGetter(auth)
-	customGetters = append(customGetters, httpGetter)
-
-	client := &getter.Client{
-		Getters: customGetters,
-	}
-
-	req := &getter.Request{
-		Src:     source,
-		Dst:     temp,
-		Pwd:     base,
-		GetMode: getter.ModeDir,
-	}
-
-	if _, err := client.Get(ctx, req); err != nil {
-		return nil, err
+	if err := fetchToDir(ctx, temp, source, base, auth); err != nil {
+		return nil, fmt.Errorf("retrieving file from %q: %w", redactURL(orgSource), err)
 	}
 
 	files := map[string][]byte{}
@@ -290,7 +253,7 @@ func GetContent(ctx context.Context, base, source, version string, auth Auth, di
 			// try to update possible dependencies.
 			if !disableDepsUpdate && helmupdater.ChartYAMLExists(path) {
 				if err = helmupdater.UpdateHelmDependencies(path); err != nil {
-					return err
+					return fmt.Errorf("updating helm dependencies: %w", err)
 				}
 			}
 			// Skip .fleetignore'd and hidden directories
@@ -310,7 +273,7 @@ func GetContent(ctx context.Context, base, source, version string, auth Auth, di
 			return nil
 		}
 
-		content, err := os.ReadFile(path)
+		content, err := os.ReadFile(path) //nolint:gosec // G122: path is from WalkDir over a go-getter controlled temp directory
 		if err != nil {
 			return err
 		}
@@ -319,7 +282,7 @@ func GetContent(ctx context.Context, base, source, version string, auth Auth, di
 		return nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to read %s relative to %s: %w", orgSource, base, err)
+		return nil, fmt.Errorf("failed to read %s relative to %s: %w", redactURL(orgSource), base, err)
 	}
 
 	return files, nil
@@ -340,10 +303,9 @@ func downloadOCIChart(name, version, path string, auth Auth) (string, error) {
 	}
 	defer os.RemoveAll(temp)
 
-	tmpGetter := newHttpGetter(auth)
 	clientOptions := []registry.ClientOption{
 		registry.ClientOptCredentialsFile(filepath.Join(temp, "creds.json")),
-		registry.ClientOptHTTPClient(tmpGetter.Client),
+		registry.ClientOptHTTPClient(getHTTPClient(auth)),
 	}
 	if auth.BasicHTTP {
 		clientOptions = append(clientOptions, registry.ClientOptPlainHTTP())
@@ -409,40 +371,154 @@ func downloadOCIChart(name, version, path string, auth Auth) (string, error) {
 	return saved, nil
 }
 
-func newHttpGetter(auth Auth) *getter.HttpGetter {
-	httpGetter := &getter.HttpGetter{
-		Client: &http.Client{},
+// safeJoinSubDir joins base and sub, returning an error if sub is absolute or
+// escapes base (e.g., due to ".." components).
+func safeJoinSubDir(base, sub string) (string, error) {
+	cleanSub := filepath.Clean(filepath.FromSlash(sub))
+	if filepath.IsAbs(cleanSub) {
+		return "", fmt.Errorf("subdir must be relative, got %q", sub)
 	}
-
-	if auth.Username != "" && auth.Password != "" {
-		header := http.Header{}
-		header.Add("Authorization", "Basic "+basicAuth(auth.Username, auth.Password))
-		httpGetter.Header = header
+	if cleanSub == "." {
+		return base, nil
 	}
-
-	transport := http.DefaultTransport.(*http.Transport).Clone()
-	if auth.CABundle != nil {
-		pool, err := x509.SystemCertPool()
-		if err != nil {
-			pool = x509.NewCertPool()
-		}
-		pool.AppendCertsFromPEM(auth.CABundle)
-		transport.TLSClientConfig = &tls.Config{
-			RootCAs:            pool,
-			MinVersion:         tls.VersionTLS12,
-			InsecureSkipVerify: auth.InsecureSkipVerify, //nolint:gosec
-		}
-	} else if auth.InsecureSkipVerify {
-		transport.TLSClientConfig = &tls.Config{
-			InsecureSkipVerify: auth.InsecureSkipVerify, //nolint:gosec
-		}
+	joined := filepath.Join(base, cleanSub)
+	rel, err := filepath.Rel(base, joined)
+	if err != nil {
+		return "", err
 	}
-	httpGetter.Client.Transport = transport
-
-	return httpGetter
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+		return "", fmt.Errorf("subdir %q escapes base directory", sub)
+	}
+	return joined, nil
 }
 
-func basicAuth(username, password string) string {
-	auth := username + ":" + password
-	return base64.StdEncoding.EncodeToString([]byte(auth))
+// fetchToDir resolves source (relative to pwd), downloads or copies it, and
+// places the resulting files into dst.
+func fetchToDir(ctx context.Context, dst, source, pwd string, auth Auth) error {
+	si, err := parseSource(source, pwd)
+	if err != nil {
+		return err
+	}
+
+	// If there's a subdirectory, download into a temp directory then move the
+	// subdirectory into dst.
+	if si.subDir != "" {
+		// For local directory sources, compose the subdir path directly without
+		// a temp directory. fetchScheme would try os.Symlink(rawURL, td) which
+		// fails because td already exists as a directory from os.MkdirTemp.
+		if si.scheme == "local" {
+			fi, err := os.Stat(si.rawURL)
+			if err != nil {
+				return err
+			}
+			if fi.IsDir() {
+				src, err := safeJoinSubDir(si.rawURL, si.subDir)
+				if err != nil {
+					return fmt.Errorf("invalid subdir %q: %w", si.subDir, err)
+				}
+				if err := os.MkdirAll(dst, 0750); err != nil {
+					return err
+				}
+				return copyDir(src, dst)
+			}
+			// Local file (e.g. an archive): fall through to the temp-dir path.
+		}
+
+		td, err := os.MkdirTemp("", "fleet-subdir")
+		if err != nil {
+			return err
+		}
+		defer os.RemoveAll(td)
+
+		if err := fetchScheme(ctx, td, si.scheme, si.rawURL, auth); err != nil {
+			return err
+		}
+
+		src, err := safeJoinSubDir(td, si.subDir)
+		if err != nil {
+			return fmt.Errorf("invalid subdir %q: %w", si.subDir, err)
+		}
+		if err := os.MkdirAll(dst, 0750); err != nil {
+			return err
+		}
+		if err := copyDir(src, dst); err != nil {
+			return fmt.Errorf("copying subdir %q: %w", si.subDir, err)
+		}
+		return nil
+	}
+
+	return fetchScheme(ctx, dst, si.scheme, si.rawURL, auth)
+}
+
+func fetchScheme(ctx context.Context, dst, scheme, rawURL string, auth Auth) error {
+	switch scheme {
+	case "git":
+		return gitDownload(ctx, dst, rawURL, auth)
+	case "http":
+		return httpDownload(ctx, dst, rawURL, auth)
+	case "local":
+		fi, err := os.Stat(rawURL)
+		if err != nil {
+			return err
+		}
+		if fi.IsDir() {
+			// Mirror go-getter's FileGetter behaviour: create a symlink at dst
+			// pointing to rawURL so that WalkDir and helmupdater operate on the
+			// original directory (with writes going back to the source).
+			// GetContent's os.Readlink call then resolves dst to the source path.
+			return os.Symlink(rawURL, dst)
+		}
+		// A single file (e.g. an OCI-downloaded .tgz chart) — extract into dst.
+		if err := os.MkdirAll(dst, 0750); err != nil {
+			return err
+		}
+		f, err := os.Open(rawURL)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		return extractResponse(dst, filepath.Base(rawURL), "", f)
+	default:
+		return fmt.Errorf("unsupported scheme %q", scheme)
+	}
+}
+
+// copyDir recursively copies the content of src into dst.
+func copyDir(src, dst string) error {
+	return filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(dst, rel)
+		if d.IsDir() {
+			return os.MkdirAll(target, 0750)
+		}
+		// Reject symlinks: following them could copy data from outside the
+		// cloned tree if the repository contains malicious symlinks.
+		if d.Type()&os.ModeSymlink != 0 {
+			return fmt.Errorf("copyDir: symlink not supported: %s", path)
+		}
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
+		//nolint:gosec // G304: path is derived from a go-git controlled temp directory
+		srcFile, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer srcFile.Close()
+
+		dstFile, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, info.Mode().Perm())
+		if err != nil {
+			return err
+		}
+		defer dstFile.Close()
+		_, err = io.Copy(dstFile, srcFile)
+		return err
+	})
 }

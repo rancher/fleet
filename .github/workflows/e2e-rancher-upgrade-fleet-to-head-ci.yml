@@ -19,8 +19,7 @@ on:
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
-  SETUP_K3D_VERSION: 'v5.8.3'
-  SETUP_K3S_VERSION: 'v1.34.1-k3s1'
+  SETUP_K3S_VERSION: 'v1.35.1-k3s1'
 
 jobs:
   rancher-fleet-integration:
@@ -28,59 +27,38 @@ jobs:
 
     steps:
       -
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
           ref: ${{ github.event.inputs.ref }}
       -
-        uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version-file: 'go.mod'
-          check-latest: true
       -
         name: Install Ginkgo CLI
         run: go install github.com/onsi/ginkgo/v2/ginkgo
       -
-        name: Determine cache key
-        id: cache-key
-        run: |
-          DAY_OF_YEAR=$(date +%j)
-          if [ $(($DAY_OF_YEAR % 28)) -eq 0 ]; then
-            echo "value=$(date +%Y-%m-%d)" >> $GITHUB_OUTPUT
-          else
-            echo "value=latest" >> $GITHUB_OUTPUT
-          fi
-      -
         name: Cache crust-gather CLI
         id: cache-crust
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ~/.local/bin/crust-gather
-          key: ${{ runner.os }}-crust-gather-${{ steps.cache-key.outputs.value }}
+          key: ${{ runner.os }}-crust-gather-${{ hashFiles('.github/scripts/install-crust-gather.sh') }}
           restore-keys: |
             ${{ runner.os }}-crust-gather-
       -
         name: Install crust-gather CLI
         run: |
           if [ "${{ steps.cache-crust.outputs.cache-hit }}" != "true" ]; then
-            echo "Cache not found, downloading from source"
-            mkdir -p ~/.local/bin
-            if curl -sSfL https://github.com/crust-gather/crust-gather/raw/main/install.sh | sh -s -- --yes; then
-              # Cache the binary for future runs
-              if [ ! -f ~/.local/bin/crust-gather ]; then
-                which crust-gather && cp $(which crust-gather) ~/.local/bin/
-              fi
-            else
-              echo "Failed to download crust-gather"
-              exit 1
-            fi
+            ./.github/scripts/install-crust-gather.sh
           else
             echo "Using cached crust-gather CLI"
             chmod +x ~/.local/bin/crust-gather
-            sudo ln -sf ~/.local/bin/crust-gather /usr/local/bin/
           fi
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       -
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         id: rancher-cli-cache
         with:
           path: /home/runner/.local/bin
@@ -90,8 +68,11 @@ jobs:
         if: steps.rancher-cli-cache.outputs.cache-hit != 'true'
         run: |
           # download an older CLI to avoid https://github.com/rancher/rancher/issues/37574
+          # renovate: datasource=github-release-attachments depName=rancher/cli digestVersion=v2.6.0
+          RANCHER_CLI_SUM="e3f2f8bc04b763759d027ba30a6563b81a1ba6d881b1f3c95b24931a7804fb79"
           mkdir -p /home/runner/.local/bin
           wget -q https://github.com/rancher/cli/releases/download/v2.6.0/rancher-linux-amd64-v2.6.0.tar.gz
+          echo "${RANCHER_CLI_SUM}  rancher-linux-amd64-v2.6.0.tar.gz" | sha256sum -c -
           tar -xz --strip-components=2 -f rancher-linux-amd64-v2.6.0.tar.gz -C /home/runner/.local/bin
           rancher --version
       -
@@ -100,23 +81,23 @@ jobs:
           ./.github/scripts/build-fleet-binaries.sh
       -
         name: Set up QEMU
-        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+        uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
       -
         name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
       -
         name: Get uuid
         id: uuid
         run: echo "::set-output name=uuid::$(uuidgen)"
       -
         id: meta-fleet
-        uses: docker/metadata-action@318604b99e75e41977312d83839a89be02ca4893 # v5
+        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
         with:
           images: |
             ttl.sh/rancher/fleet-${{ steps.uuid.outputs.uuid }}
           tags: type=raw,value=1h
       -
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
         with:
           context: .
           file: package/Dockerfile
@@ -127,13 +108,13 @@ jobs:
           labels: ${{ steps.meta-fleet.outputs.labels }}
       -
         id: meta-fleet-agent
-        uses: docker/metadata-action@318604b99e75e41977312d83839a89be02ca4893 # v5
+        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
         with:
           images: |
             ttl.sh/rancher/fleet-agent-${{ steps.uuid.outputs.uuid }}
           tags: type=raw,value=1h
       -
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
         with:
           context: .
           file: package/Dockerfile.agent
@@ -143,8 +124,23 @@ jobs:
           tags: ${{ steps.meta-fleet-agent.outputs.tags }}
           labels: ${{ steps.meta-fleet-agent.outputs.labels }}
       -
+        name: Cache k3d CLI
+        id: cache-k3d
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: ~/.local/bin/k3d
+          key: ${{ runner.os }}-k3d-${{ hashFiles('.github/scripts/install-k3d.sh') }}
+          restore-keys: |
+            ${{ runner.os }}-k3d-
+      -
         name: Install k3d
-        run: curl --silent --fail https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | TAG=${{ env.SETUP_K3D_VERSION }} bash
+        run: |
+          if [ "${{ steps.cache-k3d.outputs.cache-hit }}" != "true" ]; then
+            ./.github/scripts/install-k3d.sh
+          else
+            echo "Using cached k3d"
+            chmod +x ~/.local/bin/k3d
+          fi
       -
         name: Set up k3d control-plane cluster
         run: |
@@ -156,7 +152,8 @@ jobs:
             --k3s-arg '--kubelet-arg=eviction-hard=imagefs.available<1%,nodefs.available<1%@agent:*' \
             --k3s-arg '--kubelet-arg=eviction-minimum-reclaim=imagefs.available=1%,nodefs.available=1%@agent:*' \
             --network "nw01" \
-            --image docker.io/rancher/k3s:${{ env.SETUP_K3S_VERSION }}
+            --image docker.io/rancher/k3s:${{ env.SETUP_K3S_VERSION }} \
+            --k3s-arg "--cluster-init@server:0"
       -
         name: Set up k3d downstream cluster
         run: |
@@ -168,7 +165,8 @@ jobs:
             --k3s-arg '--kubelet-arg=eviction-hard=imagefs.available<1%,nodefs.available<1%@agent:*' \
             --k3s-arg '--kubelet-arg=eviction-minimum-reclaim=imagefs.available=1%,nodefs.available=1%@agent:*' \
             --network "nw01" \
-            --image docker.io/rancher/k3s:${{ env.SETUP_K3S_VERSION }}
+            --image docker.io/rancher/k3s:${{ env.SETUP_K3S_VERSION }} \
+            --k3s-arg "--cluster-init@server:0"
       -
         name: Set up Rancher
         env:
@@ -209,7 +207,7 @@ jobs:
           crust-gather collect --exclude-namespace=kube-system --exclude-kind=Lease --duration=5s -f tmp/downstream
       -
         name: Upload logs
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         if: failure()
         with:
           name: gha-fleet-rancher-logs-${{ github.sha }}-${{ github.run_id }}

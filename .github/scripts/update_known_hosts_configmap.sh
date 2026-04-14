@@ -22,3 +22,5 @@ echo "  known_hosts: |" >> "$dst"
 for prov in "${providers[@]}"; do
     ssh-keyscan "$prov" | grep "^$prov" | sort -b | sed 's/^/    /' >> "$dst"
 done
+
+printf '    {{- range .Values.additionalKnownHosts }}\n    {{ . }}\n    {{- end }}\n' >> "$dst"

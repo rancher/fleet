@@ -1,0 +1,13 @@
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: {{.Name}}
+  namespace: {{.ClusterRegistrationNamespace}}
+spec:
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
+  paths:
+  - simple
+  targetNamespace: {{.TargetNamespace}}
+  targets:
+  - clusterSelector: {}

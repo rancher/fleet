@@ -73,9 +73,6 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	// The bundle reconciler takes care of adding the finalizer when creating a bundle deployment
 	if !bd.DeletionTimestamp.IsZero() {
 		if controllerutil.ContainsFinalizer(bd, finalize.BundleDeploymentFinalizer) {
-			if err := finalize.PurgeContent(ctx, r.Client, bd.Name, bd.Spec.DeploymentID); err != nil {
-				return ctrl.Result{}, err
-			}
 			err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
 				err := r.Get(ctx, req.NamespacedName, bd)
 				if err != nil {

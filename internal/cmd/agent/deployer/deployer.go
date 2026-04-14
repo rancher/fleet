@@ -4,18 +4,20 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"reflect"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/rancher/fleet/internal/bundlereader"
+	"github.com/rancher/fleet/internal/cmd/controller/summary"
 	"github.com/rancher/fleet/internal/helmdeployer"
 	"github.com/rancher/fleet/internal/manifest"
 	"github.com/rancher/fleet/internal/ocistorage"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	"github.com/rancher/wrangler/v3/pkg/condition"
-	"github.com/rancher/wrangler/v3/pkg/kv"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
@@ -24,6 +26,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
+
+type NotReadyDependenciesError struct {
+	Pending []string
+}
+
+func (e *NotReadyDependenciesError) Error() string {
+	return fmt.Sprintf("dependent bundle(s) are not ready: %v", e.Pending)
+}
 
 type Deployer struct {
 	client         client.Client
@@ -116,7 +126,17 @@ func (d *Deployer) helmdeploy(ctx context.Context, logger logr.Logger, bd *fleet
 			return bd.Status.Release, nil
 		}
 	}
-	manifestID, _ := kv.Split(bd.Spec.DeploymentID, ":")
+
+	// manifestID is used for manifest/OCI lookups.
+	// DeploymentID format is "manifestID:optionsHash".
+	// When only options change (e.g., adding comparePatches for drift acceptance),
+	// the optionsHash changes but the manifestID remains the same. This allows
+	// options-only changes to be deployed without re-fetching the manifest.
+	manifestID := bd.Spec.DeploymentID
+	if specManifestID, _, found := strings.Cut(bd.Spec.DeploymentID, ":"); found {
+		manifestID = specManifestID
+	}
+
 	var (
 		m   *manifest.Manifest
 		err error
@@ -224,9 +244,7 @@ func (d *Deployer) fetchNamespace(ctx context.Context, releaseID string) (*corev
 
 // addLabelsFromOptions updates nsLabels so that it only contains all labels specified in optLabels, plus the `kubernetes.io/metadata.name` labels added by kubernetes when creating the namespace.
 func addLabelsFromOptions(nsLabels map[string]string, optLabels map[string]string) {
-	for k, v := range optLabels {
-		nsLabels[k] = v
-	}
+	maps.Copy(nsLabels, optLabels)
 
 	// Delete labels not defined in the options.
 	// Keep the `kubernetes.io/metadata.name` label as it is added by kubernetes when creating the namespace.
@@ -239,9 +257,7 @@ func addLabelsFromOptions(nsLabels map[string]string, optLabels map[string]strin
 
 // addAnnotationsFromOptions updates nsAnnotations so that it only contains all annotations specified in optAnnotations.
 func addAnnotationsFromOptions(nsAnnotations map[string]string, optAnnotations map[string]string) {
-	for k, v := range optAnnotations {
-		nsAnnotations[k] = v
-	}
+	maps.Copy(nsAnnotations, optAnnotations)
 
 	// Delete Annotations not defined in the options.
 	for k := range nsAnnotations {
@@ -267,7 +283,8 @@ func deployErrToStatus(err error, status fleet.BundleDeploymentStatus) (bool, fl
 			"(chart requires kubeVersion)|" + // kubeVersion mismatch
 			"(annotation validation error)|" + // annotations fail to pass validation
 			"(failed, and has been rolled back due to atomic being set)|" + // atomic is set and a rollback occurs
-			"(YAML parse error)|" + // YAML is broken in source files
+			"(YAML parse error)|" + // YAML is broken in source files (Helm v3)
+			"(MalformedYAMLError)|" + // YAML is broken in source files (Helm v4)
 			"(Forbidden: updates to [0-9A-Za-z]+ spec for fields other than [0-9A-Za-z ']+ are forbidden)|" + // trying to update fields that cannot be updated
 			"(Forbidden: spec is immutable after creation)|" + // trying to modify immutable spec
 			"(chart requires kubeVersion: [0-9A-Za-z\\.\\-<>=]+ which is incompatible with Kubernetes)", // trying to deploy to incompatible Kubernetes
@@ -289,7 +306,7 @@ func deployErrToStatus(err error, status fleet.BundleDeploymentStatus) (bool, fl
 		// returned a new condition is being captured. Ready is the
 		// condition that displays for status in general and it is used
 		// for the readiness of resources. Only when we cannot capture
-		// the status of resources, like here, can use use it for a
+		// the status of resources, like here, can use it for a
 		// message like the above. The Installed condition lets us have
 		// a condition to capture the error that can be bubbled up for
 		// Bundles and Gitrepos to consume.
@@ -341,19 +358,33 @@ func (d *Deployer) checkDependency(ctx context.Context, bd *fleet.BundleDeployme
 			}
 
 			for _, depBundle := range bds.Items {
-				c := condition.Cond("Ready")
-				if c.IsTrue(depBundle) {
-					continue
-				} else {
+				if !isDependencyReady(depBundle, depend.AcceptedStates) {
 					depBundleList = append(depBundleList, depBundle.Name)
 				}
+
 			}
 		}
 	}
 
 	if len(depBundleList) != 0 {
-		return fmt.Errorf("dependent bundle(s) are not ready: %v", depBundleList)
+		return &NotReadyDependenciesError{Pending: depBundleList}
 	}
 
 	return nil
+}
+
+// isStateAccepted checks if currentState is in acceptedStates.
+// If acceptedStates is empty or nil, only Ready is accepted (default behavior).
+func isStateAccepted(currentState fleet.BundleState, acceptedStates []fleet.BundleState) bool {
+	if len(acceptedStates) == 0 {
+		return currentState == fleet.Ready
+	}
+	return slices.Contains(acceptedStates, currentState)
+}
+
+// isDependencyReady checks if a BundleDeployment dependency is in an acceptable state.
+// acceptedStates is a list of states that are considered acceptable for this dependency.
+// If acceptedStates is empty or nil, only the "Ready" state is accepted (default behavior).
+func isDependencyReady(depBundle fleet.BundleDeployment, acceptedStates []fleet.BundleState) bool {
+	return isStateAccepted(summary.GetDeploymentState(&depBundle), acceptedStates)
 }

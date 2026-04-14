@@ -1,0 +1,16 @@
+diff:
+  comparePatches:
+  - apiVersion: apps/v1
+    kind: Deployment
+    name: nginx-deploy
+    namespace: test-ns
+    operations:
+    - op: remove
+      path: /spec/replicas
+  - apiVersion: v1
+    kind: ConfigMap
+    name: config-map
+    namespace: test-ns
+    operations:
+    - op: remove
+      path: /data/key

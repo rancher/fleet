@@ -1,4 +1,5 @@
-//go:generate mockgen --build_flags=--mod=mod -destination=../../../../mocks/client_mock.go -package=mocks sigs.k8s.io/controller-runtime/pkg/client Client,SubResourceWriter
+//go:generate mockgen --build_flags=--mod=mod -destination=../../../../mocks/client_mock.go -package=mocks -mock_names=Client=MockK8sClient,SubResourceWriter=MockStatusWriter sigs.k8s.io/controller-runtime/pkg/client Client,SubResourceWriter
+//go:generate mockgen --build_flags=--mod=mod -destination=../../../../mocks/eventrecorder_mock.go -package=mocks k8s.io/client-go/tools/events EventRecorder
 
 package reconciler
 
@@ -22,7 +23,6 @@ import (
 	"github.com/rancher/wrangler/v3/pkg/genericcondition"
 	"go.uber.org/mock/gomock"
 
-	fleetevent "github.com/rancher/fleet/pkg/event"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -36,6 +36,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 )
 
 func getCondition(gitrepo *fleetv1.GitRepo, condType string) (genericcondition.GenericCondition, bool) {
@@ -60,7 +61,7 @@ type gitRepoMatcher struct {
 	gitrepo fleetv1.GitRepo
 }
 
-func (m gitRepoMatcher) Matches(x interface{}) bool {
+func (m gitRepoMatcher) Matches(x any) bool {
 	gitrepo, ok := x.(*fleetv1.GitRepo)
 	if !ok {
 		return false
@@ -75,13 +76,31 @@ func (m gitRepoMatcher) String() string {
 type gitRepoPointerMatcher struct {
 }
 
-func (m gitRepoPointerMatcher) Matches(x interface{}) bool {
+func (m gitRepoPointerMatcher) Matches(x any) bool {
 	_, ok := x.(*fleetv1.GitRepo)
 	return ok
 }
 
 func (m gitRepoPointerMatcher) String() string {
 	return ""
+}
+
+// errorMatcher implements a gomock matcher on error message strings.
+type errorMatcher struct {
+	errMsg string
+}
+
+func (m errorMatcher) Matches(x any) bool {
+	err, ok := x.(error)
+	if !ok {
+		return false
+	}
+
+	return err.Error() == m.errMsg
+}
+
+func (m errorMatcher) String() string {
+	return fmt.Sprintf("matches error %q", m.errMsg)
 }
 
 func TestReconcile_Error_WhenGitrepoRestrictionsAreNotMet(t *testing.T) {
@@ -108,16 +127,16 @@ func TestReconcile_Error_WhenGitrepoRestrictionsAreNotMet(t *testing.T) {
 	)
 
 	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), &gitRepoPointerMatcher{}, gomock.Any()).Times(2).DoAndReturn(
-		func(ctx context.Context, req types.NamespacedName, gitrepo *fleetv1.GitRepo, opts ...interface{}) error {
+		func(ctx context.Context, req types.NamespacedName, gitrepo *fleetv1.GitRepo, opts ...any) error {
 			gitrepo.Name = gitRepo.Name
 			gitrepo.Namespace = gitRepo.Namespace
 			return nil
 		},
 	)
-	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
+	statusClient := mocks.NewMockStatusWriter(mockCtrl)
 	mockClient.EXPECT().Status().Times(1).Return(statusClient)
 	statusClient.EXPECT().Update(gomock.Any(), gomock.Any(), gomock.Any()).Do(
-		func(ctx context.Context, repo *fleetv1.GitRepo, opts ...interface{}) {
+		func(ctx context.Context, repo *fleetv1.GitRepo, opts ...any) {
 			if len(repo.Status.Conditions) == 0 {
 				t.Errorf("expecting to have Conditions, got none")
 			}
@@ -128,11 +147,14 @@ func TestReconcile_Error_WhenGitrepoRestrictionsAreNotMet(t *testing.T) {
 	)
 
 	recorderMock := mocks.NewMockEventRecorder(mockCtrl)
-	recorderMock.EXPECT().Event(
+	recorderMock.EXPECT().Eventf(
 		&gitRepoMatcher{gitRepo},
-		fleetevent.Warning,
+		nil,
+		corev1.EventTypeWarning,
 		"FailedToApplyRestrictions",
-		"empty targetNamespace denied, because allowedTargetNamespaces restriction is present",
+		"ApplyGitRepoRestrictions",
+		"%v",
+		errorMatcher{"empty targetNamespace denied, because allowedTargetNamespaces restriction is present"},
 	)
 
 	r := GitJobReconciler{
@@ -171,7 +193,7 @@ func TestReconcile_Error_WhenGetGitJobErrors(t *testing.T) {
 	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.GitRepo{}), gomock.Any()).
 		Times(3).
 		DoAndReturn(
-			func(ctx context.Context, req types.NamespacedName, gitrepo *fleetv1.GitRepo, opts ...interface{}) error {
+			func(ctx context.Context, req types.NamespacedName, gitrepo *fleetv1.GitRepo, opts ...any) error {
 				gitrepo.Name = gitRepo.Name
 				gitrepo.Namespace = gitRepo.Namespace
 				gitrepo.Spec.Repo = "repo"
@@ -182,15 +204,15 @@ func TestReconcile_Error_WhenGetGitJobErrors(t *testing.T) {
 		)
 
 	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
-		func(ctx context.Context, req types.NamespacedName, job *batchv1.Job, opts ...interface{}) error {
-			return fmt.Errorf("GITJOB ERROR")
+		func(ctx context.Context, req types.NamespacedName, job *batchv1.Job, opts ...any) error {
+			return errors.New("GITJOB ERROR")
 		},
 	)
 
-	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
+	statusClient := mocks.NewMockStatusWriter(mockCtrl)
 	mockClient.EXPECT().Status().Times(1).Return(statusClient)
 	statusClient.EXPECT().Update(gomock.Any(), gomock.Any(), gomock.Any()).Do(
-		func(ctx context.Context, repo *fleetv1.GitRepo, opts ...interface{}) {
+		func(ctx context.Context, repo *fleetv1.GitRepo, opts ...any) {
 			c, found := getCondition(repo, fleetv1.GitRepoAcceptedCondition)
 			if !found {
 				t.Errorf("expecting to find the %s condition and could not find it.", fleetv1.GitRepoAcceptedCondition)
@@ -203,11 +225,14 @@ func TestReconcile_Error_WhenGetGitJobErrors(t *testing.T) {
 
 	recorderMock := mocks.NewMockEventRecorder(mockCtrl)
 
-	recorderMock.EXPECT().Event(
+	recorderMock.EXPECT().Eventf(
 		&gitRepoMatcher{gitRepo},
-		fleetevent.Warning,
+		nil,
+		corev1.EventTypeWarning,
 		"FailedToGetGitJob",
-		"error retrieving git job: GITJOB ERROR",
+		"GetGitJob",
+		"%v",
+		errorMatcher{"error retrieving git job: GITJOB ERROR"},
 	)
 
 	r := GitJobReconciler{
@@ -244,7 +269,7 @@ func TestReconcile_Error_WhenSecretDoesNotExist(t *testing.T) {
 	mockClient.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
 
 	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), &gitRepoPointerMatcher{}, gomock.Any()).Times(3).DoAndReturn(
-		func(ctx context.Context, req types.NamespacedName, gitrepo *fleetv1.GitRepo, opts ...interface{}) error {
+		func(ctx context.Context, req types.NamespacedName, gitrepo *fleetv1.GitRepo, opts ...any) error {
 			gitrepo.Name = gitRepo.Name
 			gitrepo.Namespace = gitRepo.Namespace
 			gitrepo.Spec.Repo = "repo"
@@ -261,30 +286,33 @@ func TestReconcile_Error_WhenSecretDoesNotExist(t *testing.T) {
 	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&batchv1.Job{}), gomock.Any()).
 		Times(1).
 		DoAndReturn(
-			func(ctx context.Context, req types.NamespacedName, job *batchv1.Job, opts ...interface{}) error {
+			func(ctx context.Context, req types.NamespacedName, job *batchv1.Job, opts ...any) error {
 				return apierrors.NewNotFound(schema.GroupResource{}, "TEST ERROR")
 			},
 		).Times(2)
 
 	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
-		func(ctx context.Context, req types.NamespacedName, job *corev1.Secret, opts ...interface{}) error {
-			return fmt.Errorf("SECRET ERROR")
+		func(ctx context.Context, req types.NamespacedName, job *corev1.Secret, opts ...any) error {
+			return errors.New("SECRET ERROR")
 		},
 	)
 
 	recorderMock := mocks.NewMockEventRecorder(mockCtrl)
 
-	recorderMock.EXPECT().Event(
+	recorderMock.EXPECT().Eventf(
 		&gitRepoMatcher{gitRepo},
-		fleetevent.Warning,
+		nil,
+		corev1.EventTypeWarning,
 		"FailedValidatingSecret",
-		"failed to look up HelmSecretNameForPaths, error: SECRET ERROR",
+		"ValidateSecret",
+		"%v",
+		errorMatcher{"failed to look up HelmSecretNameForPaths, error: SECRET ERROR"},
 	)
 
-	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
+	statusClient := mocks.NewMockStatusWriter(mockCtrl)
 	mockClient.EXPECT().Status().Times(1).Return(statusClient)
 	statusClient.EXPECT().Update(gomock.Any(), gomock.Any(), gomock.Any()).Do(
-		func(ctx context.Context, repo *fleetv1.GitRepo, opts ...interface{}) {
+		func(ctx context.Context, repo *fleetv1.GitRepo, opts ...any) {
 			c, found := getCondition(repo, fleetv1.GitRepoAcceptedCondition)
 			if !found {
 				t.Errorf("expecting to find the %s condition and could not find it.", fleetv1.GitRepoAcceptedCondition)
@@ -1399,6 +1427,12 @@ func TestNewJob(t *testing.T) {
 					},
 				},
 			},
+			expectedContainers: []corev1.Container{
+				{
+					Name: "fleet",
+					Args: []string{"--helm-insecure-skip-tls"},
+				},
+			},
 			expectedVolumes: []corev1.Volume{
 				{
 					Name: gitClonerVolumeName,
@@ -1673,10 +1707,6 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 					Value: "4",
 				},
 				{
-					Name:  "GIT_SSH_COMMAND",
-					Value: "ssh -o stricthostkeychecking=no",
-				},
-				{
 					Name: "HELM_USERNAME",
 					ValueFrom: &corev1.EnvVarSource{
 						SecretKeyRef: &corev1.SecretKeySelector{
@@ -1746,10 +1776,6 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 					Value: "4",
 				},
 				{
-					Name:  "GIT_SSH_COMMAND",
-					Value: "ssh -o stricthostkeychecking=yes",
-				},
-				{
 					Name: "HELM_USERNAME",
 					ValueFrom: &corev1.EnvVarSource{
 						SecretKeyRef: &corev1.SecretKeySelector{
@@ -1801,10 +1827,6 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 				{
 					Name:  "FLEET_BUNDLE_CREATION_MAX_CONCURRENCY",
 					Value: "4",
-				},
-				{
-					Name:  "GIT_SSH_COMMAND",
-					Value: "ssh -o stricthostkeychecking=no",
 				},
 				{
 					Name:  "COMMIT",
@@ -1862,10 +1884,6 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 				{
 					Name:  "FLEET_BUNDLE_CREATION_MAX_CONCURRENCY",
 					Value: "4",
-				},
-				{
-					Name:  "GIT_SSH_COMMAND",
-					Value: "ssh -o stricthostkeychecking=yes",
 				},
 				{
 					Name:  "COMMIT",
@@ -2129,10 +2147,7 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			for k, v := range test.osEnv {
-				err := os.Setenv(k, v)
-				if err != nil {
-					t.Errorf("unexpected error: %v", err)
-				}
+				t.Setenv(k, v)
 			}
 
 			r := GitJobReconciler{
@@ -2527,5 +2542,296 @@ func getFleetControllerDeployment(tolerations []corev1.Toleration) *appsv1.Deplo
 				},
 			},
 		},
+	}
+}
+
+func TestNonSecretAnnotationChangedPredicate_Update(t *testing.T) {
+	predicate := nonSecretAnnotationChangedPredicate()
+
+	tests := []struct {
+		name           string
+		oldAnnotations map[string]string
+		newAnnotations map[string]string
+		expected       bool
+	}{
+		{
+			name:           "no annotations - no change",
+			oldAnnotations: nil,
+			newAnnotations: nil,
+			expected:       false,
+		},
+		{
+			name:           "empty annotations - no change",
+			oldAnnotations: map[string]string{},
+			newAnnotations: map[string]string{},
+			expected:       false,
+		},
+		{
+			name:           "only secret annotation added - no trigger",
+			oldAnnotations: nil,
+			newAnnotations: map[string]string{
+				clientSecretHashAnnotation: "12345",
+			},
+			expected: false,
+		},
+		{
+			name: "only secret annotation changed - no trigger",
+			oldAnnotations: map[string]string{
+				clientSecretHashAnnotation: "12345",
+			},
+			newAnnotations: map[string]string{
+				clientSecretHashAnnotation: "67890",
+			},
+			expected: false,
+		},
+		{
+			name: "only helm secret annotation changed - no trigger",
+			oldAnnotations: map[string]string{
+				helmSecretHashAnnotation: "12345",
+			},
+			newAnnotations: map[string]string{
+				helmSecretHashAnnotation: "67890",
+			},
+			expected: false,
+		},
+		{
+			name: "only helm secret for paths annotation changed - no trigger",
+			oldAnnotations: map[string]string{
+				helmSecretForPathsHashAnnotation: "12345",
+			},
+			newAnnotations: map[string]string{
+				helmSecretForPathsHashAnnotation: "67890",
+			},
+			expected: false,
+		},
+		{
+			name: "all secret annotations changed - no trigger",
+			oldAnnotations: map[string]string{
+				clientSecretHashAnnotation:       "1",
+				helmSecretHashAnnotation:         "2",
+				helmSecretForPathsHashAnnotation: "3",
+			},
+			newAnnotations: map[string]string{
+				clientSecretHashAnnotation:       "4",
+				helmSecretHashAnnotation:         "5",
+				helmSecretForPathsHashAnnotation: "6",
+			},
+			expected: false,
+		},
+		{
+			name: "secret annotation removed - no trigger",
+			oldAnnotations: map[string]string{
+				clientSecretHashAnnotation: "12345",
+			},
+			newAnnotations: map[string]string{},
+			expected:       false,
+		},
+		{
+			name:           "non-secret annotation added - should trigger",
+			oldAnnotations: nil,
+			newAnnotations: map[string]string{
+				"some-other-annotation": "value",
+			},
+			expected: true,
+		},
+		{
+			name: "non-secret annotation changed - should trigger",
+			oldAnnotations: map[string]string{
+				"some-other-annotation": "old-value",
+			},
+			newAnnotations: map[string]string{
+				"some-other-annotation": "new-value",
+			},
+			expected: true,
+		},
+		{
+			name: "non-secret annotation removed - should trigger",
+			oldAnnotations: map[string]string{
+				"some-other-annotation": "value",
+			},
+			newAnnotations: map[string]string{},
+			expected:       true,
+		},
+		{
+			name: "mixed: secret and non-secret annotations changed - should trigger",
+			oldAnnotations: map[string]string{
+				clientSecretHashAnnotation: "12345",
+				"some-other-annotation":    "old-value",
+			},
+			newAnnotations: map[string]string{
+				clientSecretHashAnnotation: "67890",
+				"some-other-annotation":    "new-value",
+			},
+			expected: true,
+		},
+		{
+			name: "mixed: only secret annotation changed, non-secret unchanged - no trigger",
+			oldAnnotations: map[string]string{
+				clientSecretHashAnnotation: "12345",
+				"some-other-annotation":    "same-value",
+			},
+			newAnnotations: map[string]string{
+				clientSecretHashAnnotation: "67890",
+				"some-other-annotation":    "same-value",
+			},
+			expected: false,
+		},
+		{
+			name: "non-secret annotation added while secret unchanged - should trigger",
+			oldAnnotations: map[string]string{
+				clientSecretHashAnnotation: "12345",
+			},
+			newAnnotations: map[string]string{
+				clientSecretHashAnnotation: "12345",
+				"new-annotation":           "value",
+			},
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			oldObj := &fleetv1.GitRepo{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "test-gitrepo",
+					Namespace:   "default",
+					Annotations: tt.oldAnnotations,
+				},
+			}
+			newObj := &fleetv1.GitRepo{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "test-gitrepo",
+					Namespace:   "default",
+					Annotations: tt.newAnnotations,
+				},
+			}
+
+			e := event.UpdateEvent{
+				ObjectOld: oldObj,
+				ObjectNew: newObj,
+			}
+
+			result := predicate.Update(e)
+			if result != tt.expected {
+				t.Errorf("expected %v, got %v", tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestNonSecretAnnotationChangedPredicate_Create(t *testing.T) {
+	predicate := nonSecretAnnotationChangedPredicate()
+
+	obj := &fleetv1.GitRepo{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-gitrepo",
+			Namespace: "default",
+		},
+	}
+
+	e := event.CreateEvent{
+		Object: obj,
+	}
+
+	if predicate.Create(e) {
+		t.Error("expected Create to return false")
+	}
+}
+
+func TestNonSecretAnnotationChangedPredicate_Delete(t *testing.T) {
+	predicate := nonSecretAnnotationChangedPredicate()
+
+	obj := &fleetv1.GitRepo{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-gitrepo",
+			Namespace: "default",
+		},
+	}
+
+	e := event.DeleteEvent{
+		Object: obj,
+	}
+
+	if predicate.Delete(e) {
+		t.Error("expected Delete to return false")
+	}
+}
+
+func TestUpdateSecretDataHashes_AggregatesNonNotFoundErrors(t *testing.T) {
+	// This test uses a mock client to simulate non-NotFound errors
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+
+	scheme := runtime.NewScheme()
+	utilruntime.Must(fleetv1.AddToScheme(scheme))
+	utilruntime.Must(corev1.AddToScheme(scheme))
+
+	gitRepo := &fleetv1.GitRepo{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-gitrepo",
+			Namespace: "default",
+		},
+		Spec: fleetv1.GitRepoSpec{
+			ClientSecretName:       "client-secret",
+			HelmSecretName:         "helm-secret",
+			HelmSecretNameForPaths: "helm-paths-secret",
+		},
+	}
+
+	mockClient := mocks.NewMockK8sClient(mockCtrl)
+
+	// First call to Get returns the GitRepo
+	mockClient.EXPECT().Get(gomock.Any(), types.NamespacedName{
+		Name:      "test-gitrepo",
+		Namespace: "default",
+	}, gomock.Any()).DoAndReturn(
+		func(ctx context.Context, key types.NamespacedName, obj client.Object, opts ...client.GetOption) error {
+			gr := obj.(*fleetv1.GitRepo)
+			gr.Name = gitRepo.Name
+			gr.Namespace = gitRepo.Namespace
+			gr.Spec = gitRepo.Spec
+			return nil
+		},
+	)
+
+	// Return a non-NotFound error for client secret
+	mockClient.EXPECT().Get(gomock.Any(), types.NamespacedName{
+		Name:      "client-secret",
+		Namespace: "default",
+	}, gomock.Any()).Return(errors.New("connection refused for client-secret"))
+
+	// Return a non-NotFound error for helm secret
+	mockClient.EXPECT().Get(gomock.Any(), types.NamespacedName{
+		Name:      "helm-secret",
+		Namespace: "default",
+	}, gomock.Any()).Return(errors.New("connection refused for helm-secret"))
+
+	// Return a non-NotFound error for helm paths secret
+	mockClient.EXPECT().Get(gomock.Any(), types.NamespacedName{
+		Name:      "helm-paths-secret",
+		Namespace: "default",
+	}, gomock.Any()).Return(errors.New("connection refused for helm-paths-secret"))
+
+	r := &GitJobReconciler{
+		Client: mockClient,
+		Scheme: scheme,
+	}
+
+	err := r.updateSecretDataHashes(context.Background(), gitRepo)
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	// Verify all three errors are present in the aggregated error
+	errStr := err.Error()
+	if !strings.Contains(errStr, "client-secret") {
+		t.Errorf("expected error to contain 'client-secret', got: %v", err)
+	}
+	if !strings.Contains(errStr, "helm-secret") {
+		t.Errorf("expected error to contain 'helm-secret', got: %v", err)
+	}
+	if !strings.Contains(errStr, "helm-paths-secret") {
+		t.Errorf("expected error to contain 'helm-paths-secret', got: %v", err)
 	}
 }

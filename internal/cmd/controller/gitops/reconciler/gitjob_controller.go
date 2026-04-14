@@ -2,10 +2,15 @@ package reconciler
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -16,10 +21,10 @@ import (
 	"github.com/rancher/fleet/internal/cmd/controller/imagescan"
 	ctrlquartz "github.com/rancher/fleet/internal/cmd/controller/quartz"
 	"github.com/rancher/fleet/internal/cmd/controller/reconciler"
+	"github.com/rancher/fleet/internal/config"
 	"github.com/rancher/fleet/internal/metrics"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/durations"
-	fleetevent "github.com/rancher/fleet/pkg/event"
 	"github.com/rancher/fleet/pkg/sharding"
 
 	"github.com/rancher/wrangler/v3/pkg/condition"
@@ -29,13 +34,14 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	errutil "k8s.io/apimachinery/pkg/util/errors"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/cli-utils/pkg/kstatus/status"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -43,8 +49,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 const (
@@ -56,17 +65,26 @@ const (
 	// make sure Prometheus scrapes them.
 	ShortLivedMetricsTTL       = 120 * time.Second
 	gitJobPollingJitterPercent = 10
+
+	// period after which the GitRepo reconciler is re-scheduled,
+	// in order to wait for the dependent resources cleanup to finish
+	requeueAfterResourceCleanup = 2 * time.Second
+
+	// Annotation keys for tracking secret data hashes
+	clientSecretHashAnnotation       = "fleet.cattle.io/client-secret-hash"         //nolint:gosec // not a credential
+	helmSecretHashAnnotation         = "fleet.cattle.io/helm-secret-hash"           //nolint:gosec // not a credential
+	helmSecretForPathsHashAnnotation = "fleet.cattle.io/helm-secret-for-paths-hash" //nolint:gosec // not a credential
 )
 
 var (
 	GitJobDurationBuckets = []float64{1, 2, 5, 10, 30, 60, 180, 300, 600, 1200, 1800, 3600}
 	gitjobsCreatedSuccess = metrics.ObjCounter(
 		"gitjobs_created_success_total",
-		"Total number of failed git job creations",
+		"Total number of successfully created git jobs",
 	)
 	gitjobsCreatedFailure = metrics.ObjCounter(
 		"gitjobs_created_failure_total",
-		"Total number of successfully created git jobs",
+		"Total number of failed git job creations",
 	)
 	gitjobDuration = metrics.ObjHistogram(
 		"gitjob_duration_seconds",
@@ -123,9 +141,10 @@ type GitJobReconciler struct {
 	JobNodeSelector string
 	GitFetcher      GitFetcher
 	Clock           TimeGetter
-	Recorder        record.EventRecorder
+	Recorder        events.EventRecorder
 	SystemNamespace string
 	KnownHosts      KnownHostsGetter
+	WithImagescan   bool
 }
 
 func (r *GitJobReconciler) SetupWithManager(mgr ctrl.Manager) error {
@@ -136,13 +155,23 @@ func (r *GitJobReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				predicate.Or(
 					reconciler.TypedResourceVersionUnchangedPredicate[client.Object]{},
 					predicate.GenerationChangedPredicate{},
-					predicate.AnnotationChangedPredicate{},
+					// Use nonSecretAnnotationChangedPredicate instead of predicate.AnnotationChangedPredicate
+					// to avoid redundant reconciles when the controller updates secret data hash
+					// tracking annotations (e.g., fleet.cattle.io/client-secret-hash).
+					nonSecretAnnotationChangedPredicate(),
 					predicate.LabelChangedPredicate{},
 					commitChangedPredicate(),
 				),
 			),
 		).
 		Owns(&batchv1.Job{}, builder.WithPredicates(jobUpdatedPredicate())).
+		Watches(
+			// Fan out from secret to gitrepo, reconcile gitrepos when a secret
+			// referenced in ClientSecretName, HelmSecretName, or HelmSecretNameForPaths changes.
+			&corev1.Secret{},
+			handler.EnqueueRequestsFromMapFunc(r.secretMapFunc()),
+			builder.WithPredicates(secretDataChangedPredicate()),
+		).
 		WithEventFilter(sharding.FilterByShardID(r.ShardID)).
 		WithOptions(controller.Options{MaxConcurrentReconciles: r.Workers}).
 		Complete(r)
@@ -173,15 +202,22 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// Restrictions / Overrides, gitrepo reconciler is responsible for setting error in status
 	oldStatus := gitrepo.Status.DeepCopy()
 	if err := AuthorizeAndAssignDefaults(ctx, r.Client, gitrepo); err != nil {
-		r.Recorder.Event(gitrepo, fleetevent.Warning, "FailedToApplyRestrictions", err.Error())
+		r.Recorder.Eventf(
+			gitrepo,
+			nil,
+			corev1.EventTypeWarning,
+			"FailedToApplyRestrictions",
+			"ApplyGitRepoRestrictions",
+			"%v",
+			err,
+		)
+
 		return ctrl.Result{}, updateErrorStatus(ctx, r.Client, req.NamespacedName, *oldStatus, err)
 	}
 
 	if !gitrepo.DeletionTimestamp.IsZero() {
 		if controllerutil.ContainsFinalizer(gitrepo, finalize.GitRepoFinalizer) {
-			if err := r.cleanupGitRepo(ctx, logger, gitrepo); err != nil {
-				return ctrl.Result{}, err
-			}
+			return r.handleDelete(ctx, logger, gitrepo)
 		}
 
 		return ctrl.Result{}, nil
@@ -236,6 +272,12 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return res, updateErrorStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status, err)
 	}
 
+	// Update secret data hash annotations after successful job management
+	if err := r.updateSecretDataHashes(ctx, gitrepo); err != nil {
+		logger.V(1).Error(err, "Failed to update secret data hash annotations")
+		return ctrl.Result{}, err
+	}
+
 	reconciler.SetCondition(v1alpha1.GitRepoAcceptedCondition, &gitrepo.Status, nil)
 
 	err = updateStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status)
@@ -273,13 +315,41 @@ func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger,
 	}, &job)
 	if err != nil && !apierrors.IsNotFound(err) {
 		err = fmt.Errorf("error retrieving git job: %w", err)
-		r.Recorder.Event(gitrepo, fleetevent.Warning, "FailedToGetGitJob", err.Error())
+		r.Recorder.Eventf(
+			gitrepo,
+			nil,
+			corev1.EventTypeWarning,
+			"FailedToGetGitJob",
+			"GetGitJob",
+			"%v",
+			err,
+		)
 
 		return ctrl.Result{}, err
 	}
 
 	if apierrors.IsNotFound(err) {
-		if gitrepo.Spec.DisablePolling {
+		clientSecretChanged, helmSecretChanged, err := r.hasReferencedSecretChanged(ctx, gitrepo)
+		if err != nil {
+			r.Recorder.Eventf(
+				gitrepo,
+				nil,
+				corev1.EventTypeWarning,
+				"FailedValidatingSecret",
+				"ValidateSecret",
+				"%v",
+				err,
+			)
+			return ctrl.Result{}, fmt.Errorf("error validating external secrets: %w", err)
+		}
+
+		// In cases where we have a very large polling interval and the first commit
+		// could not be retrieved because the secret was incorrect, the gitRepo does
+		// not show any commit.
+		// If the client secret has changed, we now retrieve the latest commit.
+		// If the secret is still incorrect, we will not need to create
+		// the gitJob (which is more expensive) and we will return an error earlier.
+		if gitrepo.Spec.DisablePolling || clientSecretChanged {
 			commit, err := monitorLatestCommit(gitrepo, func() (string, error) {
 				return r.GitFetcher.LatestCommit(ctx, gitrepo, r.Client)
 			})
@@ -288,16 +358,39 @@ func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger,
 				gitrepo.Status.Commit = commit
 			}
 			if err != nil {
-				r.Recorder.Event(gitrepo, fleetevent.Warning, "Failed", err.Error())
+				r.Recorder.Eventf(
+					gitrepo,
+					nil,
+					corev1.EventTypeWarning,
+					"Failed",
+					"MonitorLatestCommit",
+					"%v",
+					err,
+				)
 			} else if oldCommit != gitrepo.Status.Commit {
-				r.Recorder.Event(gitrepo, fleetevent.Normal, "GotNewCommit", gitrepo.Status.Commit)
+				r.Recorder.Eventf(
+					gitrepo,
+					nil,
+					corev1.EventTypeNormal,
+					"GotNewCommit",
+					"GetNewCommit",
+					gitrepo.Status.Commit,
+				)
 			}
 		}
 
-		if r.shouldCreateJob(gitrepo, oldCommit) {
+		if r.shouldCreateJob(gitrepo, oldCommit, helmSecretChanged) {
 			r.updateGenerationValuesIfNeeded(gitrepo)
 			if err := r.validateExternalSecretExist(ctx, gitrepo); err != nil {
-				r.Recorder.Event(gitrepo, fleetevent.Warning, "FailedValidatingSecret", err.Error())
+				r.Recorder.Eventf(
+					gitrepo,
+					nil,
+					corev1.EventTypeWarning,
+					"FailedValidatingSecret",
+					"ValidateSecret",
+					"%v",
+					err,
+				)
 				return ctrl.Result{}, fmt.Errorf("error validating external secrets: %w", err)
 			}
 			if err := r.createJobAndResources(ctx, gitrepo, logger); err != nil {
@@ -355,25 +448,52 @@ func (r *GitJobReconciler) deletePreviousJob(ctx context.Context, logger logr.Lo
 	return r.Delete(ctx, &job)
 }
 
-func (r *GitJobReconciler) cleanupGitRepo(ctx context.Context, logger logr.Logger, gitrepo *v1alpha1.GitRepo) error {
+func (r *GitJobReconciler) handleDelete(ctx context.Context, logger logr.Logger, gitrepo *v1alpha1.GitRepo) (ctrl.Result, error) {
 	logger.Info("Gitrepo deleted, deleting bundle, image scans")
 
-	metrics.GitRepoCollector.Delete(gitrepo.Name, gitrepo.Namespace)
 	_ = r.deletePollingJob(*gitrepo)
 
-	nsName := types.NamespacedName{Name: gitrepo.Name, Namespace: gitrepo.Namespace}
-	if err := finalize.PurgeBundles(ctx, r.Client, nsName, v1alpha1.RepoLabel); err != nil {
-		return err
+	if !controllerutil.ContainsFinalizer(gitrepo, finalize.GitRepoFinalizer) {
+		return ctrl.Result{}, nil
+	}
+
+	bundles, err := r.listBundlesForGitrepo(ctx, gitrepo)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	// Bundle deletion happens asynchronously: mark them for deletion and requeue
+	// This ensures the Gitrepo is kept around until all its Bundles are completely deleted.
+	if len(bundles.Items) > 0 {
+		logger.V(1).Info("GitRepo deleted, purging bundles")
+		return ctrl.Result{RequeueAfter: requeueAfterResourceCleanup}, batchDeleteDependentResources(ctx, r.Client, bundles)
 	}
 
 	// remove the job scheduled by imagescan, if any
-	_ = r.Scheduler.DeleteJob(imagescan.GitCommitKey(gitrepo.Namespace, gitrepo.Name))
+	if r.WithImagescan {
+		_ = r.Scheduler.DeleteJob(imagescan.GitCommitKey(gitrepo.Namespace, gitrepo.Name))
 
-	if err := finalize.PurgeImageScans(ctx, r.Client, nsName); err != nil {
-		return err
+		images, err := r.listImageScansForGitrepo(ctx, gitrepo)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+
+		if len(images.Items) > 0 {
+			logger.V(1).Info("GitRepo deleted, purging imagescans")
+			return ctrl.Result{RequeueAfter: requeueAfterResourceCleanup}, batchDeleteDependentResources(ctx, r.Client, images)
+		}
 	}
 
-	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+	// Delete the target namespace if DeleteNamespace is true
+	if err := finalize.PurgeTargetNamespaceIfNeeded(ctx, r.Client, gitrepo); err != nil {
+		return ctrl.Result{}, err
+	}
+
+	metrics.GitRepoCollector.Delete(gitrepo.Name, gitrepo.Namespace)
+
+	// we don't have pending Bundles nor ImageScans, we can remove the finalizer
+	nsName := types.NamespacedName{Name: gitrepo.Name, Namespace: gitrepo.Namespace}
+	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		if err := r.Get(ctx, nsName, gitrepo); err != nil {
 			return err
 		}
@@ -384,16 +504,16 @@ func (r *GitJobReconciler) cleanupGitRepo(ctx context.Context, logger logr.Logge
 	})
 
 	if client.IgnoreNotFound(err) != nil {
-		return err
+		return ctrl.Result{}, err
 	}
 
-	return nil
+	return ctrl.Result{}, nil
 }
 
 // shouldCreateJob checks if the conditions to create a new job are met.
 // It checks for all the conditions so, in case more than one is met, it sets all the
 // values related in one single reconciler loop
-func (r *GitJobReconciler) shouldCreateJob(gitrepo *v1alpha1.GitRepo, oldCommit string) bool {
+func (r *GitJobReconciler) shouldCreateJob(gitrepo *v1alpha1.GitRepo, oldCommit string, helmSecretsChanged bool) bool {
 	if gitrepo.Status.Commit != "" && gitrepo.Status.Commit != oldCommit {
 		return true
 	}
@@ -408,7 +528,8 @@ func (r *GitJobReconciler) shouldCreateJob(gitrepo *v1alpha1.GitRepo, oldCommit 
 		return true
 	}
 
-	return false
+	// Finally check if any of the referenced secrets changed
+	return helmSecretsChanged
 }
 
 func (r *GitJobReconciler) updateGenerationValuesIfNeeded(gitrepo *v1alpha1.GitRepo) {
@@ -463,7 +584,7 @@ func (r *GitJobReconciler) deleteJobIfNeeded(ctx context.Context, gitRepo *v1alp
 	// create a new one
 	if gitRepo.Spec.ForceSyncGeneration != gitRepo.Status.UpdateGeneration {
 		if forceSync, ok := job.Labels[forceSyncGenerationLabel]; ok {
-			t := fmt.Sprintf("%d", gitRepo.Spec.ForceSyncGeneration)
+			t := strconv.FormatInt(gitRepo.Spec.ForceSyncGeneration, 10)
 			if t != forceSync {
 				jobDeletedMessage := "job deletion triggered because of ForceUpdateGeneration"
 				logger.V(1).Info(jobDeletedMessage)
@@ -479,7 +600,7 @@ func (r *GitJobReconciler) deleteJobIfNeeded(ctx context.Context, gitRepo *v1alp
 	// Avoid deleting the job twice
 	if generationChanged(gitRepo) {
 		if gen, ok := job.Labels[generationLabel]; ok {
-			t := fmt.Sprintf("%d", gitRepo.Generation)
+			t := strconv.FormatInt(gitRepo.Generation, 10)
 			if t != gen {
 				jobDeletedMessage := "job deletion triggered because of generation change"
 				logger.V(1).Info(jobDeletedMessage)
@@ -508,7 +629,29 @@ func (r *GitJobReconciler) deleteJobIfNeeded(ctx context.Context, gitRepo *v1alp
 		if err := r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationBackground)); err != nil && !apierrors.IsNotFound(err) {
 			return err, false
 		}
-		r.Recorder.Event(gitRepo, fleetevent.Normal, "JobDeleted", jobDeletedMessage)
+		r.Recorder.Eventf(
+			gitRepo,
+			nil,
+			corev1.EventTypeNormal,
+			"JobDeleted",
+			"DeleteJob",
+			jobDeletedMessage,
+		)
+	}
+
+	// finally if there's a job and any of the secrets related to the gitrepo changed,
+	// we need to delete the job so it gets recreated
+	clientSecretChanged, helmSecretChanged, err := r.hasReferencedSecretChanged(ctx, gitRepo)
+	if err != nil {
+		return err, false
+	}
+	if clientSecretChanged || helmSecretChanged {
+		jobDeletedMessage := "job deletion triggered because referenced secret changed"
+		logger.Info(jobDeletedMessage)
+		if err := r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationBackground)); err != nil && !apierrors.IsNotFound(err) {
+			return err, true
+		}
+		return nil, true
 	}
 
 	return nil, false
@@ -563,7 +706,7 @@ func (r *GitJobReconciler) managePollingJob(logger logr.Logger, gitrepo v1alpha1
 
 		newJob := newGitPollingJob(r.Client, r.Recorder, gitrepo, r.GitFetcher)
 		currentTrigger := ctrlquartz.NewControllerTrigger(
-			getPollingIntervalDuration(&gitrepo),
+			GetPollingIntervalDuration(&gitrepo),
 			gitJobPollingJitterPercent,
 		)
 
@@ -598,6 +741,273 @@ func (r *GitJobReconciler) managePollingJob(logger logr.Logger, gitrepo v1alpha1
 	return jobUpdatedOrCreated, nil
 }
 
+func (r *GitJobReconciler) listBundlesForGitrepo(ctx context.Context, gitrepo *v1alpha1.GitRepo) (*v1alpha1.BundleList, error) {
+	list := &v1alpha1.BundleList{}
+	err := r.List(ctx, list, client.MatchingLabels{v1alpha1.RepoLabel: gitrepo.Name}, client.InNamespace(gitrepo.Namespace))
+	if err != nil {
+		return nil, err
+	}
+	return list, nil
+}
+
+func (r *GitJobReconciler) listImageScansForGitrepo(ctx context.Context, gitrepo *v1alpha1.GitRepo) (*v1alpha1.ImageScanList, error) {
+	list := &v1alpha1.ImageScanList{}
+
+	if err := r.List(ctx, list,
+		client.InNamespace(gitrepo.Namespace),
+		client.MatchingFields{
+			config.ImageScanGitRepoIndex: gitrepo.Name,
+		},
+	); err != nil {
+		return nil, err
+	}
+	return list, nil
+}
+
+// secretMapFunc returns a function that maps a Secret to GitRepos that reference it
+// in ClientSecretName, HelmSecretName, or HelmSecretNameForPaths fields.
+func (r *GitJobReconciler) secretMapFunc() func(ctx context.Context, obj client.Object) []reconcile.Request {
+	return func(ctx context.Context, obj client.Object) []reconcile.Request {
+		logger := log.FromContext(ctx).WithName("secret-watch")
+		secretName := obj.GetName()
+		namespace := obj.GetNamespace()
+
+		// Use a map to deduplicate requests (same GitRepo might reference secret in multiple fields)
+		seen := make(map[types.NamespacedName]struct{})
+		requests := make([]reconcile.Request, 0)
+
+		addRequest := func(gitRepo *v1alpha1.GitRepo) {
+			if !sharding.ShouldProcess(gitRepo, r.ShardID) {
+				return
+			}
+			key := types.NamespacedName{
+				Namespace: gitRepo.Namespace,
+				Name:      gitRepo.Name,
+			}
+			if _, exists := seen[key]; !exists {
+				seen[key] = struct{}{}
+				requests = append(requests, reconcile.Request{NamespacedName: key})
+			}
+		}
+
+		// Find GitRepos using this secret as ClientSecretName
+		gitRepoList := &v1alpha1.GitRepoList{}
+		if err := r.List(ctx, gitRepoList,
+			client.InNamespace(namespace),
+			client.MatchingFields{config.GitRepoClientSecretNameIndex: secretName},
+		); err != nil {
+			logger.V(1).Error(err, "Failed to list GitRepos by ClientSecretName", "secret", secretName)
+		} else {
+			for _, gr := range gitRepoList.Items {
+				addRequest(&gr)
+			}
+		}
+
+		// Find GitRepos using this secret as HelmSecretName
+		gitRepoList = &v1alpha1.GitRepoList{}
+		if err := r.List(ctx, gitRepoList,
+			client.InNamespace(namespace),
+			client.MatchingFields{config.GitRepoHelmSecretNameIndex: secretName},
+		); err != nil {
+			logger.V(1).Error(err, "Failed to list GitRepos by HelmSecretName", "secret", secretName)
+		} else {
+			for _, gr := range gitRepoList.Items {
+				addRequest(&gr)
+			}
+		}
+
+		// Find GitRepos using this secret as HelmSecretNameForPaths
+		gitRepoList = &v1alpha1.GitRepoList{}
+		if err := r.List(ctx, gitRepoList,
+			client.InNamespace(namespace),
+			client.MatchingFields{config.GitRepoHelmSecretNameForPathsIndex: secretName},
+		); err != nil {
+			logger.V(1).Error(err, "Failed to list GitRepos by HelmSecretNameForPaths", "secret", secretName)
+		} else {
+			for _, gr := range gitRepoList.Items {
+				addRequest(&gr)
+			}
+		}
+
+		return requests
+	}
+}
+
+// hasReferencedSecretChanged checks if any of the secrets referenced by the GitRepo
+// (ClientSecretName, HelmSecretName, or HelmSecretNameForPaths) has been modified.
+// It compares a hash of the current secret Data with the one stored in the GitRepo's annotations.
+// Returns two booleans: clientSecretChanged (true if ClientSecretName changed) and
+// helmSecretChanged (true if HelmSecretName or HelmSecretNameForPaths changed).
+//
+// This function returns true in the following cases:
+// - The secret exists and was not previously tracked (no annotation) - newly available secret
+// - The secret's data hash differs from the stored annotation - secret data was updated
+// - The secret was deleted but we had a previous version recorded - secret was removed
+func (r *GitJobReconciler) hasReferencedSecretChanged(ctx context.Context, gitrepo *v1alpha1.GitRepo) (bool, bool, error) {
+	// Check ClientSecretName
+	clientSecretChanged, err := r.hasSecretChanged(ctx, gitrepo, gitrepo.Spec.ClientSecretName, clientSecretHashAnnotation, "ClientSecretName")
+	if err != nil {
+		return false, false, err
+	}
+
+	// Check HelmSecretName
+	helmSecretChanged, err := r.hasSecretChanged(ctx, gitrepo, gitrepo.Spec.HelmSecretName, helmSecretHashAnnotation, "helmSecretName")
+	if err != nil {
+		return false, false, err
+	}
+	// return early if helmSecretChanged is true
+	if helmSecretChanged {
+		return clientSecretChanged, true, nil
+	}
+
+	// Check HelmSecretNameForPaths
+	helmSecretForPathsChanged, err := r.hasSecretChanged(ctx, gitrepo, gitrepo.Spec.HelmSecretNameForPaths, helmSecretForPathsHashAnnotation, "HelmSecretNameForPaths")
+	if err != nil {
+		return false, false, err
+	}
+
+	return clientSecretChanged, helmSecretChanged || helmSecretForPathsChanged, nil
+}
+
+// hasSecretChanged checks if a single secret has changed by comparing a hash of its current Data
+// with the one stored in the GitRepo's annotations.
+func (r *GitJobReconciler) hasSecretChanged(ctx context.Context, gitrepo *v1alpha1.GitRepo, secretName, annotationKey, fieldName string) (bool, error) {
+	if secretName == "" {
+		return false, nil
+	}
+
+	secret := &corev1.Secret{}
+	err := r.Get(ctx, types.NamespacedName{
+		Namespace: gitrepo.Namespace,
+		Name:      secretName,
+	}, secret)
+
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			// Secret doesn't exist, check if we had a previous version recorded
+			if gitrepo.Annotations != nil && gitrepo.Annotations[annotationKey] != "" {
+				// Secret was deleted, consider this as changed
+				return true, nil
+			}
+			return false, nil
+		}
+		return false, fmt.Errorf("failed to look up %s, error: %w", fieldName, err)
+	}
+
+	// Compute hash of current secret data
+	currentHash := hashSecretData(secret.Data)
+
+	// Check if data hash has changed or if this is a new secret (no previous annotation)
+	previousHash := ""
+	if gitrepo.Annotations != nil {
+		previousHash = gitrepo.Annotations[annotationKey]
+	}
+
+	// If there was no previous annotation, the secret is newly available - treat as changed
+	if previousHash == "" {
+		return true, nil
+	}
+
+	// If there was a previous hash and it differs, the secret data changed
+	if previousHash != currentHash {
+		return true, nil
+	}
+
+	return false, nil
+}
+
+// updateSecretDataHashes updates the GitRepo's annotations with a hash of the current Data
+// of each referenced secret. This allows hasReferencedSecretChanged to detect changes.
+func (r *GitJobReconciler) updateSecretDataHashes(ctx context.Context, gitrepo *v1alpha1.GitRepo) error {
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		// Fetch the latest version of the GitRepo
+		current := &v1alpha1.GitRepo{}
+		if err := r.Get(ctx, types.NamespacedName{
+			Namespace: gitrepo.Namespace,
+			Name:      gitrepo.Name,
+		}, current); err != nil {
+			return err
+		}
+
+		secretRefs := []struct {
+			name          string
+			annotationKey string
+		}{
+			{current.Spec.ClientSecretName, clientSecretHashAnnotation},
+			{current.Spec.HelmSecretName, helmSecretHashAnnotation},
+			{current.Spec.HelmSecretNameForPaths, helmSecretForPathsHashAnnotation},
+		}
+
+		annotations := make(map[string]string)
+		hasChanges := false
+		var errs []error
+
+		for _, secretRef := range secretRefs {
+			if secretRef.name == "" {
+				// Mark annotation for deletion if secret is no longer referenced
+				if current.Annotations != nil && current.Annotations[secretRef.annotationKey] != "" {
+					annotations[secretRef.annotationKey] = ""
+					hasChanges = true
+				}
+				continue
+			}
+
+			secret := &corev1.Secret{}
+			err := r.Get(ctx, types.NamespacedName{
+				Namespace: current.Namespace,
+				Name:      secretRef.name,
+			}, secret)
+
+			if err != nil {
+				if apierrors.IsNotFound(err) {
+					// Secret doesn't exist, mark annotation for deletion
+					if current.Annotations != nil && current.Annotations[secretRef.annotationKey] != "" {
+						annotations[secretRef.annotationKey] = ""
+						hasChanges = true
+					}
+					continue
+				}
+				// Collect the error but continue processing other secrets
+				errs = append(errs, fmt.Errorf("failed to get secret %s: %w", secretRef.name, err))
+				continue
+			}
+
+			// Compute hash of secret data
+			dataHash := hashSecretData(secret.Data)
+
+			// Check if the annotation needs to be updated
+			if current.Annotations == nil || current.Annotations[secretRef.annotationKey] != dataHash {
+				annotations[secretRef.annotationKey] = dataHash
+				hasChanges = true
+			}
+		}
+
+		// Return aggregated errors if any occurred
+		if len(errs) > 0 {
+			return errors.Join(errs...)
+		}
+
+		// Only patch if there are changes
+		if !hasChanges {
+			return nil
+		}
+
+		patch := client.MergeFrom(current.DeepCopy())
+		if current.Annotations == nil {
+			current.Annotations = make(map[string]string)
+		}
+		for key, value := range annotations {
+			if value == "" {
+				delete(current.Annotations, key)
+			} else {
+				current.Annotations[key] = value
+			}
+		}
+
+		return r.Patch(ctx, current, patch)
+	})
+}
+
 func generationChanged(r *v1alpha1.GitRepo) bool {
 	// checks if generation changed.
 	// it ignores the case when Status.ObservedGeneration=0 because that's
@@ -608,7 +1018,7 @@ func generationChanged(r *v1alpha1.GitRepo) bool {
 	return (r.Generation != r.Status.ObservedGeneration) && r.Status.ObservedGeneration > 0
 }
 
-func getPollingIntervalDuration(gitrepo *v1alpha1.GitRepo) time.Duration {
+func GetPollingIntervalDuration(gitrepo *v1alpha1.GitRepo) time.Duration {
 	if gitrepo.Spec.PollingInterval == nil || gitrepo.Spec.PollingInterval.Duration == 0 {
 		return defaultPollingSyncInterval
 	}
@@ -644,20 +1054,24 @@ func setStatusFromGitjob(ctx context.Context, c client.Client, gitRepo *v1alpha1
 
 		terminationMessage = result.Message
 		if len(podList.Items) > 0 {
+			var terminationMessageSb1056 strings.Builder
 			for _, podStatus := range podList.Items[len(podList.Items)-1].Status.ContainerStatuses {
 				if podStatus.Name != "step-git-source" && podStatus.State.Terminated != nil {
-					terminationMessage += podStatus.State.Terminated.Message
+					terminationMessageSb1056.WriteString(podStatus.State.Terminated.Message)
 				}
 			}
+			terminationMessage += terminationMessageSb1056.String()
 
 			// set also the message from init containers (if they failed)
+			var terminationMessageSb1063 strings.Builder
 			for _, podStatus := range podList.Items[len(podList.Items)-1].Status.InitContainerStatuses {
 				if podStatus.Name != "step-git-source" &&
 					podStatus.State.Terminated != nil &&
 					podStatus.State.Terminated.ExitCode != 0 {
-					terminationMessage += podStatus.State.Terminated.Message
+					terminationMessageSb1063.WriteString(podStatus.State.Terminated.Message)
 				}
 			}
+			terminationMessage += terminationMessageSb1063.String()
 		}
 	}
 
@@ -767,12 +1181,12 @@ func updateStatus(ctx context.Context, c client.Client, req types.NamespacedName
 func filterFleetCLIJobOutput(output string) string {
 	// first split the output in lines
 	lines := strings.Split(output, "\n")
-	s := ""
+	var sb strings.Builder
 	for _, l := range lines {
-		s += getFleetCLIErrorsFromLine(l)
+		sb.WriteString(getFleetCLIErrorsFromLine(l))
 	}
 
-	s = strings.Trim(s, "\n")
+	s := strings.Trim(sb.String(), "\n")
 	// in the case that all the messages from fleet apply are from libraries
 	// we just report an unknown error
 	if s == "" {
@@ -834,4 +1248,136 @@ func getNextCommit(status v1alpha1.GitRepoStatus) string {
 	}
 
 	return commit
+}
+
+func batchDeleteDependentResources(ctx context.Context, c client.Client, list client.ObjectList) error {
+	var errs []error
+
+	_ = meta.EachListItem(list, func(obj runtime.Object) error {
+		o, ok := obj.(client.Object)
+		if !ok {
+			errs = append(errs, fmt.Errorf("item does not implement client.Object: %T", obj))
+			return nil // continue iterating
+		}
+		if o.GetDeletionTimestamp() != nil {
+			// already being deleted
+			return nil
+		}
+
+		if err := c.Delete(ctx, o); err != nil {
+			errs = append(errs, err)
+		}
+
+		return nil // continue iterating no matter what
+	})
+
+	return errors.Join(errs...)
+}
+
+// hashSecretData computes a SHA256 hash of the secret's Data field.
+// This provides a stable identifier for the secret's content that doesn't change
+// when only metadata is modified.
+// Always returns a non-empty hash, even for empty Data, to avoid collision with
+// the empty string sentinel used for annotation deletion.
+//
+// The encoding uses length prefixes to avoid collisions from different key/value
+// combinations (e.g., key="a", val="bc" vs key="ab", val="c" would otherwise
+// both produce the same concatenated bytes "abc").
+func hashSecretData(data map[string][]byte) string {
+	h := sha256.New()
+
+	// Sort keys for deterministic ordering
+	keys := make([]string, 0, len(data))
+	for k := range data {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	// Create a hash of all key-value pairs using length-prefixed encoding
+	// to avoid collisions from ambiguous concatenation
+	buf := make([]byte, 8) // buffer for encoding lengths as uint64
+	for _, k := range keys {
+		keyBytes := []byte(k)
+		// Write key length, then key bytes
+		binary.LittleEndian.PutUint64(buf, uint64(len(keyBytes)))
+		h.Write(buf)
+		h.Write(keyBytes)
+		// Write value length, then value bytes
+		binary.LittleEndian.PutUint64(buf, uint64(len(data[k])))
+		h.Write(buf)
+		h.Write(data[k])
+	}
+
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+// secretDataChangedPredicate filters Secret events to only trigger reconciliation
+// when Data field has changed, or when the secret is created or deleted.
+func secretDataChangedPredicate() predicate.Funcs {
+	return predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			return true
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			newSecret, newOk := e.ObjectNew.(*corev1.Secret)
+			oldSecret, oldOk := e.ObjectOld.(*corev1.Secret)
+			if !newOk || !oldOk {
+				return false
+			}
+			// Secrets only have Data field (map[string][]byte)
+			return !reflect.DeepEqual(newSecret.Data, oldSecret.Data)
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			return true
+		},
+	}
+}
+
+// nonSecretAnnotationChangedPredicate returns true if annotations changed,
+// excluding changes to only the secret data hash tracking annotations.
+// This prevents redundant reconciliations when the controller updates these
+// annotations after processing a secret change.
+func nonSecretAnnotationChangedPredicate() predicate.Funcs {
+	secretAnnotationKeys := map[string]struct{}{
+		clientSecretHashAnnotation:       {},
+		helmSecretHashAnnotation:         {},
+		helmSecretForPathsHashAnnotation: {},
+	}
+
+	annotationsChangedExcludingSecrets := func(oldAnnotations, newAnnotations map[string]string) bool {
+		// Check if any non-secret annotation was added, removed, or changed
+		for key, newVal := range newAnnotations {
+			if _, isSecretAnnotation := secretAnnotationKeys[key]; isSecretAnnotation {
+				continue
+			}
+			if oldVal, exists := oldAnnotations[key]; !exists || oldVal != newVal {
+				return true
+			}
+		}
+		// Check if any non-secret annotation was removed
+		for key := range oldAnnotations {
+			if _, isSecretAnnotation := secretAnnotationKeys[key]; isSecretAnnotation {
+				continue
+			}
+			if _, exists := newAnnotations[key]; !exists {
+				return true
+			}
+		}
+		return false
+	}
+
+	return predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			return false
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			return annotationsChangedExcludingSecrets(
+				e.ObjectOld.GetAnnotations(),
+				e.ObjectNew.GetAnnotations(),
+			)
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			return false
+		},
+	}
 }

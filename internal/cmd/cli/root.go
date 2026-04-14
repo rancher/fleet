@@ -29,6 +29,11 @@ func App() *cobra.Command {
 		NewTarget(),
 		NewDeploy(),
 		gitcloner.NewCmd(gitcloner.New()),
+
+		NewMonitor(),
+		NewAnalyze(),
+		NewDump(),
+		NewBundleDiff(),
 	)
 
 	return root

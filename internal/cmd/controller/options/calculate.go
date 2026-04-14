@@ -14,7 +14,10 @@ import (
 // DeploymentID hashes the options to a string
 func DeploymentID(manifestID string, opts fleet.BundleDeploymentOptions) (string, error) {
 	h := sha256.New()
-	if err := json.NewEncoder(h).Encode(&opts); err != nil {
+	sanitized := *opts.DeepCopy()
+	// Diff-only changes should not trigger a new DeploymentID; they only affect drift detection.
+	sanitized.Diff = nil
+	if err := json.NewEncoder(h).Encode(&sanitized); err != nil {
 		return "", err
 	}
 

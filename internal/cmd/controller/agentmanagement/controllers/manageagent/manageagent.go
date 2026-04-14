@@ -9,8 +9,9 @@ import (
 	"cmp"
 	"context"
 	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
-	"fmt"
+	"sort"
 
 	"github.com/sirupsen/logrus"
 
@@ -31,8 +32,47 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/utils/ptr"
 )
+
+func sortTolerations(tols []corev1.Toleration) {
+	sort.Slice(tols, func(i, j int) bool {
+		a := tols[i]
+		b := tols[j]
+
+		// 1. Key
+		if a.Key != b.Key {
+			return a.Key < b.Key
+		}
+
+		// 2. Value
+		if a.Value != b.Value {
+			return a.Value < b.Value
+		}
+
+		// 3. Operator
+		if a.Operator != b.Operator {
+			return a.Operator < b.Operator
+		}
+
+		// 4. Effect
+		if a.Effect != b.Effect {
+			return a.Effect < b.Effect
+		}
+
+		// 5. TolerationSeconds (nil-safe)
+		if a.TolerationSeconds == nil && b.TolerationSeconds != nil {
+			return true // nil sorts first
+		}
+		if a.TolerationSeconds != nil && b.TolerationSeconds == nil {
+			return false
+		}
+		if a.TolerationSeconds == nil && b.TolerationSeconds == nil {
+			return false
+		}
+
+		return *a.TolerationSeconds < *b.TolerationSeconds
+	})
+}
 
 const (
 	AgentBundleName = "fleet-agent"
@@ -108,7 +148,7 @@ func hashStatusField(field any) (string, error) {
 		return "", err
 	}
 	hasher.Write(b)
-	return fmt.Sprintf("%x", hasher.Sum(nil)), nil
+	return hex.EncodeToString(hasher.Sum(nil)), nil
 }
 
 func hashChanged(field any, statusHash string) (bool, string, error) {
@@ -179,7 +219,7 @@ func (h *handler) updateClusterStatus(cluster *fleet.Cluster, status fleet.Clust
 		changed = true
 	}
 
-	if hostNetwork := *cmp.Or(cluster.Spec.HostNetwork, ptr.To(false)); status.AgentHostNetwork != hostNetwork {
+	if hostNetwork := *cmp.Or(cluster.Spec.HostNetwork, new(false)); status.AgentHostNetwork != hostNetwork {
 		status.AgentHostNetwork = hostNetwork
 		changed = true
 	}
@@ -290,6 +330,10 @@ func (h *handler) newAgentBundle(ns string, cluster *fleet.Cluster) (runtime.Obj
 		priorityClassName = scheduling.FleetAgentPriorityClassName
 	}
 
+	if cluster.Spec.AgentTolerations != nil {
+		sortTolerations(cluster.Spec.AgentTolerations)
+	}
+
 	// Notice we only set the agentScope when it's a non-default agentNamespace. This is for backwards compatibility
 	// for when we didn't have agent scope before
 	objs := agent.Manifest(
@@ -301,7 +345,7 @@ func (h *handler) newAgentBundle(ns string, cluster *fleet.Cluster) (runtime.Obj
 			PrivateRepoURL:   cluster.Spec.PrivateRepoURL,
 			AgentAffinity:    cluster.Spec.AgentAffinity,
 			AgentResources:   cluster.Spec.AgentResources,
-			HostNetwork:      *cmp.Or(cluster.Spec.HostNetwork, ptr.To(false)),
+			HostNetwork:      *cmp.Or(cluster.Spec.HostNetwork, new(false)),
 
 			// keep in sync with agent/agent.go
 			AgentImage:              cfg.AgentImage,

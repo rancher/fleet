@@ -61,7 +61,7 @@ func generateCmdDoc(cmd *cobra.Command, dir string) error {
 	}
 
 	// create the directory if it doesn't exist
-	err := os.MkdirAll(dir, 0700)
+	err := os.MkdirAll(dir, 0700) //nolint:gosec // G703 false positive: developer tool writes docs to its own CLI-argument directory
 	if err != nil {
 		return errors.Wrapf(err, "error creating directory [%s]", dir)
 	}
@@ -104,7 +104,7 @@ func createMarkdownFile(cmd *cobra.Command, dir string) error {
 	basename := strings.ReplaceAll(cmd.CommandPath(), " ", "_") + ".md"
 	filename := filepath.Join(dir, basename)
 
-	f, err := os.Create(filename)
+	f, err := os.Create(filename) //nolint:gosec // G703: developer doc-gen tool intentionally writes docs to a user-provided CLI directory
 	if err != nil {
 		return errors.Wrap(err, "error creating file")
 	}

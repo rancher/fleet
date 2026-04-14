@@ -55,12 +55,18 @@ func (r *GitJobReconciler) createOrUpdateRole(ctx context.Context, gitRepo *v1al
 	if err := controllerutil.SetControllerReference(gitRepo, role, r.Scheme); err != nil {
 		return err
 	}
+
+	listableResources := []string{"bundles"}
+	if r.WithImagescan {
+		listableResources = append(listableResources, "imagescans")
+	}
+
 	if _, err := controllerutil.CreateOrUpdate(ctx, r.Client, role, func() error {
 		role.Rules = []rbacv1.PolicyRule{
 			{
 				Verbs:     []string{"get", "create", "update", "list", "delete"},
 				APIGroups: []string{"fleet.cattle.io"},
-				Resources: []string{"bundles", "imagescans"},
+				Resources: listableResources,
 			},
 			{
 				Verbs:     []string{"get"},

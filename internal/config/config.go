@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	corev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -48,6 +49,27 @@ const (
 	// Default secret name for oci storage,
 	// used as a fallback if no secret is specified by the user in the GitRepo.
 	DefaultOCIStorageSecretName = "ocistorage"
+
+	// ContentNameIndex is the name of the index for the content name label in bundle deployments
+	ContentNameIndex = "metadata.labels." + fleet.ContentNameLabel
+
+	// RepoNameIndex is the name of the index for the gitrepo name in bundles
+	RepoNameIndex = "metadata.labels." + fleet.RepoLabel
+
+	// ImageScanGitRepoIndex is the name of the index for the gitrepo name in imagescans
+	ImageScanGitRepoIndex = "spec.gitrepoName"
+
+	// BundleDownstreamResourceIndex is the name of the index for downstream resources (secrets and configmaps) in bundles
+	BundleDownstreamResourceIndex = "spec.downstreamResources"
+
+	// GitRepoClientSecretNameIndex is the name of the index for the client secret name in gitrepos
+	GitRepoClientSecretNameIndex = "spec.clientSecretName" //nolint:gosec // not a credential
+
+	// GitRepoHelmSecretNameIndex is the name of the index for the helm secret name in gitrepos
+	GitRepoHelmSecretNameIndex = "spec.helmSecretName"
+
+	// GitRepoHelmSecretNameForPathsIndex is the name of the index for the helm secret name for paths in gitrepos
+	GitRepoHelmSecretNameForPathsIndex = "spec.helmSecretNameForPaths"
 )
 
 var (
@@ -75,7 +97,7 @@ type Config struct {
 	SystemDefaultRegistry string `json:"systemDefaultRegistry,omitempty"`
 
 	// AgentCheckinInterval determines how often agents update their clusters status, defaults to 15m
-	AgentCheckinInterval metav1.Duration `json:"agentCheckinInterval,omitempty"`
+	AgentCheckinInterval metav1.Duration `json:"agentCheckinInterval,omitzero"`
 
 	// ManageAgent if present and set to false, no bundles will be created to manage agents
 	ManageAgent *bool `json:"manageAgent,omitempty"`
@@ -107,7 +129,7 @@ type Config struct {
 	// +optional
 	APIServerCA []byte `json:"apiServerCA,omitempty"`
 
-	Bootstrap Bootstrap `json:"bootstrap,omitempty"`
+	Bootstrap Bootstrap `json:"bootstrap,omitzero"`
 
 	// IgnoreClusterRegistrationLabels if set to true, the labels on the cluster registration resource will not be copied to the cluster resource.
 	IgnoreClusterRegistrationLabels bool `json:"ignoreClusterRegistrationLabels,omitempty"`
@@ -121,13 +143,13 @@ type Config struct {
 	// canceling the request.  Used to retrieve the latest commit of configured
 	// git repositories. A non-existent value or 0 will result in a timeout of
 	// 30 seconds.
-	GitClientTimeout metav1.Duration `json:"gitClientTimeout,omitempty"`
+	GitClientTimeout metav1.Duration `json:"gitClientTimeout,omitzero"`
 
 	// GarbageCollectionInterval determines how often agents clean up obsolete Helm releases.
-	GarbageCollectionInterval metav1.Duration `json:"garbageCollectionInterval,omitempty"`
+	GarbageCollectionInterval metav1.Duration `json:"garbageCollectionInterval,omitzero"`
 
 	// AgentWorkers specifies the maximum number of workers for each agent reconciler.
-	AgentWorkers AgentWorkers `json:"agentWorkers,omitempty"`
+	AgentWorkers AgentWorkers `json:"agentWorkers,omitzero"`
 }
 
 type AgentWorkers struct {
@@ -136,13 +158,15 @@ type AgentWorkers struct {
 }
 
 type Bootstrap struct {
-	Namespace      string `json:"namespace,omitempty"`
-	AgentNamespace string `json:"agentNamespace,omitempty"`
+	Namespace      string            `json:"namespace,omitempty"`
+	AgentNamespace string            `json:"agentNamespace,omitempty"`
+	ClusterLabels  map[string]string `json:"clusterLabels,omitempty"`
 	// Repo to add at install time that will deploy to the local cluster. This allows
 	// one to fully bootstrap fleet, its configuration and all its downstream clusters
 	// in one shot.
-	Repo   string `json:"repo,omitempty"`
-	Secret string `json:"secret,omitempty"` // gitrepo.ClientSecretName for agent from repo
+	Repo string `json:"repo,omitempty"`
+	// Secret is the gitrepo.ClientSecretName for agent from repo
+	Secret string `json:"secret,omitempty"`
 	Paths  string `json:"paths,omitempty"`
 	Branch string `json:"branch,omitempty"`
 }

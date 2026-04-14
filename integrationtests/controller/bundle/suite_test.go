@@ -68,12 +68,13 @@ var _ = BeforeSuite(func() {
 	builder := target.New(mgr.GetClient(), mgr.GetAPIReader())
 
 	err = (&reconciler.BundleReconciler{
-		Client:  mgr.GetClient(),
-		Scheme:  mgr.GetScheme(),
-		Builder: builder,
-		Store:   store,
-		Query:   builder,
-		Workers: 50,
+		Client:    mgr.GetClient(),
+		Scheme:    mgr.GetScheme(),
+		APIReader: mgr.GetAPIReader(),
+		Builder:   builder,
+		Store:     store,
+		Query:     builder,
+		Workers:   50,
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred(), "failed to set up manager")
 

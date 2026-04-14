@@ -2,7 +2,6 @@ package git_test
 
 import (
 	"encoding/pem"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -22,7 +21,7 @@ type fakeGetter struct {
 	err  error
 }
 
-func (f fakeGetter) Get(appID, instID int64, pem []byte) (*httpgit.BasicAuth, error) {
+func (f fakeGetter) Get(_ string, appID, instID int64, pem []byte) (*httpgit.BasicAuth, error) {
 	return f.auth, f.err
 }
 
@@ -410,7 +409,7 @@ YcwLYudAztZeA/A4aM5Y0MA6PlNIeoHohuMkSZNOBcvkNEWdzGBpKb34yLfMarNm
 			Expect(pk.Signer).To(Equal(expectedSigner))
 
 			// Check that host keys are enforced through known hosts
-			_, _, publicKey, _, _, err := ssh.ParseKnownHosts([]byte(fmt.Sprintf("[localhost] %s", fingerPrint)))
+			_, _, publicKey, _, _, err := ssh.ParseKnownHosts([]byte("[localhost] " + fingerPrint))
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(pk.HostKeyCallback).ToNot(BeNil())
@@ -430,7 +429,7 @@ YcwLYudAztZeA/A4aM5Y0MA6PlNIeoHohuMkSZNOBcvkNEWdzGBpKb34yLfMarNm
 			Expect(pk.Signer).To(Equal(expectedSigner))
 
 			// Check that host keys are enforced through known hosts
-			_, _, publicKey, _, _, err := ssh.ParseKnownHosts([]byte(fmt.Sprintf("[localhost] %s", fingerPrint)))
+			_, _, publicKey, _, _, err := ssh.ParseKnownHosts([]byte("[localhost] " + fingerPrint))
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(pk.HostKeyCallback).ToNot(BeNil())

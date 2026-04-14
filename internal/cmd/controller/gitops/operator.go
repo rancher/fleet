@@ -20,11 +20,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	clog "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	command "github.com/rancher/fleet/internal/cmd"
 	"github.com/rancher/fleet/internal/cmd/controller/gitops/reconciler"
 	fcreconciler "github.com/rancher/fleet/internal/cmd/controller/reconciler"
+	"github.com/rancher/fleet/internal/config"
 	"github.com/rancher/fleet/internal/metrics"
 	"github.com/rancher/fleet/internal/ssh"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -94,7 +96,7 @@ func (g *GitOperator) Run(cmd *cobra.Command, args []string) error {
 
 	var shardIDSuffix string
 	if g.ShardID != "" {
-		shardIDSuffix = fmt.Sprintf("-%s", g.ShardID)
+		shardIDSuffix = "-" + g.ShardID
 	}
 
 	syncPeriod := defaultSyncPeriod
@@ -109,7 +111,7 @@ func (g *GitOperator) Run(cmd *cobra.Command, args []string) error {
 		Scheme:                  scheme,
 		Metrics:                 g.setupMetrics(),
 		LeaderElection:          g.EnableLeaderElection,
-		LeaderElectionID:        fmt.Sprintf("fleet-gitops-leader-election-shard%s", shardIDSuffix),
+		LeaderElectionID:        "fleet-gitops-leader-election-shard" + shardIDSuffix,
 		LeaderElectionNamespace: namespace,
 		LeaseDuration:           &leaderOpts.LeaseDuration,
 		RenewDeadline:           &leaderOpts.RenewDeadline,
@@ -138,7 +140,41 @@ func (g *GitOperator) Run(cmd *cobra.Command, args []string) error {
 		workers = w
 	}
 
+	imagescanEnabled := false
+	if v := os.Getenv("IMAGESCAN_ENABLED"); v != "" {
+		enabled, err := strconv.ParseBool(v)
+		if err != nil {
+			setupLog.Error(err, "failed to parse IMAGESCAN_ENABLED", "value", v)
+		}
+		imagescanEnabled = enabled
+	}
+
 	kh := ssh.KnownHosts{EnforceHostKeyChecks: !g.SkipHostKeyChecks}
+
+	// Add an indexer for the Gitrepo name label as that will make accesses in the cache
+	// faster
+	if err := AddRepoNameLabelIndexer(ctx, mgr); err != nil {
+		return err
+	}
+
+	// Add an indexer for the GitRepo name field in ImageScans as that will make accesses in the cache
+	// faster
+	if err := AddImageScanGitRepoIndexer(ctx, mgr, imagescanEnabled); err != nil {
+		return err
+	}
+
+	// Add indexers for GitRepo secret fields
+	if err := AddGitRepoClientSecretNameIndexer(ctx, mgr); err != nil {
+		return err
+	}
+
+	if err := AddGitRepoHelmSecretNameIndexer(ctx, mgr); err != nil {
+		return err
+	}
+
+	if err := AddGitRepoHelmSecretNameForPathsIndexer(ctx, mgr); err != nil {
+		return err
+	}
 
 	gitJobReconciler := &reconciler.GitJobReconciler{
 		Client:          mgr.GetClient(),
@@ -150,9 +186,10 @@ func (g *GitOperator) Run(cmd *cobra.Command, args []string) error {
 		JobNodeSelector: g.ShardNodeSelector,
 		GitFetcher:      &git.Fetch{KnownHosts: kh},
 		Clock:           reconciler.RealClock{},
-		Recorder:        mgr.GetEventRecorderFor(fmt.Sprintf("fleet-gitops%s", shardIDSuffix)),
+		Recorder:        mgr.GetEventRecorder("fleet-gitops" + shardIDSuffix),
 		SystemNamespace: namespace,
 		KnownHosts:      kh,
+		WithImagescan:   imagescanEnabled,
 	}
 
 	statusReconciler := &reconciler.StatusReconciler{
@@ -244,4 +281,99 @@ func startWebhook(ctx context.Context, namespace string, addr string, client cli
 	}
 
 	return nil
+}
+
+func AddRepoNameLabelIndexer(ctx context.Context, mgr manager.Manager) error {
+	return mgr.GetFieldIndexer().IndexField(
+		ctx,
+		&fleet.Bundle{},
+		config.RepoNameIndex,
+		func(obj client.Object) []string {
+			content, ok := obj.(*fleet.Bundle)
+			if !ok {
+				return nil
+			}
+			if name, exists := content.Labels[fleet.RepoLabel]; exists {
+				return []string{name}
+			}
+
+			return nil
+		},
+	)
+}
+
+func AddImageScanGitRepoIndexer(ctx context.Context, mgr manager.Manager, enabled bool) error {
+	if !enabled {
+		return nil
+	}
+
+	return mgr.GetFieldIndexer().IndexField(
+		ctx,
+		&fleet.ImageScan{},
+		config.ImageScanGitRepoIndex,
+		func(obj client.Object) []string {
+			content, ok := obj.(*fleet.ImageScan)
+			if !ok {
+				return nil
+			}
+			if content.Spec.GitRepoName == "" {
+				return nil
+			}
+			return []string{content.Spec.GitRepoName}
+		},
+	)
+}
+
+func AddGitRepoClientSecretNameIndexer(ctx context.Context, mgr manager.Manager) error {
+	return mgr.GetFieldIndexer().IndexField(
+		ctx,
+		&fleet.GitRepo{},
+		config.GitRepoClientSecretNameIndex,
+		func(obj client.Object) []string {
+			gitRepo, ok := obj.(*fleet.GitRepo)
+			if !ok {
+				return nil
+			}
+			if gitRepo.Spec.ClientSecretName == "" {
+				return nil
+			}
+			return []string{gitRepo.Spec.ClientSecretName}
+		},
+	)
+}
+
+func AddGitRepoHelmSecretNameIndexer(ctx context.Context, mgr manager.Manager) error {
+	return mgr.GetFieldIndexer().IndexField(
+		ctx,
+		&fleet.GitRepo{},
+		config.GitRepoHelmSecretNameIndex,
+		func(obj client.Object) []string {
+			gitRepo, ok := obj.(*fleet.GitRepo)
+			if !ok {
+				return nil
+			}
+			if gitRepo.Spec.HelmSecretName == "" {
+				return nil
+			}
+			return []string{gitRepo.Spec.HelmSecretName}
+		},
+	)
+}
+
+func AddGitRepoHelmSecretNameForPathsIndexer(ctx context.Context, mgr manager.Manager) error {
+	return mgr.GetFieldIndexer().IndexField(
+		ctx,
+		&fleet.GitRepo{},
+		config.GitRepoHelmSecretNameForPathsIndex,
+		func(obj client.Object) []string {
+			gitRepo, ok := obj.(*fleet.GitRepo)
+			if !ok {
+				return nil
+			}
+			if gitRepo.Spec.HelmSecretNameForPaths == "" {
+				return nil
+			}
+			return []string{gitRepo.Spec.HelmSecretNameForPaths}
+		},
+	)
 }

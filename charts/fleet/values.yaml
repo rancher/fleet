@@ -36,10 +36,17 @@ ignoreClusterRegistrationLabels: false
 # clusterEnqueueDelay: 120s
 
 # http[s] proxy server
-# proxy: http://<username>@<password>:<url>:<port>
+# proxy: http://<username>:<password>@<url>:<port>
 
 # comma separated list of domains or ip addresses that will not use the proxy
 noProxy: 127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,.svc,.cluster.local
+
+# PEM-encoded CA certificate to trust when connecting to the proxy. Required
+# when proxy is set to an https:// URL and the proxy uses a self-signed cert.
+# proxyCACert: |
+#   -----BEGIN CERTIFICATE-----
+#   ...
+#   -----END CERTIFICATE-----
 
 # The amount of time to wait for a response from the server before canceling the
 # request.  Used to retrieve the latest commit of configured git repositories.
@@ -53,6 +60,8 @@ bootstrap:
   # The namespace where the fleet agent for the local cluster will be ran, if empty
   # this will default to cattle-fleet-system
   agentNamespace: ""
+  # Apply extra clusterLabels to the local cluster bootstrapped by fleet-controller
+  clusterLabels: {}
   # A repo to add at install time that will deploy to the local cluster. This allows
   # one to fully bootstrap fleet, its configuration and all its downstream clusters
   # in one shot.
@@ -76,14 +85,29 @@ tolerations: []
 ## Pod affinity for the controllers.
 affinity: {}
 
-# Pod resource limits and requests for the controllers
+# Container resource limits and requests for the controllers
 resources: {}
+  ## Limits and requests for all fleet containers.
   # limits:
   #   cpu: 8000m
   #   memory: 8Gi
   # requests:
   #   cpu: 250m
   #   memory: 768Mi
+  #
+  ## Set per-component overrides here.
+  ## Set to empty object {} to use none rather than the default from above.
+  # fleetController:
+  #   limits:
+  #     cpu: 8000m
+  #     memory: 8Gi
+  #   requests:
+  #     cpu: 250m
+  #     memory: 768Mi
+  # fleetCleanup: {}  # none rather than default
+  # fleetAgentmanagement: {}  # none rather than default
+  # gitjob: {}  # none rather than default
+  # helmops: {}  # none rather than default
 
 ## PriorityClassName assigned to deployment.
 priorityClassName: ""
@@ -91,6 +115,11 @@ priorityClassName: ""
 ## Determines whether SSH operations (eg. cloning git repos, downloading Helm charts) could succeed if
 ## host verification fails. Insecure when set to true. Default: false.
 insecureSkipHostKeyChecks: false
+
+## Adds hosts to the known_hosts configmap if using a custom git provider for gitrepos
+additionalKnownHosts: []
+# Custom entries to be added in SSH known_hosts format (see charts/fleet/templates/configmap_known_hosts.yaml for examples):
+#   - <host>[:port] <key-algorithm> <fingerprint>
 
 gitops:
   enabled: true
@@ -129,6 +158,7 @@ controller:
       clustergroup: "50"
       imagescan: "50"
       schedule: "50"
+      content: "50"
 
 gitjob:
   replicas: 1
@@ -136,6 +166,12 @@ gitjob:
 helmops:
   enabled: true
   replicas: 1
+
+# When enabled, the imagescan controller will run to monitor image repositories.
+# If disabled, config files (e.g. fleet.yaml) containing non-empty imageScan fields will result in errors.
+# This option may be deprecated in a future release, and imagescan removed.
+imagescan:
+  enabled: false
 
 ## Fleet agent configuration
 agent:

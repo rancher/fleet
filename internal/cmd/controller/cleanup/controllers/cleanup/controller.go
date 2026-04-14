@@ -16,13 +16,15 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
 type handler struct {
-	apply      apply.Apply
-	clusters   fleetcontrollers.ClusterCache
-	namespaces corecontrollers.NamespaceClient
+	apply          apply.Apply
+	clusters       fleetcontrollers.ClusterCache
+	clustersClient fleetcontrollers.ClusterClient
+	namespaces     corecontrollers.NamespaceClient
 }
 
 func Register(ctx context.Context, apply apply.Apply,
@@ -33,11 +35,13 @@ func Register(ctx context.Context, apply apply.Apply,
 	clusterRole rbaccontrollers.ClusterRoleController,
 	clusterRoleBinding rbaccontrollers.ClusterRoleBindingController,
 	namespaces corecontrollers.NamespaceController,
-	clusterCache fleetcontrollers.ClusterCache) {
+	clusterCache fleetcontrollers.ClusterCache,
+	clusterClient fleetcontrollers.ClusterClient) {
 	h := &handler{
-		apply:      apply,
-		clusters:   clusterCache,
-		namespaces: namespaces,
+		apply:          apply,
+		clusters:       clusterCache,
+		clustersClient: clusterClient,
+		namespaces:     namespaces,
 	}
 
 	clusterRole.OnChange(ctx, "managed-cleanup", func(_ string, obj *rbacv1.ClusterRole) (*rbacv1.ClusterRole, error) {
@@ -90,15 +94,29 @@ func (h *handler) cleanupNamespace(key string, obj *corev1.Namespace) (*corev1.N
 		return obj, nil
 	}
 
-	// check if the cluster for this cluster namespace still exists, otherwise clean up the namespace
-	_, err := h.clusters.Get(obj.Annotations[fleet.ClusterNamespaceAnnotation], obj.Annotations[fleet.ClusterAnnotation])
-	if apierrors.IsNotFound(err) {
-		logrus.Infof("Cleaning up fleet-managed namespace %q, cluster not found", obj.Name)
+	clusterNS := obj.Annotations[fleet.ClusterNamespaceAnnotation]
+	clusterName := obj.Annotations[fleet.ClusterAnnotation]
 
-		err = h.namespaces.Delete(key, nil)
+	// check if the cluster for this cluster namespace still exists, otherwise clean up the namespace.
+	// First consult the informer cache; if the cache reports not-found, confirm with a live API call
+	// to avoid a race where the Cluster was just created and hasn't been reflected in the cache yet.
+	_, err := h.clusters.Get(clusterNS, clusterName)
+	if !apierrors.IsNotFound(err) {
 		return obj, err
 	}
-	return obj, err
+
+	// Cache said not-found — verify against the API server before deleting.
+	_, err = h.clustersClient.Get(clusterNS, clusterName, metav1.GetOptions{})
+	if err == nil {
+		// Cluster exists in the API server; the cache is stale. Do not delete the namespace.
+		return obj, nil
+	}
+	if !apierrors.IsNotFound(err) {
+		return obj, err
+	}
+
+	logrus.Infof("Cleaning up fleet-managed namespace %q, cluster not found", obj.Name)
+	return obj, h.namespaces.Delete(key, nil)
 }
 
 func (h *handler) cleanup(obj runtime.Object) error {

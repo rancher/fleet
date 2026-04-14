@@ -112,7 +112,6 @@ func TestManifestAgentTolerations(t *testing.T) {
 				t.Fatal("there were no deployments returned from the manifests")
 			}
 
-			//nolint:SA5011 // agent is checked for nil above; t.Fatal prevents execution if nil
 			if !cmp.Equal(agent.Spec.Template.Spec.Tolerations, testCase.expectedTolerations, cmpOpt) {
 				t.Fatalf("tolerations were not as expected: %v", agent.Spec.Template.Spec.Tolerations)
 			}
@@ -134,16 +133,18 @@ func TestManifestAgentHostNetwork(t *testing.T) {
 	}
 
 	for _, testCase := range []struct {
-		name            string
-		getOpts         func() agent.ManifestOptions
-		expectedNetwork bool
+		name             string
+		getOpts          func() agent.ManifestOptions
+		expectedNetwork  bool
+		expectedStrategy appsv1.DeploymentStrategyType
 	}{
 		{
 			name: "DefaultSetting",
 			getOpts: func() agent.ManifestOptions {
 				return baseOpts
 			},
-			expectedNetwork: false,
+			expectedNetwork:  false,
+			expectedStrategy: appsv1.DeploymentStrategyType(""),
 		},
 		{
 			name: "With hostNetwork",
@@ -152,7 +153,8 @@ func TestManifestAgentHostNetwork(t *testing.T) {
 				withHostNetwork.HostNetwork = true
 				return withHostNetwork
 			},
-			expectedNetwork: true,
+			expectedNetwork:  true,
+			expectedStrategy: appsv1.RecreateDeploymentStrategyType,
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -161,9 +163,12 @@ func TestManifestAgentHostNetwork(t *testing.T) {
 				t.Fatal("there were no deployments returned from the manifests")
 			}
 
-			//nolint:SA5011 // agent is checked for nil above; t.Fatal prevents execution if nil
 			if !cmp.Equal(agent.Spec.Template.Spec.HostNetwork, testCase.expectedNetwork) {
 				t.Fatalf("hostNetwork is not as expected: %v", agent.Spec.Template.Spec.HostNetwork)
+			}
+
+			if !cmp.Equal(agent.Spec.Strategy.Type, testCase.expectedStrategy) {
+				t.Fatalf("strategy is not as expected: %v", agent.Spec.Strategy.Type)
 			}
 		})
 	}
@@ -234,7 +239,6 @@ func TestManifestAgentAffinity(t *testing.T) {
 				t.Fatal("there were no deployments returned from the manifests")
 			}
 
-			//nolint:SA5011 // agent is checked for nil above; t.Fatal prevents execution if nil
 			if !cmp.Equal(agent.Spec.Template.Spec.Affinity, testCase.expectedAffinity) {
 				t.Fatalf("affinity was not as expected: %v %v", testCase.expectedAffinity, agent.Spec.Template.Spec.Affinity)
 			}

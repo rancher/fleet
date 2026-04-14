@@ -28,7 +28,7 @@ func TestParseGogs(t *testing.T) {
 		headers    map[string]string
 		wantErr    bool
 		wantErrMsg string
-		wantEvent  interface{}
+		wantEvent  any
 	}{
 		"valid-gogs-push-event-no-secret": {
 			secretData: nil,
@@ -349,7 +349,7 @@ func TestParseGitlab(t *testing.T) {
 		headers    map[string]string
 		wantErr    bool
 		wantErrMsg string
-		wantEvent  interface{}
+		wantEvent  any
 	}{
 		"valid-gitlab-push-event-no-secret": {
 			secretData: nil,
@@ -1041,8 +1041,8 @@ func TestParseBitbucketServer(t *testing.T) {
 
 				_, okCloneLinks := gotBB.Repository.Links["clone"]
 				if okCloneLinks {
-					for _, l := range gotBB.Repository.Links["clone"].([]interface{}) {
-						link := l.(map[string]interface{})
+					for _, l := range gotBB.Repository.Links["clone"].([]any) {
+						link := l.(map[string]any)
 						if link["name"] == "http" {
 							if link["href"].(string) != tt.wantRepoURL {
 								t.Fatalf("parseBitbucketServer() got repo URL %s, want %s", link["href"].(string), tt.wantRepoURL)

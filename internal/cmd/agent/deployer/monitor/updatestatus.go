@@ -18,6 +18,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/go-logr/logr"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/desiredset"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/objectset"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/summary"
@@ -93,7 +94,7 @@ func (m *Monitor) UpdateStatus(ctx context.Context, bd *fleet.BundleDeployment, 
 	// updateFromPreviousDeployment mutates bd.Status, so copy it first
 	origStatus := *bd.Status.DeepCopy()
 	bd = bd.DeepCopy()
-	err := m.updateFromPreviousDeployment(ctx, bd, resources)
+	err := m.updateFromPreviousDeployment(ctx, logger, bd, resources)
 	if err != nil {
 
 		// Returning an error will cause UpdateStatus to requeue in a loop.
@@ -157,7 +158,12 @@ func readyError(status fleet.BundleDeploymentStatus) error {
 // updateFromPreviousDeployment updates the status with information from the
 // helm release history and an apply dry run.
 // Modified resources are resources that have changed from the previous helm release.
-func (m *Monitor) updateFromPreviousDeployment(ctx context.Context, bd *fleet.BundleDeployment, resources *helmdeployer.Resources) error {
+func (m *Monitor) updateFromPreviousDeployment(
+	ctx context.Context,
+	logger logr.Logger,
+	bd *fleet.BundleDeployment,
+	resources *helmdeployer.Resources,
+) error {
 	resourcesPreviousRelease, err := m.deployer.ResourcesFromPreviousReleaseVersion(bd.Name, bd.Status.Release)
 	if err != nil {
 		return err
@@ -177,7 +183,7 @@ func (m *Monitor) updateFromPreviousDeployment(ctx context.Context, bd *fleet.Bu
 	// dryrun.Diff only takes plan.Update into account. plan.Update
 	// contains objects which have changes to existing values. Adding a new
 	// key to a map is not considered an update.
-	plan, err = desiredset.Diff(plan, bd, resources.DefaultNamespace, resources.Objects...)
+	plan, err = desiredset.Diff(logger, plan, bd, resources.DefaultNamespace, resources.Objects...)
 	if err != nil {
 		return err
 	}
@@ -448,12 +454,12 @@ func excludeIgnoredConditions(obj *unstructured.Unstructured, ignoreOptions *fle
 	if err != nil {
 		return err
 	}
-	conditionsWithoutIgnored := make([]interface{}, 0)
+	conditionsWithoutIgnored := make([]any, 0)
 
 	for _, condition := range conditions {
-		condition, ok := condition.(map[string]interface{})
+		condition, ok := condition.(map[string]any)
 		if !ok {
-			return fmt.Errorf("condition: %#v can't be converted to map[string]interface{}", condition)
+			return fmt.Errorf("condition: %#v can't be converted to map[string]any", condition)
 		}
 		excludeCondition := false
 		for _, ignoredCondition := range ignoreOptions.Conditions {
@@ -476,7 +482,7 @@ func excludeIgnoredConditions(obj *unstructured.Unstructured, ignoreOptions *fle
 }
 
 // shouldExcludeCondition returns true if all the elements of ignoredConditions are inside conditions
-func shouldExcludeCondition(conditions map[string]interface{}, ignoredConditions map[string]string) bool {
+func shouldExcludeCondition(conditions map[string]any, ignoredConditions map[string]string) bool {
 	if len(ignoredConditions) > len(conditions) {
 		return false
 	}

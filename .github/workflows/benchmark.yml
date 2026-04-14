@@ -24,8 +24,7 @@ concurrency:
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
-  SETUP_K3D_VERSION: "v5.8.3"
-  SETUP_K3S_VERSION: "v1.34.1-k3s1"
+  SETUP_K3S_VERSION: "v1.35.1-k3s1"
   # Defaults for both manual and scheduled runs
   BENCH_TIMEOUT: ${{ github.event.inputs.timeout || '2m' }}
   BENCH_NAMESPACE: ${{ github.event.inputs.namespace || 'fleet-local' }}
@@ -37,15 +36,14 @@ jobs:
     timeout-minutes: 90
     steps:
       - name: Checkout
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
 
       - name: Setup Go
-        uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version-file: "go.mod"
-          check-latest: true
 
       # No extra host dependencies required
 
@@ -60,8 +58,24 @@ jobs:
           docker --version
           docker info
 
+      - name: Cache k3d CLI
+        id: cache-k3d
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: ~/.local/bin/k3d
+          key: ${{ runner.os }}-k3d-${{ hashFiles('.github/scripts/install-k3d.sh') }}
+          restore-keys: |
+            ${{ runner.os }}-k3d-
+
       - name: Install k3d
-        run: curl --silent --fail https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | TAG=${{ env.SETUP_K3D_VERSION }} bash
+        run: |
+          if [ "${{ steps.cache-k3d.outputs.cache-hit }}" != "true" ]; then
+            ./.github/scripts/install-k3d.sh
+          else
+            echo "Using cached k3d"
+            chmod +x ~/.local/bin/k3d
+          fi
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Verify k3d installation
         run: |
@@ -72,7 +86,8 @@ jobs:
         run: |
           k3d cluster create upstream --wait \
             --agents 1 \
-            --image docker.io/rancher/k3s:${{ env.SETUP_K3S_VERSION }}
+            --image docker.io/rancher/k3s:${{ env.SETUP_K3S_VERSION }} \
+            --k3s-arg "--cluster-init@server:0"
 
       - name: Import Images Into k3d
         run: |
@@ -108,7 +123,7 @@ jobs:
           echo "Found report: $safe_file"
 
       - name: Upload benchmark JSON
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: benchmark-report
           path: ${{ steps.report.outputs.report }}

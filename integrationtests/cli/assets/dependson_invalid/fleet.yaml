@@ -1,0 +1,8 @@
+defaultNamespace: test-dependson
+dependsOn:
+- name: my-dependency
+  acceptedStates:
+  - Ready
+  - InvalidState
+targets:
+- clusterSelector: {}

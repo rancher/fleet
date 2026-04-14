@@ -1,0 +1,123 @@
+suite: imagescan tests
+tests:
+  - it: should not include disabled imagescan in the gitjob ClusterRole
+    set:
+      imagescan.enabled: false
+    template: rbac_gitjob.yaml
+    documentIndex: 0
+    asserts:
+      - contains:
+          path: rules
+          content:
+            apiGroups:
+              - "fleet.cattle.io"
+            resources:
+              - "bundles"
+              - "bundledeployments"
+              - "contents"
+            verbs:
+              - list
+              - delete
+              - get
+              - watch
+              - update
+      - notContains:
+          path: rules
+          content:
+            apiGroups:
+              - "fleet.cattle.io"
+            resources:
+              - "bundles"
+              - "bundledeployments"
+              - "imagescans"
+              - "contents"
+            verbs:
+              - list
+              - delete
+              - get
+              - watch
+              - update
+
+  - it: should not set env var IMAGESCAN_ENABLED in the gitjob deployment when imagescan is disabled
+    set:
+      imagescan.enabled: false
+    template: deployment_gitjob.yaml
+    documentIndex: 0
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: IMAGESCAN_ENABLED
+
+  - it: should not set env var IMAGESCAN_ENABLED in the fleet-controller deployment when imagescan is disabled
+    set:
+      imagescan.enabled: false
+    template: deployment.yaml
+    documentIndex: 0
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: IMAGESCAN_ENABLED
+
+  - it: should include enabled imagescan in the gitjob ClusterRole
+    set:
+      imagescan.enabled: true
+    template: rbac_gitjob.yaml
+    documentIndex: 0
+    asserts:
+      - contains:
+          path: rules
+          content:
+            apiGroups:
+              - "fleet.cattle.io"
+            resources:
+              - "bundles"
+              - "bundledeployments"
+              - "imagescans"
+              - "contents"
+            verbs:
+              - list
+              - delete
+              - get
+              - watch
+              - update
+      - notContains:
+          path: rules
+          content:
+            apiGroups:
+              - "fleet.cattle.io"
+            resources:
+              - "bundles"
+              - "bundledeployments"
+              - "contents"
+            verbs:
+              - list
+              - delete
+              - get
+              - watch
+              - update
+
+  - it: should set env var IMAGESCAN_ENABLED to "true" in the gitjob deployment when imagescan is enabled
+    set:
+      imagescan.enabled: true
+    template: deployment_gitjob.yaml
+    documentIndex: 0
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: IMAGESCAN_ENABLED
+            value: "true"
+
+  - it: should set env var IMAGESCAN_ENABLED to "true" in the fleet-controller deployment when imagescan is enabled
+    set:
+      imagescan.enabled: true
+    template: deployment.yaml
+    documentIndex: 0
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: IMAGESCAN_ENABLED
+            value: "true"

@@ -17,9 +17,7 @@ var _ = Describe("Bundle Depends On", func() {
 	var (
 		k kubectl.Command
 
-		asset     string
 		namespace string
-		data      any
 		required  string
 		dependsOn string
 
@@ -40,39 +38,31 @@ var _ = Describe("Bundle Depends On", func() {
 		Expect(env.Namespace).To(Equal("fleet-local"))
 	})
 
-	JustBeforeEach(func() {
-		err := testenv.ApplyTemplate(k.Namespace(env.Namespace), testenv.AssetPath(asset), data)
-		Expect(err).ToNot(HaveOccurred())
-	})
-
 	AfterEach(func() {
 		if namespace == "" {
-			// test failed in BeforeEach
 			return
 		}
+
 		out, err := k.Delete("ns", namespace)
 		Expect(err).ToNot(HaveOccurred(), out)
 
 		out, err = k.Namespace(env.Namespace).Delete("bundle", dependsOn)
 		Expect(err).ToNot(HaveOccurred(), out)
-
 		out, err = k.Namespace(env.Namespace).Delete("bundle", required)
 		Expect(err).ToNot(HaveOccurred(), out)
 	})
-
-	deployRequiredBundle := func() {
-		err := testenv.ApplyTemplate(k.Namespace(env.Namespace), testenv.AssetPath("multi-cluster/bundle-cm.yaml"),
-			TemplateData{required, env.Namespace, namespace})
-		Expect(err).ToNot(HaveOccurred())
-	}
 
 	When("bundle depends on a bundle in the same namespace", func() {
 		BeforeEach(func() {
 			required = "required"
 			dependsOn = "depends-on"
 			namespace = testenv.NewNamespaceName("bnm-nomatch", r)
-			asset = "multi-cluster/bundle-depends-on.yaml"
-			data = TemplateData{dependsOn, env.Namespace, namespace}
+		})
+
+		JustBeforeEach(func() {
+			err := testenv.ApplyTemplate(k.Namespace(env.Namespace), testenv.AssetPath("multi-cluster/bundle-depends-on.yaml"),
+				TemplateData{dependsOn, env.Namespace, namespace})
+			Expect(err).ToNot(HaveOccurred())
 		})
 
 		It("shows an error until dependency is fulfilled", func() {
@@ -91,9 +81,76 @@ var _ = Describe("Bundle Depends On", func() {
 				Name:    "fleet-local/local",
 			}))
 
-			By("deploying the required bundle", deployRequiredBundle)
+			By("deploying the required bundle")
+			err := testenv.ApplyTemplate(k.Namespace(env.Namespace), testenv.AssetPath("multi-cluster/bundle-cm.yaml"),
+				TemplateData{required, env.Namespace, namespace})
+			Expect(err).ToNot(HaveOccurred())
 
 			By("waiting for bundle to ready")
+			Eventually(func() string {
+				out, err := k.Namespace(env.Namespace).Get("bundle", dependsOn, "-o=jsonpath={.status.display}")
+				if err != nil {
+					return ""
+				}
+				var d fleet.BundleDisplay
+				_ = json.Unmarshal([]byte(out), &d)
+				return d.ReadyClusters
+			}, 5*time.Minute, interval).Should(Equal("1/1"))
+		})
+	})
+
+	When("bundle depends on a bundle with acceptedStates including Modified", func() {
+		BeforeEach(func() {
+			required = "required-modified"
+			dependsOn = "depends-on-accepted-states"
+			namespace = testenv.NewNamespaceName("bnm-accepted", r)
+		})
+
+		It("allows dependent bundle to deploy when dependency is in Modified state", func() {
+			By("deploying the required bundle first")
+			err := testenv.ApplyTemplate(k.Namespace(env.Namespace), testenv.AssetPath("multi-cluster/bundle-cm-modified.yaml"),
+				TemplateData{required, env.Namespace, namespace})
+			Expect(err).ToNot(HaveOccurred())
+
+			By("waiting for required bundle to be ready")
+			Eventually(func() string {
+				out, err := k.Namespace(env.Namespace).Get("bundle", required, "-o=jsonpath={.status.display}")
+				if err != nil {
+					return ""
+				}
+				var d fleet.BundleDisplay
+				_ = json.Unmarshal([]byte(out), &d)
+				return d.ReadyClusters
+			}, 2*time.Minute, interval).Should(Equal("1/1"))
+
+			By("waiting for ConfigMap to be deployed")
+			Eventually(func() error {
+				_, err := k.Namespace(namespace).Get("configmap", "root-will-be-modified")
+				return err
+			}, 1*time.Minute, interval).Should(Succeed())
+
+			By("modifying the deployed ConfigMap to trigger drift")
+			_, err = k.Namespace(namespace).Run(
+				"patch", "configmap", "root-will-be-modified",
+				"--type=merge", "-p", `{"data":{"value":"modified-externally"}}`,
+			)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("waiting for required bundle to enter Modified state")
+			Eventually(func() string {
+				out, err := k.Namespace(env.Namespace).Get("bundle", required, "-o=jsonpath={.status.display.state}")
+				if err != nil {
+					return ""
+				}
+				return out
+			}, 2*time.Minute, interval).Should(Equal("Modified"))
+
+			By("deploying the dependent bundle that accepts Modified state")
+			err = testenv.ApplyTemplate(k.Namespace(env.Namespace), testenv.AssetPath("multi-cluster/bundle-depends-on-accepted-states.yaml"),
+				TemplateData{dependsOn, env.Namespace, namespace})
+			Expect(err).ToNot(HaveOccurred())
+
+			By("verifying dependent bundle becomes ready despite dependency being Modified")
 			Eventually(func() string {
 				out, err := k.Namespace(env.Namespace).Get("bundle", dependsOn, "-o=jsonpath={.status.display}")
 				if err != nil {

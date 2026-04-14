@@ -5,6 +5,8 @@ package reconciler
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/hex"
+	"errors"
 	"fmt"
 	"time"
 
@@ -13,15 +15,15 @@ import (
 	"golang.org/x/sync/semaphore"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	fleetevent "github.com/rancher/fleet/pkg/event"
 
 	"github.com/rancher/wrangler/v3/pkg/condition"
 	"github.com/rancher/wrangler/v3/pkg/kstatus"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	errutil "k8s.io/apimachinery/pkg/util/errors"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -40,12 +42,12 @@ type helmPollingJob struct {
 	chart   string
 	version string
 
-	recorder record.EventRecorder
+	recorder events.EventRecorder
 }
 
 func newHelmPollingJob(
 	c client.Client,
-	r record.EventRecorder,
+	r events.EventRecorder,
 	namespace,
 	name string,
 	helmRef fleet.HelmOptions,
@@ -86,7 +88,7 @@ func (j *helmPollingJob) Description() string {
 	hasher.Write([]byte(j.chart))
 	hasher.Write([]byte(j.version))
 
-	chartRefHash := fmt.Sprintf("%x", hasher.Sum(nil))
+	chartRefHash := hex.EncodeToString(hasher.Sum(nil))
 
 	return fmt.Sprintf("helmops-polling-%s-%s-%s", j.namespace, j.name, chartRefHash)
 }
@@ -103,7 +105,7 @@ func (j *helmPollingJob) pollHelm(ctx context.Context) error {
 
 	if h.Spec.Helm == nil {
 		// This should not happen unless something has gone wrong in the reconciler's job management logic.
-		return fmt.Errorf("helm options are unset")
+		return errors.New("helm options are unset")
 	}
 
 	// In case the version constraint has changed before the job was updated or deleted, this prevents an unwanted
@@ -116,30 +118,56 @@ func (j *helmPollingJob) pollHelm(ctx context.Context) error {
 	// Even if it fails, this timestamp will be updated in the HelmOp status.
 	pollingTimestamp := time.Now().UTC()
 
-	fail := func(origErr error, eventReason string) error {
+	fail := func(origErr error, eventReason, eventAction string) error {
 		if eventReason != "" {
-			j.recorder.Event(h, fleetevent.Warning, eventReason, origErr.Error())
+			j.recorder.Eventf(
+				h,
+				nil,
+				corev1.EventTypeWarning,
+				eventReason,
+				eventAction,
+				"%v",
+				origErr,
+			)
 		}
 
 		return j.updateErrorStatus(ctx, h, pollingTimestamp, origErr)
 	}
 
-	version, err := getChartVersion(ctx, j.client, *h)
-	if err != nil {
-		return fail(err, "FailedToGetNewChartVersion")
+	// Fetch the bundle first so we can pass its stored CA bundle to
+	// getChartVersion and avoid a redundant cattle-system secret lookup.
+	b := &fleet.Bundle{}
+	if err := j.client.Get(ctx, nsName, b); err != nil {
+		return fail(
+			fmt.Errorf("could not get bundle before polling: %w", err),
+			"FailedToGetBundle",
+			"GetBundle",
+		)
 	}
 
-	b := &fleet.Bundle{}
+	var storedCABundle []byte
+	if b.Spec.HelmOpOptions != nil {
+		storedCABundle = b.Spec.HelmOpOptions.CABundle
+	}
 
-	if err := j.client.Get(ctx, nsName, b); err != nil {
-		return fail(fmt.Errorf("could not get bundle before patching its version: %w", err), "FailedToGetBundle")
+	version, err := getChartVersion(ctx, j.client, *h, storedCABundle)
+	if err != nil {
+		return fail(err, "FailedToGetNewChartVersion", "GetNewChartVersion")
 	}
 
 	orig := b.DeepCopy()
 	b.Spec.Helm.Version = version
 
 	if version != h.Status.Version {
-		j.recorder.Event(h, fleetevent.Normal, "GotNewChartVersion", version)
+		j.recorder.Eventf(
+			h,
+			nil,
+			corev1.EventTypeNormal,
+			"GotNewChartVersion",
+			"GetNewChartVersion",
+			"%s",
+			version,
+		)
 	}
 
 	patch := client.MergeFrom(orig)
@@ -149,7 +177,11 @@ func (j *helmPollingJob) pollHelm(ctx context.Context) error {
 	}
 
 	if err := j.client.Patch(ctx, b, patch); err != nil {
-		return fail(fmt.Errorf("could not patch bundle to set the resolved version: %w", err), "FailedToPatchBundle")
+		return fail(
+			fmt.Errorf("could not patch bundle to set the resolved version: %w", err),
+			"FailedToPatchBundle",
+			"PatchBundle",
+		)
 	}
 
 	nsn := types.NamespacedName{Name: h.Name, Namespace: h.Namespace}
@@ -180,6 +212,7 @@ func (j *helmPollingJob) pollHelm(ctx context.Context) error {
 		return fail(
 			fmt.Errorf("could not update HelmOp status with polling timestamp: %w", err),
 			"FailedToUpdateHelmOpStatus",
+			"UpdateHelmOpStatus",
 		)
 	}
 

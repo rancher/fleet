@@ -5,16 +5,38 @@
   ],
   "baseBranchPatterns": [
     "main",
+    "release/v0.15",
     "release/v0.14",
     "release/v0.13",
     "release/v0.12",
-    "release/v0.11",
-    "release/v0.10"
+    "release/v0.11"
   ],
   "ignorePaths": [
     "**/assets/**"
   ],
   "packageRules": [
+    {
+      "description": "Update indirect dependencies in integrationtests/go.mod only when the same dependency is updated elsewhere in the workspace",
+      "matchManagers": [
+        "gomod"
+      ],
+      "matchDepTypes": [
+        "indirect"
+      ],
+      "matchFileNames": [
+        "integrationtests/go.mod"
+      ],
+      "enabled": true,
+      "minimumGroupSize": 2
+    },
+    {
+      "matchBaseBranches": [
+        "release/v0.15"
+      ],
+      "extends": [
+        "github>rancher/renovate-config//rancher-2.14#release"
+      ]
+    },
     {
       "matchBaseBranches": [
         "release/v0.14"
@@ -45,14 +67,6 @@
       ],
       "extends": [
         "github>rancher/renovate-config//rancher-2.10#release"
-      ]
-    },
-    {
-      "matchBaseBranches": [
-        "release/v0.10"
-      ],
-      "extends": [
-        "github>rancher/renovate-config//rancher-2.9#release"
       ]
     }
   ]

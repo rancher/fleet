@@ -1,7 +1,7 @@
 package github
 
 import (
-	"fmt"
+	"errors"
 	"reflect"
 	"testing"
 
@@ -14,7 +14,7 @@ type fakeGetter struct {
 	err  error
 }
 
-func (f fakeGetter) Get(appID, instID int64, pem []byte) (*httpgit.BasicAuth, error) {
+func (f fakeGetter) Get(_ string, appID, instID int64, pem []byte) (*httpgit.BasicAuth, error) {
 	return f.auth, f.err
 }
 
@@ -35,7 +35,7 @@ func TestGetGithubAppAuthFromSecret(t *testing.T) {
 					GitHubAppAuthIDKey: []byte("123"),
 				},
 			},
-			getter:   fakeGetter{err: fmt.Errorf("not a GitHub App secret")},
+			getter:   fakeGetter{err: errors.New("not a GitHub App secret")},
 			wantAuth: nil,
 			wantErr:  true,
 		},
@@ -61,7 +61,7 @@ func TestGetGithubAppAuthFromSecret(t *testing.T) {
 					GitHubAppAuthPrivateKeyKey:     []byte("my-pem"),
 				},
 			},
-			getter:   fakeGetter{err: fmt.Errorf("token fetch failed")},
+			getter:   fakeGetter{err: errors.New("token fetch failed")},
 			wantAuth: nil,
 			wantErr:  true,
 		},
@@ -95,7 +95,7 @@ func TestGetGithubAppAuthFromSecret(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotAuth, err := GetGithubAppAuthFromSecret(tt.secret, tt.getter)
+			gotAuth, err := GetGithubAppAuthFromSecret("https://github.com/foo/bar", tt.secret, tt.getter)
 
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("error mismatch: got %v, wantErr %v", err, tt.wantErr)

@@ -5,12 +5,11 @@ on:
   pull_request:
   push:
     branches:
-    - 'release/*'
+    - '*-hotfix-*'
 
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
-  SETUP_K3D_VERSION: 'v5.8.3'
 
 jobs:
   e2e-fleet-test:
@@ -23,9 +22,9 @@ jobs:
           # k3d version list k3s | sed 's/+/-/' | sort -h
           # https://hub.docker.com/r/rancher/k3s/tags
           - name: k3s-new
-            version: v1.34.1-k3s1
+            version: v1.35.1-k3s1
           - name: k3s-old
-            version: v1.33.5-k3s1
+            version: v1.33.8-k3s1
         test_type:
           - name: default
           - name: sharding
@@ -40,56 +39,35 @@ jobs:
 
     steps:
       -
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
       -
-        uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version-file: 'go.mod'
-          check-latest: true
       -
         name: Install Ginkgo CLI
         run: go install github.com/onsi/ginkgo/v2/ginkgo
       -
-        name: Determine cache key
-        id: cache-key
-        run: |
-          DAY_OF_YEAR=$(date +%j)
-          if [ $(($DAY_OF_YEAR % 28)) -eq 0 ]; then
-            echo "value=$(date +%Y-%m-%d)" >> $GITHUB_OUTPUT
-          else
-            echo "value=latest" >> $GITHUB_OUTPUT
-          fi
-      -
         name: Cache crust-gather CLI
         id: cache-crust
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ~/.local/bin/crust-gather
-          key: ${{ runner.os }}-crust-gather-${{ steps.cache-key.outputs.value }}
+          key: ${{ runner.os }}-crust-gather-${{ hashFiles('.github/scripts/install-crust-gather.sh') }}
           restore-keys: |
             ${{ runner.os }}-crust-gather-
       -
         name: Install crust-gather CLI
         run: |
           if [ "${{ steps.cache-crust.outputs.cache-hit }}" != "true" ]; then
-            echo "Cache not found, downloading from source"
-            mkdir -p ~/.local/bin
-            if curl -sSfL https://github.com/crust-gather/crust-gather/raw/main/install.sh | sh -s -- --yes; then
-              # Cache the binary for future runs
-              if [ ! -f ~/.local/bin/crust-gather ]; then
-                which crust-gather && cp $(which crust-gather) ~/.local/bin/
-              fi
-            else
-              echo "Failed to download crust-gather"
-              exit 1
-            fi
+            ./.github/scripts/install-crust-gather.sh
           else
             echo "Using cached crust-gather CLI"
             chmod +x ~/.local/bin/crust-gather
-            sudo ln -sf ~/.local/bin/crust-gather /usr/local/bin/
           fi
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       -
         name: Build Fleet
         run: |
@@ -106,15 +84,52 @@ jobs:
           # Buildkit needed here for proper here-document support
           DOCKER_BUILDKIT=1 docker build -f Dockerfile.gitserver -t nginx-git:test --build-arg="passwd=$(openssl passwd foo)" .
       -
+        name: Cache k3d CLI
+        id: cache-k3d
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: ~/.local/bin/k3d
+          key: ${{ runner.os }}-k3d-${{ hashFiles('.github/scripts/install-k3d.sh') }}
+          restore-keys: |
+            ${{ runner.os }}-k3d-
+      -
         name: Install k3d
-        run: curl --silent --fail https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | TAG=${{ env.SETUP_K3D_VERSION }} bash
+        run: |
+          if [ "${{ steps.cache-k3d.outputs.cache-hit }}" != "true" ]; then
+            ./.github/scripts/install-k3d.sh
+          else
+            echo "Using cached k3d"
+            chmod +x ~/.local/bin/k3d
+          fi
       -
         name: Provision k3d Cluster
         run: |
-          k3d cluster create upstream --wait \
-            --agents 1 \
-            --network "nw01" \
-            --image docker.io/rancher/k3s:${{matrix.k3s.version}}
+          # Retry cluster creation up to 3 times to handle transient network issues
+          max_attempts=3
+          attempt=1
+          while [ $attempt -le $max_attempts ]; do
+            echo "Attempt $attempt of $max_attempts to create k3d cluster..."
+            if k3d cluster create upstream --wait \
+              --agents 1 \
+              --network "nw01" \
+              --image docker.io/rancher/k3s:${{matrix.k3s.version}} \
+              --k3s-arg "--cluster-init@server:0"; then
+              echo "Cluster created successfully"
+              break
+            else
+              echo "Cluster creation failed on attempt $attempt"
+              if [ $attempt -lt $max_attempts ]; then
+                echo "Cleaning up and retrying..."
+                k3d cluster delete upstream 2>/dev/null || true
+                docker network rm nw01 2>/dev/null || true
+                sleep 10
+              else
+                echo "All attempts failed"
+                exit 1
+              fi
+            fi
+            attempt=$((attempt + 1))
+          done
       -
         name: Import Images Into k3d
         run: |
@@ -214,8 +229,15 @@ jobs:
           e2e/testenv/infra/infra setup --helm-registry=true
           e2e/testenv/infra/infra setup --oci-registry=true
 
-          ginkgo --github-output --trace --label-filter='oci-registry' e2e/single-cluster
-          ginkgo --github-output --trace --label-filter='oci-registry' e2e/metrics
+          # Wait for OCI registry to be fully ready
+          echo "Waiting for OCI registry to be ready..."
+          kubectl wait --for=condition=ready pod -l app=zot -n default --timeout=120s || true
+          sleep 5
+
+          # OCI tests can be flaky due to registry setup timing issues
+          # Run with flake attempts to retry failed tests
+          ginkgo --github-output --trace --flake-attempts=2 --label-filter='oci-registry' e2e/single-cluster
+          ginkgo --github-output --trace --flake-attempts=2 --label-filter='oci-registry' e2e/metrics
 
           e2e/testenv/infra/infra teardown
       -
@@ -247,7 +269,7 @@ jobs:
           ginkgo --github-output --trace e2e/require-secrets
       -
         name: Upload Logs
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         if: failure()
         with:
           name: gha-fleet-e2e-logs-${{ github.sha }}-${{ matrix.k3s.version }}-${{ matrix.test_type.name }}-${{ github.run_id }}

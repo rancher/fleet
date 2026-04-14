@@ -1,34 +1,531 @@
-suite: test resources
+suite: test resources per-container configuration
+# Note: These tests verify per-container resource configuration.
+# Empty objects ({}) for explicit opt-out work in test files (using 'set:') and via --set-json,
+# but not via --set on command line (use --set-json='{"key":{}}' instead).
 templates:
   - deployment.yaml
   - deployment_gitjob.yaml
   - deployment_helmops.yaml
 tests:
-  - it: should set resources
+  # Test 1: No resources configured at all
+  - it: should not set resources when resources is null
+    set:
+      resources: null
+    template: deployment.yaml
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: Deployment
+      - notExists:
+          path: spec.template.spec.containers[0].resources
+      - notExists:
+          path: spec.template.spec.containers[1].resources
+      - notExists:
+          path: spec.template.spec.containers[2].resources
+
+  - it: should not set resources in gitjob when resources is null
+    set:
+      resources: null
+    template: deployment_gitjob.yaml
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: Deployment
+      - notExists:
+          path: spec.template.spec.containers[0].resources
+
+  - it: should not set resources in helmops when resources is null
+    set:
+      resources: null
+    template: deployment_helmops.yaml
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: Deployment
+      - notExists:
+          path: spec.template.spec.containers[0].resources
+
+  # Test 2: Default resources only (all containers get defaults)
+  - it: should apply default resources to all containers when no override exists
     set:
       resources:
         limits:
-          cpu: 8000m
-          memory: 8Gi
+          cpu: 1000m
+          memory: 1Gi
         requests:
-          cpu: 250m
-          memory: 768Mi
+          cpu: 100m
+          memory: 256Mi
+    templates:
+      - deployment.yaml
+      - deployment_gitjob.yaml
+      - deployment_helmops.yaml
     asserts:
-      - equal:
-          path: spec.template.spec.resources.limits.cpu
-          value: 8000m
-      - equal:
-          path: spec.template.spec.resources.limits.memory
-          value: 8Gi
-      - equal:
-          path: spec.template.spec.resources.requests.cpu
-          value: 250m
-      - equal:
-          path: spec.template.spec.resources.requests.memory
-          value: 768Mi
-  - it: should work without resources
+      # fleet-controller
+      - template: deployment.yaml
+        documentIndex: 0
+        equal:
+          path: spec.template.spec.containers[0].name
+          value: fleet-controller
+      - template: deployment.yaml
+        documentIndex: 0
+        equal:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+          value: 1000m
+      - template: deployment.yaml
+        documentIndex: 0
+        equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 1Gi
+      - template: deployment.yaml
+        documentIndex: 0
+        equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 100m
+      - template: deployment.yaml
+        documentIndex: 0
+        equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 256Mi
+      # fleet-cleanup
+      - template: deployment.yaml
+        documentIndex: 0
+        equal:
+          path: spec.template.spec.containers[1].name
+          value: fleet-cleanup
+      - template: deployment.yaml
+        documentIndex: 0
+        equal:
+          path: spec.template.spec.containers[1].resources.limits.cpu
+          value: 1000m
+      - template: deployment.yaml
+        documentIndex: 0
+        equal:
+          path: spec.template.spec.containers[1].resources.limits.memory
+          value: 1Gi
+      - template: deployment.yaml
+        documentIndex: 0
+        equal:
+          path: spec.template.spec.containers[1].resources.requests.cpu
+          value: 100m
+      - template: deployment.yaml
+        documentIndex: 0
+        equal:
+          path: spec.template.spec.containers[1].resources.requests.memory
+          value: 256Mi
+      # fleet-agentmanagement
+      - template: deployment.yaml
+        documentIndex: 0
+        equal:
+          path: spec.template.spec.containers[2].name
+          value: fleet-agentmanagement
+      - template: deployment.yaml
+        documentIndex: 0
+        equal:
+          path: spec.template.spec.containers[2].resources.limits.cpu
+          value: 1000m
+      - template: deployment.yaml
+        documentIndex: 0
+        equal:
+          path: spec.template.spec.containers[2].resources.limits.memory
+          value: 1Gi
+      - template: deployment.yaml
+        documentIndex: 0
+        equal:
+          path: spec.template.spec.containers[2].resources.requests.cpu
+          value: 100m
+      - template: deployment.yaml
+        documentIndex: 0
+        equal:
+          path: spec.template.spec.containers[2].resources.requests.memory
+          value: 256Mi
+      # gitjob
+      - template: deployment_gitjob.yaml
+        documentIndex: 0
+        equal:
+          path: spec.template.spec.containers[0].name
+          value: gitjob
+      - template: deployment_gitjob.yaml
+        documentIndex: 0
+        equal:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+          value: 1000m
+      - template: deployment_gitjob.yaml
+        documentIndex: 0
+        equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 1Gi
+      - template: deployment_gitjob.yaml
+        documentIndex: 0
+        equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 100m
+      - template: deployment_gitjob.yaml
+        documentIndex: 0
+        equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 256Mi
+      # helmops
+      - template: deployment_helmops.yaml
+        documentIndex: 0
+        equal:
+          path: spec.template.spec.containers[0].name
+          value: helmops
+      - template: deployment_helmops.yaml
+        documentIndex: 0
+        equal:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+          value: 1000m
+      - template: deployment_helmops.yaml
+        documentIndex: 0
+        equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 1Gi
+      - template: deployment_helmops.yaml
+        documentIndex: 0
+        equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 100m
+      - template: deployment_helmops.yaml
+        documentIndex: 0
+        equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 256Mi
+
+  # Test 3: Explicit opt-out with empty object (no resources despite defaults)
+  - it: should not set resources for fleet-controller when explicitly set to empty object
     set:
-      resources: {}
+      resources:
+        limits:
+          cpu: 1000m
+          memory: 1Gi
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        fleetController: {}
+    template: deployment.yaml
+    documentIndex: 0
     asserts:
+      - equal:
+          path: spec.template.spec.containers[0].name
+          value: fleet-controller
       - notExists:
-          path: spec.template.spec.resources
+          path: spec.template.spec.containers[0].resources
+
+  - it: should not set resources for gitjob when explicitly set to empty object
+    set:
+      resources:
+        limits:
+          cpu: 1000m
+          memory: 1Gi
+        gitjob: {}
+    template: deployment_gitjob.yaml
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].name
+          value: gitjob
+      - notExists:
+          path: spec.template.spec.containers[0].resources
+
+  - it: should not set resources for fleet-cleanup when explicitly set to empty object
+    set:
+      resources:
+        limits:
+          cpu: 1000m
+          memory: 1Gi
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        fleetCleanup: {}
+    template: deployment.yaml
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[1].name
+          value: fleet-cleanup
+      - notExists:
+          path: spec.template.spec.containers[1].resources.cpu
+      - notExists:
+          path: spec.template.spec.containers[1].resources.memory
+
+  - it: should not set resources for fleet-agentmanagement when explicitly set to empty object
+    set:
+      resources:
+        limits:
+          cpu: 1000m
+          memory: 1Gi
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        fleetAgentmanagement: {}
+    template: deployment.yaml
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[2].name
+          value: fleet-agentmanagement
+      - notExists:
+          path: spec.template.spec.containers[2].resources
+
+  - it: should not set resources for helmops when explicitly set to empty object
+    set:
+      resources:
+        limits:
+          cpu: 1000m
+          memory: 1Gi
+        helmops: {}
+    template: deployment_helmops.yaml
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].name
+          value: helmops
+      - notExists:
+          path: spec.template.spec.containers[0].resources
+
+  # Test 4: Per-container override (use override instead of defaults)
+  - it: should use override resources for fleet-controller
+    set:
+      resources:
+        limits:
+          cpu: 1000m
+          memory: 1Gi
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        fleetController:
+          limits:
+            cpu: 2000m
+            memory: 2Gi
+          requests:
+            cpu: 500m
+            memory: 512Mi
+    template: deployment.yaml
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].name
+          value: fleet-controller
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+          value: 2000m
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 2Gi
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 500m
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 512Mi
+
+  - it: should use override resources for gitjob
+    set:
+      resources:
+        limits:
+          cpu: 1000m
+          memory: 1Gi
+        gitjob:
+          limits:
+            cpu: 500m
+            memory: 512Mi
+    template: deployment_gitjob.yaml
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].name
+          value: gitjob
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+          value: 500m
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 512Mi
+      - notExists:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+      - notExists:
+          path: spec.template.spec.containers[0].resources.requests.memory
+
+  # Test 5: Mixed scenario (defaults, overrides, and opt-outs)
+  - it: should handle mixed configuration correctly in deployment.yaml
+    set:
+      resources:
+        limits:
+          cpu: 1000m
+          memory: 1Gi
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        fleetController: {}
+        fleetCleanup:
+          limits:
+            cpu: 2000m
+            memory: 2Gi
+        # fleetAgentmanagement not specified, should get defaults
+    template: deployment.yaml
+    documentIndex: 0
+    asserts:
+      # fleet-controller: no resources (explicit opt-out)
+      - equal:
+          path: spec.template.spec.containers[0].name
+          value: fleet-controller
+      - notExists:
+          path: spec.template.spec.containers[0].resources
+      # fleet-cleanup: override values
+      - equal:
+          path: spec.template.spec.containers[1].name
+          value: fleet-cleanup
+      - equal:
+          path: spec.template.spec.containers[1].resources.limits.cpu
+          value: 2000m
+      - equal:
+          path: spec.template.spec.containers[1].resources.limits.memory
+          value: 2Gi
+      - notExists:
+          path: spec.template.spec.containers[1].resources.requests.cpu
+      - notExists:
+          path: spec.template.spec.containers[1].resources.requests.memory
+      # fleet-agentmanagement: defaults
+      - equal:
+          path: spec.template.spec.containers[2].name
+          value: fleet-agentmanagement
+      - equal:
+          path: spec.template.spec.containers[2].resources.limits.cpu
+          value: 1000m
+      - equal:
+          path: spec.template.spec.containers[2].resources.limits.memory
+          value: 1Gi
+      - equal:
+          path: spec.template.spec.containers[2].resources.requests.cpu
+          value: 100m
+      - equal:
+          path: spec.template.spec.containers[2].resources.requests.memory
+          value: 256Mi
+
+  # Test 6: Per-container only (no defaults)
+  # Test 6: Ensure resources are set only for specified containers when no defaults present
+  - it: should only set resources for specified containers without defaults
+    set:
+      resources:
+        fleetController:
+          limits:
+            cpu: 333m
+    templates:
+      - deployment.yaml
+      - deployment_gitjob.yaml
+      - deployment_helmops.yaml
+    asserts:
+      # deployment.yaml
+      - template: deployment.yaml
+        documentIndex: 0
+        equal:
+          path: spec.template.spec.containers[0].name
+          value: fleet-controller
+      - template: deployment.yaml
+        documentIndex: 0
+        equal:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+          value: 333m
+      - template: deployment.yaml
+        documentIndex: 0
+        notExists:
+          path: spec.template.spec.containers[0].resources.requests
+      # fleet-cleanup: no resources (no default, no override)
+      - template: deployment.yaml
+        documentIndex: 0
+        equal:
+          path: spec.template.spec.containers[1].name
+          value: fleet-cleanup
+      - template: deployment.yaml
+        documentIndex: 0
+        notExists:
+          path: spec.template.spec.containers[1].resources
+      # fleet-agentmanagement: no resources (no default, no override)
+      - template: deployment.yaml
+        documentIndex: 0
+        equal:
+          path: spec.template.spec.containers[2].name
+          value: fleet-agentmanagement
+      - template: deployment.yaml
+        documentIndex: 0
+        notExists:
+          path: spec.template.spec.containers[2].resources
+      # deployment_gitjob.yaml - gitjob has no resources
+      - template: deployment_gitjob.yaml
+        documentIndex: 0
+        equal:
+          path: spec.template.spec.containers[0].name
+          value: gitjob
+      - template: deployment_gitjob.yaml
+        documentIndex: 0
+        notExists:
+          path: spec.template.spec.containers[0].resources
+      # deployment_helmops.yaml - helmops has no resources
+      - template: deployment_helmops.yaml
+        documentIndex: 0
+        equal:
+          path: spec.template.spec.containers[0].name
+          value: helmops
+      - template: deployment_helmops.yaml
+        documentIndex: 0
+        notExists:
+          path: spec.template.spec.containers[0].resources
+
+  # Test 7: Partial specification for gitjob without defaults
+  - it: should only set resources for gitjob when specified without defaults
+    set:
+      resources:
+        gitjob:
+          requests:
+            memory: 128Mi
+    template: deployment_gitjob.yaml
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].name
+          value: gitjob
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 128Mi
+      - notExists:
+          path: spec.template.spec.containers[0].resources.limits
+      - notExists:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+
+  # Test 8: Partial resources - only limits specified (no requests)
+  - it: should set only limits when requests are not specified
+    set:
+      resources:
+        limits:
+          cpu: 2000m
+          memory: 2Gi
+    template: deployment.yaml
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+          value: 2000m
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 2Gi
+      - notExists:
+          path: spec.template.spec.containers[0].resources.requests
+
+  # Test 9: Partial resources - only requests specified (no limits)
+  - it: should set only requests when limits are not specified
+    set:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+    template: deployment.yaml
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 100m
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 256Mi
+      - notExists:
+          path: spec.template.spec.containers[0].resources.limits

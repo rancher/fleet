@@ -6,6 +6,9 @@ scms:
     owner: rancher
     repository: fleet
     branch: main
+  v14:
+    <<: *main
+    branch: 'release/v0.14'
   v13:
     <<: *main
     branch: 'release/v0.13'
@@ -15,6 +18,3 @@ scms:
   v11:
     <<: *main
     branch: 'release/v0.11'
-  v10:
-    <<: *main
-    branch: 'release/v0.10'

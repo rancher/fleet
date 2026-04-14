@@ -1,12 +1,12 @@
 package singlecluster_test
 
 import (
-	"fmt"
 	"math/rand"
 	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
 	"github.com/rancher/fleet/e2e/testenv"
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
 )
@@ -29,7 +29,7 @@ var _ = Describe("Filtering events by shard", Label("sharding"), func() {
 	})
 
 	for _, shard := range shards {
-		When(fmt.Sprintf("deploying a gitrepo labeled with shard ID %s", shard), func() {
+		When("deploying a gitrepo labeled with shard ID "+shard, func() {
 			JustBeforeEach(func() {
 				err := testenv.ApplyTemplate(
 					k,
@@ -53,10 +53,10 @@ var _ = Describe("Filtering events by shard", Label("sharding"), func() {
 				Expect(err).ToNot(HaveOccurred())
 			})
 
-			It(fmt.Sprintf("deploys the gitrepo via the gitjob labeled with shard ID %s", shard), func() {
+			It("deploys the gitrepo via the gitjob labeled with shard ID "+shard, func() {
 				shardNodeSelector, err := k.Namespace("cattle-fleet-system").Get(
 					"deploy",
-					fmt.Sprintf("fleet-controller-shard-%s", shard),
+					"fleet-controller-shard-"+shard,
 					"-o=jsonpath={.spec.template.spec.nodeSelector}",
 				)
 				Expect(err).ToNot(HaveOccurred())
@@ -72,7 +72,7 @@ var _ = Describe("Filtering events by shard", Label("sharding"), func() {
 					g.Expect(pods).ToNot(BeEmpty(), "no pod in namespace fleet-local")
 
 					var podNodeSelector string
-					for _, pod := range strings.Split(pods, "\n") {
+					for pod := range strings.SplitSeq(pods, "\n") {
 						fields := strings.Split(pod, "\t")
 						podName := fields[0]
 						if strings.HasPrefix(podName, "sharding-test") {
@@ -92,7 +92,7 @@ var _ = Describe("Filtering events by shard", Label("sharding"), func() {
 				}).Should(ContainSubstring("test-simple-chart-config"))
 
 				By("checking the bundle bears the shard label with the right shard ID")
-				bundleName := fmt.Sprintf("%s-simple-chart", gitrepoName)
+				bundleName := gitrepoName + "-simple-chart"
 				Eventually(func(g Gomega) {
 					shardLabelValue, err := k.Get(
 						"bundle",

@@ -2,6 +2,7 @@ package summary
 
 import (
 	"encoding/json"
+	"slices"
 	"sort"
 	"testing"
 
@@ -70,9 +71,7 @@ func TestConditionalTypeStatusErrorMapping_MarshalJSON(t *testing.T) {
 				})
 
 				for _, mappings := range act.ConditionMappings {
-					sort.Slice(mappings.Status, func(i, j int) bool {
-						return mappings.Status[i] < mappings.Status[j]
-					})
+					slices.Sort(mappings.Status)
 				}
 			}
 
@@ -82,9 +81,7 @@ func TestConditionalTypeStatusErrorMapping_MarshalJSON(t *testing.T) {
 				})
 
 				for _, mappings := range exp.ConditionMappings {
-					sort.Slice(mappings.Status, func(i, j int) bool {
-						return mappings.Status[i] < mappings.Status[j]
-					})
+					slices.Sort(mappings.Status)
 				}
 			}
 

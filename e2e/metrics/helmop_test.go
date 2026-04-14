@@ -39,6 +39,7 @@ var _ = Describe("HelmOp Metrics", Label("helmop"), func() {
 			kw,
 			namespace,
 			objName,
+			"",
 			"oci://ghcr.io/rancher/fleet-test-configmap-chart",
 			version,
 			shard,
@@ -93,7 +94,7 @@ var _ = Describe("HelmOp Metrics", Label("helmop"), func() {
 				ociRef, err := zothelper.GetOCIReference(k)
 				Expect(err).ToNot(HaveOccurred(), ociRef)
 
-				chartPath := fmt.Sprintf("%s/sleeper-chart", ociRef)
+				chartPath := ociRef + "/sleeper-chart"
 
 				out, err := kw.Patch(
 					"helmop", objName,

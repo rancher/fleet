@@ -36,6 +36,7 @@ type GitRepoData struct {
 type HelmOpData struct {
 	Name      string
 	Chart     string
+	Repo      string
 	Version   string
 	Namespace string
 	Shard     string
@@ -67,6 +68,7 @@ func CreateHelmOp(
 	namespace string,
 	name string,
 	chart string,
+	repo string,
 	version string,
 	shard string,
 ) error {
@@ -74,6 +76,7 @@ func CreateHelmOp(
 		Namespace: namespace,
 		Name:      name,
 		Chart:     chart,
+		Repo:      repo,
 		Version:   version,
 		Shard:     shard,
 	})
@@ -86,7 +89,7 @@ func CreateCluster(
 	labels map[string]string,
 	spec map[string]string,
 ) error {
-	return ApplyTemplate(k, AssetPath(clusterTemplate), map[string]interface{}{
+	return ApplyTemplate(k, AssetPath(clusterTemplate), map[string]any{
 		"Name":      name,
 		"Namespace": namespace,
 		"Labels":    labels,
@@ -102,7 +105,7 @@ func CreateClusterGroup(
 	matchLabels map[string]string,
 	labels map[string]string,
 ) error {
-	return ApplyTemplate(k, AssetPath(clustergroupTemplate), map[string]interface{}{
+	return ApplyTemplate(k, AssetPath(clustergroupTemplate), map[string]any{
 		"Name":        name,
 		"Namespace":   namespace,
 		"MatchLabels": matchLabels,
@@ -111,7 +114,7 @@ func CreateClusterGroup(
 }
 
 // ApplyTemplate templates a file and applies it to the cluster.
-func ApplyTemplate(k kubectl.Command, asset string, data interface{}) error {
+func ApplyTemplate(k kubectl.Command, asset string, data any) error {
 	tmpdir, _ := os.MkdirTemp("", "fleet-")
 	defer os.RemoveAll(tmpdir)
 
@@ -152,7 +155,7 @@ func Template(output string, tmplPath string, data any) error {
 	return nil
 }
 
-// RandomName returns a slightly random name, so temporary assets don't conflict
+// RandomFilename returns a slightly random name, so temporary assets don't conflict
 func RandomFilename(filename string, r *rand.Rand) string {
 	ext := path.Ext(filename)
 	filename = path.Base(filename)
