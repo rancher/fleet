@@ -45,17 +45,17 @@ func (m *MockStrategy) EXPECT() *MockStrategyMockRecorder {
 }
 
 // Execute mocks base method.
-func (m *MockStrategy) Execute(ctx context.Context, r *git.Repository, CommitHash plumbing.Hash) error {
+func (m *MockStrategy) Execute(ctx context.Context, r *git.Repository, commitHash plumbing.Hash) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Execute", ctx, r, CommitHash)
+	ret := m.ctrl.Call(m, "Execute", ctx, r, commitHash)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Execute indicates an expected call of Execute.
-func (mr *MockStrategyMockRecorder) Execute(ctx, r, CommitHash any) *gomock.Call {
+func (mr *MockStrategyMockRecorder) Execute(ctx, r, commitHash any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockStrategy)(nil).Execute), ctx, r, CommitHash)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockStrategy)(nil).Execute), ctx, r, commitHash)
 }
 
 // Type mocks base method.

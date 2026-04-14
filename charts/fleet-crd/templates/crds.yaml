@@ -3219,6 +3219,8 @@ spec:
                           "gitrepo" - target comes from GitRepo.Spec.Targets (via
                           targets file)
 
+                          "helmop" - target comes from a HelmOp resource
+
 
                           If empty, provenance is determined by position in the Targets
                           array:
@@ -9507,6 +9509,8 @@ spec:
 
                           "gitrepo" - target comes from GitRepo.Spec.Targets (via
                           targets file)
+
+                          "helmop" - target comes from a HelmOp resource
 
 
                           If empty, provenance is determined by position in the Targets
