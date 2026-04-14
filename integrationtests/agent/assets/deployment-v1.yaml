@@ -3,6 +3,7 @@ kind: Service
 metadata:
   name: svc-test
 spec:
+  type: ClusterIP
   selector:
     app.kubernetes.io/name: MyApp
   ports:
