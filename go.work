@@ -1,4 +1,4 @@
-go 1.24.0
+go 1.25.8
 
 use (
 	.
@@ -6,6 +6,4 @@ use (
 	./pkg/apis
 )
 
-replace (
-	github.com/imdario/mergo => dario.cat/mergo v1.0.2
-)
+replace github.com/imdario/mergo => dario.cat/mergo v1.0.2
