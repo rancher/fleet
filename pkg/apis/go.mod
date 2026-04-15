@@ -5,7 +5,7 @@ go 1.26
 toolchain go1.26.2
 
 require (
-	github.com/rancher/wrangler/v3 v3.5.0
+	github.com/rancher/wrangler/v3 v3.5.1
 	k8s.io/api v0.35.3
 	k8s.io/apimachinery v0.35.3
 )
@@ -19,8 +19,8 @@ require (
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
-	golang.org/x/net v0.47.0 // indirect
-	golang.org/x/text v0.31.0 // indirect
+	golang.org/x/net v0.52.0 // indirect
+	golang.org/x/text v0.35.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20250910181357-589584f1c912 // indirect

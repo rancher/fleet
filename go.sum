@@ -354,8 +354,8 @@ github.com/prometheus/procfs v0.19.2 h1:zUMhqEW66Ex7OXIiDkll3tl9a1ZdilUOd/F6ZXw4
 github.com/prometheus/procfs v0.19.2/go.mod h1:M0aotyiemPhBCM0z5w87kL22CxfcH05ZpYlu+b4J7mw=
 github.com/rancher/lasso v0.2.8 h1:AhAk1AKz9ZpvPlFj07JKRYGzIxaPNywUs2LpSwcyGDU=
 github.com/rancher/lasso v0.2.8/go.mod h1:HyENYowaiGY9jnsyxLnhGfoOBZlU3y+lws8qCYyuBOc=
-github.com/rancher/wrangler/v3 v3.5.0 h1:Us8RcMBpjrhV/HRfIq0a0uJmLEhfWcGUgNE39y7BQ7A=
-github.com/rancher/wrangler/v3 v3.5.0/go.mod h1:bRcdkdwRTwoXVSWVGtJdSBNXkKbInlo+PVkCtkUCi4s=
+github.com/rancher/wrangler/v3 v3.5.1 h1:o2iLDoqTTkwVenZ521YhcH/0N2CFktp8aXb0f96aYMU=
+github.com/rancher/wrangler/v3 v3.5.1/go.mod h1:G5moxB9PpU5MUXavc89NS6Mpfgr8Nfmf9DZ3BkGgeYM=
 github.com/redis/go-redis/extra/rediscmd/v9 v9.0.5 h1:EaDatTxkdHG+U3Bk4EUr+DZ7fOGwTfezUiUJMaIcaho=
 github.com/redis/go-redis/extra/rediscmd/v9 v9.0.5/go.mod h1:fyalQWdtzDBECAQFBJuQe5bzQ02jGd5Qcbgb97Flm7U=
 github.com/redis/go-redis/extra/redisotel/v9 v9.0.5 h1:EfpWLLCyXw8PSM2/XNJLjI3Pb27yVE+gIAfeqp8LUCc=
