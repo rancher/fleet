@@ -20,7 +20,7 @@ require (
 	github.com/otiai10/copy v1.14.1
 	github.com/rancher/fleet v0.0.0-00010101000000-000000000000
 	github.com/rancher/fleet/pkg/apis v0.15.0
-	github.com/rancher/wrangler/v3 v3.5.0
+	github.com/rancher/wrangler/v3 v3.5.1
 	github.com/reugn/go-quartz v0.15.2
 	github.com/sirupsen/logrus v1.9.4
 	github.com/testcontainers/testcontainers-go v0.41.0
