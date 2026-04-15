@@ -285,8 +285,7 @@ func deployErrToStatus(err error, status fleet.BundleDeploymentStatus) (bool, fl
 			"(chart requires kubeVersion)|" + // kubeVersion mismatch
 			"(annotation validation error)|" + // annotations fail to pass validation
 			"(failed, and has been rolled back due to atomic being set)|" + // atomic is set and a rollback occurs
-			"(YAML parse error)|" + // YAML is broken in source files (Helm v3)
-			"(MalformedYAMLError)|" + // YAML is broken in source files (Helm v4)
+			"(YAML parse error)|" + // YAML is broken in source files
 			"(Forbidden: updates to [0-9A-Za-z]+ spec for fields other than [0-9A-Za-z ']+ are forbidden)|" + // trying to update fields that cannot be updated
 			"(Forbidden: spec is immutable after creation)|" + // trying to modify immutable spec
 			"(chart requires kubeVersion: [0-9A-Za-z\\.\\-<>=]+ which is incompatible with Kubernetes)", // trying to deploy to incompatible Kubernetes
