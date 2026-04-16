@@ -315,12 +315,19 @@ func monitorLatestCommit(obj metav1.Object, fetch func() (string, error)) (strin
 
 // manageGitJob is responsible for creating, updating and deleting the GitJob and setting the GitRepo's status accordingly
 func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger, gitrepo *v1alpha1.GitRepo, oldCommit string) (ctrl.Result, error) {
-	if err := r.deletePreviousJob(ctx, logger, *gitrepo, oldCommit); err != nil {
+	deleted, err := r.deletePreviousJob(ctx, logger, *gitrepo, oldCommit)
+	if err != nil {
 		return ctrl.Result{}, err
+	}
+	// Requeue to give the deleted job's pod time to terminate before creating the new job.
+	// Without this, both the old and the new fleet-apply pods may run concurrently and
+	// race to create the same Bundle.
+	if deleted {
+		return ctrl.Result{RequeueAfter: durations.DefaultRequeueAfter}, nil
 	}
 
 	var job batchv1.Job
-	err := r.Get(ctx, types.NamespacedName{
+	err = r.Get(ctx, types.NamespacedName{
 		Namespace: gitrepo.Namespace,
 		Name:      jobName(gitrepo),
 	}, &job)
@@ -431,9 +438,9 @@ func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger,
 	return ctrl.Result{}, nil
 }
 
-func (r *GitJobReconciler) deletePreviousJob(ctx context.Context, logger logr.Logger, gitrepo v1alpha1.GitRepo, oldCommit string) error {
-	if oldCommit == "" || oldCommit == gitrepo.Status.Commit {
-		return nil
+func (r *GitJobReconciler) deletePreviousJob(ctx context.Context, logger logr.Logger, gitrepo v1alpha1.GitRepo, oldCommit string) (bool, error) {
+	if oldCommit == gitrepo.Status.Commit {
+		return false, nil
 	}
 
 	// the GitRepo is passed by value, just use the old commit
@@ -447,16 +454,20 @@ func (r *GitJobReconciler) deletePreviousJob(ctx context.Context, logger logr.Lo
 	}, &job)
 	if err != nil {
 		if !apierrors.IsNotFound(err) {
-			return err
+			return false, err
 		}
 
-		return nil
+		return false, nil
 	}
 
 	// At this point we know the previous job still exists and the commit already changed.
-	// Delete the previous one so we don't incur in conflicts
+	// Delete the previous one with background propagation so its pods are also terminated,
+	// preventing concurrent fleet-apply runs from racing to create the same Bundle.
 	logger.Info("Deleting previous job to avoid conflicts")
-	return r.Delete(ctx, &job)
+	if err := r.Delete(ctx, &job, client.PropagationPolicy(metav1.DeletePropagationBackground)); err != nil && !apierrors.IsNotFound(err) {
+		return false, err
+	}
+	return true, nil
 }
 
 func (r *GitJobReconciler) handleDelete(ctx context.Context, logger logr.Logger, gitrepo *v1alpha1.GitRepo) (ctrl.Result, error) {
@@ -525,6 +536,13 @@ func (r *GitJobReconciler) handleDelete(ctx context.Context, logger logr.Logger,
 // It checks for all the conditions so, in case more than one is met, it sets all the
 // values related in one single reconciler loop
 func (r *GitJobReconciler) shouldCreateJob(gitrepo *v1alpha1.GitRepo, oldCommit string, helmSecretsChanged bool) bool {
+	// When polling is enabled and we don't have a commit yet, wait for the polling
+	// job to provide one. Creating a job without a commit is wasteful and risks
+	// racing with the job created once polling returns the first commit.
+	if gitrepo.Status.Commit == "" && !gitrepo.Spec.DisablePolling {
+		return false
+	}
+
 	if gitrepo.Status.Commit != "" && gitrepo.Status.Commit != oldCommit {
 		return true
 	}
