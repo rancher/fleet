@@ -106,6 +106,20 @@ func Diff(plan Plan, bd *fleet.BundleDeployment, ns string, objs ...runtime.Obje
 				errs = append(errs, err)
 				continue
 			}
+
+			// Some normalization operations, unlike those called from Diff (vendored ArgoCD code), must only be applied
+			// to actual, in-cluster objects, not to desired ones.
+			emptied, err := normalizeActual(live, actualObj.(*unstructured.Unstructured), key, &patch)
+			if err != nil {
+				errs = append(errs, err)
+				continue
+			}
+
+			if emptied {
+				delete(plan.Update[gvk], key)
+				continue
+			}
+
 			// this will overwrite an existing entry in the Update map
 			plan.Update.Set(gvk, key.Namespace, key.Name, string(patch))
 		}
