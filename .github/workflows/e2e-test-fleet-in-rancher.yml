@@ -78,7 +78,7 @@ jobs:
         name: Install crust-gather CLI
         run: |
           if [ "${{ steps.cache-crust.outputs.cache-hit }}" != "true" ]; then
-            ./.github/scripts/install-crust-gather.sh
+            ./fleet/.github/scripts/install-crust-gather.sh
           else
             echo "Using cached crust-gather CLI"
             chmod +x ~/.local/bin/crust-gather
@@ -153,7 +153,7 @@ jobs:
         name: Install k3d
         run: |
           if [ "${{ steps.cache-k3d.outputs.cache-hit }}" != "true" ]; then
-            ./.github/scripts/install-k3d.sh
+            ./fleet/.github/scripts/install-k3d.sh
           else
             echo "Using cached k3d"
             chmod +x ~/.local/bin/k3d
@@ -287,6 +287,7 @@ jobs:
           FLEET_E2E_NS_DOWNSTREAM: fleet-default
         run: |
           kubectl config use-context k3d-upstream
+          cd fleet
           ginkgo --github-output --trace e2e/acceptance/single-cluster-examples
 
           export CI_REGISTERED_CLUSTER=$(kubectl get clusters.fleet.cattle.io -n $FLEET_E2E_NS_DOWNSTREAM -o jsonpath='{..name}')
