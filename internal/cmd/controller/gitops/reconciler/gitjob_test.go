@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-logr/logr"
 	"github.com/google/go-cmp/cmp"
 	fleetapply "github.com/rancher/fleet/internal/cmd/cli/apply"
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
@@ -3061,5 +3062,148 @@ func TestUpdateSecretDataHashes_AggregatesNonNotFoundErrors(t *testing.T) {
 	}
 	if !strings.Contains(errStr, "helm-paths-secret") {
 		t.Errorf("expected error to contain 'helm-paths-secret', got: %v", err)
+	}
+}
+
+// TestDeletePreviousJob_EmptyOldCommit_DeletesJobCreatedWithNoCommit tests the
+// race where two fleet-apply jobs run concurrently:
+//
+//  1. A job is created when generationChanged is true but Status.Commit is still ""
+//     (the polling job hasn't resolved a commit yet).
+//  2. The polling job sets PollingCommit; a new reconcile runs, getNextCommit promotes
+//     it into Status.Commit, and a second job is created for the real commit.
+//
+// Because deletePreviousJob used to short-circuit on `oldCommit == ""`, the first
+// (empty-commit) job was never deleted.  Both jobs ran fleet apply against the same
+// repo and the second one hit "bundle already exists".
+func TestDeletePreviousJob_EmptyOldCommit_DeletesJobCreatedWithNoCommit(t *testing.T) {
+	const repoURL = "https://git.example.com/org/repo"
+	const newCommit = "a05144a086e80dd1b6ea0499eef72a6797e5150f"
+
+	gitrepo := &fleetv1.GitRepo{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "my-gitrepo",
+			Namespace: "fleet-local",
+		},
+		Spec: fleetv1.GitRepoSpec{
+			Repo: repoURL,
+		},
+		Status: fleetv1.GitRepoStatus{
+			// Commit has just been discovered by the polling job.
+			Commit: newCommit,
+		},
+	}
+
+	// job-X: the job that was created earlier when commit was still "".
+	emptyCommitJobName := jobName(&fleetv1.GitRepo{
+		ObjectMeta: gitrepo.ObjectMeta,
+		Spec:       gitrepo.Spec,
+		Status:     fleetv1.GitRepoStatus{Commit: ""},
+	})
+
+	emptyCommitJob := &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      emptyCommitJobName,
+			Namespace: gitrepo.Namespace,
+		},
+	}
+
+	scheme := runtime.NewScheme()
+	utilruntime.Must(batchv1.AddToScheme(scheme))
+
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(emptyCommitJob).
+		Build()
+
+	r := &GitJobReconciler{Client: fakeClient}
+
+	// oldCommit is "" — the value Status.Commit held before getNextCommit ran.
+	deleted, err := r.deletePreviousJob(context.Background(), logr.Discard(), *gitrepo, "")
+	if err != nil {
+		t.Fatalf("deletePreviousJob returned unexpected error: %v", err)
+	}
+	if !deleted {
+		t.Errorf("deletePreviousJob returned deleted=false; expected true so manageGitJob requeues instead of immediately creating the next job")
+	}
+
+	// The empty-commit job must have been deleted
+	var job batchv1.Job
+	getErr := fakeClient.Get(context.Background(), types.NamespacedName{
+		Name:      emptyCommitJobName,
+		Namespace: gitrepo.Namespace,
+	}, &job)
+	if getErr == nil {
+		t.Errorf("job %q was NOT deleted even though a new commit is now known; "+
+			"this leaves two fleet-apply jobs running concurrently and causes 'bundle already exists'",
+			emptyCommitJobName)
+	} else if !apierrors.IsNotFound(getErr) {
+		t.Fatalf("unexpected error checking for job: %v", getErr)
+	}
+}
+
+// TestShouldCreateJob_NoCommitWithPolling verifies that shouldCreateJob returns
+// false when the commit is empty and polling is enabled.
+// This prevents job-X (empty-commit job) from being created in the first place,
+// eliminating the race with job-Y that would be created once polling returns a commit.
+func TestShouldCreateJob_NoCommitWithPolling(t *testing.T) {
+	r := &GitJobReconciler{}
+
+	gitrepo := &fleetv1.GitRepo{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            "my-gitrepo",
+			Namespace:       "fleet-local",
+			Generation:      2,
+			ResourceVersion: "1",
+		},
+		Spec: fleetv1.GitRepoSpec{
+			Repo:           "https://git.example.com/org/repo",
+			DisablePolling: false, // polling enabled
+		},
+		Status: fleetv1.GitRepoStatus{
+			Commit:             "", // no commit yet
+			ObservedGeneration: 1,  // generationChanged() would return true
+		},
+	}
+
+	// Regardless of generationChanged(), ForceSyncGeneration, or helmSecretsChanged,
+	// we must not create a job when there is no commit and polling is enabled.
+	// In that case the commit will be fetched asynchronously by the polling job, so we can just wait
+	got := r.shouldCreateJob(gitrepo, "", true)
+	if got {
+		t.Error("shouldCreateJob returned true with empty commit and polling enabled; " +
+			"this would create a wasted empty-commit job that races with the first real job")
+	}
+}
+
+// TestShouldCreateJob_NoCommitDisablePolling verifies that shouldCreateJob is
+// allowed to return true when polling is disabled and the commit is empty.
+// In that case the commit is fetched synchronously by monitorLatestCommit before
+// this function is reached, so an empty commit just means the fetch failed and
+// we still need to attempt a job (or at least honour generationChanged etc.).
+func TestShouldCreateJob_NoCommitDisablePolling(t *testing.T) {
+	r := &GitJobReconciler{}
+
+	gitrepo := &fleetv1.GitRepo{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            "my-gitrepo",
+			Namespace:       "fleet-local",
+			Generation:      2,
+			ResourceVersion: "1",
+		},
+		Spec: fleetv1.GitRepoSpec{
+			Repo:           "https://git.example.com/org/repo",
+			DisablePolling: true, // polling disabled — synchronous fetch path
+		},
+		Status: fleetv1.GitRepoStatus{
+			Commit:             "",
+			ObservedGeneration: 1, // generationChanged() returns true
+		},
+	}
+
+	got := r.shouldCreateJob(gitrepo, "", false)
+	if !got {
+		t.Error("shouldCreateJob returned false with DisablePolling=true and generationChanged()=true; " +
+			"job should still be created when polling is disabled")
 	}
 }
