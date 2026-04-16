@@ -13,7 +13,7 @@ ARG TINI_SUM_arm64=eae1d3aa50c48fb23b8cbdf4e369d0910dfc538566bfd09df89a774aa84a4
 
 # Download both tini binaries on the native build platform to avoid QEMU networking
 # issues when cross-building for arm64.
-FROM --platform=$BUILDPLATFORM registry.suse.com/bci/bci-busybox:15.7 AS tini-downloader
+FROM --platform=$BUILDPLATFORM registry.suse.com/bci/bci-busybox:16.0 AS tini-downloader
 ARG TINI_VERSION TINI_SUM_amd64 TINI_SUM_arm64
 RUN set -eux; \
     wget -qO /tini-amd64 "https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini-static-amd64"; \
@@ -22,7 +22,7 @@ RUN set -eux; \
     echo "${TINI_SUM_arm64}  /tini-arm64" | sha256sum -c -; \
     chmod 0755 /tini-amd64 /tini-arm64
 
-FROM --platform=linux/${ARCH} registry.suse.com/bci/bci-busybox:15.7 AS base
+FROM --platform=linux/${ARCH} registry.suse.com/bci/bci-busybox:16.0 AS base
 ARG ARCH
 COPY --from=tini-downloader /tini-${ARCH} /usr/bin/tini
 COPY package/log.sh /usr/bin/
