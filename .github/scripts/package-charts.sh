@@ -19,7 +19,7 @@ find charts -maxdepth 1 -mindepth 1 -type d -exec cp -R {} "${TMP_DIR}/" \;
 
 # Update image tags in all chart values files
 find "${TMP_DIR}" -maxdepth 2 -name "values.yaml" -exec sed -i.bak \
-  -e "s@repository: rancher/\(fleet.*\|gitjob\).*@repository: rancher/\1@" \
+  -e "s@repository: rancher/\(fleet[-a-z]*\).*@repository: rancher/\1@" \
   -e "s@tag: dev@tag: ${TAG}@" \
   {} \;
 find "${TMP_DIR}" -name "*.bak" -delete
