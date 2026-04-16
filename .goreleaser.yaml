@@ -11,6 +11,12 @@ env:
 release:
   prerelease: auto
   disable: "{{ .Env.IS_HOTFIX }}"
+  extra_files:
+    - glob: .charts/*.tgz
+
+checksum:
+  extra_files:
+    - glob: .charts/*.tgz
 
 changelog:
   disable: false
@@ -19,6 +25,7 @@ changelog:
 before:
   hooks:
     - go mod download
+    - bash .github/scripts/package-charts.sh {{ .Tag }} {{ .Version }}
 
 archives:
   - id: fleet-controller
