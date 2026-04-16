@@ -198,8 +198,14 @@ jobs:
 
           kubectl config use-context k3d-upstream
 
-          until kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}'; do sleep 3; done
-          ip=$(kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          ip=""
+          while [ -z "$ip" ]; do
+            ip=$(kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}' || true)
+            if [ -z "$ip" ]; then
+              echo "Waiting for traefik load balancer ingress..."
+              sleep 3
+            fi
+          done
 
           helm repo add jetstack https://charts.jetstack.io
           helm install cert-manager jetstack/cert-manager \
