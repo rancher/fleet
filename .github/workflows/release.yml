@@ -235,31 +235,6 @@ jobs:
             cosign attest --yes --predicate provenance-slsav1.json --type slsaprovenance1 "${URL}"
           done
 
-      - name: Upload charts to release
-        if: ${{ env.IS_HOTFIX == 'false' }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          repo: "rancher"
-        run: |
-          version=$(jq -r '.version' <<< '${{ steps.goreleaser.outputs.metadata }}')
-          tag=$(jq -r '.tag' <<< '${{ steps.goreleaser.outputs.metadata }}')
-          echo "publishing helm chart for (repo: $repo, tag: $tag, version: $version)"
-
-          # Replace rancher/fleet and rancher/fleet-agent and rancher/gitjob image names
-          sed -i \
-            -e "s@repository: rancher/\(fleet.*\|gitjob\).*@repository: $repo/\\1@" \
-            -e "s/tag:.*/tag: $tag/" \
-            charts/fleet/values.yaml
-
-          sed -i \
-            -e "s@repository: rancher/\(fleet.*\|gitjob\).*@repository: $repo/\\1@" \
-            -e "s/tag: dev/tag: $tag/" \
-            charts/fleet-agent/values.yaml
-
-          find charts/ -maxdepth 1 -mindepth 1 -type d -exec helm package --version="$version" --app-version="$version" -d ./dist {} \;
-
-          find dist/ -name '*.tgz' -exec gh release upload "$tag" {} +
-
       - name: Add charts to branch
         if: ${{ env.IS_HOTFIX == 'false' }}
         env:
@@ -292,7 +267,7 @@ jobs:
           fi
 
           mkdir -p charts
-          find dist/ -name '*.tgz' -exec tar -xf {} -C charts/ \;
+          find .charts/ -name '*.tgz' -exec tar -xf {} -C charts/ \;
 
           git add charts/**/*
           git commit -m "Update charts to version $version"
