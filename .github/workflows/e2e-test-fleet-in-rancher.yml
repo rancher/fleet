@@ -235,6 +235,8 @@ jobs:
             --set "extraEnv[2].value=${fleet_version}" \
             --set "extraEnv[3].name=CATTLE_SERVER_URL" \
             --set "extraEnv[3].value=https://$ip.sslip.io" \
+            --set-string fleet.extraEnv[0].name=EXPERIMENTAL_COPY_RESOURCES_DOWNSTREAM \
+            --set-string fleet.extraEnv[0].value=true
 
           # wait for deployment of rancher
           kubectl -n cattle-system rollout status deploy/rancher
