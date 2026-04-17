@@ -58,6 +58,7 @@ require (
 	k8s.io/klog/v2 v2.130.1
 	k8s.io/kube-openapi v0.0.0-20250318190949-c8a335a9a2ff
 	k8s.io/kubectl v0.33.10
+	k8s.io/kubernetes v1.33.9
 	k8s.io/utils v0.0.0-20250502105355-0f33e8f1c979
 	oras.land/oras-go/v2 v2.6.0
 	sigs.k8s.io/cli-utils v0.37.2
@@ -124,6 +125,7 @@ require (
 	github.com/containerd/stargz-snapshotter/estargz v0.16.3 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
 	github.com/cyphar/filepath-securejoin v0.4.1 // indirect
+	github.com/distribution/reference v0.6.0 // indirect
 	github.com/docker/cli v29.2.0+incompatible // indirect
 	github.com/docker/distribution v2.8.3+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.9.3 // indirect
@@ -252,6 +254,8 @@ require (
 	k8s.io/apiserver v0.33.10 // indirect
 	k8s.io/code-generator v0.33.10 // indirect
 	k8s.io/component-base v0.33.10 // indirect
+	k8s.io/component-helpers v0.33.9 // indirect
+	k8s.io/controller-manager v0.33.9 // indirect
 	k8s.io/gengo v0.0.0-20250130153323-76c5745d3511 // indirect
 	k8s.io/gengo/v2 v2.0.0-20250207200755-1244d31929d7 // indirect
 	k8s.io/helm v2.17.0+incompatible // indirect
