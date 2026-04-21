@@ -21,6 +21,11 @@ type DebugConfig struct {
 func (c *DebugConfig) SetupDebug() error {
 	logging := flag.NewFlagSet("", flag.PanicOnError)
 	klog.InitFlags(logging)
+	// Opt into the new klog behavior so that -stderrthreshold is honored even
+	// when -logtostderr=true (the default).
+	// Ref: kubernetes/klog#212, kubernetes/klog#432
+	_ = logging.Set("legacy_stderr_threshold_behavior", "false")
+	_ = logging.Set("stderrthreshold", "INFO")
 	if c.Debug {
 		logrus.SetLevel(logrus.DebugLevel)
 		if err := logging.Parse([]string{
