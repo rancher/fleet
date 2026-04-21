@@ -2,6 +2,7 @@
 /.cache
 /bin
 /dist
+/.charts
 *.swp
 .idea
 *.DS_Store
