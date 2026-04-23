@@ -16,10 +16,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	kruntime "k8s.io/apimachinery/pkg/runtime"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	kubernetesfake "k8s.io/client-go/kubernetes/fake"
 )
 
 func TestValuesFrom(t *testing.T) {
@@ -171,9 +168,6 @@ func TestValuesFromUsesDefaultNamespaceWhenResourceCopiedDownstream(t *testing.T
 	a := assert.New(t)
 	r := require.New(t)
 
-	scheme := kruntime.NewScheme()
-	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-
 	// default namespace where the Helm release lives
 	defaultNS := "helm-default"
 
@@ -189,9 +183,8 @@ func TestValuesFromUsesDefaultNamespaceWhenResourceCopiedDownstream(t *testing.T
 		Data:       map[string][]byte{DefaultKey: []byte("secVal: secDefault")},
 	}
 
-	cl := fake.NewClientBuilder().WithScheme(scheme).WithObjects(&cm, &sec).Build()
-
-	h := &Helm{client: cl, template: false}
+	kubeClient := kubernetesfake.NewSimpleClientset(&cm, &sec)
+	h := &Helm{template: false}
 
 	opts := fleet.BundleDeploymentOptions{
 		Helm: &fleet.HelmOptions{
@@ -208,7 +201,7 @@ func TestValuesFromUsesDefaultNamespaceWhenResourceCopiedDownstream(t *testing.T
 	os.Setenv(experimental.CopyResourcesDownstreamFlag, "true")
 	defer os.Unsetenv(experimental.CopyResourcesDownstreamFlag)
 
-	vals, err := h.getValues(context.TODO(), opts, defaultNS)
+	vals, err := h.getValues(context.TODO(), opts, defaultNS, kubeClient)
 	r.NoError(err)
 
 	// configmap and secret data should have been read from defaultNS
@@ -220,9 +213,6 @@ func TestValuesFromUsesProvidedNamespaceWhenNotCopiedDownstream(t *testing.T) {
 	a := assert.New(t)
 	r := require.New(t)
 
-	scheme := kruntime.NewScheme()
-	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-
 	// namespaces
 	defaultNS := "helm-default"
 	providedNS := "explicit-ns"
@@ -233,8 +223,8 @@ func TestValuesFromUsesProvidedNamespaceWhenNotCopiedDownstream(t *testing.T) {
 		Data:       map[string]string{DefaultKey: "cmVal: cmProvided"},
 	}
 
-	cl := fake.NewClientBuilder().WithScheme(scheme).WithObjects(&cmProvided).Build()
-	h := &Helm{client: cl, template: false}
+	kubeClient := kubernetesfake.NewSimpleClientset(&cmProvided)
+	h := &Helm{template: false}
 
 	opts := fleet.BundleDeploymentOptions{
 		Helm: &fleet.HelmOptions{
@@ -248,7 +238,7 @@ func TestValuesFromUsesProvidedNamespaceWhenNotCopiedDownstream(t *testing.T) {
 	os.Setenv(experimental.CopyResourcesDownstreamFlag, "true")
 	defer os.Unsetenv(experimental.CopyResourcesDownstreamFlag)
 
-	vals, err := h.getValues(context.TODO(), opts, defaultNS)
+	vals, err := h.getValues(context.TODO(), opts, defaultNS, kubeClient)
 	r.NoError(err)
 	a.Equal("cmProvided", vals["cmVal"])
 }
@@ -257,11 +247,8 @@ func TestValuesFromErrorWhenCopiedDownstreamButExperimentalDisabled(t *testing.T
 	a := assert.New(t)
 	r := require.New(t)
 
-	scheme := kruntime.NewScheme()
-	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-
-	cl := fake.NewClientBuilder().WithScheme(scheme).Build()
-	h := &Helm{client: cl, template: false}
+	kubeClient := kubernetesfake.NewSimpleClientset()
+	h := &Helm{template: false}
 
 	opts := fleet.BundleDeploymentOptions{
 		Helm: &fleet.HelmOptions{
@@ -276,7 +263,7 @@ func TestValuesFromErrorWhenCopiedDownstreamButExperimentalDisabled(t *testing.T
 	// ensure experimental feature is disabled
 	os.Unsetenv(experimental.CopyResourcesDownstreamFlag)
 
-	_, err := h.getValues(context.TODO(), opts, "default-ns")
+	_, err := h.getValues(context.TODO(), opts, "default-ns", kubeClient)
 	r.Error(err)
 	// get will fail trying to read from provided-ns and should report not found
 	a.True(apierrors.IsNotFound(err), "expected a NotFound error when valuesFrom references resources and experimental feature is disabled")
