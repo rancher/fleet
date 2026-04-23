@@ -90,7 +90,13 @@ jobs:
       -
         name: Get uuid
         id: uuid
-        run: echo "::set-output name=uuid::$(uuidgen)"
+        run: |
+          if ! command -v uuidgen >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt install -y uuid-runtime # should provide uuidgen
+          fi
+
+          echo "uuid=$(uuidgen)" >> $GITHUB_OUTPUT
       -
         id: meta-fleet
         uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
