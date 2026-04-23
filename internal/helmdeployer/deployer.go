@@ -83,7 +83,7 @@ func (h *Helm) Setup(ctx context.Context, client client.Client, getter genericcl
 	h.client = client
 	h.getter = getter
 
-	cfg, err := h.createCfg(ctx, "")
+	cfg, err := h.createCfg(ctx, "", h.getter)
 	if err != nil {
 		return err
 	}
@@ -147,7 +147,7 @@ func (h *Helm) getCfg(ctx context.Context, namespace, serviceAccountName string)
 	kClient := kube.New(getter)
 	kClient.Namespace = namespace
 
-	cfg, err = h.createCfg(ctx, namespace)
+	cfg, err = h.createCfg(ctx, namespace, getter)
 	cfg.Releases.MaxHistory = MaxHelmHistory
 	cfg.KubeClient = kClient
 
@@ -156,12 +156,12 @@ func (h *Helm) getCfg(ctx context.Context, namespace, serviceAccountName string)
 	return cfg, err
 }
 
-func (h *Helm) createCfg(ctx context.Context, namespace string) (action.Configuration, error) {
+func (h *Helm) createCfg(ctx context.Context, namespace string, getter genericclioptions.RESTClientGetter) (action.Configuration, error) {
 	logger := log.FromContext(ctx).WithName("helmSDK")
 	info := func(format string, v ...interface{}) {
 		logger.V(1).Info(fmt.Sprintf(format, v...))
 	}
-	kc := kube.New(h.getter)
+	kc := kube.New(getter)
 	kc.Log = info
 	clientSet, err := kc.Factory.KubernetesClientSet()
 	if err != nil {
@@ -173,7 +173,7 @@ func (h *Helm) createCfg(ctx context.Context, namespace string) (action.Configur
 	store.MaxHistory = MaxHelmHistory
 
 	return action.Configuration{
-		RESTClientGetter: h.getter,
+		RESTClientGetter: getter,
 		Releases:         store,
 		KubeClient:       kc,
 		Log:              info,
