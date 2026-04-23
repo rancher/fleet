@@ -19,13 +19,13 @@ downstream_ctx="${FLEET_E2E_CLUSTER_DOWNSTREAM-k3d-downstream}"
 
 kubectl config use-context k3d-upstream
 
-until helm -n cattle-fleet-system status fleet-crd  | grep -q "STATUS: deployed"; do echo waiting for original fleet-crd chart to be deployed; sleep 1; done
+until helm -n cattle-fleet-system status fleet-crd  | grep "STATUS: deployed"; do echo waiting for original fleet-crd chart to be deployed; sleep 1; done
 
 # avoid a downgrade by rancher
 sed -i 's/^version: 0/version: 9000/' charts/fleet-crd/Chart.yaml
 helm upgrade fleet-crd charts/fleet-crd  --wait -n cattle-fleet-system
 
-until helm -n cattle-fleet-system status fleet | grep -q "STATUS: deployed"; do echo waiting for original fleet chart to be deployed; sleep 3; done
+until helm -n cattle-fleet-system status fleet | grep "STATUS: deployed"; do echo waiting for original fleet chart to be deployed; sleep 3; done
 
 # avoid a downgrade by rancher
 sed -i 's/^version: 0/version: 9000/' charts/fleet/Chart.yaml
