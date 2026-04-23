@@ -177,9 +177,21 @@ jobs:
             --k3s-arg "--cluster-init@server:0"
       -
         name: Set up Rancher
-        env:
-          public_hostname: "172.18.0.1.sslip.io"
         run: |
+          ip=""
+
+          kubectl config use-context k3d-upstream
+
+          while [ -z "$ip" ]; do
+            ip=$(kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}' || true)
+            if [ -z "$ip" ]; then
+              echo "Waiting for traefik load balancer ingress..."
+              sleep 3
+            fi
+          done
+
+          export public_hostname=$ip.sslip.io
+
           ./.github/scripts/setup-rancher.sh
           ./.github/scripts/wait-for-loadbalancer.sh
           ./.github/scripts/register-downstream-clusters.sh
