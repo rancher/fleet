@@ -62,18 +62,20 @@ jobs:
         id: rancher-cli-cache
         with:
           path: /home/runner/.local/bin
-          key: ${{ runner.os }}-rancher-cli-2.6.0
+          key: ${{ runner.os }}-rancher-cli-2.14.0
       -
         name: Install Rancher CLI
         if: steps.rancher-cli-cache.outputs.cache-hit != 'true'
         run: |
-          # download an older CLI to avoid https://github.com/rancher/rancher/issues/37574
-          # renovate: datasource=github-release-attachments depName=rancher/cli digestVersion=v2.6.0
-          RANCHER_CLI_SUM="e3f2f8bc04b763759d027ba30a6563b81a1ba6d881b1f3c95b24931a7804fb79"
-          mkdir -p /home/runner/.local/bin
-          wget -q https://github.com/rancher/cli/releases/download/v2.6.0/rancher-linux-amd64-v2.6.0.tar.gz
-          echo "${RANCHER_CLI_SUM}  rancher-linux-amd64-v2.6.0.tar.gz" | sha256sum -c -
-          tar -xz --strip-components=2 -f rancher-linux-amd64-v2.6.0.tar.gz -C /home/runner/.local/bin
+          mkdir -p ~/.local/bin
+          # renovate: datasource=github-releases depName=rancher/cli
+          RANCHER_CLI_VERSION="v2.14.0"
+          # renovate: datasource=github-release-attachments depName=rancher/cli digestVersion=v2.14.0
+          RANCHER_CLI_SUM_amd64="d05e207d9830f22171e62801dc51a32417125ecb7aaf50c073bf423e7da36a94"
+          curl -fsSL -o "rancher-linux-amd64-${RANCHER_CLI_VERSION}.tar.gz" \
+            "https://github.com/rancher/cli/releases/download/${RANCHER_CLI_VERSION}/rancher-linux-amd64-${RANCHER_CLI_VERSION}.tar.gz"
+          echo "${RANCHER_CLI_SUM_amd64}  rancher-linux-amd64-${RANCHER_CLI_VERSION}.tar.gz" | sha256sum -c -
+          tar -xz --strip-components=2 -f "rancher-linux-amd64-${RANCHER_CLI_VERSION}.tar.gz" -C ~/.local/bin
           rancher --version
       -
         name: Build fleet binaries
