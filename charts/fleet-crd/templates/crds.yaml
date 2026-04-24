@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.20.1
+    controller-gen.kubebuilder.io/version: v0.20.1-0.20260504073140-27f2ee1b1648
   name: bundledeployments.fleet.cattle.io
 spec:
   group: fleet.cattle.io
@@ -1401,7 +1401,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.20.1
+    controller-gen.kubebuilder.io/version: v0.20.1-0.20260504073140-27f2ee1b1648
   name: bundlenamespacemappings.fleet.cattle.io
 spec:
   group: fleet.cattle.io
@@ -1581,7 +1581,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.20.1
+    controller-gen.kubebuilder.io/version: v0.20.1-0.20260504073140-27f2ee1b1648
   name: bundles.fleet.cattle.io
 spec:
   group: fleet.cattle.io
@@ -3796,7 +3796,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.20.1
+    controller-gen.kubebuilder.io/version: v0.20.1-0.20260504073140-27f2ee1b1648
   name: clustergroups.fleet.cattle.io
 spec:
   group: fleet.cattle.io
@@ -4223,7 +4223,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.20.1
+    controller-gen.kubebuilder.io/version: v0.20.1-0.20260504073140-27f2ee1b1648
   name: clusterregistrations.fleet.cattle.io
 spec:
   group: fleet.cattle.io
@@ -4327,7 +4327,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.20.1
+    controller-gen.kubebuilder.io/version: v0.20.1-0.20260504073140-27f2ee1b1648
   name: clusterregistrationtokens.fleet.cattle.io
 spec:
   group: fleet.cattle.io
@@ -4406,7 +4406,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.20.1
+    controller-gen.kubebuilder.io/version: v0.20.1-0.20260504073140-27f2ee1b1648
   name: clusters.fleet.cattle.io
 spec:
   group: fleet.cattle.io
@@ -6699,7 +6699,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.20.1
+    controller-gen.kubebuilder.io/version: v0.20.1-0.20260504073140-27f2ee1b1648
   name: contents.fleet.cattle.io
 spec:
   group: fleet.cattle.io
@@ -6775,7 +6775,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.20.1
+    controller-gen.kubebuilder.io/version: v0.20.1-0.20260504073140-27f2ee1b1648
   name: gitreporestrictions.fleet.cattle.io
 spec:
   group: fleet.cattle.io
@@ -6951,7 +6951,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.20.1
+    controller-gen.kubebuilder.io/version: v0.20.1-0.20260504073140-27f2ee1b1648
   name: gitrepos.fleet.cattle.io
 spec:
   group: fleet.cattle.io
@@ -7810,7 +7810,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.20.1
+    controller-gen.kubebuilder.io/version: v0.20.1-0.20260504073140-27f2ee1b1648
   name: helmops.fleet.cattle.io
 spec:
   group: fleet.cattle.io
@@ -9973,7 +9973,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.20.1
+    controller-gen.kubebuilder.io/version: v0.20.1-0.20260504073140-27f2ee1b1648
   name: imagescans.fleet.cattle.io
 spec:
   group: fleet.cattle.io
@@ -10189,7 +10189,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.20.1
+    controller-gen.kubebuilder.io/version: v0.20.1-0.20260504073140-27f2ee1b1648
   name: schedules.fleet.cattle.io
 spec:
   group: fleet.cattle.io

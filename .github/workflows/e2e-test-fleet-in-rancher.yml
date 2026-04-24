@@ -25,7 +25,7 @@ on:
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
-  SETUP_K3S_VERSION: 'v1.35.1-k3s1'
+  SETUP_K3S_VERSION: 'v1.36.0-rc3-k3s1'
 
 jobs:
   release-against-test-charts:
@@ -107,7 +107,9 @@ jobs:
         run: |
           mkdir -p ~/.local/bin
           if [ "${{ steps.deps-cache.outputs.cache-hit }}" != "true" ]; then
-            KUBECTL_VERSION="v1.35.3"
+            # renovate: datasource=github-releases depName=kubernetes/kubernetes
+            KUBECTL_VERSION="v1.36.0"
+            # renovate: datasource=github-release-attachments depName=kubernetes/kubernetes digestVersion=v1.36.0
             KUBECTL_SUM_amd64="fd31c7d7129260e608f6faf92d5984c3267ad0b5ead3bced2fe125686e286ad6"
             curl -sSfL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl" -o kubectl
             echo "${KUBECTL_SUM_amd64}  kubectl" | sha256sum -c -
