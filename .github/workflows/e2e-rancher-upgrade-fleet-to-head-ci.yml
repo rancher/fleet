@@ -179,13 +179,20 @@ jobs:
         name: Set up Rancher
         run: |
           ip=""
+          attempts=0
+          max_attempts=50
 
           kubectl config use-context k3d-upstream
 
           while [ -z "$ip" ]; do
+            attempts=$((attempt +1))
             ip=$(kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}' || true)
             if [ -z "$ip" ]; then
-              echo "Waiting for traefik load balancer ingress..."
+              if [ "$attempts" -ge "$max_attempts" ]; then
+                echo "Timed out waiting for traefik load balancer ingress IP after $((max_attempts * 3)) seconds."
+                exit 1
+              fi
+              echo "Waiting for traefik load balancer ingress... (attempt $attempts/$max_attempts)"
               sleep 3
             fi
           done
