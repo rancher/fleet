@@ -85,7 +85,7 @@ func (h *Helm) Setup(ctx context.Context, client client.Client, getter genericcl
 	h.client = client
 	h.getter = getter
 
-	cfg, err := h.createCfg(ctx, "")
+	cfg, err := h.createCfg(ctx, "", h.getter)
 	if err != nil {
 		return err
 	}
@@ -139,7 +139,7 @@ func (h *Helm) getCfg(ctx context.Context, namespace, serviceAccountName string)
 	kClient := kube.New(getter)
 	kClient.Namespace = namespace
 
-	cfg, err := h.createCfg(ctx, namespace)
+	cfg, err := h.createCfg(ctx, namespace, getter)
 	if err != nil {
 		return nil, err
 	}
@@ -151,7 +151,7 @@ func (h *Helm) getCfg(ctx context.Context, namespace, serviceAccountName string)
 	return cfg, nil
 }
 
-func (h *Helm) createCfg(ctx context.Context, namespace string) (*action.Configuration, error) {
+func (h *Helm) createCfg(ctx context.Context, namespace string, getter genericclioptions.RESTClientGetter) (*action.Configuration, error) {
 	// Create a logger handler for Helm SDK components.
 	// This uses Fleet's controller-runtime logger (which uses logr/zapr) and adapts it to slog.
 	// The logger level is set to V(1) to match the verbosity level used in Helm v3.
@@ -160,7 +160,7 @@ func (h *Helm) createCfg(ctx context.Context, namespace string) (*action.Configu
 		Level: slog.LevelDebug,
 	})
 
-	kc := kube.New(h.getter)
+	kc := kube.New(getter)
 	kc.SetLogger(handler)
 	clientSet, err := kc.Factory.KubernetesClientSet()
 	if err != nil {
@@ -172,7 +172,7 @@ func (h *Helm) createCfg(ctx context.Context, namespace string) (*action.Configu
 	store.MaxHistory = MaxHelmHistory
 
 	cfg := &action.Configuration{
-		RESTClientGetter: h.getter,
+		RESTClientGetter: getter,
 		Releases:         store,
 		KubeClient:       kc,
 	}
