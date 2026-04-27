@@ -23,8 +23,10 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/types"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/yaml"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
@@ -78,12 +80,22 @@ func (h *Helm) install(ctx context.Context, bundleID string, manifest *manifest.
 	logger := log.FromContext(ctx).WithName("helm-deployer").WithName("install").WithValues("commit", manifest.Commit, "dryRun", dryRunCfg.DryRun)
 	timeout, defaultNamespace, releaseName := h.getOpts(bundleID, options)
 
-	values, err := h.getValues(ctx, options, defaultNamespace)
+	cfg, err := h.getCfg(ctx, defaultNamespace, options.ServiceAccount)
 	if err != nil {
 		return nil, err
 	}
 
-	cfg, err := h.getCfg(ctx, defaultNamespace, options.ServiceAccount)
+	// kubeClient is nil in template mode; getValues treats a nil client as
+	// "skip ValuesFrom lookup" and returns only the statically defined values.
+	var kubeClient kubernetes.Interface
+	if !h.template {
+		kubeClient, err = kubeClientFromGetter(cfg.RESTClientGetter)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	values, err := h.getValues(ctx, options, defaultNamespace, kubeClient)
 	if err != nil {
 		return nil, err
 	}
@@ -466,7 +478,7 @@ func handleOrphanedRelease(ctx context.Context, cfg *action.Configuration, lastR
 	return false, nil
 }
 
-func (h *Helm) getValues(ctx context.Context, options fleet.BundleDeploymentOptions, defaultNamespace string) (map[string]interface{}, error) {
+func (h *Helm) getValues(ctx context.Context, options fleet.BundleDeploymentOptions, defaultNamespace string, kubeClient kubernetes.Interface) (map[string]interface{}, error) {
 	if options.Helm == nil {
 		return nil, nil
 	}
@@ -480,8 +492,8 @@ func (h *Helm) getValues(ctx context.Context, options fleet.BundleDeploymentOpti
 	if values == nil {
 		values = map[string]interface{}{}
 	}
-	// do not run this when using template
-	if !h.template {
+	// kubeClient is nil in template mode; skip the cluster lookups in that case.
+	if kubeClient != nil {
 		for _, valuesFrom := range options.Helm.ValuesFrom {
 			var tempValues map[string]interface{}
 			if valuesFrom.ConfigMapKeyRef != nil {
@@ -496,8 +508,7 @@ func (h *Helm) getValues(ctx context.Context, options fleet.BundleDeploymentOpti
 				if key == "" {
 					key = DefaultKey
 				}
-				configMap := &corev1.ConfigMap{}
-				err := h.client.Get(ctx, types.NamespacedName{Name: name, Namespace: namespace}, configMap)
+				configMap, err := kubeClient.CoreV1().ConfigMaps(namespace).Get(ctx, name, metav1.GetOptions{})
 				if err != nil {
 					return nil, err
 				}
@@ -524,8 +535,7 @@ func (h *Helm) getValues(ctx context.Context, options fleet.BundleDeploymentOpti
 				if key == "" {
 					key = DefaultKey
 				}
-				secret := &corev1.Secret{}
-				err := h.client.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, secret)
+				secret, err := kubeClient.CoreV1().Secrets(namespace).Get(ctx, name, metav1.GetOptions{})
 				if err != nil {
 					return nil, err
 				}
@@ -541,6 +551,21 @@ func (h *Helm) getValues(ctx context.Context, options fleet.BundleDeploymentOpti
 	}
 
 	return values, nil
+}
+
+// restConfigGetter produces a *rest.Config. Both
+// genericclioptions.RESTClientGetter and action.RESTClientGetter satisfy it.
+type restConfigGetter interface {
+	ToRESTConfig() (*rest.Config, error)
+}
+
+func kubeClientFromGetter(getter restConfigGetter) (kubernetes.Interface, error) {
+	restConfig, err := getter.ToRESTConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	return kubernetes.NewForConfig(restConfig)
 }
 
 func valuesFromSecret(name, namespace, key string, secret *corev1.Secret) (map[string]interface{}, error) {
