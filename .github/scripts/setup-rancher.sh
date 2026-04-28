@@ -9,7 +9,7 @@ version="${1-}"
 
 kubectl config use-context "$upstream_ctx"
 
-kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v1.5.4/cert-manager.yaml
+kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v1.19.2/cert-manager.yaml
 kubectl wait --for=condition=Available deployment --timeout=2m -n cert-manager --all
 
 helm repo add rancher-latest https://releases.rancher.com/server-charts/latest
@@ -28,8 +28,8 @@ helm upgrade rancher rancher-latest/rancher $args \
   --set bootstrapPassword=admin \
   --set "extraEnv[0].name=CATTLE_SERVER_URL" \
   --set "extraEnv[0].value=https://$public_hostname" \
-  --set "extraEnv[1].name=CATTLE_BOOTSTRAP_PASSWORD" \
-  --set "extraEnv[1].value=rancherpassword"
+  --set-string "fleet.extraEnv[0].name=EXPERIMENTAL_COPY_RESOURCES_DOWNSTREAM" \
+  --set-string "fleet.extraEnv[0].value=true"
 
 # wait for deployment of rancher
 kubectl -n cattle-system rollout status deploy/rancher

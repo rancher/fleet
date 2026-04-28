@@ -61,19 +61,21 @@ jobs:
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         id: rancher-cli-cache
         with:
-          path: /home/runner/.local/bin
-          key: ${{ runner.os }}-rancher-cli-2.6.0
+          path: ~/.local/bin/rancher
+          key: ${{ runner.os }}-rancher-cli-2.14.0
       -
         name: Install Rancher CLI
         if: steps.rancher-cli-cache.outputs.cache-hit != 'true'
         run: |
-          # download an older CLI to avoid https://github.com/rancher/rancher/issues/37574
-          # renovate: datasource=github-release-attachments depName=rancher/cli digestVersion=v2.6.0
-          RANCHER_CLI_SUM="e3f2f8bc04b763759d027ba30a6563b81a1ba6d881b1f3c95b24931a7804fb79"
-          mkdir -p /home/runner/.local/bin
-          wget -q https://github.com/rancher/cli/releases/download/v2.6.0/rancher-linux-amd64-v2.6.0.tar.gz
-          echo "${RANCHER_CLI_SUM}  rancher-linux-amd64-v2.6.0.tar.gz" | sha256sum -c -
-          tar -xz --strip-components=2 -f rancher-linux-amd64-v2.6.0.tar.gz -C /home/runner/.local/bin
+          mkdir -p ~/.local/bin
+          # renovate: datasource=github-releases depName=rancher/cli
+          RANCHER_CLI_VERSION="v2.14.0"
+          # renovate: datasource=github-release-attachments depName=rancher/cli digestVersion=v2.14.0
+          RANCHER_CLI_SUM_amd64="d05e207d9830f22171e62801dc51a32417125ecb7aaf50c073bf423e7da36a94"
+          curl -fsSL -o "rancher-linux-amd64-${RANCHER_CLI_VERSION}.tar.gz" \
+            "https://github.com/rancher/cli/releases/download/${RANCHER_CLI_VERSION}/rancher-linux-amd64-${RANCHER_CLI_VERSION}.tar.gz"
+          echo "${RANCHER_CLI_SUM_amd64}  rancher-linux-amd64-${RANCHER_CLI_VERSION}.tar.gz" | sha256sum -c -
+          tar -xz --strip-components=2 -f "rancher-linux-amd64-${RANCHER_CLI_VERSION}.tar.gz" -C ~/.local/bin
           rancher --version
       -
         name: Build fleet binaries
@@ -88,7 +90,13 @@ jobs:
       -
         name: Get uuid
         id: uuid
-        run: echo "::set-output name=uuid::$(uuidgen)"
+        run: |
+          if ! command -v uuidgen >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt install -y uuid-runtime # should provide uuidgen
+          fi
+
+          echo "uuid=$(uuidgen)" >> $GITHUB_OUTPUT
       -
         id: meta-fleet
         uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
@@ -169,9 +177,28 @@ jobs:
             --k3s-arg "--cluster-init@server:0"
       -
         name: Set up Rancher
-        env:
-          public_hostname: "172.18.0.1.sslip.io"
         run: |
+          ip=""
+          attempts=0
+          max_attempts=50
+
+          kubectl config use-context k3d-upstream
+
+          while [ -z "$ip" ]; do
+            attempts=$((attempt +1))
+            ip=$(kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}' || true)
+            if [ -z "$ip" ]; then
+              if [ "$attempts" -ge "$max_attempts" ]; then
+                echo "Timed out waiting for traefik load balancer ingress IP after $((max_attempts * 3)) seconds."
+                exit 1
+              fi
+              echo "Waiting for traefik load balancer ingress... (attempt $attempts/$max_attempts)"
+              sleep 3
+            fi
+          done
+
+          export public_hostname=$ip.sslip.io
+
           ./.github/scripts/setup-rancher.sh
           ./.github/scripts/wait-for-loadbalancer.sh
           ./.github/scripts/register-downstream-clusters.sh
