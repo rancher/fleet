@@ -152,15 +152,17 @@ jobs:
         run: |
           cd charts
           # Add upstream remote and fetch from it
-          git remote add -f upstream https://github.com/rancher/charts
+          # Name it `origin` for compatibility with `make pull-scripts`
+          git remote rename origin fleetoci
+          git remote add -f origin https://github.com/rancher/charts
 
           target_branch=${{steps.compute_target_branch.outputs.target_branch}}
           base_branch=${{steps.compute_env.outputs.charts_base_branch}}
 
-          git checkout -b $target_branch upstream/$base_branch
+          git checkout -b $target_branch origin/$base_branch
           if [ $? -eq 128 ]; then # branch already exists
             git checkout $target_branch
-            git rebase upstream/$base_branch
+            git rebase origin/$base_branch
           fi
 
       - name: Install dependencies
@@ -187,4 +189,4 @@ jobs:
       - name: Push to custom branch
         run: |
           cd charts
-          git push -u origin ${{ steps.compute_target_branch.outputs.target_branch }}
+          git push -u fleetoci ${{ steps.compute_target_branch.outputs.target_branch }}

@@ -345,7 +345,7 @@ var _ = Describe("Downstream objects cloning", Ordered, func() {
 			clusterName := ""
 			By("getting the downstream cluster name with label env=test")
 			Eventually(func(g Gomega) {
-				out, err := k.Namespace(env.ClusterRegistrationNamespace).Get("clusters", "-l", "env=test", "-o", "jsonpath={.items[0].metadata.name}")
+				out, err := k.Namespace(env.ClusterRegistrationNamespace).Get("clusters.fleet.cattle.io", "-l", "env=test", "-o", "jsonpath={.items[0].metadata.name}")
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(out).ToNot(BeEmpty())
 				clusterName = out
@@ -353,7 +353,7 @@ var _ = Describe("Downstream objects cloning", Ordered, func() {
 
 			By("getting the cluster namespace for the downstream cluster")
 			Eventually(func(g Gomega) {
-				out, err := k.Namespace(env.ClusterRegistrationNamespace).Get("clusters", clusterName, "-o", "jsonpath={.status.namespace}")
+				out, err := k.Namespace(env.ClusterRegistrationNamespace).Get("clusters.fleet.cattle.io", clusterName, "-o", "jsonpath={.status.namespace}")
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(out).ToNot(BeEmpty())
 				clusterNameSpace = out

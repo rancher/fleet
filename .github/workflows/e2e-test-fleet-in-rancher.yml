@@ -71,14 +71,14 @@ jobs:
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         with:
           path: ~/.local/bin/crust-gather
-          key: ${{ runner.os }}-crust-gather-${{ hashFiles('.github/scripts/install-crust-gather.sh') }}
+          key: ${{ runner.os }}-crust-gather-${{ hashFiles('./fleet/.github/scripts/install-crust-gather.sh') }}
           restore-keys: |
             ${{ runner.os }}-crust-gather-
       -
         name: Install crust-gather CLI
         run: |
           if [ "${{ steps.cache-crust.outputs.cache-hit }}" != "true" ]; then
-            ./.github/scripts/install-crust-gather.sh
+            ./fleet/.github/scripts/install-crust-gather.sh
           else
             echo "Using cached crust-gather CLI"
             chmod +x ~/.local/bin/crust-gather
@@ -90,7 +90,7 @@ jobs:
         id: rancher-cli-cache
         with:
           path: ~/.local/bin/rancher
-          key: ${{ runner.os }}-rancher-cli-${{ hashFiles('.github/workflows/e2e-test-fleet-in-rancher.yml') }}
+          key: ${{ runner.os }}-rancher-cli-${{ hashFiles('./fleet/.github/workflows/e2e-test-fleet-in-rancher.yml') }}
 
       -
         name: Cache kubectl and helm
@@ -100,7 +100,7 @@ jobs:
           path: |
             ~/.local/bin/kubectl
             ~/.local/bin/helm
-          key: ${{ runner.os }}-deps-${{ hashFiles('.github/workflows/e2e-test-fleet-in-rancher.yml') }}
+          key: ${{ runner.os }}-deps-${{ hashFiles('./fleet/.github/workflows/e2e-test-fleet-in-rancher.yml') }}
 
       -
         name: Install Dependencies
@@ -142,14 +142,14 @@ jobs:
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         with:
           path: ~/.local/bin/k3d
-          key: ${{ runner.os }}-k3d-${{ hashFiles('.github/scripts/install-k3d.sh') }}
+          key: ${{ runner.os }}-k3d-${{ hashFiles('./fleet/.github/scripts/install-k3d.sh') }}
           restore-keys: |
             ${{ runner.os }}-k3d-
       -
         name: Install k3d
         run: |
           if [ "${{ steps.cache-k3d.outputs.cache-hit }}" != "true" ]; then
-            ./.github/scripts/install-k3d.sh
+            ./fleet/.github/scripts/install-k3d.sh
           else
             echo "Using cached k3d"
             chmod +x ~/.local/bin/k3d
@@ -194,8 +194,14 @@ jobs:
 
           kubectl config use-context k3d-upstream
 
-          until kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}'; do sleep 3; done
-          ip=$(kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          ip=""
+          while [ -z "$ip" ]; do
+            ip=$(kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}' || true)
+            if [ -z "$ip" ]; then
+              echo "Waiting for traefik load balancer ingress..."
+              sleep 3
+            fi
+          done
 
           helm repo add jetstack https://charts.jetstack.io
           helm install cert-manager jetstack/cert-manager \
@@ -225,6 +231,8 @@ jobs:
             --set "extraEnv[2].value=${fleet_version}" \
             --set "extraEnv[3].name=CATTLE_SERVER_URL" \
             --set "extraEnv[3].value=https://$ip.sslip.io" \
+            --set-string fleet.extraEnv[0].name=EXPERIMENTAL_COPY_RESOURCES_DOWNSTREAM \
+            --set-string fleet.extraEnv[0].value=true
 
           # wait for deployment of rancher
           kubectl -n cattle-system rollout status deploy/rancher
@@ -283,6 +291,7 @@ jobs:
           FLEET_E2E_NS_DOWNSTREAM: fleet-default
         run: |
           kubectl config use-context k3d-upstream
+          cd fleet
           ginkgo --github-output --trace e2e/acceptance/single-cluster-examples
 
           export CI_REGISTERED_CLUSTER=$(kubectl get clusters.fleet.cattle.io -n $FLEET_E2E_NS_DOWNSTREAM -o jsonpath='{..name}')
