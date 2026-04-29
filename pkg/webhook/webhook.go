@@ -197,9 +197,9 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 			w.logAndReturn(rw, err)
 			return
 		}
-		path := strings.Replace(u.Path[1:], "/_git/", "(/_git)?/", 1)
-		regexpStr := `(?i)(http://|https://|\w+@|ssh://(\w+@)?|git@(ssh\.)?)` + u.Hostname() +
-			"(:[0-9]+|)[:/](v\\d/)?" + path + "(\\.git)?"
+		path := strings.Replace(regexp.QuoteMeta(u.EscapedPath()[1:]), `/_git/`, `(/_git)?/`, 1)
+		regexpStr := `(?i)(http://|https://|\w+@|ssh://(\w+@)?|git@(ssh\.)?)` + regexp.QuoteMeta(u.Hostname()) +
+			"(:[0-9]+|)[:/](v\\d/)?" + path + "(\\.git)?$"
 		repoRegexp, err := regexp.Compile(regexpStr)
 		if err != nil {
 			w.logAndReturn(rw, err)
@@ -311,7 +311,7 @@ func HandleHooks(ctx context.Context, namespace string, client client.Client, cl
 func (w *Webhook) logAndReturn(rw http.ResponseWriter, err error) {
 	w.log.Error(err, "Webhook processing failed")
 	rw.WriteHeader(getErrorCodeFromErr(err))
-	_, _ = rw.Write([]byte(err.Error()))
+	_, _ = rw.Write([]byte(err.Error())) //nolint:gosec // G705: error message is not user-controlled
 }
 
 func getErrorCodeFromErr(err error) int {
