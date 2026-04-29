@@ -122,13 +122,13 @@ jobs:
             exit 1
           fi
 
-          # renovate-local: goreleaser-x86_64
+          # renovate: datasource=github-releases depName=goreleaser/goreleaser
           GORELEASER_VERSION="v2.14.3"
-          # renovate-local: goreleaser-x86_64=v2.14.3
-          GORELEASER_CHECKSUM_x86_64="dc7faeeeb6da8bdfda788626263a4ae725892a8c7504b975c3234127d4a44579"
+          # renovate: datasource=github-release-attachments depName=goreleaser/goreleaser digestVersion=v2.14.3
+          GORELEASER_CHECKSUM_amd64="dc7faeeeb6da8bdfda788626263a4ae725892a8c7504b975c3234127d4a44579"
 
           ARCH=$(uname -m)
-          CHECKSUM="${GORELEASER_CHECKSUM_x86_64}"
+          CHECKSUM="${GORELEASER_CHECKSUM_amd64}"
           if [[ "${ARCH}" != "x86_64" ]]; then
             echo "Unsupported architecture: ${ARCH}"
             exit 1
