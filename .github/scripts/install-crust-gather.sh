@@ -4,16 +4,16 @@
 # before placing the binary on PATH.
 #
 # renovate: datasource=github-releases depName=crust-gather/crust-gather
-CRUST_GATHER_VERSION="v0.13.0"
+CRUST_GATHER_VERSION="v0.14.1"
 # Strip leading 'v' for the archive name
 CRUST_GATHER_VER="${CRUST_GATHER_VERSION#v}"
 
 # shellcheck disable=SC2034
-# renovate: datasource=github-release-attachments depName=crust-gather/crust-gather digestVersion=v0.13.0
-CRUST_GATHER_SUM_amd64="a5870ca76387d1c24ffceaa614671a92823a49113fb3ecd0f33dd23acf975f7c"
+# renovate: datasource=github-release-attachments depName=crust-gather/crust-gather digestVersion=v0.14.1
+CRUST_GATHER_SUM_amd64="eaf82ac17e9321dc6c9d6e657f1386e1145cf0befe0faf353291f230599daf5e"
 # shellcheck disable=SC2034
-# renovate: datasource=github-release-attachments depName=crust-gather/crust-gather digestVersion=v0.13.0
-CRUST_GATHER_SUM_arm64="103deb2d2d67da03859125031caa34d1938974bb0e160dbbdbb23e41521d2a47"
+# renovate: datasource=github-release-attachments depName=crust-gather/crust-gather digestVersion=v0.14.1
+CRUST_GATHER_SUM_arm64="08098ebb3ee9e336b2c6fc76ed6d0ee7fed3edc54b4f7b2edbc5d814f15438cb"
 
 set -euo pipefail
 
