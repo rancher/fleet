@@ -11,8 +11,10 @@ type FleetYAML struct {
 	Labels map[string]string `json:"labels,omitempty"`
 	BundleSpec
 	// TargetCustomizations are used to determine how resources should be
-	// modified per target. Targets are evaluated in order and the first
-	// one to match a cluster is used for that cluster.
+	// modified per target. Targets are evaluated in order. By default
+	// (FirstMatch) the first one to match a cluster is used for that cluster.
+	// If targetCustomizationMode is set to AllMatches, all matching entries
+	// are merged in order.
 	TargetCustomizations []BundleTarget `json:"targetCustomizations,omitempty"`
 	// ImageScans are optional and used to update container image
 	// references in the git repo.
