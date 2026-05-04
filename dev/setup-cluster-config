@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-set -ex
-
 if [ "$1" = "teardown" ]; then
     go run ./e2e/testenv/infra/main.go teardown
     return 0
