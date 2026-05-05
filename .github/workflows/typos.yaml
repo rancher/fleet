@@ -4,7 +4,7 @@ on: [pull_request]
 jobs:
   run:
     name: Spell Check with Typos
-    runs-on: runs-on,runner=4cpu-linux-x64,run-id=${{ github.run_id }}
+    runs-on: ubuntu-latest
 
     steps:
     - name: Checkout Repository
