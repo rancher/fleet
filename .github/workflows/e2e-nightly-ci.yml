@@ -27,7 +27,7 @@ env:
 
 jobs:
   e2e-fleet-nightly-test:
-    runs-on: ubuntu-latest-8-cores
+    runs-on: ubuntu-latest
 
     strategy:
       matrix:
