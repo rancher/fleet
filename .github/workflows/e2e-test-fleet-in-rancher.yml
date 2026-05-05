@@ -36,7 +36,7 @@ jobs:
     secrets: inherit # needed to enable access to repo secrets from the called workflow
 
   rancher-integration:
-    runs-on: runs-on,runner=16cpu-linux-x64,run-id=${{ github.run_id }}
+    runs-on: ubuntu-latest-16-cores
     needs: release-against-test-charts
 
     steps:
