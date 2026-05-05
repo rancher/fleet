@@ -28,7 +28,7 @@ permissions:
 
 jobs:
   push-test-rancher-charts:
-    runs-on: runs-on,runner=8cpu-linux-x64,run-id=${{ github.run_id }}
+    runs-on: ubuntu-latest
 
     outputs:
       target_branch: ${{ steps.compute_target_branch.outputs.target_branch }}
