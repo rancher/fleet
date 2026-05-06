@@ -452,7 +452,12 @@ func TestReconcile_Error_WhenGitrepoRestrictionsAreNotMet(t *testing.T) {
 	namespacedName := types.NamespacedName{Name: gitRepo.Name, Namespace: gitRepo.Namespace}
 	mockClient := mocks.NewMockClient(mockCtrl)
 	mockClient.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(
-		func(ctx context.Context, restrictions *fleetv1.GitRepoRestrictionList, ns client.InNamespace) error {
+		func(ctx context.Context, obj client.ObjectList, ns client.InNamespace) error {
+			restrictions, ok := obj.(*fleetv1.GitRepoRestrictionList)
+			if !ok {
+				// PolicyList or other types — no policies in this test.
+				return nil
+			}
 			// fill the restrictions with a couple of allowed namespaces.
 			// As the gitrepo has no target namespace restrictions won't be met
 			restriction := fleetv1.GitRepoRestriction{AllowedTargetNamespaces: []string{"ns1", "ns2"}}
@@ -542,6 +547,19 @@ func TestReconcile_Error_WhenGetGitJobErrors(t *testing.T) {
 		},
 	)
 
+	// Extra gitrepo Get triggered by updateStatus in the error path.
+	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
+		func(ctx context.Context, req types.NamespacedName, gitrepo *fleetv1.GitRepo, opts ...interface{}) error {
+			gitrepo.Name = gitRepo.Name
+			gitrepo.Namespace = gitRepo.Namespace
+			return nil
+		},
+	)
+
+	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
+	mockClient.EXPECT().Status().Return(statusClient)
+	statusClient.EXPECT().Update(gomock.Any(), gomock.Any(), gomock.Any())
+
 	recorderMock := mocks.NewMockEventRecorder(mockCtrl)
 	recorderMock.EXPECT().Event(
 		&gitRepoMatcher{gitRepo},
@@ -590,7 +608,7 @@ func TestReconcile_Error_WhenSecretDoesNotExist(t *testing.T) {
 	mockClient := mocks.NewMockClient(mockCtrl)
 	mockClient.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
 
-	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), &gitRepoPointerMatcher{}, gomock.Any()).Times(3).DoAndReturn(
+	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), &gitRepoPointerMatcher{}, gomock.Any()).Times(4).DoAndReturn(
 		func(ctx context.Context, req types.NamespacedName, gitrepo *fleetv1.GitRepo, opts ...interface{}) error {
 			gitrepo.Name = gitRepo.Name
 			gitrepo.Namespace = gitRepo.Namespace
@@ -633,8 +651,8 @@ func TestReconcile_Error_WhenSecretDoesNotExist(t *testing.T) {
 	)
 
 	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
-	mockClient.EXPECT().Status().Times(1).Return(statusClient)
-	statusClient.EXPECT().Update(gomock.Any(), gomock.Any(), gomock.Any()).Do(
+	mockClient.EXPECT().Status().Times(2).Return(statusClient)
+	statusClient.EXPECT().Update(gomock.Any(), gomock.Any(), gomock.Any()).Times(2).Do(
 		func(ctx context.Context, repo *fleetv1.GitRepo, opts ...interface{}) {
 			c, found := getCondition(repo, fleetv1.GitRepoAcceptedCondition)
 			if !found {

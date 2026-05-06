@@ -36,6 +36,7 @@ import (
 	"github.com/rancher/fleet/internal/metrics"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/durations"
+	fleetevent "github.com/rancher/fleet/pkg/event"
 	"github.com/rancher/fleet/pkg/sharding"
 )
 
@@ -125,6 +126,12 @@ func (r *HelmOpReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		if delErr := r.deletePollingJob(logger, *helmop); delErr != nil {
 			err = errutil.NewAggregate([]error{err, delErr})
 		}
+		return ctrl.Result{}, updateErrorStatusHelm(ctx, r.Client, req.NamespacedName, helmop, err)
+	}
+
+	// Policy restrictions: validate and apply defaults before producing the Bundle.
+	if err := AuthorizeAndAssignDefaults(ctx, r.Client, helmop); err != nil {
+		r.Recorder.Event(helmop, fleetevent.Warning, "FailedToApplyRestrictions", err.Error())
 		return ctrl.Result{}, updateErrorStatusHelm(ctx, r.Client, req.NamespacedName, helmop, err)
 	}
 

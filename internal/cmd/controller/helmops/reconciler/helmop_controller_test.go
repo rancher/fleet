@@ -406,6 +406,8 @@ func TestReconcile_ErrorCreatingBundleIsShownInStatus(t *testing.T) {
 			},
 		)
 
+		client.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&fleet.PolicyList{}), gomock.Any()).Return(nil)
+
 		statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
 		client.EXPECT().Status().Return(statusClient).Times(1)
 		statusClient.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Do(
@@ -492,6 +494,8 @@ func TestReconcile_ErrorCreatingBundleIsShownInStatus(t *testing.T) {
 				return nil
 			},
 		)
+
+		client.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&fleet.PolicyList{}), gomock.Any()).Return(nil)
 
 		statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
 		client.EXPECT().Status().Return(statusClient).Times(1)
@@ -581,6 +585,8 @@ func TestReconcile_ErrorCreatingBundleIfBundleWithSameNameExists(t *testing.T) {
 		},
 	)
 
+	client.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&fleet.PolicyList{}), gomock.Any()).Return(nil)
+
 	expectedErrorMsg := "non-helmops bundle already exists"
 	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
 	client.EXPECT().Status().Return(statusClient).Times(1)
@@ -669,6 +675,8 @@ func TestReconcile_CreatesBundleAndUpdatesStatus(t *testing.T) {
 			return nil
 		},
 	)
+
+	client.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&fleet.PolicyList{}), gomock.Any()).Return(nil)
 
 	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
 	client.EXPECT().Status().Return(statusClient).Times(1)
@@ -1274,6 +1282,8 @@ func TestReconcile_ManagePollingJobs(t *testing.T) {
 					}
 					return nil
 				}).AnyTimes()
+
+			client.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&fleet.PolicyList{}), gomock.Any()).Return(nil)
 
 			// Only expected in happy cases. If errors happen, only status updates are expected.
 			client.EXPECT().Update(gomock.Any(), matchesBundle(c.helmOp.Name, c.helmOp.Namespace), gomock.Any()).Return(nil).AnyTimes()
