@@ -3,7 +3,7 @@ name: E2E Upgrade Fleet in Rancher To HEAD
 
 on:
   schedule:
-    # Run everyday day at 1:00 PM
+    # Runs everyday at 05:20 UTC
     - cron:  '20 5 * * *'
   workflow_dispatch:
     inputs:

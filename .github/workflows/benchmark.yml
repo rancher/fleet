@@ -12,6 +12,7 @@ on:
         required: false
         default: fleet-local
   schedule:
+    # Runs everyday at 05:15 UTC
     - cron: "15 5 * * *"
 
 permissions:
