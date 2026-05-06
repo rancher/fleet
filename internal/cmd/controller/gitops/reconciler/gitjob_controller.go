@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"os"
+	"reflect"
 	"slices"
 	"sort"
 	"strconv"
@@ -155,9 +156,18 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	// Restrictions / Overrides, gitrepo reconciler is responsible for setting error in status
 	oldStatus := gitrepo.Status.DeepCopy()
+	oldSpec := gitrepo.Spec.DeepCopy()
 	if err := AuthorizeAndAssignDefaults(ctx, r.Client, gitrepo); err != nil {
 		r.Recorder.Event(gitrepo, fleetevent.Warning, "FailedToApplyRestrictions", err.Error())
 		return ctrl.Result{}, updateErrorStatus(ctx, r.Client, req.NamespacedName, *oldStatus, err)
+	}
+	// Persist any spec defaults injected by AuthorizeAndAssignDefaults (e.g. defaultServiceAccount).
+	// The spec update bumps the generation and triggers a fresh reconcile.
+	if !reflect.DeepEqual(oldSpec, &gitrepo.Spec) {
+		if err := r.Update(ctx, gitrepo); err != nil {
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{}, nil
 	}
 
 	if !gitrepo.DeletionTimestamp.IsZero() {

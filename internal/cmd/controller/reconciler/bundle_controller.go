@@ -20,6 +20,7 @@ import (
 	"github.com/rancher/fleet/internal/ociwrapper"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/durations"
+	fleetevent "github.com/rancher/fleet/pkg/event"
 	"github.com/rancher/fleet/pkg/sharding"
 	"github.com/rancher/wrangler/v3/pkg/genericcondition"
 
@@ -29,7 +30,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	errutil "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -39,6 +42,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 const (
@@ -64,10 +68,11 @@ type BundleReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 
-	Builder TargetBuilder
-	Store   Store
-	Query   BundleQuery
-	ShardID string
+	Builder  TargetBuilder
+	Store    Store
+	Query    BundleQuery
+	ShardID  string
+	Recorder record.EventRecorder
 
 	Workers int
 }
@@ -177,6 +182,13 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// Migration: Remove the obsolete created-by-display-name label if it exists
 	if err := r.removeDisplayNameLabel(ctx, bundle); err != nil {
 		return ctrl.Result{}, err
+	}
+
+	// Policy restrictions: validate the Bundle before producing any BundleDeployments.
+	// This closes the direct fleet-apply bypass path: a Bundle that violates policy is
+	// never deployed regardless of how it was created.
+	if err := r.authorizeBundle(ctx, bundle); err != nil {
+		return ctrl.Result{}, r.updateErrorStatus(ctx, bundleOrig, bundle, err)
 	}
 
 	logger.V(1).Info(
@@ -634,6 +646,60 @@ func (r *BundleReconciler) handleContentAccessSecrets(ctx context.Context, bundl
 func experimentalHelmOpsEnabled() bool {
 	value, err := strconv.ParseBool(os.Getenv("EXPERIMENTAL_HELM_OPS"))
 	return err == nil && value
+}
+
+// authorizeBundle validates the Bundle against Policy objects and records a
+// warning event if a violation is found. Returns a non-nil error on violation.
+func (r *BundleReconciler) authorizeBundle(ctx context.Context, bundle *fleet.Bundle) error {
+	if err := AuthorizeBundle(ctx, r.Client, bundle); err != nil {
+		r.Recorder.Event(
+			bundle,
+			fleetevent.Warning,
+			"PolicyViolation",
+			fmt.Sprintf("Bundle in namespace %s violates Policy: %v", bundle.Namespace, err),
+		)
+		return err
+	}
+	return nil
+}
+
+// setReadyCondition sets the Ready condition on the bundle status based on the given error.
+func setReadyCondition(status *fleet.BundleStatus, err error) {
+	cond := genericcondition.GenericCondition{
+		Type:           string(fleet.Ready),
+		LastUpdateTime: metav1.Now().UTC().Format(time.RFC3339),
+	}
+	if err != nil {
+		cond.Status = corev1.ConditionFalse
+		cond.Message = err.Error()
+	} else {
+		cond.Status = corev1.ConditionTrue
+	}
+	for i, c := range status.Conditions {
+		if c.Type == cond.Type {
+			status.Conditions[i] = cond
+			return
+		}
+	}
+	status.Conditions = append(status.Conditions, cond)
+}
+
+// updateErrorStatus sets the Ready condition in the bundle status and tries to update the resource.
+// Setting that condition makes the error message visible in the Rancher UI.
+// Upon successful update of the status, updateErrorStatus returns a TerminalError, preventing requeues.
+func (r *BundleReconciler) updateErrorStatus(
+	ctx context.Context,
+	orig, bundle *fleet.Bundle,
+	orgErr error,
+) error {
+	setReadyCondition(&bundle.Status, orgErr)
+
+	if statusErr := r.updateStatus(ctx, orig, bundle); statusErr != nil {
+		merr := []error{orgErr, fmt.Errorf("failed to update the status: %w", statusErr)}
+		return errutil.NewAggregate(merr)
+	}
+
+	return reconcile.TerminalError(orgErr)
 }
 
 // updateStatus patches the status of the bundle and collects metrics upon a successful update of

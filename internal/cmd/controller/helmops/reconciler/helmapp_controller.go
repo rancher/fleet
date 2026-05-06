@@ -33,6 +33,7 @@ import (
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	"github.com/rancher/fleet/internal/metrics"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	fleetevent "github.com/rancher/fleet/pkg/event"
 	"github.com/rancher/fleet/pkg/sharding"
 )
 
@@ -128,6 +129,12 @@ func (r *HelmAppReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	if helmapp.Spec.Helm.Chart == "" {
 		return ctrl.Result{}, nil
+	}
+
+	// Policy restrictions: validate and apply defaults before producing the Bundle.
+	if err := AuthorizeAndAssignDefaults(ctx, r.Client, helmapp); err != nil {
+		r.Recorder.Event(helmapp, fleetevent.Warning, "FailedToApplyRestrictions", err.Error())
+		return ctrl.Result{}, updateErrorStatusHelm(ctx, r.Client, req.NamespacedName, helmapp.Status, err)
 	}
 
 	bundle, err := r.createUpdateBundle(ctx, helmapp)

@@ -1,0 +1,19 @@
+apiVersion: fleet.cattle.io/v1alpha1
+kind: HelmOp
+metadata:
+  name: {{ .Name }}
+  namespace: {{ .Namespace }}
+spec:
+  helm:
+    repo: {{.Repo}}
+    chart: {{.Chart}}
+    version: "{{.Version}}"
+  namespace: {{ .Namespace }}
+  {{- if ne .ServiceAccount "" }}
+  serviceAccount: {{ .ServiceAccount }}
+  {{- end }}
+  {{- if ne .HelmSecretName "" }}
+  helmSecretName: {{ .HelmSecretName }}
+  {{- end }}
+  targets:
+  - clusterSelector: {}

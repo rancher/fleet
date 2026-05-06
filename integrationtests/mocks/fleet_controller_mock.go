@@ -201,3 +201,17 @@ func (mr *FleetInterfaceMockRecorder) ImageScan() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ImageScan", reflect.TypeOf((*FleetInterface)(nil).ImageScan))
 }
+
+// Policy mocks base method.
+func (m *FleetInterface) Policy() v1alpha1.PolicyController {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Policy")
+	ret0, _ := ret[0].(v1alpha1.PolicyController)
+	return ret0
+}
+
+// Policy indicates an expected call of Policy.
+func (mr *FleetInterfaceMockRecorder) Policy() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Policy", reflect.TypeOf((*FleetInterface)(nil).Policy))
+}

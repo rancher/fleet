@@ -106,8 +106,9 @@ func start(
 	}
 
 	if err = (&reconciler.BundleReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:   mgr.GetClient(),
+		Scheme:   mgr.GetScheme(),
+		Recorder: mgr.GetEventRecorderFor("bundle-controller"),
 
 		Builder: builder,
 		Store:   store,
