@@ -33,13 +33,6 @@ const (
 	branchInvalidSuffix = ".lock"
 	branchInvalidPrefix = "."
 	branchInvalidValues = "@"
-
-	// urlMaxLength represents the max length accepted for git URLs.
-	//
-	// Value is based on libgit2's:
-	// - https://github.com/libgit2/libgit2/blob/936b184e7494158c20e522981f4a324cac6ffa47/src/util/win32/w32_common.h#L13-L18
-	// - https://github.com/libgit2/libgit2/blob/936b184e7494158c20e522981f4a324cac6ffa47/include/git2/common.h#L103-L106
-	urlMaxLength = 4096
 )
 
 // validateBranch validates a branch name and return an error in case it is
@@ -85,16 +78,5 @@ func validateCommit(commit string) error {
 		return nil
 	default:
 		return fmt.Errorf("invalid commit ID: %q", commit)
-	}
-}
-
-func validateURL(u string) error {
-	switch {
-	case u == "":
-		return errors.New("invalid url: cannot be empty")
-	case len(u) > urlMaxLength:
-		return fmt.Errorf("invalid url: exceeds max length %d", urlMaxLength)
-	default:
-		return nil
 	}
 }
