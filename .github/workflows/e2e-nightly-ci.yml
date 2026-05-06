@@ -3,8 +3,8 @@ name: E2E Nightly Fleet
 
 on:
   schedule:
-    # Run everyday day at 7:00 AM
-    - cron: '0 7 * * *'
+    # Runs everyday at 05:00 UTC
+    - cron: '0 5 * * *'
   workflow_dispatch:
     inputs:
       k3s_version:
