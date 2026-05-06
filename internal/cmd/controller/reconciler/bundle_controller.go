@@ -176,6 +176,13 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return r.computeResult(ctx, logger, bundleOrig, bundle, "failed to remove display name label", err)
 	}
 
+	// Policy restrictions: validate the Bundle before producing any BundleDeployments.
+	// This closes the direct fleet-apply bypass path: a Bundle that violates policy is
+	// never deployed regardless of how it was created.
+	if err := r.authorizeBundle(ctx, bundle); err != nil {
+		return ctrl.Result{}, r.updateErrorStatus(ctx, bundleOrig, bundle, err)
+	}
+
 	logger.V(1).Info(
 		"Reconciling bundle, checking targets, calculating changes, building objects",
 		"generation",
@@ -752,6 +759,21 @@ func (r *BundleReconciler) handleContentAccessSecrets(ctx context.Context, bundl
 				err,
 			)
 		}
+	}
+	return nil
+}
+
+// authorizeBundle validates the Bundle against Policy objects and records a
+// warning event if a violation is found. Returns a non-nil error on violation.
+func (r *BundleReconciler) authorizeBundle(ctx context.Context, bundle *fleet.Bundle) error {
+	if err := AuthorizeBundle(ctx, r.Client, bundle); err != nil {
+		r.Recorder.Event(
+			bundle,
+			fleetevent.Warning,
+			"PolicyViolation",
+			fmt.Sprintf("Bundle in namespace %s violates Policy: %v", bundle.Namespace, err),
+		)
+		return err
 	}
 	return nil
 }

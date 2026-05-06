@@ -153,7 +153,12 @@ func TestReconcile_Error_WhenGitrepoRestrictionsAreNotMet(t *testing.T) {
 	namespacedName := types.NamespacedName{Name: gitRepo.Name, Namespace: gitRepo.Namespace}
 	mockClient := mocks.NewMockK8sClient(mockCtrl)
 	mockClient.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(
-		func(ctx context.Context, restrictions *fleetv1.GitRepoRestrictionList, ns client.InNamespace) error {
+		func(ctx context.Context, obj client.ObjectList, ns client.InNamespace) error {
+			restrictions, ok := obj.(*fleetv1.GitRepoRestrictionList)
+			if !ok {
+				// PolicyList or other types — no policies in this test.
+				return nil
+			}
 			// fill the restrictions with a couple of allowed namespaces.
 			// As the gitrepo has no target namespace restrictions won't be met
 			restriction := fleetv1.GitRepoRestriction{AllowedTargetNamespaces: []string{"ns1", "ns2"}}
