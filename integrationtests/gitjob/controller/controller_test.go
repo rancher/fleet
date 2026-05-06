@@ -913,6 +913,67 @@ var _ = Describe("GitJob controller", func() {
 		})
 	})
 
+	// Regression test for https://github.com/rancher/fleet/issues/5077: when polling is
+	// enabled a webhook commit must still trigger a new git job.
+	When("a new GitRepo is created with polling enabled and WebhookCommit changes", func() {
+		var (
+			gitRepo     v1alpha1.GitRepo
+			gitRepoName string
+			job         batchv1.Job
+		)
+		const webhookCommit = "af6116a6c5c3196043b4a456316ae257dad9b5db"
+
+		BeforeEach(func() {
+			gitRepoName = "polling-enabled-webhook-commit"
+			expectedCommit = stableCommit
+		})
+
+		JustBeforeEach(func() {
+			gitRepo = createGitRepo(gitRepoName)
+			// Use a very long polling interval so that polling does not interfere
+			// with the test timing after the initial run.
+			gitRepo.Spec.Branch = stableCommitBranch
+			Expect(k8sClient.Create(ctx, &gitRepo)).To(Succeed())
+
+			By("Waiting for the initial job created by polling")
+			Eventually(func() error {
+				jobName := names.SafeConcatName(gitRepoName, names.Hex(repo+stableCommit, 5))
+				return k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
+			}, testenv.MediumTimeout, testenv.ShortTimeout).Should(Not(HaveOccurred()))
+
+			By("Simulating the initial job completing successfully")
+			Eventually(func() error {
+				jobName := names.SafeConcatName(gitRepoName, names.Hex(repo+stableCommit, 5))
+				err := k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
+				if client.IgnoreNotFound(err) != nil {
+					return err
+				}
+				job.Status = succeeded(job.Status)
+				return k8sClient.Status().Update(ctx, &job)
+			}).Should(Not(HaveOccurred()))
+
+			Eventually(func() bool {
+				jobName := names.SafeConcatName(gitRepoName, names.Hex(repo+stableCommit, 5))
+				err := k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
+				return errors.IsNotFound(err)
+			}).Should(BeTrue())
+
+			By("Setting WebhookCommit to simulate a webhook event")
+			Expect(setGitRepoWebhookCommit(gitRepo, webhookCommit)).To(Succeed())
+		})
+
+		AfterEach(func() {
+			waitDeleteGitrepo(gitRepo)
+		})
+
+		It("creates a new Job for the webhook commit", func() {
+			Eventually(func() error {
+				jobName := names.SafeConcatName(gitRepoName, names.Hex(repo+webhookCommit, 5))
+				return k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
+			}, testenv.MediumTimeout, testenv.ShortTimeout).Should(Not(HaveOccurred()))
+		})
+	})
+
 	When("creating a gitRepo that references a helm secret", func() {
 		var (
 			gitRepo        v1alpha1.GitRepo

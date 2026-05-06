@@ -713,8 +713,17 @@ func TestGitHubSecretAndCommitUpdated(t *testing.T) {
 					if repo.Status.WebhookCommit != expectedCommit {
 						t.Errorf("expecting gitrepo webhook commit %s, got %s", expectedCommit, repo.Status.WebhookCommit)
 					}
-					if repo.Spec.PollingInterval.Duration != time.Hour {
-						t.Errorf("expecting gitrepo polling interval 1h, got %s", repo.Spec.PollingInterval.Duration)
+					// PollingInterval must NOT be set via Status().Patch(); it uses a separate spec patch
+					if repo.Spec.PollingInterval != nil {
+						t.Errorf("PollingInterval must not appear in the status patch, got %s", repo.Spec.PollingInterval.Duration)
+					}
+				},
+			).Times(1)
+			// PollingInterval is nil on the GitRepo fixture, so a separate spec Patch() must follow
+			mockClient.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any()).Do(
+				func(ctx context.Context, repo *v1alpha1.GitRepo, _ client.Patch, opts ...any) {
+					if repo.Spec.PollingInterval == nil || repo.Spec.PollingInterval.Duration != time.Hour {
+						t.Errorf("expecting polling interval 1h in spec patch, got %v", repo.Spec.PollingInterval)
 					}
 				},
 			).Times(1)
@@ -832,8 +841,17 @@ func TestGitRepoURLMatch(t *testing.T) {
 			if repo.Status.WebhookCommit != expectedCommit {
 				t.Errorf("expecting gitrepo webhook commit %s, got %s", expectedCommit, repo.Status.WebhookCommit)
 			}
-			if repo.Spec.PollingInterval.Duration != time.Hour {
-				t.Errorf("expecting gitrepo polling interval 1h, got %s", repo.Spec.PollingInterval.Duration)
+			// PollingInterval must NOT be set via Status().Patch(); it uses a separate spec patch
+			if repo.Spec.PollingInterval != nil {
+				t.Errorf("PollingInterval must not appear in the status patch, got %s", repo.Spec.PollingInterval.Duration)
+			}
+		},
+	).Times(1)
+	// PollingInterval is nil on both GitRepo fixtures, so a spec Patch() must follow for the matching one
+	mockClient.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any()).Do(
+		func(ctx context.Context, repo *v1alpha1.GitRepo, _ client.Patch, opts ...any) {
+			if repo.Spec.PollingInterval == nil || repo.Spec.PollingInterval.Duration != time.Hour {
+				t.Errorf("expecting polling interval 1h in spec patch, got %v", repo.Spec.PollingInterval)
 			}
 		},
 	).Times(1)
