@@ -12,7 +12,7 @@ on:
         required: false
         default: fleet-local
   schedule:
-    - cron: "0 15 * * *"
+    - cron: "15 5 * * *"
 
 permissions:
   contents: read

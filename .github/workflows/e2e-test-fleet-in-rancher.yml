@@ -4,7 +4,7 @@ name: Test Fleet in Rancher
 on:
   schedule:
     # Run everyday at 1:00 PM
-    - cron:  '0 13 * * *'
+    - cron:  '10 5 * * *'
   workflow_dispatch:
     inputs:
       charts_repo:
