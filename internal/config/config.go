@@ -43,6 +43,9 @@ const (
 	// server.
 	APIServerCAKey = "apiServerCA"
 
+	// EnvVarWranglerCheckGVKErrorMapping is the env var name used to configure Wrangler's GVK error mapping.
+	EnvVarWranglerCheckGVKErrorMapping = "CATTLE_WRANGLER_CHECK_GVK_ERROR_MAPPING"
+
 	// Default secret name for git credentials, used as a fallback if no secret is referenced by an app.
 	DefaultGitCredentialsSecretName = "gitcredential" //nolint:gosec // this is a resource name
 

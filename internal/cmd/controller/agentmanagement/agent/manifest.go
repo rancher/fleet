@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"os"
 	"path"
 	"strconv"
 	"strings"
@@ -197,6 +198,7 @@ func agentApp(namespace string, agentScope string, opts ManifestOptions) *appsv1
 								{Name: "CATTLE_ELECTION_RETRY_PERIOD", Value: opts.RetryPeriod.String()},
 								{Name: "CATTLE_ELECTION_RENEW_DEADLINE", Value: opts.RenewDeadline.String()},
 								{Name: "EXPERIMENTAL_COPY_RESOURCES_DOWNSTREAM", Value: strconv.FormatBool(experimental.CopyResourcesDownstreamEnabled())},
+								{Name: config.EnvVarWranglerCheckGVKErrorMapping, Value: os.Getenv(config.EnvVarWranglerCheckGVKErrorMapping)},
 							},
 							Command: []string{
 								"fleetagent",
