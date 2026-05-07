@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"slices"
 	"strings"
@@ -595,6 +596,7 @@ func TestNewJob(t *testing.T) {
 		strictHostKeyChecks    bool
 		clientObjects          []runtime.Object
 		deploymentTolerations  []corev1.Toleration
+		deploymentNodeSelector map[string]string
 		expectedInitContainers []corev1.Container
 		expectedContainers     []corev1.Container
 		expectedVolumes        []corev1.Volume
@@ -1741,6 +1743,9 @@ func TestNewJob(t *testing.T) {
 					Operator: "Exists",
 				},
 			},
+			deploymentNodeSelector: map[string]string{
+				"node-role.kubernetes.io/fleet": "true",
+			},
 			clientObjects: []runtime.Object{
 				&corev1.ConfigMap{
 					ObjectMeta: metav1.ObjectMeta{
@@ -1760,7 +1765,7 @@ func TestNewJob(t *testing.T) {
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			r := GitJobReconciler{
-				Client:          getFakeClient(test.deploymentTolerations, test.clientObjects...),
+				Client:          getFakeClient(test.deploymentTolerations, test.deploymentNodeSelector, test.clientObjects...),
 				Scheme:          scheme,
 				Image:           "test",
 				Clock:           RealClock{},
@@ -1866,6 +1871,12 @@ func TestNewJob(t *testing.T) {
 			expectedTolerations = append(expectedTolerations, test.deploymentTolerations...)
 			if !cmp.Equal(expectedTolerations, job.Spec.Template.Spec.Tolerations) {
 				t.Fatalf("job tolerations differ. Expecting: %v and found: %v", test.deploymentTolerations, job.Spec.Template.Spec.Tolerations)
+			}
+
+			expectedNodeSelector := map[string]string{"kubernetes.io/os": "linux"}
+			maps.Copy(expectedNodeSelector, test.deploymentNodeSelector)
+			if !cmp.Equal(expectedNodeSelector, job.Spec.Template.Spec.NodeSelector) {
+				t.Fatalf("job node selector differs. Expecting: %v and found: %v", expectedNodeSelector, job.Spec.Template.Spec.NodeSelector)
 			}
 		})
 	}
@@ -2380,7 +2391,7 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 			}
 
 			r := GitJobReconciler{
-				Client:          getFakeClient([]corev1.Toleration{}),
+				Client:          getFakeClient([]corev1.Toleration{}, nil),
 				Image:           "test",
 				Clock:           RealClock{},
 				SystemNamespace: config.DefaultNamespace,
@@ -2747,7 +2758,7 @@ ignore this line as well`,
 	}
 }
 
-func getFakeClient(tolerations []corev1.Toleration, objs ...runtime.Object) client.Client {
+func getFakeClient(tolerations []corev1.Toleration, nodeSelector map[string]string, objs ...runtime.Object) client.Client {
 	scheme := runtime.NewScheme()
 	utilruntime.Must(corev1.AddToScheme(scheme))
 	utilruntime.Must(appsv1.AddToScheme(scheme))
@@ -2755,10 +2766,10 @@ func getFakeClient(tolerations []corev1.Toleration, objs ...runtime.Object) clie
 	return fake.NewClientBuilder().
 		WithScheme(scheme).
 		WithRuntimeObjects(objs...).
-		WithRuntimeObjects(getFleetControllerDeployment(tolerations)).Build()
+		WithRuntimeObjects(getFleetControllerDeployment(tolerations, nodeSelector)).Build()
 }
 
-func getFleetControllerDeployment(tolerations []corev1.Toleration) *appsv1.Deployment {
+func getFleetControllerDeployment(tolerations []corev1.Toleration, nodeSelector map[string]string) *appsv1.Deployment {
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      config.ManagerConfigName,
@@ -2767,7 +2778,8 @@ func getFleetControllerDeployment(tolerations []corev1.Toleration) *appsv1.Deplo
 		Spec: appsv1.DeploymentSpec{
 			Template: corev1.PodTemplateSpec{
 				Spec: corev1.PodSpec{
-					Tolerations: tolerations,
+					Tolerations:  tolerations,
+					NodeSelector: nodeSelector,
 				},
 			},
 		},
