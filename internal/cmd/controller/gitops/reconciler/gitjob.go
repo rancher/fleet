@@ -200,6 +200,11 @@ func (r *GitJobReconciler) newGitJob(ctx context.Context, obj *v1alpha1.GitRepo)
 		jobSpec.Template.Spec.Tolerations,
 		fleetControllerDeployment.Spec.Template.Spec.Tolerations...,
 	)
+	if jobSpec.Template.Spec.NodeSelector == nil {
+		jobSpec.Template.Spec.NodeSelector = map[string]string{}
+	}
+	maps.Copy(jobSpec.Template.Spec.NodeSelector, fleetControllerDeployment.Spec.Template.Spec.NodeSelector)
+
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Annotations: map[string]string{
