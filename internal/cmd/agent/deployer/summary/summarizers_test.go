@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/data"
+	"github.com/rancher/fleet/internal/config"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1/summary"
 	"github.com/stretchr/testify/assert"
 
@@ -173,7 +174,7 @@ func TestCheckErrors(t *testing.T) {
 				},
 			},
 			loadConditions: func() {
-				t.Setenv(checkGVKErrorMappingEnvVar, `
+				t.Setenv(config.EnvVarWranglerCheckGVKErrorMapping, `
 					[
 						{
 							"gvk": "sample.cattle.io/v1, Kind=Sample",
@@ -210,7 +211,7 @@ func TestCheckErrors(t *testing.T) {
 				},
 			},
 			loadConditions: func() {
-				t.Setenv(checkGVKErrorMappingEnvVar, `
+				t.Setenv(config.EnvVarWranglerCheckGVKErrorMapping, `
 					[
 						{
 							"gvk": "sample.cattle.io/v1, Kind=Sample",
@@ -294,7 +295,7 @@ func TestCheckErrors(t *testing.T) {
 				},
 			},
 			loadConditions: func() {
-				t.Setenv(checkGVKErrorMappingEnvVar, `
+				t.Setenv(config.EnvVarWranglerCheckGVKErrorMapping, `
 					[
 						{
 							"gvk": "sample.cattle.io/v1, Kind=Sample",
@@ -332,7 +333,7 @@ func TestCheckErrors(t *testing.T) {
 				},
 			},
 			loadConditions: func() {
-				t.Setenv(checkGVKErrorMappingEnvVar, `
+				t.Setenv(config.EnvVarWranglerCheckGVKErrorMapping, `
 					[
 						{
 							"gvk": "sample.cattle.io/v1, Kind=Sample",
