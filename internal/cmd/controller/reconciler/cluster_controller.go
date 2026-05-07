@@ -4,6 +4,7 @@ package reconciler
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"slices"
@@ -19,6 +20,7 @@ import (
 	"github.com/rancher/fleet/pkg/sharding"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/rancher/fleet/internal/cmd/agent/deployer/monitor"
 	fleetutil "github.com/rancher/fleet/internal/cmd/controller/errorutil"
 	"github.com/rancher/wrangler/v3/pkg/condition"
 
@@ -41,6 +43,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
 
+var offlineConds = []string{
+	fleet.ClusterConditionReady,
+	"Reconciled",
+}
+
 var LongRetry = wait.Backoff{
 	Steps:    5,
 	Duration: 5 * time.Second,
@@ -62,7 +69,18 @@ type ClusterReconciler struct {
 // SetupWithManager sets up the controller with the Manager.
 func (r *ClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&fleet.Cluster{}).
+		For(&fleet.Cluster{},
+			builder.WithPredicates(
+				// do not trigger for cluster status changes (except for cache sync)
+				predicate.Or(
+					TypedResourceVersionUnchangedPredicate[client.Object]{},
+					predicate.GenerationChangedPredicate{},
+					predicate.AnnotationChangedPredicate{},
+					predicate.LabelChangedPredicate{},
+				),
+				sharding.FilterByShardID(r.ShardID),
+			),
+		).
 		// Watch bundledeployments so we can update the status fields
 		Watches(
 			&fleet.BundleDeployment{},
@@ -86,6 +104,10 @@ func (r *ClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 						return true
 					}
 					if n.Status.AppliedDeploymentID != o.Status.AppliedDeploymentID {
+						return true
+					}
+					if summary.MessageFromCondition(fleet.ClusterConditionReady, n.Status.Conditions) !=
+						summary.MessageFromCondition(fleet.ClusterConditionReady, o.Status.Conditions) {
 						return true
 					}
 					if n.Status.Ready != o.Status.Ready {
@@ -198,6 +220,7 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	gitRepos := map[types.NamespacedName]bool{}
 	helmOps := map[types.NamespacedName]bool{}
+	isClusterOffline := false
 	for _, bd := range bundleDeployments {
 		state := summary.GetDeploymentState(&bd)
 		summary.IncrementState(&cluster.Status.Summary, bd.Name, state, summary.MessageFromDeployment(&bd), bd.Status.ModifiedStatus, bd.Status.NonReadyStatus)
@@ -221,6 +244,28 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			// a helmOp is ready if its bundledeployments are ready, take previous state into account
 			helmOpKey := types.NamespacedName{Namespace: ns, Name: helmOpName}
 			helmOps[helmOpKey] = (state == fleet.Ready) || helmOps[helmOpKey]
+		}
+
+		if summary.MessageFromCondition(fleet.ClusterConditionReady, bd.Status.Conditions) == fleet.ClusterOfflineMsg {
+			// bundle deployment offline, mark cluster offline
+			if isClusterOffline {
+				continue
+			}
+
+			isClusterOffline = true
+
+			for _, c := range offlineConds {
+				cond := monitor.Cond(c)
+				cond.SetError(&cluster.Status, "Cluster offline", errors.New(fleet.ClusterOfflineMsg))
+				cond.Unknown(&cluster.Status)
+			}
+
+		} else if summary.MessageFromCondition(fleet.ClusterConditionReady, cluster.Status.Conditions) == fleet.ClusterOfflineMsg {
+			// bundle deployment online, mark offline cluster back online
+			for _, c := range offlineConds {
+				cond := monitor.Cond(c)
+				cond.SetError(&cluster.Status, "", nil)
+			}
 		}
 	}
 
@@ -250,7 +295,9 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 	}
 
-	summary.SetReadyConditions(&cluster.Status, "Bundle", cluster.Status.Summary)
+	if !isClusterOffline {
+		summary.SetReadyConditions(&cluster.Status, "Bundle", cluster.Status.Summary)
+	}
 
 	// Calculate display status fields
 	cluster.Status.Display.ReadyBundles = fmt.Sprintf("%d/%d",
