@@ -360,37 +360,57 @@ func TestManifestCheckGVKErrorMappingEnvVar(t *testing.T) {
 	for _, tc := range []struct {
 		name          string
 		envValue      string
+		agentEnvVars  []corev1.EnvVar
+		expectFound   bool
 		expectedValue string
 	}{
 		{
-			name:          "env var not set",
-			envValue:      "",
-			expectedValue: "",
+			name:        "env var not set",
+			envValue:    "",
+			expectFound: false,
 		},
 		{
 			name:          "single GVK mapping",
 			envValue:      singleMapping,
+			expectFound:   true,
 			expectedValue: singleMapping,
 		},
 		{
 			name:          "multiple GVK mappings",
 			envValue:      multiMapping,
+			expectFound:   true,
+			expectedValue: multiMapping,
+		},
+		{
+			name:     "env var already in AgentEnvVars is not duplicated",
+			envValue: singleMapping,
+			agentEnvVars: []corev1.EnvVar{
+				{Name: config.EnvVarWranglerCheckGVKErrorMapping, Value: multiMapping},
+			},
+			expectFound:   true,
 			expectedValue: multiMapping,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Setenv(config.EnvVarWranglerCheckGVKErrorMapping, tc.envValue)
 
-			d := getAgentFromManifests("test-scope", baseOpts)
+			opts := baseOpts
+			opts.AgentEnvVars = tc.agentEnvVars
+
+			d := getAgentFromManifests("test-scope", opts)
 			if d == nil {
 				t.Fatal("no deployment returned from manifests")
 			}
 
 			envVar, found := findEnvVar(d.Spec.Template.Spec.Containers, config.EnvVarWranglerCheckGVKErrorMapping)
-			if !found {
-				t.Fatalf("env var %s not found in agent container", config.EnvVarWranglerCheckGVKErrorMapping)
+			if found != tc.expectFound {
+				if tc.expectFound {
+					t.Fatalf("env var %s not found in agent container", config.EnvVarWranglerCheckGVKErrorMapping)
+				} else {
+					t.Fatalf("env var %s unexpectedly found in agent container with value %q", config.EnvVarWranglerCheckGVKErrorMapping, envVar.Value)
+				}
 			}
-			if envVar.Value != tc.expectedValue {
+			if tc.expectFound && envVar.Value != tc.expectedValue {
 				t.Fatalf("expected %s=%q, got %q", config.EnvVarWranglerCheckGVKErrorMapping, tc.expectedValue, envVar.Value)
 			}
 		})

@@ -198,7 +198,6 @@ func agentApp(namespace string, agentScope string, opts ManifestOptions) *appsv1
 								{Name: "CATTLE_ELECTION_RETRY_PERIOD", Value: opts.RetryPeriod.String()},
 								{Name: "CATTLE_ELECTION_RENEW_DEADLINE", Value: opts.RenewDeadline.String()},
 								{Name: "EXPERIMENTAL_COPY_RESOURCES_DOWNSTREAM", Value: strconv.FormatBool(experimental.CopyResourcesDownstreamEnabled())},
-								{Name: config.EnvVarWranglerCheckGVKErrorMapping, Value: os.Getenv(config.EnvVarWranglerCheckGVKErrorMapping)},
 							},
 							Command: []string{
 								"fleetagent",
@@ -306,6 +305,12 @@ func agentApp(namespace string, agentScope string, opts ManifestOptions) *appsv1
 		}
 
 		// additional env vars from cluster
+		if gvkVal := os.Getenv(config.EnvVarWranglerCheckGVKErrorMapping); gvkVal != "" && !envVarPresent(opts.AgentEnvVars, config.EnvVarWranglerCheckGVKErrorMapping) {
+			container.Env = append(container.Env, corev1.EnvVar{
+				Name:  config.EnvVarWranglerCheckGVKErrorMapping,
+				Value: gvkVal,
+			})
+		}
 		if opts.AgentEnvVars != nil {
 			container.Env = append(container.Env, opts.AgentEnvVars...)
 		}
@@ -324,6 +329,15 @@ func agentApp(namespace string, agentScope string, opts ManifestOptions) *appsv1
 	}
 
 	return app
+}
+
+func envVarPresent(vars []corev1.EnvVar, name string) bool {
+	for _, v := range vars {
+		if v.Name == name {
+			return true
+		}
+	}
+	return false
 }
 
 func serviceAccount(namespace, name string) *corev1.ServiceAccount {
