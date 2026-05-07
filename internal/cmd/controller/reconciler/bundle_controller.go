@@ -891,9 +891,13 @@ func (r *BundleReconciler) cleanupOrphanedBundleDeployments(ctx context.Context,
 		return err
 	}
 	toDelete := slices.DeleteFunc(list, func(bd fleet.BundleDeployment) bool {
-		// don't delete BundleDeployments that are not in schedule as
-		// that would uninstall the deployment in the agent
-		return uidsToKeep.Has(bd.UID) || bd.Spec.OffSchedule
+		// Only keep BDs that are still actively targeted.
+		// The OffSchedule flag prevents deploying/updating a BD during an off-schedule
+		// window, but it must not block removal of BDs for clusters that are no longer
+		// targeted at all (e.g. because doNotDeploy was set). Those BDs are absent from
+		// uidsToKeep and must be deleted unconditionally so the agent can uninstall the
+		// app from the downstream cluster.
+		return uidsToKeep.Has(bd.UID)
 	})
 	return batchDeleteBundleDeployments(ctx, r.Client, toDelete)
 }
