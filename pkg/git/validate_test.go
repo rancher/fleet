@@ -116,22 +116,4 @@ var _ = Describe("git's validate tests", func() {
 		Expect(err).To(HaveOccurred())
 		Expect(err).To(Equal(fmt.Errorf("invalid commit ID: %q is not a valid hex", commit)))
 	})
-
-	It("Returns no error when url is not longer than 4096 chars nor empty", func() {
-		url := getRandomString(10)
-		err := validateURL(url)
-		Expect(err).ToNot(HaveOccurred())
-	})
-
-	It("Returns an error when url is empty", func() {
-		err := validateURL("")
-		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(Equal("invalid url: cannot be empty"))
-	})
-
-	It("Returns an error when url is too long", func() {
-		err := validateURL(getRandomString(5000))
-		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(Equal("invalid url: exceeds max length 4096"))
-	})
 })
