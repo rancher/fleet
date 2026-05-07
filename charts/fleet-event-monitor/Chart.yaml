@@ -1,0 +1,9 @@
+apiVersion: v2
+name: fleet-event-monitor
+version: 0.0.0
+appVersion: 0.0.0
+description: Fleet Event Monitor - Read-only monitoring for Fleet controllers
+icon: https://charts.rancher.io/assets/logos/fleet.svg
+annotations:
+  catalog.cattle.io/namespace: cattle-fleet-system
+  catalog.cattle.io/kube-version: '>= 1.28.0-0 < 1.35.0-0'
