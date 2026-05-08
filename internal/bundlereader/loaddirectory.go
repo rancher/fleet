@@ -231,10 +231,16 @@ func GetContent(ctx context.Context, base, source, version string, auth Auth, di
 		source += fmt.Sprintf("sshkey=%s", base64.StdEncoding.EncodeToString(auth.SSHPrivateKey))
 	}
 
-	// copy getter.Getters before changing
+	// Only keep Git and File getters; replace HTTP(S) with our
+	// customized one and drop all other protocols (hg, smb)
 	getters := map[string]getter.Getter{}
 	for k, v := range getter.Getters {
-		getters[k] = v
+		switch v.(type) {
+		case *getter.HttpGetter:
+			continue
+		case *getter.GitGetter, *getter.FileGetter:
+			getters[k] = v
+		}
 	}
 
 	httpGetter := newHttpGetter(auth)
