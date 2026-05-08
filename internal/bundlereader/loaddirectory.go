@@ -241,11 +241,14 @@ func GetContent(ctx context.Context, base, source, version string, auth Auth, di
 
 	customGetters := []getter.Getter{}
 	for _, g := range getter.Getters {
-		// Replace default HTTP(S) getter with our customized one
-		if _, ok := g.(*getter.HttpGetter); ok {
+		// Only keep Git and File getters; replace HTTP(S) with our
+		// customized one and drop all other protocols (hg, smb)
+		switch g.(type) {
+		case *getter.HttpGetter:
 			continue
+		case *getter.GitGetter, *getter.FileGetter:
+			customGetters = append(customGetters, g)
 		}
-		customGetters = append(customGetters, g)
 	}
 
 	httpGetter := newHttpGetter(auth)
