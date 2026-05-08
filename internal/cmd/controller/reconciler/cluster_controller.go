@@ -248,24 +248,18 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 		if summary.MessageFromCondition(fleet.ClusterConditionReady, bd.Status.Conditions) == fleet.ClusterOfflineMsg {
 			// bundle deployment offline, mark cluster offline
-			if isClusterOffline {
-				continue
-			}
-
 			isClusterOffline = true
+		}
+	}
 
-			for _, c := range offlineConds {
-				cond := monitor.Cond(c)
-				cond.SetError(&cluster.Status, "Cluster offline", errors.New(fleet.ClusterOfflineMsg))
-				cond.Unknown(&cluster.Status)
-			}
-
-		} else if summary.MessageFromCondition(fleet.ClusterConditionReady, cluster.Status.Conditions) == fleet.ClusterOfflineMsg {
-			// bundle deployment online, mark offline cluster back online
-			for _, c := range offlineConds {
-				cond := monitor.Cond(c)
-				cond.SetError(&cluster.Status, "", nil)
-			}
+	for _, c := range offlineConds {
+		cond := monitor.Cond(c)
+		if isClusterOffline {
+			cond.SetError(&cluster.Status, "Cluster offline", errors.New(fleet.ClusterOfflineMsg))
+			cond.Unknown(&cluster.Status)
+		} else {
+			// bundle deployments all online, mark offline cluster back online
+			cond.SetError(&cluster.Status, "", nil)
 		}
 	}
 
