@@ -565,6 +565,24 @@ func TestGetContent(t *testing.T) {
 				"bar/something2.yaml": []byte("something2"),
 			},
 		},
+		{
+			name: "hg:: source scheme is rejected",
+			directoryStructure: fsNode{
+				isDir: true,
+				name:  "hg-test",
+			},
+			source:      "hg::http://example.com/repo",
+			expectedErr: regexp.MustCompile("error downloading 'hg::"),
+		},
+		{
+			name: "smb:// source scheme is rejected",
+			directoryStructure: fsNode{
+				isDir: true,
+				name:  "smb-test",
+			},
+			source:      "smb://example.com/share",
+			expectedErr: regexp.MustCompile("error downloading 'smb://"),
+		},
 	}
 
 	base, err := os.MkdirTemp("", "test-fleet")
