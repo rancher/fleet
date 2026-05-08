@@ -98,7 +98,7 @@ func UpdateOfflineBundleDeployments(ctx context.Context, c client.Client, thresh
 					fallthrough
 				case "Monitored":
 					if cond.Message == v1alpha1.ClusterOfflineMsg {
-						break bd_update
+						continue bd_update // the bundle deployment is already marked offline; skip to next BD
 					}
 				}
 			}
