@@ -14,6 +14,7 @@ import (
 
 	"github.com/rancher/fleet/internal/cmd"
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/agent"
+	"github.com/rancher/fleet/internal/config"
 )
 
 const namespace = "fleet-system"
@@ -332,6 +333,85 @@ func TestPriorityClassName(t *testing.T) {
 			})
 			if d.Spec.Template.Spec.PriorityClassName != test.priorityClassName {
 				t.Fatalf("expected PriorityClassName to be %s, got %s", test.priorityClassName, d.Spec.Template.Spec.PriorityClassName)
+			}
+		})
+	}
+}
+
+func findEnvVar(containers []corev1.Container, name string) (corev1.EnvVar, bool) {
+	for _, c := range containers {
+		for _, e := range c.Env {
+			if e.Name == name {
+				return e, true
+			}
+		}
+	}
+	return corev1.EnvVar{}, false
+}
+
+func TestManifestCheckGVKErrorMappingEnvVar(t *testing.T) {
+	baseOpts := agent.ManifestOptions{
+		LeaderElectionOptions: leaderOpts,
+	}
+
+	singleMapping := `[{"gvk":"sample.cattle.io/v1, Kind=Sample","conditionMappings":[{"type":"Failed","status":["True"]}]}]`
+	multiMapping := `[{"gvk":"sample.cattle.io/v1, Kind=Sample","conditionMappings":[{"type":"Failed","status":["True"]}]},{"gvk":"helm.cattle.io/v1, Kind=HelmChart","conditionMappings":[{"type":"Failed","status":["True"]}]}]`
+
+	for _, tc := range []struct {
+		name          string
+		envValue      string
+		agentEnvVars  []corev1.EnvVar
+		expectFound   bool
+		expectedValue string
+	}{
+		{
+			name:        "env var not set",
+			envValue:    "",
+			expectFound: false,
+		},
+		{
+			name:          "single GVK mapping",
+			envValue:      singleMapping,
+			expectFound:   true,
+			expectedValue: singleMapping,
+		},
+		{
+			name:          "multiple GVK mappings",
+			envValue:      multiMapping,
+			expectFound:   true,
+			expectedValue: multiMapping,
+		},
+		{
+			name:     "env var already in AgentEnvVars is not duplicated",
+			envValue: singleMapping,
+			agentEnvVars: []corev1.EnvVar{
+				{Name: config.EnvVarWranglerCheckGVKErrorMapping, Value: multiMapping},
+			},
+			expectFound:   true,
+			expectedValue: multiMapping,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv(config.EnvVarWranglerCheckGVKErrorMapping, tc.envValue)
+
+			opts := baseOpts
+			opts.AgentEnvVars = tc.agentEnvVars
+
+			d := getAgentFromManifests("test-scope", opts)
+			if d == nil {
+				t.Fatal("no deployment returned from manifests")
+			}
+
+			envVar, found := findEnvVar(d.Spec.Template.Spec.Containers, config.EnvVarWranglerCheckGVKErrorMapping)
+			if found != tc.expectFound {
+				if tc.expectFound {
+					t.Fatalf("env var %s not found in agent container", config.EnvVarWranglerCheckGVKErrorMapping)
+				} else {
+					t.Fatalf("env var %s unexpectedly found in agent container with value %q", config.EnvVarWranglerCheckGVKErrorMapping, envVar.Value)
+				}
+			}
+			if tc.expectFound && envVar.Value != tc.expectedValue {
+				t.Fatalf("expected %s=%q, got %q", config.EnvVarWranglerCheckGVKErrorMapping, tc.expectedValue, envVar.Value)
 			}
 		})
 	}
