@@ -168,16 +168,22 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 				}
 				orig := gitRepoFromCluster.DeepCopy()
 				gitRepoFromCluster.Status.WebhookCommit = revision
-				// if PollingInterval is not set and webhook is configured, set it to 1 hour
-				if gitRepoFromCluster.Spec.PollingInterval == nil {
+				if err := w.client.Status().Patch(ctx, &gitRepoFromCluster, client.MergeFrom(orig)); err != nil {
+					w.logAndReturn(rw, err)
+					return
+				}
+				// if PollingInterval is not set, set it to 1 hour to reduce polling load
+				// now that a webhook handles commit notifications. Use a separate spec
+				// patch because Status().Patch() only applies status subresource changes.
+				if orig.Spec.PollingInterval == nil {
+					specOrig := gitRepoFromCluster.DeepCopy()
 					gitRepoFromCluster.Spec.PollingInterval = &metav1.Duration{
 						Duration: webhookDefaultSyncInterval * time.Second,
 					}
-				}
-				p := client.MergeFrom(orig)
-				if err := w.client.Status().Patch(ctx, &gitRepoFromCluster, p); err != nil {
-					w.logAndReturn(rw, err)
-					return
+					if err := w.client.Patch(ctx, &gitRepoFromCluster, client.MergeFrom(specOrig)); err != nil {
+						w.logAndReturn(rw, err)
+						return
+					}
 				}
 			}
 		}
