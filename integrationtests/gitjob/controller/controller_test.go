@@ -930,8 +930,9 @@ var _ = Describe("GitJob controller", func() {
 
 		JustBeforeEach(func() {
 			gitRepo = createGitRepo(gitRepoName)
-			// Use a very long polling interval so that polling does not interfere
-			// with the test timing after the initial run.
+			// Set a very long polling interval so that polling does not trigger
+			// additional jobs after the initial run and interfere with test timing.
+			gitRepo.Spec.PollingInterval = &metav1.Duration{Duration: 24 * time.Hour}
 			gitRepo.Spec.Branch = stableCommitBranch
 			Expect(k8sClient.Create(ctx, &gitRepo)).To(Succeed())
 
