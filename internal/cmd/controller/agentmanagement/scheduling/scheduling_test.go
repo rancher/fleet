@@ -13,7 +13,6 @@ import (
 	schedulingv1 "k8s.io/api/scheduling/v1"
 )
 
-//go:fix inline
 func ptr[T any](v T) *T {
 	return new(v)
 }
