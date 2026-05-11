@@ -85,7 +85,7 @@ func getStatus(obj any, condName string) string {
 }
 
 func setStatus(obj any, condName, status string) {
-	if reflect.TypeOf(obj).Kind() != reflect.Ptr {
+	if reflect.TypeOf(obj).Kind() != reflect.Pointer {
 		panic("obj passed must be a pointer")
 	}
 	cond := findOrCreateCond(obj, condName)
@@ -149,7 +149,7 @@ func getValue(obj any, name ...string) reflect.Value {
 	}
 	v := reflect.ValueOf(obj)
 	t := v.Type()
-	if t.Kind() == reflect.Ptr {
+	if t.Kind() == reflect.Pointer {
 		v = v.Elem()
 	}
 
