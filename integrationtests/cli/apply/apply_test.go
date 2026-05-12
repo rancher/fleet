@@ -1,6 +1,7 @@
 package apply
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -457,11 +458,11 @@ var _ = Describe("Fleet apply with helm charts with dependencies", Ordered, func
 	})
 })
 
-func bePresentInBundleResources(expected interface{}) types.GomegaMatcher {
+func bePresentInBundleResources(expected any) types.GomegaMatcher {
 	return gcustom.MakeMatcher(func(path string) (bool, error) {
 		resources, ok := expected.([]v1alpha1.BundleResource)
 		if !ok {
-			return false, fmt.Errorf("BePresentInBundleResources matcher expects []v1alpha1.BundleResource")
+			return false, errors.New("BePresentInBundleResources matcher expects []v1alpha1.BundleResource")
 		}
 		isPresent, err := cli.IsResourcePresentInBundle(path, resources)
 		if err != nil {
@@ -471,11 +472,11 @@ func bePresentInBundleResources(expected interface{}) types.GomegaMatcher {
 	}).WithTemplate("Expected:\n{{.FormattedActual}}\n{{.To}} be present in \n{{format .Data 1}}").WithTemplateData(expected)
 }
 
-func bePresentOnlyInBundleResources(expected interface{}) types.GomegaMatcher {
+func bePresentOnlyInBundleResources(expected any) types.GomegaMatcher {
 	return gcustom.MakeMatcher(func(path string) (bool, error) {
 		resources, ok := expected.([]v1alpha1.BundleResource)
 		if !ok {
-			return false, fmt.Errorf("bePresentOnlyInBundleResources matcher expects []v1alpha1.BundleResource")
+			return false, errors.New("bePresentOnlyInBundleResources matcher expects []v1alpha1.BundleResource")
 		}
 		found := false
 		for _, resource := range resources {

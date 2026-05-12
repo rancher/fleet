@@ -16,12 +16,13 @@ import (
 
 var _ = Describe("GitRepo using Helm chart with auth", Label("infra-setup"), func() {
 	var (
-		gitRepoPath     string
-		tmpdir          string
-		k               kubectl.Command
-		gh              *githelper.Git
-		targetNamespace string
-		helmSecretName  string
+		gitRepoPath      string
+		tmpdir           string
+		k                kubectl.Command
+		gh               *githelper.Git
+		targetNamespace  string
+		helmSecretName   string
+		helmRepoURLRegex string
 	)
 
 	JustBeforeEach(func() {
@@ -32,13 +33,15 @@ var _ = Describe("GitRepo using Helm chart with auth", Label("infra-setup"), fun
 
 		gitrepo := path.Join(tmpdir, "gitrepo.yaml")
 		err := testenv.Template(gitrepo, testenv.AssetPath("single-cluster/helm-with-auth.yaml"), struct {
-			Repo       string
-			Path       string
-			SecretName string
+			Repo             string
+			Path             string
+			SecretName       string
+			HelmRepoURLRegex string
 		}{
 			inClusterRepoURL,
 			gitRepoPath,
 			helmSecretName,
+			helmRepoURLRegex,
 		})
 		Expect(err).ToNot(HaveOccurred())
 
@@ -47,6 +50,10 @@ var _ = Describe("GitRepo using Helm chart with auth", Label("infra-setup"), fun
 	})
 
 	When("creating a gitrepo resource", func() {
+		BeforeEach(func() {
+			helmRepoURLRegex = ""
+		})
+
 		Context("containing a private OCI-based helm chart and setting insecureSkipVerify to false", Label("oci-registry"), func() {
 			BeforeEach(func() {
 				gitRepoPath = "oci-with-auth-external"
@@ -64,7 +71,54 @@ var _ = Describe("GitRepo using Helm chart with auth", Label("infra-setup"), fun
 
 				// create the gitrepo content on the fly, to set the external IP
 				// of the load balancer so it complains about the certificate.
-				repoBaseDir := createFleetYAMLWithExternalIP(k, gitRepoPath)
+				repoBaseDir := createFleetYAMLWithExternalIP(k, gitRepoPath, "chart")
+				tmpdir, gh = setupGitRepo(repoBaseDir, gitRepoPath, repoName, port)
+
+				DeferCleanup(func() {
+					_, _ = k.Delete("secret", helmSecretName)
+				})
+			})
+
+			It("fails to deploy the chart", func() {
+				By("checking that there is a pod in Failed state with name helm-*")
+				Eventually(func() string {
+					out, _ := k.Get("pods", "--field-selector=status.phase==Failed")
+					return out
+				}).Should(ContainSubstring("helm-"))
+				By("checking that the gitrepo reflects the expected error")
+				Eventually(func(g Gomega) {
+					status := getGitRepoStatus(g, k, "helm")
+					stalledMessage := ""
+					stalledFound := false
+					for _, cond := range status.Conditions {
+						if cond.Type == "Stalled" {
+							stalledMessage = cond.Message
+							stalledFound = true
+							break
+						}
+					}
+					g.Expect(stalledFound).To(BeTrue())
+					g.Expect(stalledMessage).To(ContainSubstring("failed to verify certificate"))
+				}).Should(Succeed())
+			})
+		})
+
+		Context("containing a private OCI-based helm chart using helm.chart (backwards compatibility) and setting insecureSkipVerify to false", Label("oci-registry"), func() {
+			BeforeEach(func() {
+				gitRepoPath = "oci-with-auth-external"
+				helmSecretName = "helm-secret-no-insecure"
+				targetNamespace = "fleet-helm-oci-with-auth"
+				k = env.Kubectl.Namespace(env.Namespace)
+
+				out, err := k.Create(
+					"secret", "generic", helmSecretName,
+					"--from-literal=username="+os.Getenv("CI_OCI_USERNAME"),
+					"--from-literal=password="+os.Getenv("CI_OCI_PASSWORD"),
+					"--from-literal=insecureSkipVerify=false",
+				)
+				Expect(err).ToNot(HaveOccurred(), out)
+
+				repoBaseDir := createFleetYAMLWithExternalIP(k, gitRepoPath, "chart")
 				tmpdir, gh = setupGitRepo(repoBaseDir, gitRepoPath, repoName, port)
 
 				DeferCleanup(func() {
@@ -100,6 +154,7 @@ var _ = Describe("GitRepo using Helm chart with auth", Label("infra-setup"), fun
 			BeforeEach(func() {
 				gitRepoPath = "oci-with-auth-external"
 				helmSecretName = "helm-secret-insecure"
+				helmRepoURLRegex = "oci://.*"
 				targetNamespace = "fleet-helm-oci-with-auth"
 				k = env.Kubectl.Namespace(env.Namespace)
 
@@ -113,7 +168,7 @@ var _ = Describe("GitRepo using Helm chart with auth", Label("infra-setup"), fun
 
 				// create the gitrepo content on the fly, to set the external IP
 				// of the load balancer so it complains about the certificate.
-				repoBaseDir := createFleetYAMLWithExternalIP(k, gitRepoPath)
+				repoBaseDir := createFleetYAMLWithExternalIP(k, gitRepoPath, "chart")
 				tmpdir, gh = setupGitRepo(repoBaseDir, gitRepoPath, repoName, port)
 
 				DeferCleanup(func() {
@@ -129,11 +184,63 @@ var _ = Describe("GitRepo using Helm chart with auth", Label("infra-setup"), fun
 			})
 		})
 
-		Context("containing a private OCI-based helm chart", Label("oci-registry"), func() {
+		Context("containing a private OCI-based helm chart using helm.chart (backwards compatibility) and setting insecureSkipVerify to true", Label("oci-registry"), func() {
+			BeforeEach(func() {
+				gitRepoPath = "oci-with-auth-external"
+				helmSecretName = "helm-secret-insecure"
+				helmRepoURLRegex = "oci://.*"
+				targetNamespace = "fleet-helm-oci-with-auth"
+				k = env.Kubectl.Namespace(env.Namespace)
+
+				out, err := k.Create(
+					"secret", "generic", helmSecretName,
+					"--from-literal=username="+os.Getenv("CI_OCI_USERNAME"),
+					"--from-literal=password="+os.Getenv("CI_OCI_PASSWORD"),
+					"--from-literal=insecureSkipVerify=true",
+				)
+				Expect(err).ToNot(HaveOccurred(), out)
+
+				repoBaseDir := createFleetYAMLWithExternalIP(k, gitRepoPath, "chart")
+				tmpdir, gh = setupGitRepo(repoBaseDir, gitRepoPath, repoName, port)
+
+				DeferCleanup(func() {
+					_, _ = k.Delete("secret", helmSecretName)
+				})
+			})
+
+			It("deploys the helm chart", func() {
+				Eventually(func() string {
+					out, _ := k.Namespace(targetNamespace).Get("pods", "--field-selector=status.phase==Running")
+					return out
+				}).Should(ContainSubstring("sleeper-"))
+			})
+		})
+
+		Context("containing a private OCI-based helm chart with helm.repo", Label("oci-registry"), func() {
 			BeforeEach(func() {
 				gitRepoPath = "oci-with-auth"
 				helmSecretName = "helm-secret"
-				targetNamespace = fmt.Sprintf("fleet-helm-%s", gitRepoPath)
+				helmRepoURLRegex = "oci://.*"
+				targetNamespace = "fleet-helm-" + gitRepoPath
+				k = env.Kubectl.Namespace(env.Namespace)
+
+				tmpdir, gh = setupGitRepo(testenv.AssetPath("helm/repo"), gitRepoPath, repoName, port)
+			})
+
+			It("deploys the helm chart", func() {
+				Eventually(func() string {
+					out, _ := k.Namespace(targetNamespace).Get("pods", "--field-selector=status.phase==Running")
+					return out
+				}).Should(ContainSubstring("sleeper-"))
+			})
+		})
+
+		Context("containing a private OCI-based helm chart with helm.chart (backwards compatibility)", Label("oci-registry"), func() {
+			BeforeEach(func() {
+				gitRepoPath = "oci-with-auth-chart"
+				helmSecretName = "helm-secret"
+				helmRepoURLRegex = "oci://.*"
+				targetNamespace = "fleet-helm-oci-with-auth"
 				k = env.Kubectl.Namespace(env.Namespace)
 
 				tmpdir, gh = setupGitRepo(testenv.AssetPath("helm/repo"), gitRepoPath, repoName, port)
@@ -150,7 +257,8 @@ var _ = Describe("GitRepo using Helm chart with auth", Label("infra-setup"), fun
 			BeforeEach(func() {
 				gitRepoPath = "http-with-auth-repo-path"
 				helmSecretName = "helm-secret-no-ca"
-				targetNamespace = fmt.Sprintf("fleet-helm-%s", gitRepoPath)
+				helmRepoURLRegex = "https://chartmuseum-service..*"
+				targetNamespace = "fleet-helm-" + gitRepoPath
 				k = env.Kubectl.Namespace(env.Namespace)
 
 				// No CA bundle in this secret
@@ -199,7 +307,8 @@ var _ = Describe("GitRepo using Helm chart with auth", Label("infra-setup"), fun
 			BeforeEach(func() {
 				gitRepoPath = "http-with-auth-repo-path"
 				helmSecretName = "helm-secret"
-				targetNamespace = fmt.Sprintf("fleet-helm-%s", gitRepoPath)
+				helmRepoURLRegex = "https://chartmuseum-service..*"
+				targetNamespace = "fleet-helm-" + gitRepoPath
 				k = env.Kubectl.Namespace(env.Namespace)
 
 				tmpdir, gh = setupGitRepo(testenv.AssetPath("helm/repo"), gitRepoPath, repoName, port)
@@ -216,7 +325,8 @@ var _ = Describe("GitRepo using Helm chart with auth", Label("infra-setup"), fun
 			BeforeEach(func() {
 				gitRepoPath = "http-with-auth-chart-path"
 				helmSecretName = "helm-secret"
-				targetNamespace = fmt.Sprintf("fleet-helm-%s", gitRepoPath)
+				helmRepoURLRegex = "https://chartmuseum-service..*"
+				targetNamespace = "fleet-helm-" + gitRepoPath
 				k = env.Kubectl.Namespace(env.Namespace)
 
 				tmpdir, gh = setupGitRepo(testenv.AssetPath("helm/repo"), gitRepoPath, repoName, port)
@@ -258,7 +368,7 @@ func setupGitRepo(basePath, repoPath, repo string, port int) (tmpdir string, gh 
 	return tmpdir, gh
 }
 
-func createFleetYAMLWithExternalIP(k kubectl.Command, gitRepoPath string) string {
+func createFleetYAMLWithExternalIP(k kubectl.Command, gitRepoPath string, ociField string) string { //nolint:unparam
 	tmpFolder := GinkgoT().TempDir()
 	ip := ""
 	ks := k.Namespace("")
@@ -270,7 +380,7 @@ func createFleetYAMLWithExternalIP(k kubectl.Command, gitRepoPath string) string
 	fleetYAML := `namespace: fleet-helm-oci-with-auth
 helm:
   releaseName: sleeper-chart
-  chart: "oci://%s:8082/sleeper-chart"
+  ` + ociField + `: "oci://%s:8082/sleeper-chart"
   version: "0.1.0"
   force: false
   timeoutSeconds: 0
@@ -282,7 +392,7 @@ helm:
 	Expect(err).ToNot(HaveOccurred())
 
 	fleetYamlPath := path.Join(gitrepoFolder, "fleet.yaml")
-	err = os.WriteFile(fleetYamlPath, []byte(fmt.Sprintf(fleetYAML, ip)), 0644)
+	err = os.WriteFile(fleetYamlPath, fmt.Appendf(nil, fleetYAML, ip), 0644)
 	Expect(err).ToNot(HaveOccurred())
 
 	return tmpFolder
