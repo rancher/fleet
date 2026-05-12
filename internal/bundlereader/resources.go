@@ -213,7 +213,10 @@ func addRemoteCharts(directories []directory, base string, charts []*fleet.HelmO
 				return nil, fmt.Errorf("failed to add auth to request for %s: %w", downloadChartError(*chart), err)
 			}
 			if !shouldAddAuthToRequest {
-				auth = Auth{}
+				// Only clear credentials; preserve transport settings (BasicHTTP, CABundle, InsecureSkipVerify)
+				auth.Username = ""
+				auth.Password = ""
+				auth.SSHPrivateKey = nil
 			}
 
 			chartURL, err := chartURL(*chart, auth)
@@ -244,13 +247,26 @@ func downloadChartError(c fleet.HelmOptions) string {
 
 func shouldAddAuthToRequest(helmRepoURLRegex, repo, chart string) (bool, error) {
 	if helmRepoURLRegex == "" {
-		return true, nil
+		return false, nil
 	}
+	// Validate the user-supplied regex before anchoring so that any error
+	// message references the original pattern, not the internally-anchored one.
+	if _, err := regexp.Compile(helmRepoURLRegex); err != nil {
+		return false, err
+	}
+	// Anchor to the start of the URL to prevent bypassing the restriction
+	// by embedding the trusted URL elsewhere (e.g. as a query parameter).
+	// Wrap in a non-capturing group so that top-level alternation is fully
+	// anchored: "^(?:a|b)" matches only at start for both alternatives,
+	// whereas "^a|b" would leave "b" unanchored.
+	helmRepoURLRegex = "^(?:" + helmRepoURLRegex + ")"
 	if repo == "" {
-		return regexp.MatchString(helmRepoURLRegex, chart)
+		// MatchString cannot fail here: the regex was already validated above.
+		match, _ := regexp.MatchString(helmRepoURLRegex, chart)
+		return match, nil
 	}
-
-	return regexp.MatchString(helmRepoURLRegex, repo)
+	match, _ := regexp.MatchString(helmRepoURLRegex, repo)
+	return match, nil
 }
 
 func checksum(helm *fleet.HelmOptions) string {

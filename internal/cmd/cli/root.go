@@ -30,6 +30,7 @@ func App() *cobra.Command {
 		NewApply(),
 		NewTest(),
 		NewCleanUp(),
+		newMigrateCmd(),
 
 		NewTarget(),
 		NewDeploy(),

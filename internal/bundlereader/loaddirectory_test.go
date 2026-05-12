@@ -571,7 +571,7 @@ func TestGetContent(t *testing.T) {
 				name:  "hg-test",
 			},
 			source:      "hg::http://example.com/repo",
-			expectedErr: regexp.MustCompile("error downloading 'hg::"),
+			expectedErr: "not supported for scheme 'hg'",
 		},
 		{
 			name: "smb:// source scheme is rejected",
@@ -580,7 +580,7 @@ func TestGetContent(t *testing.T) {
 				name:  "smb-test",
 			},
 			source:      "smb://example.com/share",
-			expectedErr: regexp.MustCompile("error downloading 'smb://"),
+			expectedErr: "not supported for scheme 'smb'",
 		},
 	}
 
