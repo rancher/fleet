@@ -198,19 +198,6 @@ type GitRepoStatus struct {
 	LastPollingTime metav1.Time `json:"lastPollingTriggered,omitempty"`
 }
 
-type GitRepoDisplay struct {
-	// ReadyBundleDeployments is a string in the form "%d/%d", that describes the
-	// number of ready bundledeployments over the total number of bundledeployments.
-	ReadyBundleDeployments string `json:"readyBundleDeployments,omitempty"`
-	// State is the state of the GitRepo, e.g. "GitUpdating" or the maximal
-	// BundleState according to StateRank.
-	State string `json:"state,omitempty"`
-	// Message contains the relevant message from the deployment conditions.
-	Message string `json:"message,omitempty"`
-	// Error is true if a message is present.
-	Error bool `json:"error,omitempty"`
-}
-
 // CommitSpec specifies how to commit changes to the git repository
 type CommitSpec struct {
 	// AuthorName gives the name to provide when making a commit
