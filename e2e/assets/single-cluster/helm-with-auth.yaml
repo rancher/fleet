@@ -7,6 +7,9 @@ spec:
   helmSecretName: {{ .SecretName }}
   paths:
   - {{ .Path }}
+{{- if .HelmRepoURLRegex }}
+  helmRepoURLRegex: {{ .HelmRepoURLRegex }}
+{{- end }}
   targets:
   - clusterSelector:
       matchExpressions:

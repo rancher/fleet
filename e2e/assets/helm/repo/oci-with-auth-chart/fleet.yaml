@@ -1,0 +1,10 @@
+namespace: fleet-helm-oci-with-auth
+
+helm:
+  releaseName: sleeper-chart
+  chart: "oci://zot-service.default.svc.cluster.local:8082/sleeper-chart"
+  version: "0.1.0"
+  force: false
+  timeoutSeconds: 0
+  values:
+    replicas: 2
