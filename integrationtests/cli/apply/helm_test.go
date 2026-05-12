@@ -73,6 +73,7 @@ var _ = Describe("Fleet apply helm release", Serial, func() {
 			It("fleet apply works fine", func() {
 				Eventually(func() error {
 					return fleetApply("helm", []string{cli.AssetsPath + "helm_path_credentials"}, apply.Options{
+						HelmRepoURLRegex: "http://localhost.*",
 						AuthByPath: map[string]bundlereader.Auth{
 							cli.AssetsPath + "helm_path_credentials":           {Username: username, Password: password},
 							cli.AssetsPath + "helm_path_credentials/subfolder": {Username: username, Password: password},
@@ -112,7 +113,7 @@ var _ = Describe("Fleet apply helm release with HTTP OCI registry", Ordered, fun
 		out, err := cmd.CombinedOutput()
 		Expect(err).ToNot(HaveOccurred(), out)
 
-		cmd = exec.Command("helm", "push", "config-chart-0.1.0.tgz", fmt.Sprintf("oci://%s:%d", host, port.Int()))
+		cmd = exec.Command("helm", "push", "config-chart-0.1.0.tgz", fmt.Sprintf("oci://%s:%d", host, port.Int()), "--plain-http")
 		out, err = cmd.CombinedOutput()
 		Expect(err).ToNot(HaveOccurred(), out)
 
@@ -194,13 +195,12 @@ func testHelmRepo(path, port string, applyF applyFunc) {
 		BeforeEach(func() {
 			authEnabled = true
 		})
-		It("fleet apply success", func() {
-			Eventually(func() error {
-				return applyF("helm", []string{cli.AssetsPath + path}, apply.Options{Auth: bundlereader.Auth{Username: username, Password: password}})
-			}).Should(Not(HaveOccurred()))
-			By("verifying Bundle is created with all the resources inside of the helm release", func() {
-				Eventually(verifyResourcesArePresent).Should(BeTrue())
-			})
+		It("fails fleet apply because credentials are not sent without a matching regex", func() {
+			Eventually(func() string {
+				err := applyF("helm", []string{cli.AssetsPath + path}, apply.Options{Auth: bundlereader.Auth{Username: username, Password: password}})
+				Expect(err).To(HaveOccurred())
+				return err.Error()
+			}).Should(ContainSubstring("401"))
 		})
 	})
 
@@ -285,6 +285,7 @@ func testHelmRepo(path, port string, applyF applyFunc) {
 					"helm",
 					[]string{cli.AssetsPath + path},
 					apply.Options{
+						HelmRepoURLRegex: "http://localhost.*",
 						AuthByPath: map[string]bundlereader.Auth{
 							cli.AssetsPath + "*_url": { // these credentials also match the path, but should not be used.
 								Username: "wrong-" + username,
@@ -352,6 +353,7 @@ func testHelmRepo(path, port string, applyF applyFunc) {
 					"helm",
 					[]string{cli.AssetsPath + path},
 					apply.Options{
+						HelmRepoURLRegex: "http://localhost.*",
 						AuthByPath: map[string]bundlereader.Auth{
 							cli.AssetsPath + path: {
 								Username: username,
@@ -377,8 +379,9 @@ func testHelmRepo(path, port string, applyF applyFunc) {
 					"helm",
 					[]string{cli.AssetsPath + path},
 					apply.Options{
-						Auth:       bundlereader.Auth{Username: "wrong", Password: "wrong"},
-						AuthByPath: map[string]bundlereader.Auth{cli.AssetsPath + path: {Username: username, Password: password}},
+						HelmRepoURLRegex: "http://localhost.*",
+						Auth:             bundlereader.Auth{Username: "wrong", Password: "wrong"},
+						AuthByPath:       map[string]bundlereader.Auth{cli.AssetsPath + path: {Username: username, Password: password}},
 					},
 				)
 			}).Should(Not(HaveOccurred()))
