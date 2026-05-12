@@ -55,7 +55,7 @@ type Apply struct {
 	PasswordFile                 string            `usage:"Path of file containing basic auth password for helm repo"`
 	CACertsFile                  string            `usage:"Path of custom cacerts for helm repo" name:"cacerts-file"`
 	SSHPrivateKeyFile            string            `usage:"Path of ssh-private-key for helm repo" name:"ssh-privatekey-file"`
-	HelmRepoURLRegex             string            `usage:"Helm credentials will be used if the helm repo matches this regex. Credentials will always be used if this is empty or not provided" name:"helm-repo-url-regex"`
+	HelmRepoURLRegex             string            `usage:"Helm credentials will be used if the helm repo matches this regex. Credentials will not be used if this is empty or not provided" name:"helm-repo-url-regex"`
 	KeepResources                bool              `usage:"Keep resources created after the GitRepo or Bundle is deleted" name:"keep-resources"`
 	DeleteNamespace              bool              `usage:"Delete GitRepo target namespace after the GitRepo or Bundle is deleted" name:"delete-namespace"`
 	HelmCredentialsByPathFile    string            `usage:"Path of file containing helm credentials for paths" name:"helm-credentials-by-path-file"`
