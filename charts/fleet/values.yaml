@@ -114,6 +114,7 @@ disableSecurityContext: false
 migrations:
   clusterRegistrationCleanup: true
   gitrepoJobsCleanup: true
+  gitrepoHelmURLRegexMigration: true
 
 ## Leader election configuration
 leaderElection:

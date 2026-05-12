@@ -1,6 +1,7 @@
 package apply
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -299,6 +300,7 @@ var _ = Describe("Fleet apply driven", Ordered, func() {
 			options.AuthByPath = map[string]bundlereader.Auth{
 				cli.AssetsPath + "driven/helm": {Username: username, Password: password},
 			}
+			options.HelmRepoURLRegex = "http://localhost.*"
 			repo.startRepository(true)
 		})
 
@@ -358,7 +360,7 @@ var _ = Describe("Fleet apply driven", Ordered, func() {
 			}
 
 			// Note: the presence of a .fleetignore file, at the same level as both `dev.yaml` and
-			// `prod.yaml`, excluding only `dev.yaml`, enables us to ensure that that file does not end up in
+			// `prod.yaml`, excluding only `dev.yaml`, enables us to ensure that file does not end up in
 			// any bundle, being excluded from the dev bundle, but _also_ from the prod bundle.
 			// We deliberately don't exclude both `dev.yaml` and `prod.yaml` from `.fleetignore`, simply to
 			// validate that `prod.yaml` is excluded from the prod bundle without needing to be excluded from
@@ -419,7 +421,7 @@ var _ = Describe("Fleet apply driven", Ordered, func() {
 			}
 
 			// Note: the presence of a .fleetignore file, at the same level as both `fleetDev.yaml` and
-			// `fleetProd.yaml`, excluding only `fleetProd.yaml`, enables us to ensure that that file does
+			// `fleetProd.yaml`, excluding only `fleetProd.yaml`, enables us to ensure that file does
 			// not end up in any bundle, being excluded from the prod bundle, but _also_ from the dev bundle.
 			// We deliberately don't exclude both `fleetDev.yaml` and `fleetProd.yaml` from `.fleetignore`,
 			// simply to validate that `fleetDev.yaml` is excluded from the dev bundle without needing to be
@@ -484,6 +486,7 @@ var _ = Describe("Fleet apply driven", Ordered, func() {
 			options.AuthByPath = map[string]bundlereader.Auth{
 				cli.AssetsPath + "driven_fleet_yaml_subfolder/helm": {Username: username, Password: password},
 			}
+			options.HelmRepoURLRegex = "http://localhost.*"
 			repo.startRepository(true)
 		})
 
@@ -757,11 +760,11 @@ var _ = Describe("Fleet apply with helm charts with dependencies", Ordered, func
 	})
 })
 
-func bePresentInBundleResources(expected interface{}) types.GomegaMatcher {
+func bePresentInBundleResources(expected any) types.GomegaMatcher {
 	return gcustom.MakeMatcher(func(path string) (bool, error) {
 		resources, ok := expected.([]v1alpha1.BundleResource)
 		if !ok {
-			return false, fmt.Errorf("BePresentInBundleResources matcher expects []v1alpha1.BundleResource")
+			return false, errors.New("BePresentInBundleResources matcher expects []v1alpha1.BundleResource")
 		}
 		isPresent, err := cli.IsResourcePresentInBundle(path, resources)
 		if err != nil {
@@ -771,11 +774,11 @@ func bePresentInBundleResources(expected interface{}) types.GomegaMatcher {
 	}).WithTemplate("Expected:\n{{.FormattedActual}}\n{{.To}} be present in \n{{format .Data 1}}").WithTemplateData(expected)
 }
 
-func bePresentOnlyInBundleResources(expected interface{}) types.GomegaMatcher {
+func bePresentOnlyInBundleResources(expected any) types.GomegaMatcher {
 	return gcustom.MakeMatcher(func(path string) (bool, error) {
 		resources, ok := expected.([]v1alpha1.BundleResource)
 		if !ok {
-			return false, fmt.Errorf("bePresentOnlyInBundleResources matcher expects []v1alpha1.BundleResource")
+			return false, errors.New("bePresentOnlyInBundleResources matcher expects []v1alpha1.BundleResource")
 		}
 		found := false
 		for _, resource := range resources {
