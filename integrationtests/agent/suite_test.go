@@ -216,6 +216,8 @@ func newReconciler(ctx context.Context, mgr manager.Manager, lookup *lookup, dri
 		DriftDetect: driftdetect,
 		Cleanup:     cleanup,
 
+		DriftChan: driftChan,
+
 		AgentScope: agentScope,
 		Workers:    50,
 	}
