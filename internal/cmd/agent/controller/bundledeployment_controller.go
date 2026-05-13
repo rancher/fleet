@@ -300,7 +300,7 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	// If drift correction was just enabled (or any spec change occurred while
 	// drift is already present), the resource watcher won't re-emit for
 	// already-drifted resources, so wake up the DriftReconciler ourselves.
-	// Non-blocking: if the channel buffer is full a subsequent reconcile or
+	// Non-blocking: if no receiver is ready, a subsequent reconcile or
 	// resource event will deliver the signal.
 	if bd.Spec.CorrectDrift != nil && bd.Spec.CorrectDrift.Enabled && len(bd.Status.ModifiedStatus) > 0 && r.DriftChan != nil {
 		select {
