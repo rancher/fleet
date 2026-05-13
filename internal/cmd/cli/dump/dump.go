@@ -33,11 +33,11 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	errutil "k8s.io/apimachinery/pkg/util/errors"
-	"k8s.io/apimachinery/pkg/util/httpstream"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/transport/spdy"
+	"k8s.io/streaming/pkg/httpstream"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/sharding"
@@ -661,7 +661,7 @@ func createDialer(ctx context.Context, cfg *rest.Config, c client.Client, svc *c
 
 	httpCli := http.Client{Transport: rt}
 
-	return spdy.NewDialer(up, &httpCli, http.MethodPost, u), &httpCli, nil
+	return spdy.NewDialerForStreaming(up, &httpCli, http.MethodPost, u), &httpCli, nil
 }
 
 // filterConfig holds the filtering configuration determined from options
@@ -870,7 +870,7 @@ func forwardPorts(
 		ports := []string{fmt.Sprintf("%d:%d", port, svcPort)}
 		stopChan := make(chan struct{})
 		readyChan := make(chan struct{})
-		fwder, err := portforward.New(dl, ports, stopChan, readyChan, os.Stdout, os.Stderr)
+		fwder, err := portforward.NewForStreaming(dl, ports, stopChan, readyChan, os.Stdout, os.Stderr)
 		if err != nil {
 			msg := "failed to create ports forwarder for fetching metrics"
 			logger.Error(err, "%s%s", prefix, msg)
