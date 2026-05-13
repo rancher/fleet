@@ -27,7 +27,7 @@ require (
 	go.uber.org/mock v0.5.2
 	golang.org/x/crypto v0.50.0
 	k8s.io/api v0.33.11
-	k8s.io/apimachinery v0.33.11
+	k8s.io/apimachinery v0.33.12
 	k8s.io/client-go v0.33.11
 	k8s.io/kubectl v0.33.11
 	sigs.k8s.io/controller-runtime v0.21.0
