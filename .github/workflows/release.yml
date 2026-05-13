@@ -9,8 +9,6 @@ on:
 permissions:
   contents: write
   id-token: write # this is important, it's how we authenticate with Vault
-  pull-requests: read
-  checks: read
 
 env:
   GOARCH: amd64
@@ -20,6 +18,11 @@ env:
 jobs:
   build-fleet:
     runs-on: runs-on,runner=8cpu-linux-x64,mem=16,run-id=${{ github.run_id }}
+    permissions:
+      contents: write
+      id-token: write
+      pull-requests: read
+      checks: read
 
     env:
       IS_HOTFIX: ${{ contains(github.ref, '-hotfix-') }}
@@ -34,33 +37,8 @@ jobs:
       - name: Verify CI passed on tagged commit
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          COMMIT_SHA=$(git rev-list -n 1 "$RELEASE_TAG")
-          echo "Verifying CI checks for ${RELEASE_TAG} (${COMMIT_SHA})"
-
-          PR_NUMBER=$(gh api \
-            "repos/${{ github.repository }}/commits/${COMMIT_SHA}/pulls" \
-            --jq '[.[] | select(.merged_at != null)] | first | .number // empty')
-
-          if [[ -n "${PR_NUMBER:-}" ]]; then
-            echo "Found PR #${PR_NUMBER}, verifying required checks..."
-            gh pr checks "${PR_NUMBER}" \
-              --repo "${{ github.repository }}" \
-              --required
-          else
-            echo "No merged PR found (hotfix), verifying all commit checks..."
-            ISSUES=$(gh api \
-              "repos/${{ github.repository }}/commits/${COMMIT_SHA}/check-runs" \
-              --jq 'if .total_count == 0 then "no CI checks found" else ([.check_runs[] | select(.status != "completed" or (.conclusion != "success" and .conclusion != "skipped")) | .name] | join(", ")) end')
-
-            if [[ -n "${ISSUES}" ]]; then
-              echo "ERROR: ${ISSUES}"
-              exit 1
-            fi
-
-            echo "✓ All checks passed for ${RELEASE_TAG} (${COMMIT_SHA})"
-          fi
+          REPO: ${{ github.repository }}
+        run: ./.github/scripts/verify-ci-on-commit.sh
 
       - name: Set up Go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
