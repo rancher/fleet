@@ -575,6 +575,7 @@ func shouldStoreInOCIRegistry(ctx context.Context, c client.Reader, ociSecretKey
 	ociOpts.AgentPassword = opts.AgentPassword
 	ociOpts.BasicHTTP = opts.BasicHTTP
 	ociOpts.InsecureSkipTLS = opts.InsecureSkipTLS
+	ociOpts.CABundle = opts.CABundle
 
 	return true, nil
 }
@@ -764,6 +765,7 @@ func newOCISecret(manifestID string, bundle *fleet.Bundle, opts ocistorage.OCIOp
 			ocistorage.OCISecretAgentPassword:   []byte(opts.AgentPassword),
 			ocistorage.OCISecretBasicHTTP:       []byte(strconv.FormatBool(opts.BasicHTTP)),
 			ocistorage.OCISecretInsecureSkipTLS: []byte(strconv.FormatBool(opts.InsecureSkipTLS)),
+			ocistorage.OCISecretCABundle:        opts.CABundle,
 		},
 		Type: fleet.SecretTypeOCIStorage,
 	}

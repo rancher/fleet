@@ -2,6 +2,7 @@ package ocistorage
 
 import (
 	"context"
+	"crypto/x509"
 	"errors"
 	"fmt"
 
@@ -168,6 +169,66 @@ var _ = Describe("OCIOpts loaded from secret", func() {
 			Expect(opts.AgentPassword).To(BeEmpty())
 			Expect(opts.BasicHTTP).To(BeFalse())
 			Expect(opts.InsecureSkipTLS).To(BeFalse())
+			Expect(opts.CABundle).To(BeNil())
+		})
+	})
+
+	When("the given oci storage secret contains a CA bundle", func() {
+		BeforeEach(func() {
+			secretName = "test"
+			secretData = map[string][]byte{
+				OCISecretReference: []byte("reference"),
+				OCISecretCABundle: []byte(`-----BEGIN CERTIFICATE-----
+MIICGTCCAZ+gAwIBAgIQCeCTZaz32ci5PhwLBCou8zAKBggqhkjOPQQDAzBOMQsw
+CQYDVQQGEwJVUzEXMBUGA1UEChMORGlnaUNlcnQsIEluYy4xJjAkBgNVBAMTHURp
+Z2lDZXJ0IFRMUyBFQ0MgUDM4NCBSb290IEc1MB4XDTIxMDExNTAwMDAwMFoXDTQ2
+MDExNDIzNTk1OVowTjELMAkGA1UEBhMCVVMxFzAVBgNVBAoTDkRpZ2lDZXJ0LCBJ
+bmMuMSYwJAYDVQQDEx1EaWdpQ2VydCBUTFMgRUNDIFAzODQgUm9vdCBHNTB2MBAG
+ByqGSM49AgEGBSuBBAAiA2IABMFEoc8Rl1Ca3iOCNQfN0MsYndLxf3c1TzvdlHJS
+7cI7+Oz6e2tYIOyZrsn8aLN1udsJ7MgT9U7GCh1mMEy7H0cKPGEQQil8pQgO4CLp
+0zVozptjn4S1mU1YoI71VOeVyaNCMEAwHQYDVR0OBBYEFMFRRVBZqz7nLFr6ICIS
+B4CIfBFqMA4GA1UdDwEB/wQEAwIBhjAPBgNVHRMBAf8EBTADAQH/MAoGCCqGSM49
+BAMDA2gAMGUCMQCJao1H5+z8blUD2WdsJk6Dxv3J+ysTvLd6jLRl0mlpYxNjOyZQ
+LgGheQaRnUi/wr4CMEfDFXuxoJGZSZOoPHzoRgaLLPIxAJSdYsiJvRmEFOml+wG4
+DXZDjC5Ty3zfDBeWUA==
+-----END CERTIFICATE-----`),
+			}
+			secretType = fleet.SecretTypeOCIStorage
+			secretGetErrorMessage = ""
+			secretGetNotFoundError = false
+		})
+		It("returns the CA bundle in OCIOpts", func() {
+			ns := client.ObjectKey{Name: secretName, Namespace: "test"}
+			opts, err := ReadOptsFromSecret(context.TODO(), mockClient, ns)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(opts.Reference).To(Equal(string(secretData[OCISecretReference])))
+			Expect(opts.CABundle).To(Equal(secretData[OCISecretCABundle]))
+			Expect(string(opts.CABundle)).To(ContainSubstring("BEGIN CERTIFICATE"))
+
+			// Verify the CA bundle is valid PEM that can be parsed
+			testPool := x509.NewCertPool()
+			ok := testPool.AppendCertsFromPEM(opts.CABundle)
+			Expect(ok).To(BeTrue(), "CA bundle should be valid PEM")
+		})
+	})
+
+	When("the given oci storage secret has an empty CA bundle field", func() {
+		BeforeEach(func() {
+			secretName = "test"
+			secretData = map[string][]byte{
+				OCISecretReference: []byte("reference"),
+				OCISecretCABundle:  []byte(""),
+			}
+			secretType = fleet.SecretTypeOCIStorage
+			secretGetErrorMessage = ""
+			secretGetNotFoundError = false
+		})
+		It("returns an empty CA bundle in OCIOpts", func() {
+			ns := client.ObjectKey{Name: secretName, Namespace: "test"}
+			opts, err := ReadOptsFromSecret(context.TODO(), mockClient, ns)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(opts.Reference).To(Equal(string(secretData[OCISecretReference])))
+			Expect(opts.CABundle).To(Equal([]byte("")))
 		})
 	})
 
