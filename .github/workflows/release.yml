@@ -59,10 +59,10 @@ jobs:
         uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 # v4.1.1
 
       - name: Install Slsactl
-        uses: rancherlabs/slsactl/actions/install-slsactl@a5177a3699b7cabfa4797e883314dde7e40523cc # v0.1.22
+        uses: rancherlabs/slsactl/actions/install-slsactl@132f4c15b16537cf031aae50c788fdad1a8fe723 # v0.1.33
         with:
           # renovate: datasource=github-tags depName=rancherlabs/slsactl
-          version: v0.1.22
+          version: v0.1.33
 
       - name: "Read Vault Secrets"
         uses: rancher-eio/read-vault-secrets@0da85151ad1f19ed7986c41587e45aac1ace74b6 # v3
