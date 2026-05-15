@@ -646,7 +646,7 @@ func TestGetContentOCI(t *testing.T) {
 			name:        "OCI URL with invalid version",
 			source:      "oci://ghcr.io/rancher/fleet-test-configmap-chart",
 			version:     "latest",
-			expectedErr: "helm chart download: improper constraint: latest",
+			expectedErr: "helm chart download: improper constraint: \"latest\"",
 		},
 		{
 			name:        "Non-existing OCI URL without version",
