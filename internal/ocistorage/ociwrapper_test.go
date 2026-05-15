@@ -138,12 +138,15 @@ var _ = Describe("OCIUtils tests", func() {
 	})
 	It("return the expected tls client", func() {
 		client := getHTTPClient(true, nil)
-		expected := &http.Client{
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-			},
-		}
-		Expect(client).To(Equal(expected))
+
+		// Custom path wraps transport in retry.Transport
+		retryTransport, ok := client.Transport.(*retry.Transport)
+		Expect(ok).To(BeTrue())
+		innerTransport, ok := retryTransport.Base.(*http.Transport)
+		Expect(ok).To(BeTrue())
+		Expect(innerTransport.TLSClientConfig).ToNot(BeNil())
+		Expect(innerTransport.TLSClientConfig.InsecureSkipVerify).To(BeTrue())
+		Expect(innerTransport.Proxy).ToNot(BeNil())
 
 		client = getHTTPClient(false, nil)
 		Expect(client).To(Equal(retry.DefaultClient))
@@ -167,7 +170,9 @@ DXZDjC5Ty3zfDBeWUA==
 		client := getHTTPClient(false, caBundle)
 
 		// Verify transport is configured with custom TLS config
-		transport, ok := client.Transport.(*http.Transport)
+		retryT, ok := client.Transport.(*retry.Transport)
+		Expect(ok).To(BeTrue())
+		transport, ok := retryT.Base.(*http.Transport)
 		Expect(ok).To(BeTrue())
 		Expect(transport.TLSClientConfig).ToNot(BeNil())
 		Expect(transport.TLSClientConfig.RootCAs).ToNot(BeNil())
@@ -203,7 +208,9 @@ DXZDjC5Ty3zfDBeWUA==
 		client := getHTTPClient(false, customCA)
 
 		// Should have merged both CAs
-		transport, ok := client.Transport.(*http.Transport)
+		retryT, ok := client.Transport.(*retry.Transport)
+		Expect(ok).To(BeTrue())
+		transport, ok := retryT.Base.(*http.Transport)
 		Expect(ok).To(BeTrue())
 		Expect(transport.TLSClientConfig).ToNot(BeNil())
 		Expect(transport.TLSClientConfig.RootCAs).ToNot(BeNil())
@@ -221,7 +228,9 @@ DXZDjC5Ty3zfDBeWUA==
 		client := getHTTPClient(false, invalidCA)
 
 		// Should still create a client with TLS config (warning logged)
-		transport, ok := client.Transport.(*http.Transport)
+		retryT, ok := client.Transport.(*retry.Transport)
+		Expect(ok).To(BeTrue())
+		transport, ok := retryT.Base.(*http.Transport)
 		Expect(ok).To(BeTrue())
 		Expect(transport.TLSClientConfig).ToNot(BeNil())
 		Expect(transport.TLSClientConfig.RootCAs).ToNot(BeNil())
@@ -252,7 +261,9 @@ DXZDjC5Ty3zfDBeWUA==
 -----END CERTIFICATE-----`)
 		client := getHTTPClient(true, caBundle)
 
-		transport, ok := client.Transport.(*http.Transport)
+		retryT, ok := client.Transport.(*retry.Transport)
+		Expect(ok).To(BeTrue())
+		transport, ok := retryT.Base.(*http.Transport)
 		Expect(ok).To(BeTrue())
 		Expect(transport.TLSClientConfig).ToNot(BeNil())
 		Expect(transport.TLSClientConfig.InsecureSkipVerify).To(BeTrue())

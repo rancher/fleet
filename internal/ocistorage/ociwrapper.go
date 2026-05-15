@@ -88,7 +88,9 @@ func getHTTPClient(insecureSkipTLS bool, caBundle []byte) *http.Client {
 		if !tmpPool.AppendCertsFromPEM(proxyBytes) {
 			logrus.Warnf("%s is set but contains no valid PEM certificates; ignoring proxy CA bundle", fleetgit.ProxyCABundleEnvVar)
 		} else {
-			caBundle = append(caBundle, '\n')
+			if len(caBundle) > 0 && caBundle[len(caBundle)-1] != '\n' {
+				caBundle = append(caBundle, '\n')
+			}
 			caBundle = append(caBundle, proxyBytes...)
 		}
 	}
@@ -98,18 +100,23 @@ func getHTTPClient(insecureSkipTLS bool, caBundle []byte) *http.Client {
 		return retry.DefaultClient
 	}
 
-	// Build custom transport with TLS config
-	transport := &http.Transport{
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: insecureSkipTLS, // #nosec G402
-		},
+	// Clone the default transport to preserve proxy, timeout, and
+	// connection-pooling settings.
+	baseTransport, ok := http.DefaultTransport.(*http.Transport)
+	if !ok {
+		baseTransport = &http.Transport{
+			Proxy: http.ProxyFromEnvironment,
+		}
+	}
+	transport := baseTransport.Clone()
+	transport.TLSClientConfig = &tls.Config{
+		InsecureSkipVerify: insecureSkipTLS, // #nosec G402
 	}
 
 	// Merge custom CA bundle with system cert pool
 	if len(caBundle) > 0 {
 		pool, err := x509.SystemCertPool()
 		if err != nil {
-			// Fall back to empty pool if system pool unavailable
 			pool = x509.NewCertPool()
 		}
 		if !pool.AppendCertsFromPEM(caBundle) {
@@ -119,7 +126,7 @@ func getHTTPClient(insecureSkipTLS bool, caBundle []byte) *http.Client {
 		transport.TLSClientConfig.MinVersion = tls.VersionTLS12
 	}
 
-	return &http.Client{Transport: transport}
+	return &http.Client{Transport: retry.NewTransport(transport)}
 }
 
 func getAuthClient(opts OCIOpts) *auth.Client {
