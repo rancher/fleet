@@ -187,7 +187,7 @@ func (d *Deployer) setNamespaceLabelsAndAnnotations(ctx context.Context, bd *fle
 	}
 
 	if bd.Spec.Options.NamespaceLabels != nil {
-		addLabelsFromOptions(ns.Labels, bd.Spec.Options.NamespaceLabels)
+		addLabelsFromOptions(log.FromContext(ctx), ns.Labels, bd.Spec.Options.NamespaceLabels)
 	}
 	if bd.Spec.Options.NamespaceAnnotations != nil {
 		if ns.Annotations == nil {
@@ -225,15 +225,25 @@ func (d *Deployer) fetchNamespace(ctx context.Context, releaseID string) (*corev
 	return ns, nil
 }
 
+const podSecurityLabelPrefix = "pod-security.kubernetes.io/"
+
 // addLabelsFromOptions updates nsLabels so that it only contains all labels specified in optLabels, plus the `kubernetes.io/metadata.name` labels added by kubernetes when creating the namespace.
-func addLabelsFromOptions(nsLabels map[string]string, optLabels map[string]string) {
+func addLabelsFromOptions(logger logr.Logger, nsLabels map[string]string, optLabels map[string]string) {
 	for k, v := range optLabels {
+		if strings.HasPrefix(k, podSecurityLabelPrefix) {
+			logger.V(1).Info("Ignoring label from options", "label", k)
+			continue
+		}
 		nsLabels[k] = v
 	}
 
 	// Delete labels not defined in the options.
 	// Keep the `kubernetes.io/metadata.name` label as it is added by kubernetes when creating the namespace.
+	// Keep pod-security.kubernetes.io/ labels as they are managed by cluster administrators.
 	for k := range nsLabels {
+		if strings.HasPrefix(k, podSecurityLabelPrefix) {
+			continue
+		}
 		if _, ok := optLabels[k]; k != corev1.LabelMetadataName && !ok {
 			delete(nsLabels, k)
 		}
