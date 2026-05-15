@@ -813,7 +813,7 @@ var _ = Describe("HelmOps controller", func() {
 							fleet.HelmOpAcceptedCondition,
 							v1.ConditionFalse,
 							"Error",
-							"improper constraint: foo",
+							"improper constraint: \"foo\"",
 						)
 					}).Should(Succeed())
 
