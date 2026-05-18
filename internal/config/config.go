@@ -12,6 +12,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/yaml"
 
 	"github.com/rancher/fleet/pkg/version"
@@ -256,6 +257,12 @@ func DefaultConfig() *Config {
 	}
 }
 
+var durationConfigKeys = []string{
+	"agentCheckinInterval",
+	"gitClientTimeout",
+	"garbageCollectionInterval",
+}
+
 func ReadConfig(cm *v1.ConfigMap) (*Config, error) {
 	cfg := DefaultConfig()
 	data := cm.Data[Key]
@@ -263,8 +270,77 @@ func ReadConfig(cm *v1.ConfigMap) (*Config, error) {
 		return cfg, nil
 	}
 
-	err := yaml.Unmarshal([]byte(data), &cfg)
+	data, err := sanitizeDurations(data)
+	if err != nil {
+		return cfg, err
+	}
+
+	err = yaml.Unmarshal([]byte(data), &cfg)
 	return cfg, err
+}
+
+// sanitizeDurations strips duration config keys
+// whose value Go's time.ParseDuration cannot parse before the typed unmarshal,
+// logging a warning for each, so the built-in default applies instead of
+// crash-looping the process.
+func sanitizeDurations(data string) (string, error) {
+	var raw map[string]any
+	if err := yaml.Unmarshal([]byte(data), &raw); err != nil {
+		return "", err
+	}
+	if raw == nil {
+		return data, nil
+	}
+
+	logger := log.Log.WithName("fleet-config")
+	changed := false
+	for _, key := range durationConfigKeys {
+		v, ok := raw[key]
+		if !ok {
+			continue
+		}
+
+		if s, isStr := v.(string); isStr {
+			if _, err := time.ParseDuration(s); err == nil {
+				continue // valid Go duration, keep it
+			}
+			logger.Info("ignoring invalid duration in fleet config; using built-in default",
+				"key", key, "value", s,
+				"hint", "must be a Go duration like 15s, 5m, 2h, 1h30m; units d/w/y are not supported")
+		} else if isZeroNumber(v) {
+			// 0 is the documented "fall back to the default" sentinel; so drop it
+			// silently and let the default apply.
+		} else {
+			logger.Info("ignoring invalid duration in fleet config; using built-in default",
+				"key", key, "value", v,
+				"hint", `must be a Go duration string like "15s", "5m", "2h"`)
+		}
+
+		delete(raw, key)
+		changed = true
+	}
+
+	if !changed {
+		return data, nil
+	}
+
+	out, err := yaml.Marshal(raw)
+	if err != nil {
+		return data, err
+	}
+	return string(out), nil
+}
+
+func isZeroNumber(v any) bool {
+	switch n := v.(type) {
+	case float64:
+		return n == 0
+	case int:
+		return n == 0
+	case int64:
+		return n == 0
+	}
+	return false
 }
 
 func ToConfigMap(namespace, name string, cfg *Config) (*v1.ConfigMap, error) {

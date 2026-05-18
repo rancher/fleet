@@ -4394,8 +4394,16 @@ spec:
                     to calculate the
 
                     expiration time. If the token expires, it will be deleted.'
+                  maxLength: 32
+                  minLength: 1
                   nullable: true
                   type: string
+                  x-kubernetes-validations:
+                    - message: must be a valid Go duration using units ns, us, µs,
+                        ms, s, m, h (e.g. 15s, 5m, 2h, 1h30m); units like d (days)
+                        or w (weeks) are not supported
+                      rule: self == '0' || (self.matches('^([0-9]+([.][0-9]+)?(ns|us|µs|ms|s|m|h))+$')
+                        && duration(self) <= duration('2562047h'))
               type: object
             status:
               properties:
@@ -7166,7 +7174,15 @@ spec:
                 imageScanInterval:
                   description: ImageScanInterval is the interval of syncing scanned
                     images and writing back to git repo.
+                  maxLength: 32
+                  minLength: 1
                   type: string
+                  x-kubernetes-validations:
+                    - message: must be a valid Go duration using units ns, us, µs,
+                        ms, s, m, h (e.g. 15s, 5m, 2h, 1h30m); units like d (days)
+                        or w (weeks) are not supported
+                      rule: self == '0' || (self.matches('^([0-9]+([.][0-9]+)?(ns|us|µs|ms|s|m|h))+$')
+                        && duration(self) <= duration('2562047h'))
                 insecureSkipTLSVerify:
                   description: InsecureSkipTLSverify will use insecure HTTPS to clone
                     the repo.
@@ -7199,8 +7215,16 @@ spec:
                   type: boolean
                 pollingInterval:
                   description: PollingInterval is how often to check git for new updates.
+                  maxLength: 32
+                  minLength: 1
                   nullable: true
                   type: string
+                  x-kubernetes-validations:
+                    - message: must be a valid Go duration using units ns, us, µs,
+                        ms, s, m, h (e.g. 15s, 5m, 2h, 1h30m); units like d (days)
+                        or w (weeks) are not supported
+                      rule: self == '0' || (self.matches('^([0-9]+([.][0-9]+)?(ns|us|µs|ms|s|m|h))+$')
+                        && duration(self) <= duration('2562047h'))
                 repo:
                   description: Repo is a URL to a git repo to clone and index.
                   minLength: 1
@@ -8491,8 +8515,16 @@ spec:
                 pollingInterval:
                   description: PollingInterval is how often to check the Helm repository
                     for new updates.
+                  maxLength: 32
+                  minLength: 1
                   nullable: true
                   type: string
+                  x-kubernetes-validations:
+                    - message: must be a valid Go duration using units ns, us, µs,
+                        ms, s, m, h (e.g. 15s, 5m, 2h, 1h30m); units like d (days)
+                        or w (weeks) are not supported
+                      rule: self == '0' || (self.matches('^([0-9]+([.][0-9]+)?(ns|us|µs|ms|s|m|h))+$')
+                        && duration(self) <= duration('2562047h'))
                 resources:
                   description: 'Resources contains the resources that were read from
                     the bundle''s
@@ -10100,8 +10132,16 @@ spec:
                   description: 'Interval is the length of time to wait between
 
                     scans of the image repository.'
+                  maxLength: 32
+                  minLength: 1
                   nullable: true
                   type: string
+                  x-kubernetes-validations:
+                    - message: must be a valid Go duration using units ns, us, µs,
+                        ms, s, m, h (e.g. 15s, 5m, 2h, 1h30m); units like d (days)
+                        or w (weeks) are not supported
+                      rule: self == '0' || (self.matches('^([0-9]+([.][0-9]+)?(ns|us|µs|ms|s|m|h))+$')
+                        && duration(self) <= duration('2562047h'))
                 policy:
                   description: 'Policy gives the particulars of the policy to be followed
                     in
@@ -10473,7 +10513,15 @@ spec:
             spec:
               properties:
                 duration:
+                  maxLength: 32
+                  minLength: 1
                   type: string
+                  x-kubernetes-validations:
+                    - message: must be a valid Go duration using units ns, us, µs,
+                        ms, s, m, h (e.g. 15s, 5m, 2h, 1h30m); units like d (days)
+                        or w (weeks) are not supported
+                      rule: self == '0' || (self.matches('^([0-9]+([.][0-9]+)?(ns|us|µs|ms|s|m|h))+$')
+                        && duration(self) <= duration('2562047h'))
                 location:
                   type: string
                 schedule:

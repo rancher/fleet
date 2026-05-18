@@ -112,12 +112,20 @@ type GitRepoSpec struct {
 
 	// PollingInterval is how often to check git for new updates.
 	// +nullable
+	// +kubebuilder:validation:Type=string
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=32
+	// +kubebuilder:validation:XValidation:rule="self == '0' || (self.matches('^([0-9]+([.][0-9]+)?(ns|us|µs|ms|s|m|h))+$') && duration(self) <= duration('2562047h'))",message="must be a valid Go duration using units ns, us, µs, ms, s, m, h (e.g. 15s, 5m, 2h, 1h30m); units like d (days) or w (weeks) are not supported"
 	PollingInterval *metav1.Duration `json:"pollingInterval,omitempty"`
 
 	// Increment this number to force a redeployment of contents from Git.
 	ForceSyncGeneration int64 `json:"forceSyncGeneration,omitempty"`
 
 	// ImageScanInterval is the interval of syncing scanned images and writing back to git repo.
+	// +kubebuilder:validation:Type=string
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=32
+	// +kubebuilder:validation:XValidation:rule="self == '0' || (self.matches('^([0-9]+([.][0-9]+)?(ns|us|µs|ms|s|m|h))+$') && duration(self) <= duration('2562047h'))",message="must be a valid Go duration using units ns, us, µs, ms, s, m, h (e.g. 15s, 5m, 2h, 1h30m); units like d (days) or w (weeks) are not supported"
 	ImageSyncInterval *metav1.Duration `json:"imageScanInterval,omitempty"`
 
 	// Commit specifies how to commit to the git repo when a new image is scanned and written back to git repo.

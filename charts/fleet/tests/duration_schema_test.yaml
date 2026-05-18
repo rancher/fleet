@@ -1,0 +1,77 @@
+suite: duration values are validated by values.schema.json
+templates:
+  - configmap.yaml
+tests:
+  - it: rejects an invalid top-level duration (garbageCollectionInterval=1d)
+    set:
+      garbageCollectionInterval: 1d
+    asserts:
+      - failedTemplate:
+          errorPattern: "garbageCollectionInterval.*(Does not match pattern|anyOf)"
+
+  - it: rejects an invalid agentCheckinInterval
+    set:
+      agentCheckinInterval: 1w
+    asserts:
+      - failedTemplate:
+          errorPattern: "agentCheckinInterval.*(Does not match pattern|anyOf)"
+
+  - it: rejects an invalid gitClientTimeout
+    set:
+      gitClientTimeout: 7d12h
+    asserts:
+      - failedTemplate:
+          errorPattern: "gitClientTimeout.*(Does not match pattern|anyOf)"
+
+  - it: rejects an invalid nested leaderElection.leaseDuration
+    set:
+      leaderElection.leaseDuration: 1w
+    asserts:
+      - failedTemplate:
+          errorPattern: "leaderElection.leaseDuration.*(Does not match pattern|anyOf)"
+
+  - it: rejects an invalid nested gitops.syncPeriod
+    set:
+      gitops.syncPeriod: 1d
+    asserts:
+      - failedTemplate:
+          errorPattern: "gitops.syncPeriod.*(Does not match pattern|anyOf)"
+
+  - it: rejects an invalid nested agent.leaderElection.renewDeadline
+    set:
+      agent.leaderElection.renewDeadline: 5x
+    asserts:
+      - failedTemplate:
+          errorPattern: "agent.leaderElection.renewDeadline.*(Does not match pattern|anyOf)"
+
+  - it: rejects a bare non-zero integer (only 0 is allowed without a unit)
+    set:
+      garbageCollectionInterval: 5
+    asserts:
+      - failedTemplate:
+          errorPattern: "garbageCollectionInterval.*(Must validate at least one schema|anyOf)"
+
+  - it: accepts a valid duration
+    set:
+      garbageCollectionInterval: 1h30m
+      agentCheckinInterval: 300ms
+      gitClientTimeout: 2h
+      leaderElection.leaseDuration: 30s
+      gitops.syncPeriod: 2h
+    asserts:
+      - isKind:
+          of: ConfigMap
+
+  - it: accepts the integer 0 sentinel (falls back to the built-in default)
+    set:
+      garbageCollectionInterval: 0
+    asserts:
+      - isKind:
+          of: ConfigMap
+
+  - it: accepts the string "0" sentinel
+    set:
+      garbageCollectionInterval: "0"
+    asserts:
+      - isKind:
+          of: ConfigMap

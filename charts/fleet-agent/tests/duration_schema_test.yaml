@@ -1,0 +1,61 @@
+suite: duration values are validated by values.schema.json
+templates:
+  - configmap.yaml
+tests:
+  - it: rejects an invalid garbageCollectionInterval (1d)
+    set:
+      garbageCollectionInterval: 1d
+    asserts:
+      - failedTemplate:
+          errorPattern: "garbageCollectionInterval.*(Does not match pattern|anyOf)"
+
+  - it: rejects an invalid nested leaderElection.leaseDuration (1w)
+    set:
+      leaderElection.leaseDuration: 1w
+    asserts:
+      - failedTemplate:
+          errorPattern: "leaderElection.leaseDuration.*(Does not match pattern|anyOf)"
+
+  - it: rejects an invalid nested leaderElection.retryPeriod (7d12h)
+    set:
+      leaderElection.retryPeriod: 7d12h
+    asserts:
+      - failedTemplate:
+          errorPattern: "leaderElection.retryPeriod.*(Does not match pattern|anyOf)"
+
+  - it: rejects an invalid nested leaderElection.renewDeadline (5x)
+    set:
+      leaderElection.renewDeadline: 5x
+    asserts:
+      - failedTemplate:
+          errorPattern: "leaderElection.renewDeadline.*(Does not match pattern|anyOf)"
+
+  - it: rejects a bare non-zero integer (only 0 is allowed without a unit)
+    set:
+      garbageCollectionInterval: 5
+    asserts:
+      - failedTemplate:
+          errorPattern: "garbageCollectionInterval.*(Must validate at least one schema|anyOf)"
+
+  - it: accepts a valid duration
+    set:
+      garbageCollectionInterval: 1h30m
+      leaderElection.leaseDuration: 30s
+      leaderElection.retryPeriod: 300ms
+    asserts:
+      - isKind:
+          of: ConfigMap
+
+  - it: accepts the integer 0 sentinel (falls back to the built-in default)
+    set:
+      garbageCollectionInterval: 0
+    asserts:
+      - isKind:
+          of: ConfigMap
+
+  - it: accepts the string "0" sentinel
+    set:
+      garbageCollectionInterval: "0"
+    asserts:
+      - isKind:
+          of: ConfigMap
