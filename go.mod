@@ -80,7 +80,7 @@ require (
 	golang.org/x/sync v0.20.0
 	gonum.org/v1/gonum v0.16.0
 	gotest.tools v2.2.0+incompatible
-	helm.sh/helm/v3 v3.19.0
+	helm.sh/helm/v3 v3.19.5
 	k8s.io/api v0.34.7
 	k8s.io/apiextensions-apiserver v0.34.7
 	k8s.io/apimachinery v0.34.7
@@ -203,7 +203,7 @@ require (
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/skeema/knownhosts v1.3.1 // indirect
 	github.com/spf13/cast v1.7.0 // indirect
-	github.com/spf13/pflag v1.0.9 // indirect
+	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/ulikunitz/xz v0.5.15 // indirect
 	github.com/vbatts/tar-split v0.12.1 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
