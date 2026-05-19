@@ -14,7 +14,9 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 )
 
 func TestSetNamespaceLabelsAndAnnotations(t *testing.T) {
@@ -171,6 +173,51 @@ func TestSetNamespaceLabelsAndAnnotationsError(t *testing.T) {
 
 	if !apierrors.IsNotFound(err) {
 		t.Errorf("expected not found error: got %v", err)
+	}
+}
+
+// TestSetNamespaceLabelsAndAnnotations_NoUpdateWhenAlreadyCorrect verifies that
+// updateNamespace is not called when the namespace already reflects the desired state.
+// This guards against the broken reflect.DeepEqual check that compared raw option
+// labels to ns.Labels; ns.Labels always includes kubernetes.io/metadata.name and
+// may include preserved pod-security labels, so a direct equality check never holds.
+func TestSetNamespaceLabelsAndAnnotations_NoUpdateWhenAlreadyCorrect(t *testing.T) {
+	bd := &fleet.BundleDeployment{Spec: fleet.BundleDeploymentSpec{
+		Options: fleet.BundleDeploymentOptions{
+			NamespaceLabels:      map[string]string{"optLabel": "optValue"},
+			NamespaceAnnotations: map[string]string{"optAnn": "optValue"},
+		},
+	}}
+	ns := corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "namespace",
+			Labels:      map[string]string{"kubernetes.io/metadata.name": "namespace", "optLabel": "optValue"},
+			Annotations: map[string]string{"optAnn": "optValue"},
+		},
+	}
+
+	scheme := runtime.NewScheme()
+	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+
+	updateCalled := false
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(&ns).
+		WithInterceptorFuncs(interceptor.Funcs{
+			Update: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.UpdateOption) error {
+				updateCalled = true
+				return c.Update(ctx, obj, opts...)
+			},
+		}).
+		Build()
+
+	h := Deployer{client: fakeClient}
+	err := h.setNamespaceLabelsAndAnnotations(context.Background(), bd, "namespace/foo/bar")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if updateCalled {
+		t.Error("updateNamespace was called when namespace was already in the desired state")
 	}
 }
 
