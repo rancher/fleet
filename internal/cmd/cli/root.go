@@ -49,9 +49,7 @@ func (r *Fleet) Run(cmd *cobra.Command, _ []string) error {
 
 type FleetClient struct {
 	command.DebugConfig
-	Namespace  string `usage:"namespace" env:"NAMESPACE" default:"fleet-local" short:"n"`
-	Kubeconfig string `usage:"kubeconfig for authentication" short:"k"`
-	Context    string `usage:"kubeconfig context for authentication"`
+	Namespace string `usage:"namespace" env:"NAMESPACE" default:"fleet-local" short:"n"`
 }
 
 type BundleInputArgs struct {
