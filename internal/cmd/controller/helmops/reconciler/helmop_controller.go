@@ -38,6 +38,7 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/durations"
 	"github.com/rancher/fleet/pkg/sharding"
+	corev1 "k8s.io/api/core/v1"
 )
 
 // HelmOpReconciler reconciles a HelmOp resource to create and apply bundles for helm charts
@@ -128,6 +129,20 @@ func (r *HelmOpReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		if delErr := r.deletePollingJob(*helmop); delErr != nil {
 			err = errutil.NewAggregate([]error{err, delErr})
 		}
+		return ctrl.Result{}, updateErrorStatusHelm(ctx, r.Client, req.NamespacedName, helmop, err)
+	}
+
+	// Policy restrictions: validate and apply defaults before producing the Bundle.
+	if err := AuthorizeAndAssignDefaults(ctx, r.Client, helmop); err != nil {
+		r.Recorder.Eventf(
+			helmop,
+			nil,
+			corev1.EventTypeWarning,
+			"FailedToApplyRestrictions",
+			"ApplyPolicyRestrictions",
+			"%v",
+			err,
+		)
 		return ctrl.Result{}, updateErrorStatusHelm(ctx, r.Client, req.NamespacedName, helmop, err)
 	}
 
