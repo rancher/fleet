@@ -6364,9 +6364,9 @@ spec:
                   type: integer
                 helmRepoURLRegex:
                   description: 'HelmRepoURLRegex Helm credentials will be used if
-                    the helm repo matches this regex
+                    the helm repo matches this regex.
 
-                    Credentials will always be used if this is empty or not provided.'
+                    Credentials will not be used if this is empty or not provided.'
                   nullable: true
                   type: string
                 helmSecretName:
@@ -9211,3 +9211,164 @@ spec:
       storage: true
       subresources:
         status: {}
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.17.2
+  name: policies.fleet.cattle.io
+spec:
+  group: fleet.cattle.io
+  names:
+    kind: Policy
+    listKind: PolicyList
+    plural: policies
+    singular: policy
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      schema:
+        openAPIV3Schema:
+          description: "Policy restricts what GitRepo, HelmOp, and Bundle resources\
+            \ in the same\nnamespace may do. Enforced at three points in the controller\
+            \ stack:\n\n  - GitRepo reconciler: validates and applies defaults before\
+            \ producing a Bundle.\n  - HelmOp reconciler: validates and applies defaults\
+            \ before producing a Bundle.\n  - Bundle reconciler: validates only (fail-only)\
+            \ before producing BundleDeployments.\n\nTop-level fields are checked\
+            \ by all three reconcilers.\nSub-object fields (gitRepo, helmOp) are only\
+            \ read by their respective reconciler.\nDefault* fields inside sub-objects\
+            \ are applied before top-level validators run.\n\nMultiple Policy objects\
+            \ in the same namespace are aggregated with OR/union\nsemantics, sorted\
+            \ by name for determinism."
+          properties:
+            allowedServiceAccounts:
+              description: 'AllowedServiceAccounts lists service accounts that may
+                be used.
+
+                If non-empty, the ServiceAccount must appear in this list.
+
+                When RequireServiceAccount is also true, an empty ServiceAccount is
+
+                rejected regardless of this list.'
+              items:
+                type: string
+              nullable: true
+              type: array
+            apiVersion:
+              description: 'APIVersion defines the versioned schema of this representation
+                of an object.
+
+                Servers should convert recognized schemas to the latest internal value,
+                and
+
+                may reject unrecognized values.
+
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+              type: string
+            gitRepo:
+              description: GitRepo contains restrictions and defaults applied only
+                by the GitRepo reconciler.
+              properties:
+                allowedClientSecretNames:
+                  description: 'AllowedClientSecretNames lists client secret names
+                    that GitRepo objects
+
+                    may reference.'
+                  items:
+                    type: string
+                  nullable: true
+                  type: array
+                allowedRepoPatterns:
+                  description: 'AllowedRepoPatterns is a list of regex patterns restricting
+                    the Repo
+
+                    field of GitRepo objects.'
+                  items:
+                    type: string
+                  nullable: true
+                  type: array
+                defaultClientSecretName:
+                  description: 'DefaultClientSecretName is applied to GitRepo objects
+                    whose
+
+                    ClientSecretName is empty.'
+                  type: string
+                defaultServiceAccount:
+                  description: 'DefaultServiceAccount is applied to GitRepo objects
+                    whose ServiceAccount
+
+                    is empty, before the top-level RequireServiceAccount check runs.'
+                  type: string
+              type: object
+            helmOp:
+              description: HelmOp contains restrictions and defaults applied only
+                by the HelmOp reconciler.
+              properties:
+                allowedChartPatterns:
+                  description: 'AllowedChartPatterns is a list of regex patterns restricting
+                    the
+
+                    spec.helm.chart field of HelmOp objects.'
+                  items:
+                    type: string
+                  nullable: true
+                  type: array
+                allowedHelmRepoPatterns:
+                  description: 'AllowedHelmRepoPatterns is a list of regex patterns
+                    restricting the
+
+                    spec.helm.repo field of HelmOp objects.'
+                  items:
+                    type: string
+                  nullable: true
+                  type: array
+                allowedHelmSecretNames:
+                  description: 'AllowedHelmSecretNames lists credential secret names
+                    that HelmOp objects
+
+                    may reference.'
+                  items:
+                    type: string
+                  nullable: true
+                  type: array
+                defaultHelmSecretName:
+                  description: 'DefaultHelmSecretName is applied to HelmOp objects
+                    whose HelmSecretName
+
+                    is empty.'
+                  type: string
+                defaultServiceAccount:
+                  description: 'DefaultServiceAccount is applied to HelmOp objects
+                    whose ServiceAccount
+
+                    is empty, before the top-level RequireServiceAccount check runs.'
+                  type: string
+              type: object
+            kind:
+              description: 'Kind is a string value representing the REST resource
+                this object represents.
+
+                Servers may infer this from the endpoint the client submits requests
+                to.
+
+                Cannot be updated.
+
+                In CamelCase.
+
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+              type: string
+            metadata:
+              type: object
+            requireServiceAccount:
+              description: 'RequireServiceAccount, when true, rejects any GitRepo,
+                HelmOp, or Bundle
+
+                whose ServiceAccount is empty after any defaulting has been applied.
+
+                Combine with AllowedServiceAccounts to also restrict which account
+                is used.'
+              type: boolean
+          type: object
+      served: true
+      storage: true

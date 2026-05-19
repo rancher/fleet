@@ -41,6 +41,7 @@ rules:
       - "fleet.cattle.io"
     resources:
       - "gitreporestrictions"
+      - "policies"
     verbs:
       - list
       - get
