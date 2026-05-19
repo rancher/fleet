@@ -820,6 +820,9 @@ func TestReconcile_DownstreamObjectsHandlingError(t *testing.T) {
 							Namespace: "my-bd", // non-empty
 						},
 					},
+					Options: fleetv1.BundleDeploymentOptions{
+						DownstreamResources: c.downstreamResources,
+					},
 					DeploymentID: "foo",
 				},
 			}
@@ -1477,6 +1480,9 @@ func TestReconcile_DownstreamResourcesGeneration_Increment(t *testing.T) {
 				Return(&k8serrors.StatusError{ErrStatus: metav1.Status{Code: http.StatusNotFound}})
 
 			// Target builder returns our test bundle deployment
+			// Simulate what options.Merge would produce: root-level DownstreamResources
+			// end up in the BD's Options after the first reconcile.
+			tc.existingBundleDeployment.Spec.Options.DownstreamResources = tc.downstreamResources
 			matchedTargets := []*target.Target{
 				{
 					Bundle: &bundle,
