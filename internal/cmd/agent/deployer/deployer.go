@@ -199,6 +199,9 @@ func (d *Deployer) setNamespaceLabelsAndAnnotations(ctx context.Context, bd *fle
 
 	desiredLabels := maps.Clone(ns.Labels)
 	if bd.Spec.Options.NamespaceLabels != nil {
+		if desiredLabels == nil {
+			desiredLabels = make(map[string]string)
+		}
 		addLabelsFromOptions(log.FromContext(ctx), desiredLabels, bd.Spec.Options.NamespaceLabels)
 	}
 	desiredAnnotations := maps.Clone(ns.Annotations)
@@ -242,7 +245,10 @@ func (d *Deployer) fetchNamespace(ctx context.Context, releaseID string) (*corev
 
 const podSecurityLabelPrefix = "pod-security.kubernetes.io/"
 
-// addLabelsFromOptions updates nsLabels so that it only contains all labels specified in optLabels, plus the `kubernetes.io/metadata.name` labels added by kubernetes when creating the namespace.
+// addLabelsFromOptions updates nsLabels to contain labels from optLabels, while preserving
+// the `kubernetes.io/metadata.name` label added by Kubernetes when creating the namespace
+// and any existing `pod-security.kubernetes.io/*` labels. Labels with the
+// `pod-security.kubernetes.io/` prefix in optLabels are ignored.
 func addLabelsFromOptions(logger logr.Logger, nsLabels map[string]string, optLabels map[string]string) {
 	for k, v := range optLabels {
 		if strings.HasPrefix(k, podSecurityLabelPrefix) {
