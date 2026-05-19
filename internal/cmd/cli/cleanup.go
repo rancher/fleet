@@ -2,6 +2,7 @@ package cli
 
 import (
 	"errors"
+	"flag"
 	"fmt"
 	"math"
 	"strconv"
@@ -32,21 +33,33 @@ func NewCleanUp() *cobra.Command {
 }
 
 func NewClusterRegistration() *cobra.Command {
-	return command.Command(&ClusterRegistration{}, cobra.Command{
+	cmd := command.Command(&ClusterRegistration{}, cobra.Command{
 		Use:           "clusterregistration [flags]",
 		Short:         "Clean up outdated cluster registrations",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	})
+
+	fs := flag.NewFlagSet("", flag.ExitOnError)
+	zopts.BindFlags(fs)
+	ctrl.RegisterFlags(fs)
+	cmd.Flags().AddGoFlagSet(fs)
+	return cmd
 }
 
 func NewGitjob() *cobra.Command {
-	return command.Command(&Gitjob{}, cobra.Command{
+	cmd := command.Command(&Gitjob{}, cobra.Command{
 		Use:           "gitjob [flags]",
 		Short:         "Clean up outdated git jobs",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	})
+
+	fs := flag.NewFlagSet("", flag.ExitOnError)
+	zopts.BindFlags(fs)
+	ctrl.RegisterFlags(fs)
+	cmd.Flags().AddGoFlagSet(fs)
+	return cmd
 }
 
 type Cleanup struct {

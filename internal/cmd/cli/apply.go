@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"errors"
+	"flag"
 	"fmt"
 	"os"
 
@@ -33,10 +34,15 @@ type readFile func(name string) ([]byte, error)
 
 // NewApply returns a subcommand to create bundles from directories
 func NewApply() *cobra.Command {
-	return command.Command(&Apply{}, cobra.Command{
+	cmd := command.Command(&Apply{}, cobra.Command{
 		Use:   "apply [flags] BUNDLE_NAME PATH...",
 		Short: "Create bundles from directories, and output them or apply them on a cluster",
 	})
+
+	fs := flag.NewFlagSet("", flag.ExitOnError)
+	ctrl.RegisterFlags(fs)
+	cmd.Flags().AddGoFlagSet(fs)
+	return cmd
 }
 
 type Apply struct {
