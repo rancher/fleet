@@ -48,6 +48,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 const (
@@ -229,6 +230,13 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// Migration: Remove the obsolete created-by-display-name label if it exists
 	if err := r.removeDisplayNameLabel(ctx, bundle); err != nil {
 		return ctrl.Result{}, err
+	}
+
+	// Policy restrictions: validate the Bundle before producing any BundleDeployments.
+	// This closes the direct fleet-apply bypass path: a Bundle that violates policy is
+	// never deployed regardless of how it was created.
+	if err := r.authorizeBundle(ctx, bundle); err != nil {
+		return ctrl.Result{}, r.updateErrorStatus(ctx, bundleOrig, bundle, err)
 	}
 
 	logger.V(1).Info(
@@ -742,6 +750,39 @@ func (r *BundleReconciler) handleContentAccessSecrets(ctx context.Context, bundl
 		return r.cloneSecret(ctx, bundle.Namespace, bundle.Spec.HelmOpOptions.SecretName, fleet.SecretTypeHelmOpsAccess, bd)
 	}
 	return nil
+}
+
+// authorizeBundle validates the Bundle against Policy objects and records a
+// warning event if a violation is found. Returns a non-nil error on violation.
+func (r *BundleReconciler) authorizeBundle(ctx context.Context, bundle *fleet.Bundle) error {
+	if err := AuthorizeBundle(ctx, r.Client, bundle); err != nil {
+		r.Recorder.Event(
+			bundle,
+			fleetevent.Warning,
+			"PolicyViolation",
+			fmt.Sprintf("Bundle in namespace %s violates Policy: %v", bundle.Namespace, err),
+		)
+		return err
+	}
+	return nil
+}
+
+// updateErrorStatus sets the Ready condition in the bundle status and tries to update the resource.
+// Setting that condition makes the error message visible in the Rancher UI.
+// Upon successful update of the status, updateErrorStatus returns a TerminalError, preventing requeues.
+func (r *BundleReconciler) updateErrorStatus(
+	ctx context.Context,
+	orig, bundle *fleet.Bundle,
+	orgErr error,
+) error {
+	setReadyCondition(&bundle.Status, orgErr)
+
+	if statusErr := r.updateStatus(ctx, orig, bundle); statusErr != nil {
+		merr := []error{orgErr, fmt.Errorf("failed to update the status: %w", statusErr)}
+		return errutil.NewAggregate(merr)
+	}
+
+	return reconcile.TerminalError(orgErr)
 }
 
 // updateStatus patches the status of the bundle and collects metrics upon a successful update of

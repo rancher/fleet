@@ -28,6 +28,14 @@ rules:
   - apiGroups:
       - "fleet.cattle.io"
     resources:
+      - "policies"
+    verbs:
+      - list
+      - get
+      - watch
+  - apiGroups:
+      - "fleet.cattle.io"
+    resources:
       - "bundles"
       - "bundledeployments"
     verbs:
