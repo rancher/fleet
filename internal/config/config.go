@@ -28,6 +28,9 @@ const (
 	// contains the controller and agent
 	DefaultNamespace       = "cattle-fleet-system"
 	LegacyDefaultNamespace = "fleet-system"
+	// ImportTokenPrefix is the prefix for ClusterRegistrationToken names
+	// created during manager-initiated cluster imports.
+	ImportTokenPrefix = "import-token-"
 	// ImportTokenSecretValuesKey is the key in the import token secret,
 	// which contains the values for cluster registration.
 	ImportTokenSecretValuesKey = "values"
