@@ -1,0 +1,49 @@
+{{- if .Values.migrations.gitrepoHelmURLRegexMigration }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: fleet-migrate-gitrepo-helm-url-regex
+  annotations:
+    "helm.sh/hook": pre-upgrade
+    "helm.sh/hook-delete-policy": hook-succeeded, before-hook-creation
+spec:
+  template:
+    metadata:
+      labels:
+        app: fleet-job
+    spec:
+      serviceAccountName: fleet-controller
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsGroup: 1000
+        runAsUser: 1000
+      containers:
+      - name: migrate
+        image: "{{ template "system_default_registry" . }}{{.Values.image.repository}}:{{.Values.image.tag}}"
+        imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: false
+          privileged: false
+        command:
+        - fleet
+        args:
+        - migrate
+        - gitrepo-helm-url-regex
+        env:
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+      nodeSelector: {{ include "linux-node-selector" . | nindent 8 }}
+      tolerations: {{ include "linux-node-tolerations" . | nindent 8 }}
+{{- if $.Values.tolerations }}
+{{ toYaml $.Values.tolerations | indent 8 }}
+{{- end }}
+  backoffLimit: 1
+{{- end }}
