@@ -3,7 +3,7 @@ package deployer
 import (
 	"context"
 	"fmt"
-	"reflect"
+	"maps"
 	"regexp"
 	"strconv"
 	"strings"
@@ -182,25 +182,25 @@ func (d *Deployer) setNamespaceLabelsAndAnnotations(ctx context.Context, bd *fle
 		return err
 	}
 
-	if reflect.DeepEqual(bd.Spec.Options.NamespaceLabels, ns.Labels) && reflect.DeepEqual(bd.Spec.Options.NamespaceAnnotations, ns.Annotations) {
+	desiredLabels := maps.Clone(ns.Labels)
+	if bd.Spec.Options.NamespaceLabels != nil {
+		addLabelsFromOptions(log.FromContext(ctx), desiredLabels, bd.Spec.Options.NamespaceLabels)
+	}
+	desiredAnnotations := maps.Clone(ns.Annotations)
+	if bd.Spec.Options.NamespaceAnnotations != nil {
+		if desiredAnnotations == nil {
+			desiredAnnotations = make(map[string]string)
+		}
+		addAnnotationsFromOptions(desiredAnnotations, bd.Spec.Options.NamespaceAnnotations)
+	}
+
+	if maps.Equal(desiredLabels, ns.Labels) && maps.Equal(desiredAnnotations, ns.Annotations) {
 		return nil
 	}
 
-	if bd.Spec.Options.NamespaceLabels != nil {
-		addLabelsFromOptions(log.FromContext(ctx), ns.Labels, bd.Spec.Options.NamespaceLabels)
-	}
-	if bd.Spec.Options.NamespaceAnnotations != nil {
-		if ns.Annotations == nil {
-			ns.Annotations = map[string]string{}
-		}
-		addAnnotationsFromOptions(ns.Annotations, bd.Spec.Options.NamespaceAnnotations)
-	}
-	err = d.updateNamespace(ctx, ns)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	ns.Labels = desiredLabels
+	ns.Annotations = desiredAnnotations
+	return d.updateNamespace(ctx, ns)
 }
 
 // updateNamespace updates a namespace resource in the cluster.
