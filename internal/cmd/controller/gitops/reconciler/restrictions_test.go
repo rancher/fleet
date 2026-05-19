@@ -24,6 +24,7 @@ func TestAuthorizeAndAssignDefaults(t *testing.T) {
 		name                string
 		inputGr             fleet.GitRepo
 		restrictions        *fleet.GitRepoRestrictionList
+		policies            *fleet.PolicyList
 		restrictionsListErr error
 		expectedGr          fleet.GitRepo
 		expectedErr         string
@@ -210,6 +211,91 @@ func TestAuthorizeAndAssignDefaults(t *testing.T) {
 				},
 			},
 		},
+		{
+			// Policy patterns are anchored: a pattern without .* must match the full URL.
+			name: "Policy repo pattern: reject URL that matches only as substring",
+			inputGr: fleet.GitRepo{
+				Spec: fleet.GitRepoSpec{
+					Repo: "https://evil.example.com/redirect?to=github.com/myorg/repo",
+				},
+			},
+			restrictions: &fleet.GitRepoRestrictionList{},
+			policies: &fleet.PolicyList{Items: []fleet.Policy{
+				{GitRepo: &fleet.GitRepoPolicySpec{
+					AllowedRepoPatterns: []string{`github\.com/myorg/.*`},
+				}},
+			}},
+			expectedGr: fleet.GitRepo{
+				Spec: fleet.GitRepoSpec{
+					Repo: "https://evil.example.com/redirect?to=github.com/myorg/repo",
+				},
+			},
+			expectedErr: "disallowed repo.*",
+		},
+		{
+			// Policy patterns are anchored: the pattern must match the full URL.
+			name: "Policy repo pattern: accept URL that matches anchored pattern",
+			inputGr: fleet.GitRepo{
+				Spec: fleet.GitRepoSpec{
+					Repo: "https://github.com/myorg/myrepo",
+				},
+			},
+			restrictions: &fleet.GitRepoRestrictionList{},
+			policies: &fleet.PolicyList{Items: []fleet.Policy{
+				{GitRepo: &fleet.GitRepoPolicySpec{
+					AllowedRepoPatterns: []string{`https://github\.com/myorg/.*`},
+				}},
+			}},
+			expectedGr: fleet.GitRepo{
+				Spec: fleet.GitRepoSpec{
+					Repo: "https://github.com/myorg/myrepo",
+				},
+			},
+		},
+		{
+			// GitRepoRestriction patterns remain unanchored for backward compat.
+			name: "GitRepoRestriction repo pattern: unanchored match still works",
+			inputGr: fleet.GitRepo{
+				Spec: fleet.GitRepoSpec{
+					Repo: "http://foo.bar/baz",
+				},
+			},
+			restrictions: &fleet.GitRepoRestrictionList{
+				Items: []fleet.GitRepoRestriction{
+					{AllowedRepoPatterns: []string{`foo\.bar`}},
+				},
+			},
+			expectedGr: fleet.GitRepo{
+				Spec: fleet.GitRepoSpec{
+					Repo: "http://foo.bar/baz",
+				},
+			},
+		},
+		{
+			// A URL rejected by the Policy list but accepted by a GRR pattern should pass.
+			name: "GRR allows repo even when Policy list would reject it",
+			inputGr: fleet.GitRepo{
+				Spec: fleet.GitRepoSpec{
+					Repo: "https://github.com/myorg/myrepo",
+				},
+			},
+			restrictions: &fleet.GitRepoRestrictionList{
+				Items: []fleet.GitRepoRestriction{
+					{AllowedRepoPatterns: []string{`.*github\.com.*`}},
+				},
+			},
+			policies: &fleet.PolicyList{Items: []fleet.Policy{
+				{GitRepo: &fleet.GitRepoPolicySpec{
+					// Anchored pattern that does NOT match the full URL.
+					AllowedRepoPatterns: []string{`gitlab\.com/.*`},
+				}},
+			}},
+			expectedGr: fleet.GitRepo{
+				Spec: fleet.GitRepoSpec{
+					Repo: "https://github.com/myorg/myrepo",
+				},
+			},
+		},
 	}
 
 	for _, c := range cases {
@@ -220,12 +306,17 @@ func TestAuthorizeAndAssignDefaults(t *testing.T) {
 			client := mocks.NewMockK8sClient(mockCtrl)
 
 			client.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(
-				func(_ context.Context, rl *fleet.GitRepoRestrictionList, ns crclient.InNamespace) error {
-					if c.restrictions != nil && len(c.restrictions.Items) > 0 {
-						rl.Items = c.restrictions.Items
+				func(_ context.Context, obj crclient.ObjectList, ns crclient.InNamespace) error {
+					if rl, ok := obj.(*fleet.GitRepoRestrictionList); ok {
+						if c.restrictions != nil && len(c.restrictions.Items) > 0 {
+							rl.Items = c.restrictions.Items
+						}
+						return c.restrictionsListErr
 					}
-
-					return c.restrictionsListErr
+					if pl, ok := obj.(*fleet.PolicyList); ok && c.policies != nil {
+						pl.Items = c.policies.Items
+					}
+					return nil
 				},
 			)
 
