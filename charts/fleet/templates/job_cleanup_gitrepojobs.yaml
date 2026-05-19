@@ -16,6 +16,10 @@ spec:
           labels:
             app: fleet-job
         spec:
+{{- if .Values.global.cattle.imagePullSecrets }}
+          imagePullSecrets:
+{{ toYaml .Values.global.cattle.imagePullSecrets | indent 12 }}
+{{- end }}
           serviceAccountName: gitjob
           restartPolicy: Never
           securityContext:
