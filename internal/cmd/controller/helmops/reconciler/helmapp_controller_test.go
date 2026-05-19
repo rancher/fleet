@@ -106,6 +106,8 @@ func TestReconcile_ErrorCreatingBundleIsShownInStatus(t *testing.T) {
 		},
 	)
 
+	client.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&fleet.PolicyList{}), gomock.Any()).Return(nil)
+
 	client.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
 		func(ctx context.Context, req types.NamespacedName, bundle *fleet.Bundle, opts ...interface{}) error {
 			return fmt.Errorf("this is a test error")
@@ -177,6 +179,8 @@ func TestReconcile_CreatesBundleAndUpdatesStatus(t *testing.T) {
 			return nil
 		},
 	)
+
+	client.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&fleet.PolicyList{}), gomock.Any()).Return(nil)
 
 	client.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(2).DoAndReturn(
 		func(ctx context.Context, req types.NamespacedName, bundle *fleet.Bundle, opts ...interface{}) error {
