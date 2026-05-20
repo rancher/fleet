@@ -3,6 +3,7 @@ package multicluster_test
 
 import (
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/rancher/fleet/e2e/testenv"
@@ -17,8 +18,9 @@ func TestE2E(t *testing.T) {
 }
 
 var (
-	env       *testenv.Env
-	dsCluster = "second"
+	env                  *testenv.Env
+	dsCluster            = "second" // name of the Fleet Cluster resource
+	k3dDownstreamCluster = "downstream"
 )
 
 var _ = BeforeSuite(func() {
@@ -29,5 +31,9 @@ var _ = BeforeSuite(func() {
 
 	if dsClusterEnvVar := os.Getenv("CI_REGISTERED_CLUSTER"); dsClusterEnvVar != "" {
 		dsCluster = dsClusterEnvVar
+	}
+
+	if k3dDSClusterEnvVar := os.Getenv("FLEET_E2E_CLUSTER_DOWNSTREAM"); k3dDSClusterEnvVar != "" {
+		k3dDownstreamCluster = strings.TrimPrefix(k3dDSClusterEnvVar, "k3d-")
 	}
 })

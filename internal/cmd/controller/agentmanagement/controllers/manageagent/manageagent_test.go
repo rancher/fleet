@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/rancher/wrangler/v3/pkg/generic/fake"
 	"github.com/rancher/wrangler/v3/pkg/schemes"
@@ -13,13 +14,33 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
+	"github.com/rancher/fleet/internal/config"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	networkv1 "k8s.io/api/networking/v1"
 	"sigs.k8s.io/yaml"
-
-	"github.com/rancher/fleet/internal/config"
 )
+
+func TestNewAgentBundle(t *testing.T) {
+	config.Set(&config.Config{AgentCheckinInterval: metav1.Duration{Duration: 0 * time.Second}})
+
+	// ensure leader election env is set so NewLeaderElectionOptionsWithPrefix doesn't error
+	t.Setenv("FLEET_AGENT_ELECTION_LEASE_DURATION", "15s")
+	t.Setenv("FLEET_AGENT_ELECTION_RENEW_DEADLINE", "10s")
+	t.Setenv("FLEET_AGENT_ELECTION_RETRY_PERIOD", "2s")
+
+	h := handler{systemNamespace: "blah"}
+	obj, err := h.newAgentBundle("foo", &fleet.Cluster{Spec: fleet.ClusterSpec{AgentNamespace: "bar"}})
+
+	if obj != nil {
+		t.Fatalf("expected obj returned by newAgentBundle to be nil")
+	}
+
+	expectedStr := "interval cannot be 0"
+	if !strings.Contains(err.Error(), expectedStr) {
+		t.Fatalf("expected error %q returned by newAgentBundle to contain %q", err, expectedStr)
+	}
+}
 
 func TestOnClusterChangeAffinity(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -118,7 +139,9 @@ func TestOnClusterChangeAffinity(t *testing.T) {
 
 func TestNewAgentBundle_SortsAgentTolerations(t *testing.T) {
 	// make sure config is set for newAgentBundle
-	config.Set(config.DefaultConfig())
+	cfg := config.DefaultConfig()
+	cfg.AgentCheckinInterval = metav1.Duration{Duration: 1 * time.Second} // non-zero to prevent errors covered elsewhere.
+	config.Set(cfg)
 
 	checkRegisterAddToScheme(t, appsv1.AddToScheme)
 	checkRegisterAddToScheme(t, networkv1.AddToScheme)

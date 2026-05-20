@@ -16,6 +16,11 @@ data:
             "bundledeployment": "{{.Values.agent.reconciler.workers.bundledeployment}}",
             "drift": "{{.Values.agent.reconciler.workers.drift}}"
       },
+      "clusterMonitor": {
+            "enabled": {{.Values.clusterMonitor.enabled}},
+            "interval": "{{.Values.clusterMonitor.interval}}",
+            "threshold": "{{.Values.clusterMonitor.threshold}}"
+      },
       {{ if .Values.garbageCollectionInterval }}
       "garbageCollectionInterval": "{{.Values.garbageCollectionInterval}}",
       {{ end }}
