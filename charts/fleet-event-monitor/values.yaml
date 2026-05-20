@@ -1,0 +1,173 @@
+image:
+  repository: rancher/fleet-event-monitor
+  tag: dev
+  imagePullPolicy: IfNotPresent
+
+# Namespace to watch
+namespace: cattle-fleet-system
+
+# Which controllers to enable
+controllers:
+  bundle: false
+  bundledeployment: false
+  cluster: false
+  gitrepo: false
+  helmop: false
+
+# Worker counts (lower than production controllers)
+workers:
+  bundle: 5
+  bundledeployment: 5
+  cluster: 5
+  gitrepo: 5
+  helmop: 5
+
+# Logging configuration
+logFormat: json
+logLevel: info
+debug: false
+debugLevel: 0
+
+# Sharding support (same as fleet controller)
+shardID: ""
+
+# Node selector and tolerations
+nodeSelector: {}
+tolerations: []
+priorityClassName: ""
+
+# Leader election
+leaderElection:
+  enabled: true
+  leaseDuration: 30s
+  retryPeriod: 10s
+  renewDeadline: 25s
+
+# Resource limits (monitors should be lightweight)
+resources:
+  limits:
+    cpu: 500m
+    memory: 256Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+# Security context
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+
+# Extra environment variables
+extraEnv: []
+# Example:
+# - name: CUSTOM_VAR
+#   value: "custom_value"
+
+# Per-controller logging configuration
+logging:
+  # Bundle controller logging
+  bundle:
+    detailed: false  # true = detailed logs, false = summary only
+
+    # Resource filter (optional) - filter which resources to monitor
+    # Empty strings match all resources (backwards compatible)
+    resourceFilter:
+      namespace: ""  # Regular expression for namespace matching (e.g., "^fleet-local$")
+      name: ""       # Regular expression for name matching (e.g., "^test-.*")
+
+    eventFilters:
+      generationChange: false
+      statusChange: false
+      annotationChange: false
+      labelChange: false
+      resourceVersionChange: false
+      deletion: false
+      notFound: false
+      create: false
+      triggeredBy: false
+
+  # BundleDeployment controller logging
+  bundleDeployment:
+    detailed: false
+
+    resourceFilter:
+      namespace: ""
+      name: ""
+
+    eventFilters:
+      generationChange: false
+      statusChange: false
+      annotationChange: false
+      labelChange: false
+      resourceVersionChange: false
+      deletion: false
+      notFound: false
+      create: false
+      triggeredBy: false
+
+  # Cluster controller logging
+  cluster:
+    detailed: false
+
+    resourceFilter:
+      namespace: ""
+      name: ""
+
+    eventFilters:
+      generationChange: false
+      statusChange: false
+      annotationChange: false
+      labelChange: false
+      resourceVersionChange: false
+      deletion: false
+      notFound: false
+      create: false
+      triggeredBy: false
+
+  # GitRepo controller logging
+  gitRepo:
+    detailed: false
+
+    resourceFilter:
+      namespace: ""
+      name: ""
+
+    eventFilters:
+      generationChange: false
+      statusChange: false
+      annotationChange: false
+      labelChange: false
+      resourceVersionChange: false
+      deletion: false
+      notFound: false
+      create: false
+      triggeredBy: false
+
+  # HelmOp controller logging
+  helmOp:
+    detailed: false
+
+    resourceFilter:
+      namespace: ""
+      name: ""
+
+    eventFilters:
+      generationChange: false
+      statusChange: false
+      annotationChange: false
+      labelChange: false
+      resourceVersionChange: false
+      deletion: false
+      notFound: false
+      create: false
+      triggeredBy: false
+
+  # Summary configuration (applies to all controllers in summary mode)
+  summary:
+    # How often to emit summary in duration format (5s, 30s, 1m, etc.)
+    interval: "30s"
+
+    # Reset counters after each summary (false = cumulative counts)
+    resetOnPrint: false
