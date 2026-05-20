@@ -112,6 +112,13 @@ type BundleSpec struct {
 	// +nullable
 	Resources []BundleResource `json:"resources,omitempty"`
 
+	// TargetCustomizationMode controls how targetCustomizations from fleet.yaml
+	// are evaluated. "FirstMatch" (default) stops at the first matching entry.
+	// "AllMatches" applies all matching entries in order, merging them.
+	// +kubebuilder:default=FirstMatch
+	// +kubebuilder:validation:Enum=FirstMatch;AllMatches
+	TargetCustomizationMode TargetCustomizationMode `json:"targetCustomizationMode,omitempty"`
+
 	// Targets refer to the clusters which will be deployed to.
 	// Targets are evaluated in order and the first one to match is used.
 	Targets []BundleTarget `json:"targets,omitempty"`
@@ -234,8 +241,8 @@ type Partition struct {
 }
 
 // BundleTargetRestriction is used internally by Fleet and should not be modified.
-// It acts as an allow list, to prevent the creation of BundleDeployments from
-// Targets created by TargetCustomizations in fleet.yaml.
+// It acts as an allow list, restricting BundleDeployment creation to only those clusters
+// that are explicitly listed in the GitRepo targets.
 type BundleTargetRestriction struct {
 	// +nullable
 	Name string `json:"name,omitempty"`
@@ -281,6 +288,21 @@ type BundleTarget struct {
 	// NamespaceAnnotations are annotations that will be appended to the namespace created by Fleet.
 	// +nullable
 	NamespaceAnnotations map[string]string `json:"namespaceAnnotations,omitempty"`
+
+	// Source indicates the origin of this target.
+	// "customization" - target comes from fleet.yaml targetCustomizations
+	// "gitrepo" - target comes from GitRepo.Spec.Targets (via targets file)
+	// "helmop" - target comes from a HelmOp resource
+	//
+	// If empty, provenance is determined by position in the Targets array:
+	// - First N targets are customizations where N = len(Targets) - len(TargetRestrictions)
+	// - Remaining targets are GitRepo targets
+	//
+	// This field enables explicit provenance tracking for better maintainability
+	// while maintaining backward compatibility with Bundles created before this field existed.
+	// +optional
+	// +kubebuilder:validation:Enum=customization;gitrepo;helmop;""
+	Source string `json:"source,omitempty"`
 }
 
 // BundleSummary contains the number of bundle deployments in each state and a
@@ -342,6 +364,18 @@ type NonReadyResource struct {
 	// +nullable
 	NonReadyStatus []NonReadyStatus `json:"nonReadyStatus,omitempty"`
 }
+
+// TargetCustomizationMode controls how targetCustomizations from fleet.yaml are evaluated.
+type TargetCustomizationMode string
+
+const (
+	// TargetCustomizationModeFirstMatch stops at the first matching targetCustomization entry.
+	// This is the default behaviour.
+	TargetCustomizationModeFirstMatch TargetCustomizationMode = "FirstMatch"
+	// TargetCustomizationModeAllMatches applies all matching targetCustomization entries
+	// in order, merging their options.
+	TargetCustomizationModeAllMatches TargetCustomizationMode = "AllMatches"
+)
 
 const (
 	// BundleConditionReady is unused. A "Ready" condition on a bundle

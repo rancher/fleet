@@ -2461,6 +2461,19 @@ spec:
                   description: ServiceAccount which will be used to perform this deployment.
                   nullable: true
                   type: string
+                targetCustomizationMode:
+                  default: FirstMatch
+                  description: 'TargetCustomizationMode controls how targetCustomizations
+                    from fleet.yaml
+
+                    are evaluated. "FirstMatch" (default) stops at the first matching
+                    entry.
+
+                    "AllMatches" applies all matching entries in order, merging them.'
+                  enum:
+                    - FirstMatch
+                    - AllMatches
+                  type: string
                 targetRestrictions:
                   description: TargetRestrictions is an allow list, which controls
                     if a bundledeployment is created for a target.
@@ -2468,10 +2481,10 @@ spec:
                     description: 'BundleTargetRestriction is used internally by Fleet
                       and should not be modified.
 
-                      It acts as an allow list, to prevent the creation of BundleDeployments
-                      from
+                      It acts as an allow list, restricting BundleDeployment creation
+                      to only those clusters
 
-                      Targets created by TargetCustomizations in fleet.yaml.'
+                      that are explicitly listed in the GitRepo targets.'
                     properties:
                       clusterGroup:
                         nullable: true
@@ -3197,6 +3210,37 @@ spec:
                         description: ServiceAccount which will be used to perform
                           this deployment.
                         nullable: true
+                        type: string
+                      source:
+                        description: 'Source indicates the origin of this target.
+
+                          "customization" - target comes from fleet.yaml targetCustomizations
+
+                          "gitrepo" - target comes from GitRepo.Spec.Targets (via
+                          targets file)
+
+                          "helmop" - target comes from a HelmOp resource
+
+
+                          If empty, provenance is determined by position in the Targets
+                          array:
+
+                          - First N targets are customizations where N = len(Targets)
+                          - len(TargetRestrictions)
+
+                          - Remaining targets are GitRepo targets
+
+
+                          This field enables explicit provenance tracking for better
+                          maintainability
+
+                          while maintaining backward compatibility with Bundles created
+                          before this field existed.'
+                        enum:
+                          - customization
+                          - gitrepo
+                          - helmop
+                          - ''
                         type: string
                       yaml:
                         description: 'YAML options, if using raw YAML these are names
@@ -8708,6 +8752,19 @@ spec:
                   description: ServiceAccount which will be used to perform this deployment.
                   nullable: true
                   type: string
+                targetCustomizationMode:
+                  default: FirstMatch
+                  description: 'TargetCustomizationMode controls how targetCustomizations
+                    from fleet.yaml
+
+                    are evaluated. "FirstMatch" (default) stops at the first matching
+                    entry.
+
+                    "AllMatches" applies all matching entries in order, merging them.'
+                  enum:
+                    - FirstMatch
+                    - AllMatches
+                  type: string
                 targetRestrictions:
                   description: TargetRestrictions is an allow list, which controls
                     if a bundledeployment is created for a target.
@@ -8715,10 +8772,10 @@ spec:
                     description: 'BundleTargetRestriction is used internally by Fleet
                       and should not be modified.
 
-                      It acts as an allow list, to prevent the creation of BundleDeployments
-                      from
+                      It acts as an allow list, restricting BundleDeployment creation
+                      to only those clusters
 
-                      Targets created by TargetCustomizations in fleet.yaml.'
+                      that are explicitly listed in the GitRepo targets.'
                     properties:
                       clusterGroup:
                         nullable: true
@@ -9444,6 +9501,37 @@ spec:
                         description: ServiceAccount which will be used to perform
                           this deployment.
                         nullable: true
+                        type: string
+                      source:
+                        description: 'Source indicates the origin of this target.
+
+                          "customization" - target comes from fleet.yaml targetCustomizations
+
+                          "gitrepo" - target comes from GitRepo.Spec.Targets (via
+                          targets file)
+
+                          "helmop" - target comes from a HelmOp resource
+
+
+                          If empty, provenance is determined by position in the Targets
+                          array:
+
+                          - First N targets are customizations where N = len(Targets)
+                          - len(TargetRestrictions)
+
+                          - Remaining targets are GitRepo targets
+
+
+                          This field enables explicit provenance tracking for better
+                          maintainability
+
+                          while maintaining backward compatibility with Bundles created
+                          before this field existed.'
+                        enum:
+                          - customization
+                          - gitrepo
+                          - helmop
+                          - ''
                         type: string
                       yaml:
                         description: 'YAML options, if using raw YAML these are names
