@@ -7,6 +7,8 @@ import (
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
+	"github.com/go-logr/logr"
+
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -218,6 +220,135 @@ func TestSetNamespaceLabelsAndAnnotations_NoUpdateWhenAlreadyCorrect(t *testing.
 	}
 	if updateCalled {
 		t.Error("updateNamespace was called when namespace was already in the desired state")
+	}
+}
+
+func TestAddLabelsFromOptions_PodSecurityLabelsFiltered(t *testing.T) {
+	tests := map[string]struct {
+		nsLabels       map[string]string
+		optLabels      map[string]string
+		expectedLabels map[string]string
+	}{
+		"pod-security.kubernetes.io labels in optLabels are not applied to namespace": {
+			nsLabels: map[string]string{"kubernetes.io/metadata.name": "ns"},
+			optLabels: map[string]string{
+				"pod-security.kubernetes.io/enforce": "privileged",
+				"pod-security.kubernetes.io/audit":   "privileged",
+				"pod-security.kubernetes.io/warn":    "privileged",
+				"safe-label":                         "value",
+			},
+			expectedLabels: map[string]string{
+				"kubernetes.io/metadata.name": "ns",
+				"safe-label":                  "value",
+			},
+		},
+		"existing pod-security.kubernetes.io labels on namespace are preserved": {
+			nsLabels: map[string]string{
+				"kubernetes.io/metadata.name":        "ns",
+				"pod-security.kubernetes.io/enforce": "baseline",
+				"pod-security.kubernetes.io/audit":   "baseline",
+			},
+			optLabels: map[string]string{
+				"pod-security.kubernetes.io/enforce": "privileged",
+				"app-label":                          "value",
+			},
+			expectedLabels: map[string]string{
+				"kubernetes.io/metadata.name":        "ns",
+				"pod-security.kubernetes.io/enforce": "baseline",
+				"pod-security.kubernetes.io/audit":   "baseline",
+				"app-label":                          "value",
+			},
+		},
+		"non-security labels work normally": {
+			nsLabels: map[string]string{
+				"kubernetes.io/metadata.name": "ns",
+				"old-label":                   "old-value",
+			},
+			optLabels: map[string]string{
+				"new-label": "new-value",
+			},
+			expectedLabels: map[string]string{
+				"kubernetes.io/metadata.name": "ns",
+				"new-label":                   "new-value",
+			},
+		},
+		"pod-security.kubernetes.io labels with custom suffixes are also filtered": {
+			nsLabels: map[string]string{"kubernetes.io/metadata.name": "ns"},
+			optLabels: map[string]string{
+				"pod-security.kubernetes.io/enforce-version": "v1.25",
+				"pod-security.kubernetes.io/audit-version":   "v1.25",
+				"safe-label": "value",
+			},
+			expectedLabels: map[string]string{
+				"kubernetes.io/metadata.name": "ns",
+				"safe-label":                  "value",
+			},
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			addLabelsFromOptions(logr.Discard(), test.nsLabels, test.optLabels)
+
+			if len(test.nsLabels) != len(test.expectedLabels) {
+				t.Errorf("expected %d labels, got %d: %v", len(test.expectedLabels), len(test.nsLabels), test.nsLabels)
+			}
+			for k, v := range test.expectedLabels {
+				if test.nsLabels[k] != v {
+					t.Errorf("expected label %s=%s, got %s", k, v, test.nsLabels[k])
+				}
+			}
+		})
+	}
+}
+
+func TestSetNamespaceLabelsAndAnnotations_PodSecurityLabelsPreserved(t *testing.T) {
+	bd := &fleet.BundleDeployment{Spec: fleet.BundleDeploymentSpec{
+		Options: fleet.BundleDeploymentOptions{
+			NamespaceLabels: map[string]string{
+				"pod-security.kubernetes.io/enforce": "privileged",
+				"pod-security.kubernetes.io/audit":   "privileged",
+				"pod-security.kubernetes.io/warn":    "privileged",
+				"app-label":                          "value",
+			},
+		},
+	}}
+	ns := corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "namespace",
+			Labels: map[string]string{
+				"kubernetes.io/metadata.name":        "namespace",
+				"pod-security.kubernetes.io/enforce": "restricted",
+				"pod-security.kubernetes.io/audit":   "restricted",
+			},
+		},
+	}
+	release := "namespace/foo/bar"
+
+	scheme := runtime.NewScheme()
+	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+	client := fake.NewClientBuilder().WithScheme(scheme).WithObjects(&ns).Build()
+	h := Deployer{client: client}
+
+	err := h.setNamespaceLabelsAndAnnotations(context.Background(), bd, release)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	result := &corev1.Namespace{}
+	err = client.Get(context.Background(), types.NamespacedName{Name: "namespace"}, result)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if result.Labels["pod-security.kubernetes.io/enforce"] != "restricted" {
+		t.Errorf("pod-security.kubernetes.io/enforce: got %s, want restricted", result.Labels["pod-security.kubernetes.io/enforce"])
+	}
+	if result.Labels["pod-security.kubernetes.io/audit"] != "restricted" {
+		t.Errorf("pod-security.kubernetes.io/audit: got %s, want restricted", result.Labels["pod-security.kubernetes.io/audit"])
+	}
+	if result.Labels["app-label"] != "value" {
+		t.Errorf("app-label: got %s, want value", result.Labels["app-label"])
 	}
 }
 
