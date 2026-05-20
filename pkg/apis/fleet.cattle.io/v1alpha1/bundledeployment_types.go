@@ -234,7 +234,9 @@ type HelmOptions struct {
 	// Version of the chart to download
 	Version string `json:"version,omitempty"`
 
-	// TimeoutSeconds is the time to wait for Helm operations.
+	// TimeoutSeconds is the number of seconds Fleet passes to Helm operations.
+	// Omitted or zero values disable Helm status waiting; positive values enable
+	// Helm status waiting up to the configured timeout.
 	TimeoutSeconds int `json:"timeoutSeconds,omitempty"`
 
 	// Values passed to Helm. It is possible to specify the keys and values

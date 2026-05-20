@@ -505,8 +505,10 @@ spec:
                           nullable: true
                           type: object
                         timeoutSeconds:
-                          description: TimeoutSeconds is the time to wait for Helm
-                            operations.
+                          description: TimeoutSeconds is the number of seconds Fleet
+                            passes to Helm operations. Omitted or zero values disable
+                            Helm status waiting; positive values enable Helm status
+                            waiting up to the configured timeout.
                           type: integer
                         values:
                           description: 'Values passed to Helm. It is possible to specify
@@ -971,8 +973,10 @@ spec:
                           nullable: true
                           type: object
                         timeoutSeconds:
-                          description: TimeoutSeconds is the time to wait for Helm
-                            operations.
+                          description: TimeoutSeconds is the number of seconds Fleet
+                            passes to Helm operations. Omitted or zero values disable
+                            Helm status waiting; positive values enable Helm status
+                            waiting up to the configured timeout.
                           type: integer
                         values:
                           description: 'Values passed to Helm. It is possible to specify
@@ -2010,7 +2014,10 @@ spec:
                       nullable: true
                       type: object
                     timeoutSeconds:
-                      description: TimeoutSeconds is the time to wait for Helm operations.
+                      description: TimeoutSeconds is the number of seconds Fleet
+                        passes to Helm operations. Omitted or zero values disable
+                        Helm status waiting; positive values enable Helm status waiting
+                        up to the configured timeout.
                       type: integer
                     values:
                       description: 'Values passed to Helm. It is possible to specify
@@ -3036,8 +3043,10 @@ spec:
                             nullable: true
                             type: object
                           timeoutSeconds:
-                            description: TimeoutSeconds is the time to wait for Helm
-                              operations.
+                            description: TimeoutSeconds is the number of seconds Fleet
+                              passes to Helm operations. Omitted or zero values disable
+                              Helm status waiting; positive values enable Helm status
+                              waiting up to the configured timeout.
                             type: integer
                           values:
                             description: 'Values passed to Helm. It is possible to
@@ -8233,7 +8242,10 @@ spec:
                       nullable: true
                       type: object
                     timeoutSeconds:
-                      description: TimeoutSeconds is the time to wait for Helm operations.
+                      description: TimeoutSeconds is the number of seconds Fleet
+                        passes to Helm operations. Omitted or zero values disable
+                        Helm status waiting; positive values enable Helm status waiting
+                        up to the configured timeout.
                       type: integer
                     values:
                       description: 'Values passed to Helm. It is possible to specify
@@ -9283,8 +9295,10 @@ spec:
                             nullable: true
                             type: object
                           timeoutSeconds:
-                            description: TimeoutSeconds is the time to wait for Helm
-                              operations.
+                            description: TimeoutSeconds is the number of seconds Fleet
+                              passes to Helm operations. Omitted or zero values disable
+                              Helm status waiting; positive values enable Helm status
+                              waiting up to the configured timeout.
                             type: integer
                           values:
                             description: 'Values passed to Helm. It is possible to
