@@ -21,6 +21,7 @@ const (
 	OCISecretBasicHTTP       = "basicHTTP"
 	OCISecretInsecureSkipTLS = "insecureSkipTLS"
 	OCISecretInsecure        = "insecure" // legacy alias
+	OCISecretCABundle        = "cacerts"
 )
 
 // ReadOptsFromSecret reads the secret identified by the given NamespacedName and
@@ -83,6 +84,9 @@ func ReadOptsFromSecret(ctx context.Context, c client.Reader, ns client.ObjectKe
 	if err != nil {
 		return OCIOpts{}, err
 	}
+
+	// Read optional CA bundle
+	opts.CABundle = secret.Data[OCISecretCABundle]
 
 	return opts, nil
 }
