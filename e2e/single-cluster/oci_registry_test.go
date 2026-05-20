@@ -54,7 +54,6 @@ func createOCIRegistrySecret(
 			Namespace: namespace,
 		},
 		Data: map[string][]byte{
-			ocistorage.OCISecretCABundle:        []byte(""),
 			ocistorage.OCISecretReference:       []byte(reference),
 			ocistorage.OCISecretUsername:        []byte(username),
 			ocistorage.OCISecretPassword:        []byte(password),
