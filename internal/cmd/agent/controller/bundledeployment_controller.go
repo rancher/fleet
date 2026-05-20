@@ -52,6 +52,13 @@ type BundleDeploymentReconciler struct {
 	DriftDetect *driftdetect.DriftDetect
 	Cleanup     *cleanup.Cleanup
 
+	// DriftChan is shared with the DriftReconciler. Sending a BundleDeployment
+	// here wakes up the drift controller so it can run drift correction. It is
+	// used to handle the case where CorrectDrift is enabled after the drift has
+	// already been detected — no further resource watch event would otherwise
+	// fire to trigger correction.
+	DriftChan chan event.TypedGenericEvent[*fleetv1.BundleDeployment]
+
 	DefaultNamespace string
 
 	// AgentInfo is the labelSuffix used by the helm deployer
@@ -288,6 +295,18 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	if err := r.DriftDetect.Refresh(ctx, req.String(), bd, resources); err != nil {
 		logger.V(1).Info("Failed to refresh drift detection", "step", "drift", "error", err)
 		merr = append(merr, fmt.Errorf("failed refreshing drift detection: %w", err))
+	}
+
+	// If drift correction was just enabled (or any spec change occurred while
+	// drift is already present), the resource watcher won't re-emit for
+	// already-drifted resources, so wake up the DriftReconciler ourselves.
+	// Non-blocking: if no receiver is ready, a subsequent reconcile or
+	// resource event will deliver the signal.
+	if bd.Spec.CorrectDrift != nil && bd.Spec.CorrectDrift.Enabled && len(bd.Status.ModifiedStatus) > 0 && r.DriftChan != nil {
+		select {
+		case r.DriftChan <- event.TypedGenericEvent[*fleetv1.BundleDeployment]{Object: bd}:
+		default:
+		}
 	}
 
 	// Check if this bundle deployment has overlapping resources with a previously deleted bundle (Overwrites

@@ -17,6 +17,9 @@ func DeploymentID(manifestID string, opts fleet.BundleDeploymentOptions) (string
 	sanitized := *opts.DeepCopy()
 	// Diff-only changes should not trigger a new DeploymentID; they only affect drift detection.
 	sanitized.Diff = nil
+	// CorrectDrift governs how drift is reconciled, not what is deployed and it
+	// should not trigger a new DeploymentID.
+	sanitized.CorrectDrift = nil
 	if err := json.NewEncoder(h).Encode(&sanitized); err != nil {
 		return "", err
 	}
