@@ -254,10 +254,13 @@ var _ = Describe("HelmURLRegex migration", func() {
 		Expect(getGitRepo("run-twice").Spec.HelmRepoURLRegex).To(Equal(`^https://charts\.example\.com/`))
 
 		// Manually reset to simulate a hypothetical re-entry attempt.
-		gr := getGitRepo("run-twice")
-		gr.Spec.HelmRepoURLRegex = ""
-		Expect(k8sClient.Update(ctx, gr)).To(Succeed())
-
+		// Retry on conflict: the controller may concurrently update
+		// the GitRepo (e.g. status), bumping its resource version.
+		Eventually(func() error {
+			gr := getGitRepo("run-twice")
+			gr.Spec.HelmRepoURLRegex = ""
+			return k8sClient.Update(ctx, gr)
+		}).Should(Succeed())
 		// Second run: marker present, migration skipped.
 		Expect(runHelmURLRegexMigration()).To(Succeed())
 		Expect(getGitRepo("run-twice").Spec.HelmRepoURLRegex).To(BeEmpty())
