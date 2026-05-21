@@ -452,17 +452,16 @@ func normalizeNullPatch(
 	return false, nil
 }
 
-// removeNullPatchFields recursively removes null values from patch data structures.
-// It handles both maps (objects) and slices (arrays), preserving non-null values.
+// removeNullPatchFields recursively removes null values from patch objects.
 //
 // Map behavior:
 //   - Skips entries with nil values
 //   - Skips entries that become empty maps after cleaning
 //
 // Slice behavior:
-//   - Skips nil elements
-//   - Skips elements that become empty maps after cleaning
-//   - Preserves non-map elements (strings, numbers, etc.)
+//   - Preserves arrays as-is. JSON merge patches replace arrays atomically, so
+//     changing nulls inside an array changes the replacement value and can hide
+//     real drift in keyed lists such as container specs.
 func removeNullPatchFields(value any) any {
 	switch v := value.(type) {
 	case map[string]any:
@@ -486,24 +485,7 @@ func removeNullPatchFields(value any) any {
 		return result
 
 	case []any:
-		result := make([]any, 0, len(v))
-		for i := range v {
-			// Skip null elements in arrays
-			if v[i] == nil {
-				continue
-			}
-
-			// Recursively clean nested structures
-			cleaned := removeNullPatchFields(v[i])
-
-			// Skip maps that became empty after cleaning
-			if cleanedMap, ok := cleaned.(map[string]any); ok && len(cleanedMap) == 0 {
-				continue
-			}
-
-			result = append(result, cleaned)
-		}
-		return result
+		return v
 
 	default:
 		// Leaf values (strings, numbers, bools) pass through unchanged

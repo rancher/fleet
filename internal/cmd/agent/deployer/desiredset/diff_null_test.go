@@ -39,9 +39,14 @@ func Test_Diff_NullPatch(t *testing.T) {
 			expectPatch: `{"spec":{"template":{"spec":{"containers":[{"name":"c1","image":"nginx"}]}}}}`,
 		},
 		{
-			name:        "removes_null_elements_from_arrays",
+			name:        "preserves_null_elements_inside_arrays",
 			patch:       `{"spec":{"tolerations":[{"key":"a","operator":null},null,{"key":"b"}]}}`,
-			expectPatch: `{"spec":{"tolerations":[{"key":"a"},{"key":"b"}]}}`,
+			expectPatch: `{"spec":{"tolerations":[{"key":"a","operator":null},null,{"key":"b"}]}}`,
+		},
+		{
+			name:        "preserves_null_fields_inside_arrays",
+			patch:       `{"spec":{"template":{"spec":{"containers":[{"name":"nginx","image":"nginx:stable-alpine","imagePullPolicy":null}]}}}}`,
+			expectPatch: `{"spec":{"template":{"spec":{"containers":[{"name":"nginx","image":"nginx:stable-alpine","imagePullPolicy":null}]}}}}`,
 		},
 		{
 			name:        "removes_multiple_nulls_across_tree",
@@ -91,6 +96,7 @@ func Test_Diff_NullPatch(t *testing.T) {
 
 // Test_Diff_RemoveNullPatchFields validates the recursive null removal logic
 // with a complex nested structure containing maps, arrays, and null values.
+// Arrays are preserved because JSON merge patches replace arrays atomically.
 func Test_Diff_RemoveNullPatchFields(t *testing.T) {
 	input := map[string]any{
 		"spec": map[string]any{
@@ -113,7 +119,8 @@ func Test_Diff_RemoveNullPatchFields(t *testing.T) {
 	expected := map[string]any{
 		"spec": map[string]any{
 			"list": []any{
-				map[string]any{"name": "a"},
+				map[string]any{"name": "a", "value": nil},
+				nil,
 				"text",
 			},
 		},
