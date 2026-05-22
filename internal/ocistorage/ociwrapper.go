@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,13 +16,16 @@ import (
 
 	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/rancher/fleet/internal/manifest"
+	"github.com/sirupsen/logrus"
 	"oras.land/oras-go/v2"
 	"oras.land/oras-go/v2/content"
 	"oras.land/oras-go/v2/content/memory"
 	"oras.land/oras-go/v2/registry/remote"
 	"oras.land/oras-go/v2/registry/remote/auth"
 	"oras.land/oras-go/v2/registry/remote/retry"
+
+	"github.com/rancher/fleet/internal/manifest"
+	fleetgit "github.com/rancher/fleet/pkg/git"
 )
 
 const (
@@ -39,6 +43,7 @@ type OCIOpts struct {
 	AgentPassword   string
 	BasicHTTP       bool
 	InsecureSkipTLS bool
+	CABundle        []byte
 }
 
 type OrasOps interface {
@@ -71,20 +76,61 @@ func NewOCIWrapper() *OCIWrapper {
 	}
 }
 
-func getHTTPClient(insecureSkipTLS bool) *http.Client {
-	if !insecureSkipTLS {
+func getHTTPClient(insecureSkipTLS bool, caBundle []byte) *http.Client {
+	// Defensive copy to avoid mutations
+	caBundle = append([]byte(nil), caBundle...)
+
+	// Merge proxy CA bundle if present
+	if proxyCAPEM, ok := os.LookupEnv(fleetgit.ProxyCABundleEnvVar); ok && proxyCAPEM != "" {
+		proxyBytes := []byte(proxyCAPEM)
+		tmpPool := x509.NewCertPool()
+		if !tmpPool.AppendCertsFromPEM(proxyBytes) {
+			logrus.Warnf("%s is set but contains no valid PEM certificates; ignoring proxy CA bundle", fleetgit.ProxyCABundleEnvVar)
+		} else {
+			if len(caBundle) > 0 && caBundle[len(caBundle)-1] != '\n' {
+				caBundle = append(caBundle, '\n')
+			}
+			caBundle = append(caBundle, proxyBytes...)
+		}
+	}
+
+	// If no custom TLS config needed, use default ORAS client
+	if !insecureSkipTLS && len(caBundle) == 0 {
 		return retry.DefaultClient
 	}
-	return &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, // #nosec G402
-		},
+
+	// Clone the default transport to preserve proxy, timeout, and
+	// connection-pooling settings.
+	baseTransport, ok := http.DefaultTransport.(*http.Transport)
+	if !ok {
+		baseTransport = &http.Transport{
+			Proxy: http.ProxyFromEnvironment,
+		}
 	}
+	transport := baseTransport.Clone()
+	transport.TLSClientConfig = &tls.Config{
+		InsecureSkipVerify: insecureSkipTLS, // #nosec G402
+	}
+
+	// Merge custom CA bundle with system cert pool
+	if len(caBundle) > 0 {
+		pool, err := x509.SystemCertPool()
+		if err != nil {
+			pool = x509.NewCertPool()
+		}
+		if !pool.AppendCertsFromPEM(caBundle) {
+			logrus.Warnf("CA bundle contains no valid PEM certificates; proceeding with system cert pool only")
+		}
+		transport.TLSClientConfig.RootCAs = pool
+		transport.TLSClientConfig.MinVersion = tls.VersionTLS12
+	}
+
+	return &http.Client{Transport: retry.NewTransport(transport)}
 }
 
 func getAuthClient(opts OCIOpts) *auth.Client {
 	client := &auth.Client{
-		Client: getHTTPClient(opts.InsecureSkipTLS),
+		Client: getHTTPClient(opts.InsecureSkipTLS, opts.CABundle),
 		Cache:  auth.NewCache(),
 	}
 	if opts.Username != "" {

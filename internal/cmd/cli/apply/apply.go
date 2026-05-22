@@ -575,6 +575,7 @@ func shouldStoreInOCIRegistry(ctx context.Context, c client.Reader, ociSecretKey
 	ociOpts.AgentPassword = opts.AgentPassword
 	ociOpts.BasicHTTP = opts.BasicHTTP
 	ociOpts.InsecureSkipTLS = opts.InsecureSkipTLS
+	ociOpts.CABundle = opts.CABundle
 
 	return true, nil
 }
@@ -756,17 +757,25 @@ func newOCISecret(manifestID string, bundle *fleet.Bundle, opts ocistorage.OCIOp
 				},
 			},
 		},
-		Data: map[string][]byte{
-			ocistorage.OCISecretReference:       []byte(opts.Reference),
-			ocistorage.OCISecretUsername:        []byte(opts.Username),
-			ocistorage.OCISecretPassword:        []byte(opts.Password),
-			ocistorage.OCISecretAgentUsername:   []byte(opts.AgentUsername),
-			ocistorage.OCISecretAgentPassword:   []byte(opts.AgentPassword),
-			ocistorage.OCISecretBasicHTTP:       []byte(strconv.FormatBool(opts.BasicHTTP)),
-			ocistorage.OCISecretInsecureSkipTLS: []byte(strconv.FormatBool(opts.InsecureSkipTLS)),
-		},
+		Data: newOCISecretData(opts),
 		Type: fleet.SecretTypeOCIStorage,
 	}
+}
+
+func newOCISecretData(opts ocistorage.OCIOpts) map[string][]byte {
+	data := map[string][]byte{
+		ocistorage.OCISecretReference:       []byte(opts.Reference),
+		ocistorage.OCISecretUsername:        []byte(opts.Username),
+		ocistorage.OCISecretPassword:        []byte(opts.Password),
+		ocistorage.OCISecretAgentUsername:   []byte(opts.AgentUsername),
+		ocistorage.OCISecretAgentPassword:   []byte(opts.AgentPassword),
+		ocistorage.OCISecretBasicHTTP:       []byte(strconv.FormatBool(opts.BasicHTTP)),
+		ocistorage.OCISecretInsecureSkipTLS: []byte(strconv.FormatBool(opts.InsecureSkipTLS)),
+	}
+	if len(opts.CABundle) > 0 {
+		data[ocistorage.OCISecretCABundle] = opts.CABundle
+	}
+	return data
 }
 
 func newValuesSecret(bundle *fleet.Bundle, data map[string][]byte) *corev1.Secret {
