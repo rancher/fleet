@@ -350,6 +350,7 @@ func (h *handler) newAgentBundle(ns string, cluster *fleet.Cluster) (runtime.Obj
 			// keep in sync with agent/agent.go
 			AgentImage:              cfg.AgentImage,
 			AgentImagePullPolicy:    cfg.AgentImagePullPolicy,
+			ImagePullSecrets:        cfg.ImagePullSecrets,
 			CheckinInterval:         cfg.AgentCheckinInterval.Duration.String(),
 			SystemDefaultRegistry:   cfg.SystemDefaultRegistry,
 			BundleDeploymentWorkers: cfg.AgentWorkers.BundleDeployment,
@@ -364,6 +365,16 @@ func (h *handler) newAgentBundle(ns string, cluster *fleet.Cluster) (runtime.Obj
 		return nil, err
 	}
 
+	imagePullSecrets := make([]fleet.DownstreamResource, len(cfg.ImagePullSecrets))
+	for i, ips := range cfg.ImagePullSecrets {
+		// Gets can be skipped at manifest build time, will be handled by the bundle controller anyway.
+
+		imagePullSecrets[i] = fleet.DownstreamResource{
+			Kind: "secret",
+			Name: ips.Name,
+		}
+	}
+
 	return &fleet.Bundle{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      names.SafeConcatName(AgentBundleName, cluster.Name),
@@ -375,6 +386,9 @@ func (h *handler) newAgentBundle(ns string, cluster *fleet.Cluster) (runtime.Obj
 				Helm: &fleet.HelmOptions{
 					TakeOwnership: true,
 				},
+				// XXX: this may only be useful when updating an existing agent's image pull secrets (as an agent
+				// deployment would then already be running)
+				//DownstreamResources: imagePullSecrets,
 			},
 			Resources: []fleet.BundleResource{
 				{

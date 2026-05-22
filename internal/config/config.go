@@ -156,6 +156,10 @@ type Config struct {
 
 	// AgentWorkers specifies the maximum number of workers for each agent reconciler.
 	AgentWorkers AgentWorkers `json:"agentWorkers,omitzero"`
+
+	// ImagePullSecrets references secrets located in the same namespace as the Fleet controller deployment, to be
+	// propagated to downstream clusters and used as image pull secrets for Fleet agent images.
+	ImagePullSecrets []v1.LocalObjectReference `json:"imagePullSecrets,omitempty"`
 }
 
 type AgentWorkers struct {

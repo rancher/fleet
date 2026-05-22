@@ -46,6 +46,7 @@ type ManifestOptions struct {
 	DriftWorkers            string
 	cmd.LeaderElectionOptions
 	PriorityClassName string
+	ImagePullSecrets  []corev1.LocalObjectReference
 }
 
 // Manifest builds and returns a deployment manifest for the fleet-agent with a
@@ -167,6 +168,7 @@ func agentApp(namespace string, agentScope string, opts ManifestOptions) *appsv1
 					},
 				},
 				Spec: corev1.PodSpec{
+					ImagePullSecrets:   opts.ImagePullSecrets,
 					PriorityClassName:  opts.PriorityClassName,
 					ServiceAccountName: serviceAccount,
 					Containers: []corev1.Container{
