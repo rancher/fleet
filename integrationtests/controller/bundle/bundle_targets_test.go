@@ -588,6 +588,70 @@ var _ = Describe("Bundle targets", Ordered, func() {
 			}
 		})
 	})
+
+	// Regression test: when doNotDeploy is set after deployment and the existing
+	// BundleDeployment has OffSchedule=true (cluster is in a maintenance window),
+	// cleanupOrphanedBundleDeployments must still delete the BD. Previously the
+	// OffSchedule guard in that function prevented deletion, leaving the app installed.
+	When("setting doNotDeploy after deployment when the existing BundleDeployment is off-schedule", func() {
+		BeforeEach(func() {
+			bundleName = "do-not-deploy-offschedule"
+			bdLabels = map[string]string{
+				"fleet.cattle.io/bundle-name":      bundleName,
+				"fleet.cattle.io/bundle-namespace": namespace,
+			}
+			expectedNumberOfBundleDeployments = 3
+			targets = []v1alpha1.BundleTarget{
+				{
+					ClusterGroup: "one",
+				},
+				{
+					ClusterGroup: "two",
+				},
+			}
+			targetsInGitRepo := []v1alpha1.BundleTarget{
+				{
+					ClusterGroup: "all",
+				},
+			}
+			targetRestrictions = make([]v1alpha1.BundleTarget, len(targetsInGitRepo))
+			copy(targetRestrictions, targetsInGitRepo)
+			targets = append(targets, targetsInGitRepo...)
+		})
+
+		It("removes the BundleDeployment for cluster two even when it is marked off-schedule", func() {
+			_ = verifyBundlesDeploymentsAreCreated(expectedNumberOfBundleDeployments, bdLabels, bundleName)
+
+			By("marking the BundleDeployment for cluster two as off-schedule")
+			bdList := &v1alpha1.BundleDeploymentList{}
+			err := k8sClient.List(ctx, bdList, client.MatchingLabels(bdLabels))
+			Expect(err).ToNot(HaveOccurred())
+			for _, bd := range bdList.Items {
+				if strings.Contains(bd.Namespace, "cluster-two") {
+					patch := client.MergeFrom(bd.DeepCopy())
+					bd.Spec.OffSchedule = true
+					Expect(k8sClient.Patch(ctx, &bd, patch)).ToNot(HaveOccurred())
+				}
+			}
+
+			By("setting doNotDeploy for cluster two")
+			clusterBundle := &v1alpha1.Bundle{}
+			err = k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: bundleName}, clusterBundle)
+			Expect(err).ToNot(HaveOccurred())
+			for i, t := range clusterBundle.Spec.Targets {
+				if t.ClusterGroup == "two" {
+					clusterBundle.Spec.Targets[i].DoNotDeploy = true
+				}
+			}
+			Expect(k8sClient.Update(ctx, clusterBundle)).ToNot(HaveOccurred())
+
+			By("checking that the off-schedule BundleDeployment for cluster two is deleted")
+			bdList = verifyBundlesDeploymentsAreCreated(2, bdLabels, bundleName)
+			for _, bd := range bdList.Items {
+				Expect(bd.Namespace).ToNot(ContainSubstring("cluster-two"))
+			}
+		})
+	})
 })
 
 func verifyBundlesDeploymentsAreCreated(numBundleDeployments int, bdLabels map[string]string, bundleName string) *v1alpha1.BundleDeploymentList {
