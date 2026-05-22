@@ -414,24 +414,19 @@ func setupMissingCommitReconciler(
 			return apierrors.NewNotFound(schema.GroupResource{Resource: "jobs"}, req.Name)
 		})
 
-	// Secret Gets: both return NotFound
-	// - hasReferencedSecretChanged → (false, nil) because no annotation
-	// - validateExternalSecretExist → returns error
+	// Secret Get: validateExternalSecretExist → returns error
 	mockClient.EXPECT().
 		Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{}), gomock.Any()).
-		Times(2).
+		Times(1).
 		DoAndReturn(func(ctx context.Context, req types.NamespacedName, secret *corev1.Secret, opts ...any) error {
 			return apierrors.NewNotFound(schema.GroupResource{Resource: "secrets"}, req.Name)
 		})
 
 	recorderMock := mocks.NewMockEventRecorder(mockCtrl)
-	recorderMock.EXPECT().Eventf(
+	recorderMock.EXPECT().Event(
 		&gitRepoMatcher{gitRepo},
-		nil,
-		corev1.EventTypeWarning,
+		fleetevent.Warning,
 		"FailedValidatingSecret",
-		"ValidateSecret",
-		"%v",
 		gomock.Any(),
 	).Times(1)
 
