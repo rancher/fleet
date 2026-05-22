@@ -25,7 +25,6 @@ import (
 	"oras.land/oras-go/v2/registry/remote/retry"
 
 	"github.com/rancher/fleet/internal/manifest"
-	fleetgit "github.com/rancher/fleet/pkg/git"
 )
 
 const (
@@ -81,11 +80,11 @@ func getHTTPClient(insecureSkipTLS bool, caBundle []byte) *http.Client {
 	caBundle = append([]byte(nil), caBundle...)
 
 	// Merge proxy CA bundle if present
-	if proxyCAPEM, ok := os.LookupEnv(fleetgit.ProxyCABundleEnvVar); ok && proxyCAPEM != "" {
+	if proxyCAPEM, ok := os.LookupEnv("PROXY_CA_BUNDLE"); ok && proxyCAPEM != "" {
 		proxyBytes := []byte(proxyCAPEM)
 		tmpPool := x509.NewCertPool()
 		if !tmpPool.AppendCertsFromPEM(proxyBytes) {
-			logrus.Warnf("%s is set but contains no valid PEM certificates; ignoring proxy CA bundle", fleetgit.ProxyCABundleEnvVar)
+			logrus.Warnf("%s is set but contains no valid PEM certificates; ignoring proxy CA bundle", "PROXY_CA_BUNDLE")
 		} else {
 			if len(caBundle) > 0 && caBundle[len(caBundle)-1] != '\n' {
 				caBundle = append(caBundle, '\n')
