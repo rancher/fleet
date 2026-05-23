@@ -452,7 +452,7 @@ func normalizeNullPatch(
 	return false, nil
 }
 
-// removeNullPatchFields recursively removes null values from patch objects.
+// removeNullPatchFields removes null map/object fields from patch objects.
 //
 // Map behavior:
 //   - Skips entries with nil values
