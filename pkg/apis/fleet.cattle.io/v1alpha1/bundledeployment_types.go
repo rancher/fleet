@@ -235,8 +235,9 @@ type HelmOptions struct {
 	Version string `json:"version,omitempty"`
 
 	// TimeoutSeconds is the number of seconds Fleet passes to Helm operations.
-	// Omitted or zero values disable Helm status waiting; positive values enable
-	// Helm status waiting up to the configured timeout.
+	// Omitted or zero values use hook-only waiting. Positive values enable Helm
+	// status waiting during install and upgrade operations up to the configured
+	// timeout; uninstall and rollback operations keep hook-only waiting.
 	TimeoutSeconds int `json:"timeoutSeconds,omitempty"`
 
 	// Values passed to Helm. It is possible to specify the keys and values
