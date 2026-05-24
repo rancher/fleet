@@ -483,12 +483,10 @@ func addEventsToArchive(
 }
 
 func addMetricsToArchive(ctx context.Context, c client.Client, logger logr.Logger, cfg *rest.Config, w *tar.Writer, opt Options) error {
-	ns := config.DefaultNamespace // XXX: support installation in non-default namespace, and check for services across all namespaces, by label?
-
 	var monitoringSvcs []corev1.Service
 	var svcs corev1.ServiceList
 	for {
-		opts := []client.ListOption{client.InNamespace(ns), client.Limit(opt.FetchLimit), client.Continue(svcs.Continue)}
+		opts := []client.ListOption{client.Limit(opt.FetchLimit), client.Continue(svcs.Continue)}
 
 		if err := c.List(ctx, &svcs, opts...); err != nil {
 			return fmt.Errorf("failed to list services for extracting metrics: %w", err)
@@ -508,7 +506,7 @@ func addMetricsToArchive(ctx context.Context, c client.Client, logger logr.Logge
 	}
 
 	if len(monitoringSvcs) == 0 {
-		logger.Info("No monitoring services found; Fleet has probably been installed with metrics disabled.", "namespace", ns)
+		logger.Info("No monitoring services found; Fleet has probably been installed with metrics disabled.")
 
 		return nil
 	}
@@ -553,7 +551,8 @@ func addMetricsToArchive(ctx context.Context, c client.Client, logger logr.Logge
 
 		logger.Info("Extracted metrics", "service", svc.Name)
 
-		if err := addFileToArchive(body, "metrics_"+svc.Name, w); err != nil {
+		fileName := fmt.Sprintf("metrics_%s_%s", svc.Namespace, svc.Name)
+		if err := addFileToArchive(body, fileName, w); err != nil {
 			return fmt.Errorf("failed to write metrics to archive from service %s: %w", svc.Name, err)
 		}
 	}
