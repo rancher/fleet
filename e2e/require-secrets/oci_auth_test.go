@@ -12,7 +12,7 @@ import (
 )
 
 // These tests use the examples from https://github.com/rancher/fleet-examples/tree/master/single-cluster
-var _ = Describe("Single Cluster Examples", func() {
+var _ = Describe("Single Cluster Examples", Ordered, func() {
 	var (
 		asset    string
 		repoPath string
@@ -20,8 +20,22 @@ var _ = Describe("Single Cluster Examples", func() {
 		k        kubectl.Command
 	)
 
-	BeforeEach(func() {
+	BeforeAll(func() {
 		k = env.Kubectl.Namespace(env.Namespace)
+		out, err := k.Create(
+			"secret", "generic", "helm-oci-secret",
+			"--from-literal=username="+os.Getenv("CI_OCI_USERNAME"),
+			"--from-literal=password="+os.Getenv("CI_OCI_PASSWORD"),
+		)
+		Expect(err).ToNot(HaveOccurred(), out)
+	})
+
+	AfterAll(func() {
+		out, err := k.Delete("secret", "helm-oci-secret")
+		Expect(err).ToNot(HaveOccurred(), out)
+	})
+
+	BeforeEach(func() {
 		tmpdir, _ = os.MkdirTemp("", "fleet-")
 	})
 
@@ -29,13 +43,15 @@ var _ = Describe("Single Cluster Examples", func() {
 		gitrepo := path.Join(tmpdir, "gitrepo.yaml")
 
 		err := testenv.Template(gitrepo, testenv.AssetPath(asset), struct {
-			Repo       string
-			Path       string
-			SecretName string
+			Repo             string
+			Path             string
+			SecretName       string
+			HelmRepoURLRegex string
 		}{
 			"https://github.com/rancher/fleet-test-data",
 			repoPath,
 			"helm-oci-secret",
+			"oci://.*",
 		})
 		Expect(err).ToNot(HaveOccurred())
 
@@ -55,19 +71,6 @@ var _ = Describe("Single Cluster Examples", func() {
 				asset = "single-cluster/helm-with-auth.yaml"
 				repoPath = "helm-oci-with-auth"
 				k = env.Kubectl.Namespace(env.Namespace)
-
-				out, err := k.Create(
-					"secret", "generic", "helm-oci-secret",
-					"--from-literal=username="+os.Getenv("CI_OCI_USERNAME"),
-					"--from-literal=password="+os.Getenv("CI_OCI_PASSWORD"),
-				)
-				Expect(err).ToNot(HaveOccurred(), out)
-			})
-
-			AfterEach(func() {
-				k = env.Kubectl.Namespace(env.Namespace)
-				out, err := k.Delete("secret", "helm-oci-secret")
-				Expect(err).ToNot(HaveOccurred(), out)
 			})
 
 			It("deploys the helm chart", func() {
@@ -83,19 +86,6 @@ var _ = Describe("Single Cluster Examples", func() {
 				asset = "single-cluster/helm-with-auth.yaml"
 				repoPath = "helm-oci-with-auth-chart"
 				k = env.Kubectl.Namespace(env.Namespace)
-
-				out, err := k.Create(
-					"secret", "generic", "helm-oci-secret",
-					"--from-literal=username="+os.Getenv("CI_OCI_USERNAME"),
-					"--from-literal=password="+os.Getenv("CI_OCI_PASSWORD"),
-				)
-				Expect(err).ToNot(HaveOccurred(), out)
-			})
-
-			AfterEach(func() {
-				k = env.Kubectl.Namespace(env.Namespace)
-				out, err := k.Delete("secret", "helm-oci-secret")
-				Expect(err).ToNot(HaveOccurred(), out)
 			})
 
 			It("deploys the helm chart", func() {
