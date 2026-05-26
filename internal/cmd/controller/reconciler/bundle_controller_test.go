@@ -1479,9 +1479,9 @@ func TestReconcile_DownstreamResourcesGeneration_Increment(t *testing.T) {
 			mockClient.EXPECT().Delete(gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{}), gomock.Any()).
 				Return(&k8serrors.StatusError{ErrStatus: metav1.Status{Code: http.StatusNotFound}})
 
-			// Target builder returns our test bundle deployment
-			// Simulate what options.Merge would produce: root-level DownstreamResources
-			// end up in the BD's Options after the first reconcile.
+			// Target builder returns our test bundle deployment. Set Options as the
+			// real target builder would after options.Merge: DownstreamResources end
+			// up in bd.Spec.Options. The builder is mocked here, so we set it directly.
 			tc.existingBundleDeployment.Spec.Options.DownstreamResources = tc.downstreamResources
 			matchedTargets := []*target.Target{
 				{

@@ -78,7 +78,7 @@ var _ = Describe("Bundle target DownstreamResources", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(bundle).NotTo(BeNil())
 
-			By("verifying three BundleDeployments are created")
+			By("verifying that a BundleDeployment is created for each matched cluster")
 			bdLabels := map[string]string{
 				"fleet.cattle.io/bundle-name":      bundleName,
 				"fleet.cattle.io/bundle-namespace": namespace,
@@ -199,7 +199,7 @@ var _ = Describe("Bundle target DownstreamResources", Ordered, func() {
 			}
 			Expect(k8sClient.Create(ctx, bundle)).To(Succeed())
 
-			By("verifying three BundleDeployments are created")
+			By("verifying that a BundleDeployment is created for each matched cluster")
 			bdLabels := map[string]string{
 				"fleet.cattle.io/bundle-name":      bundleName,
 				"fleet.cattle.io/bundle-namespace": namespace,
