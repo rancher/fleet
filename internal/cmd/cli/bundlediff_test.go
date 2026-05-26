@@ -63,6 +63,46 @@ func TestMergeComparePatches(t *testing.T) {
 	}
 }
 
+func TestMergeComparePatches_DuplicateNewEntries(t *testing.T) {
+	// Two new entries for the same resource identity must have their operations
+	// unioned, not dropped.
+	newPatches := []fleet.ComparePatch{
+		{
+			APIVersion: "v1",
+			Kind:       "ConfigMap",
+			Name:       "app-config",
+			Namespace:  "default",
+			Operations: []fleet.Operation{{Op: "remove", Path: "/data/a"}},
+		},
+		{
+			APIVersion: "v1",
+			Kind:       "ConfigMap",
+			Name:       "app-config",
+			Namespace:  "default",
+			Operations: []fleet.Operation{{Op: "remove", Path: "/data/b"}},
+		},
+	}
+
+	expected := []fleet.ComparePatch{
+		{
+			APIVersion: "v1",
+			Kind:       "ConfigMap",
+			Name:       "app-config",
+			Namespace:  "default",
+			Operations: []fleet.Operation{
+				{Op: "remove", Path: "/data/a"},
+				{Op: "remove", Path: "/data/b"},
+			},
+		},
+	}
+
+	merged := mergeComparePatches(nil, newPatches)
+
+	if diff := cmp.Diff(expected, merged); diff != "" {
+		t.Errorf("mergeComparePatches() mismatch (-want +got):\n%s", diff)
+	}
+}
+
 func TestConvertMergePatchToRemoveOps(t *testing.T) {
 	tests := []struct {
 		name     string
