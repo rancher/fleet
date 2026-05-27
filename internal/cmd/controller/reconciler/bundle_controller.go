@@ -822,7 +822,7 @@ func (r *BundleReconciler) handleDownstreamObjects(ctx context.Context, bundle *
 	// Track if any resources were created or updated
 	resourcesUpdated := false
 
-	for _, dr := range bundle.Spec.DownstreamResources {
+	for _, dr := range bd.Spec.Options.DownstreamResources {
 		switch strings.ToLower(dr.Kind) {
 		case "secret":
 			result, err := r.cloneSecret(ctx, bundle.Namespace, dr.Name, "", bd)

@@ -296,6 +296,14 @@ func AddBundleDownstreamResourceIndexer(ctx context.Context, mgr manager.Manager
 					resources = append(resources, fmt.Sprintf("%s/%s", lowerKind, dr.Name))
 				}
 			}
+			for _, target := range bundle.Spec.Targets {
+				for _, dr := range target.DownstreamResources {
+					lowerKind := strings.ToLower(dr.Kind)
+					if lowerKind == "secret" || lowerKind == "configmap" {
+						resources = append(resources, fmt.Sprintf("%s/%s", lowerKind, dr.Name))
+					}
+				}
+			}
 			return resources
 		},
 	)
