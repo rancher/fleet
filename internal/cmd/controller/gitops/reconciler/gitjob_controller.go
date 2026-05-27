@@ -207,7 +207,7 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			gitrepo,
 			nil,
 			corev1.EventTypeWarning,
-			"FailedToApplyRestrictions",
+			"PolicyViolation",
 			"ApplyGitRepoRestrictions",
 			"%v",
 			err,

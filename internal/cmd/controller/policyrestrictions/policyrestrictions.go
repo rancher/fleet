@@ -34,6 +34,7 @@ type Merged struct {
 // Policies are processed in name order for determinism.
 // Boolean fields use OR semantics; list fields are unioned; string defaults use first-non-empty.
 func Aggregate(policies []fleet.Policy) Merged {
+	policies = slices.Clone(policies)
 	sort.Slice(policies, func(i, j int) bool {
 		return policies[i].Name < policies[j].Name
 	})

@@ -158,7 +158,7 @@ func TestReconcile_Error_WhenGitrepoRestrictionsAreNotMet(t *testing.T) {
 		&gitRepoMatcher{gitRepo},
 		nil,
 		corev1.EventTypeWarning,
-		"FailedToApplyRestrictions",
+		"PolicyViolation",
 		"ApplyGitRepoRestrictions",
 		"%v",
 		errorMatcher{"empty targetNamespace denied, because allowedTargetNamespaces restriction is present"},

@@ -1237,7 +1237,7 @@ func expectGetWithFinalizer(mockCli *mocks.MockK8sClient, bundle fleetv1.Bundle)
 		},
 	)
 	// AuthorizeBundle lists Policies in the namespace; return empty list so no policy is enforced.
-	mockCli.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.PolicyList{}), gomock.Any()).Return(nil)
+	mockCli.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.PolicyList{}), gomock.Any()).Return(nil).AnyTimes()
 }
 
 func TestReconcile_DownstreamResourcesGeneration_Increment(t *testing.T) {

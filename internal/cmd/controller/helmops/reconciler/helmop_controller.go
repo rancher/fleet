@@ -139,7 +139,7 @@ func (r *HelmOpReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			helmop,
 			nil,
 			corev1.EventTypeWarning,
-			"FailedToApplyRestrictions",
+			"PolicyViolation",
 			"ApplyPolicyRestrictions",
 			"%v",
 			err,
