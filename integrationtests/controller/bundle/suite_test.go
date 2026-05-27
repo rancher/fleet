@@ -128,3 +128,14 @@ func expectedLabelValue(bdLabels map[string]string, key, value string) (*v1alpha
 	}
 	return nil, false
 }
+
+func cleanupBundleDeployments(bundleName, bundleNamespace string) {
+	bdList := &v1alpha1.BundleDeploymentList{}
+	Expect(k8sClient.List(ctx, bdList, client.MatchingLabels{
+		"fleet.cattle.io/bundle-name":      bundleName,
+		"fleet.cattle.io/bundle-namespace": bundleNamespace,
+	})).To(Succeed())
+	for _, bd := range bdList.Items {
+		Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, &bd))).NotTo(HaveOccurred())
+	}
+}

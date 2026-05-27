@@ -820,6 +820,9 @@ func TestReconcile_DownstreamObjectsHandlingError(t *testing.T) {
 							Namespace: "my-bd", // non-empty
 						},
 					},
+					Options: fleetv1.BundleDeploymentOptions{
+						DownstreamResources: c.downstreamResources,
+					},
 					DeploymentID: "foo",
 				},
 			}
@@ -1476,7 +1479,10 @@ func TestReconcile_DownstreamResourcesGeneration_Increment(t *testing.T) {
 			mockClient.EXPECT().Delete(gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{}), gomock.Any()).
 				Return(&k8serrors.StatusError{ErrStatus: metav1.Status{Code: http.StatusNotFound}})
 
-			// Target builder returns our test bundle deployment
+			// Target builder returns our test bundle deployment. Set Options as the
+			// real target builder would after options.Merge: DownstreamResources end
+			// up in bd.Spec.Options. The builder is mocked here, so we set it directly.
+			tc.existingBundleDeployment.Spec.Options.DownstreamResources = tc.downstreamResources
 			matchedTargets := []*target.Target{
 				{
 					Bundle: &bundle,

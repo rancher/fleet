@@ -110,6 +110,9 @@ func Merge(base, custom fleet.BundleDeploymentOptions) fleet.BundleDeploymentOpt
 	if custom.CorrectDrift != nil {
 		result.CorrectDrift = custom.CorrectDrift
 	}
+	if len(custom.DownstreamResources) > 0 {
+		result.DownstreamResources = append(result.DownstreamResources, custom.DownstreamResources...)
+	}
 
 	return result
 }
