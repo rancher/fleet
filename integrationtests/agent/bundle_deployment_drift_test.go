@@ -105,6 +105,59 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 		})
 	})
 
+	When("Drift correction is enabled after drift has been detected", func() {
+		BeforeAll(func() {
+			namespace = createNamespace()
+			deplID = "v1"
+			correctDrift = v1alpha1.CorrectDrift{Enabled: false}
+			env = &specEnv{namespace: namespace}
+
+			name = "drift-enabled-after-detected-test"
+			createBundleDeployment(name)
+			Eventually(env.isBundleDeploymentReadyAndNotModified).WithArguments(name).Should(BeTrue())
+
+			DeferCleanup(func() {
+				Expect(k8sClient.Delete(context.TODO(), &v1alpha1.BundleDeployment{
+					ObjectMeta: metav1.ObjectMeta{Namespace: clusterNS, Name: name},
+				})).ToNot(HaveOccurred())
+			})
+		})
+
+		Context("Enabling drift correction after a service was modified", func() {
+			It("Corrects the previously detected drift", func() {
+				By("Receiving a modification on a service")
+				svc, err := env.getService("svc-ext")
+				Expect(err).NotTo(HaveOccurred())
+				patchedSvc := svc.DeepCopy()
+				patchedSvc.Spec.ExternalName = "modified"
+				Expect(k8sClient.Patch(ctx, patchedSvc, client.StrategicMergeFrom(&svc))).NotTo(HaveOccurred())
+
+				By("Waiting for the bundle deployment to detect the drift")
+				Eventually(func(g Gomega) {
+					bd := &v1alpha1.BundleDeployment{}
+					err := k8sClient.Get(ctx, types.NamespacedName{Namespace: clusterNS, Name: name}, bd)
+					g.Expect(err).NotTo(HaveOccurred())
+					g.Expect(bd.Status.ModifiedStatus).NotTo(BeEmpty())
+				}).Should(Succeed())
+
+				By("Enabling drift correction on the bundle deployment")
+				bd := &v1alpha1.BundleDeployment{}
+				Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: clusterNS, Name: name}, bd)).NotTo(HaveOccurred())
+				patchedBD := bd.DeepCopy()
+				patchedBD.Spec.CorrectDrift = &v1alpha1.CorrectDrift{Enabled: true}
+				patchedBD.Spec.Options.CorrectDrift = &v1alpha1.CorrectDrift{Enabled: true}
+				Expect(k8sClient.Patch(ctx, patchedBD, client.MergeFrom(bd))).NotTo(HaveOccurred())
+
+				By("Restoring the service resource to its previous state")
+				Eventually(func(g Gomega) {
+					svc, err := env.getService("svc-ext")
+					g.Expect(err).NotTo(HaveOccurred())
+					g.Expect(svc.Spec.ExternalName).Should(Equal("svc-ext"))
+				}).Should(Succeed())
+			})
+		})
+	})
+
 	When("Drift correction is enabled without force", func() {
 		JustBeforeEach(func() {
 			correctDrift = v1alpha1.CorrectDrift{Enabled: true}
