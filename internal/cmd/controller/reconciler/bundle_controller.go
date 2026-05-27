@@ -641,6 +641,10 @@ func (r *BundleReconciler) repairHashMismatch(ctx context.Context, bundle *fleet
 		// Clear ValuesHash so the next reconcile re-syncs the secret via manageOptionsSecret.
 		patch := client.MergeFrom(bd.DeepCopy())
 		bd.Spec.ValuesHash = ""
+		// also set WaitingForValues to true to prevent the bundle deployment
+		// from being deployed with an inconsistent secret while waiting for
+		// the next reconcile to fix the issue.
+		bd.Spec.WaitingForValues = true
 		if err := r.Patch(ctx, bd, patch); err != nil {
 			return fmt.Errorf("failed to clear ValuesHash on bundledeployment %s/%s: %w", bd.Namespace, bd.Name, err)
 		}
