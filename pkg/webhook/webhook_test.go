@@ -967,7 +967,7 @@ func TestGitHubWildcardURLDoesNotMatchUnintendedRepo(t *testing.T) {
 			if err != nil {
 				t.Fatalf("failed to create request: %v", err)
 			}
-			req.Header.Set("X-GitHub-Event", "push")
+			req.Header.Set("X-Github-Event", "push")
 
 			rr := httptest.NewRecorder()
 			w.ServeHTTP(rr, req)
@@ -975,6 +975,12 @@ func TestGitHubWildcardURLDoesNotMatchUnintendedRepo(t *testing.T) {
 			updated := &v1alpha1.GitRepo{}
 			if err := fakeClient.Get(context.TODO(), types.NamespacedName{Name: gitRepo.Name, Namespace: gitRepo.Namespace}, updated); err != nil {
 				t.Fatalf("failed to get gitrepo: %v", err)
+			}
+			if rr.Code != http.StatusOK {
+				t.Errorf("expected status %d, got %d", http.StatusOK, rr.Code)
+			}
+			if body := rr.Body.String(); body != "succeeded" {
+				t.Errorf("expected body %q, got %q", "succeeded", body)
 			}
 			if updated.Status.WebhookCommit != "" {
 				t.Errorf("expected WebhookCommit to remain empty (no match), but got %q", updated.Status.WebhookCommit)
