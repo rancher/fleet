@@ -363,6 +363,8 @@ func TestReconcile_ErrorCreatingBundleIsShownInStatus(t *testing.T) {
 			},
 		)
 
+		client.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&fleet.PolicyList{}), gomock.Any()).Return(nil)
+
 		statusClient := mocks.NewMockStatusWriter(mockCtrl)
 		client.EXPECT().Status().Return(statusClient).Times(1)
 		statusClient.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Do(
@@ -540,6 +542,8 @@ func TestReconcile_ErrorCreatingBundleIfBundleWithSameNameExists(t *testing.T) {
 			return nil
 		},
 	)
+
+	client.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&fleet.PolicyList{}), gomock.Any()).Return(nil)
 
 	expectedErrorMsg := "non-helmops bundle already exists"
 	statusClient := mocks.NewMockStatusWriter(mockCtrl)
@@ -1332,6 +1336,7 @@ func (tm *typeMatcher) String() string {
 // NotFound for both. This avoids an overly broad matcher that would silently
 // absorb unrelated Secret Gets.
 func expectCABundleLookup(client *mocks.MockK8sClient) {
+	client.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&fleet.PolicyList{}), gomock.Any()).AnyTimes().Return(nil)
 	client.EXPECT().Get(
 		gomock.Any(),
 		types.NamespacedName{Namespace: "cattle-system", Name: "tls-ca"},
