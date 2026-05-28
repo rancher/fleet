@@ -45,7 +45,9 @@ func (a *AgentManagement) Run(cmd *cobra.Command, args []string) error {
 	if a.Namespace == "" {
 		return errors.New("--namespace or env NAMESPACE is required to be set")
 	}
-	return start(cmd.Context(), a.Kubeconfig, a.Namespace, a.DisableBootstrap)
+	enforceTTL, _ := strconv.ParseBool(os.Getenv("FLEET_REGISTRATION_TOKEN_TTL_REQUIRED"))
+
+	return start(cmd.Context(), a.Kubeconfig, a.Namespace, a.DisableBootstrap, enforceTTL)
 }
 
 func App() *cobra.Command {

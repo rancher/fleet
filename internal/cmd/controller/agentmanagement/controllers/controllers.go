@@ -55,7 +55,7 @@ func (a *AppContext) Start(ctx context.Context) error {
 	return start.All(ctx, 50, a.starters...)
 }
 
-func Register(ctx context.Context, appCtx *AppContext, systemNamespace string, disableBootstrap bool) error {
+func Register(ctx context.Context, appCtx *AppContext, systemNamespace string, disableBootstrap bool, enforceTTL bool) error {
 	systemRegistrationNamespace := fleetns.SystemRegistrationNamespace(systemNamespace)
 
 	// config should be registered first to ensure the global
@@ -120,11 +120,13 @@ func Register(ctx context.Context, appCtx *AppContext, systemNamespace string, d
 		appCtx.RBAC.Role(),
 		appCtx.RBAC.RoleBinding(),
 		appCtx.ClusterRegistration(),
-		appCtx.Cluster())
+		appCtx.Cluster(),
+		appCtx.ClusterRegistrationToken())
 
 	clusterregistrationtoken.Register(ctx,
 		systemNamespace,
 		systemRegistrationNamespace,
+		enforceTTL,
 		appCtx.Apply.WithCacheTypes(
 			appCtx.Core.Secret(),
 			appCtx.Core.ServiceAccount(),

@@ -227,6 +227,8 @@ spec:
         - name: FLEET_AGENT_ELECTION_RENEW_DEADLINE
           value: {{$.Values.agent.leaderElection.renewDeadline}}
         {{- end }}
+        - name: FLEET_REGISTRATION_TOKEN_TTL_REQUIRED
+          value: {{ quote $.Values.controller.registrationTokenTTL.required }}
 {{- if $.Values.extraEnv }}
 {{ toYaml $.Values.extraEnv | indent 8}}
 {{- end }}

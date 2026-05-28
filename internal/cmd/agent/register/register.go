@@ -33,6 +33,7 @@ const (
 	CredName            = "fleet-agent" // same as AgentConfigName
 	Kubeconfig          = "kubeconfig"
 	Token               = "token"
+	TokenName           = "tokenName"
 	Values              = "values"
 	DeploymentNamespace = "deploymentNamespace"
 	ClusterNamespace    = "clusterNamespace"
@@ -187,11 +188,16 @@ func runRegistration(ctx context.Context, k8s coreInterface, namespace string) (
 	}
 	cfg.Labels["fleet.cattle.io/created-by-agent-pod"] = os.Getenv("HOSTNAME")
 
+	tokenName := string(values(secret.Data)[TokenName])
+
 	logrus.Infof("Creating clusterregistration with id '%s' for new token", clientID)
 	request, err := fc.Fleet().V1alpha1().ClusterRegistration().Create(&fleet.ClusterRegistration{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "request-",
 			Namespace:    ns,
+			Labels: map[string]string{
+				fleet.RegistrationTokenLabel: tokenName,
+			},
 		},
 		Spec: fleet.ClusterRegistrationSpec{
 			ClientID:      clientID,

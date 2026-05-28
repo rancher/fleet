@@ -144,7 +144,8 @@ jobs:
                 --set apiServerCA="$ca" \
                 --set apiServerURL="https://$apiServerIP:6443" \
                 --set clusterNamespace="fleet-default" \
-                --set token="$token"
+                --set token="$token" \
+                --set tokenName="second-token"
 
           echo "waiting for downstream cluster to be registered..."
           { grep -q -m 1 "1/1"; kill $!; } < <(kubectl get cluster -n fleet-default -w)
