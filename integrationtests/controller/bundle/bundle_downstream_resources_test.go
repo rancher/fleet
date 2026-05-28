@@ -1,14 +1,12 @@
 package bundle
 
 import (
-	"os"
 	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	"github.com/rancher/fleet/integrationtests/utils"
-	"github.com/rancher/fleet/internal/experimental"
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	corev1 "k8s.io/api/core/v1"
@@ -28,11 +26,7 @@ var _ = Describe("Bundle target DownstreamResources", Ordered, func() {
 
 		createClustersAndClusterGroups()
 
-		// Enable the experimental downstream copy feature.
-		Expect(os.Setenv(experimental.CopyResourcesDownstreamFlag, "true")).To(Succeed())
-
 		DeferCleanup(func() {
-			os.Unsetenv(experimental.CopyResourcesDownstreamFlag)
 			Expect(k8sClient.Delete(ctx, ns)).ToNot(HaveOccurred())
 		})
 	})

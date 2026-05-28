@@ -13,11 +13,7 @@ import (
 	"helm.sh/helm/v4/pkg/action"
 	"helm.sh/helm/v4/pkg/kube"
 
-	"os"
-
-	"github.com/rancher/fleet/internal/experimental"
 	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubernetesfake "k8s.io/client-go/kubernetes/fake"
 )
@@ -469,8 +465,6 @@ func TestIsInDownstreamResources(t *testing.T) {
 	}
 
 	// function returns only a boolean indicating membership for a kind
-	// enable experimental feature for this test
-	t.Setenv(experimental.CopyResourcesDownstreamFlag, "true")
 
 	found := isInDownstreamResources("my-config", "ConfigMap", opts)
 	a.True(found, "expected to find my-config in DownstreamResources")
@@ -585,9 +579,6 @@ func TestValuesFromUsesDefaultNamespaceWhenResourceCopiedDownstream(t *testing.T
 		DownstreamResources: []fleet.DownstreamResource{{Kind: "ConfigMap", Name: "cm-down"}, {Kind: "Secret", Name: "sec-down"}},
 	}
 
-	// enable experimental copy behavior for this test
-	t.Setenv(experimental.CopyResourcesDownstreamFlag, "true")
-
 	vals, err := h.getValues(context.TODO(), opts, defaultNS, kubeClient)
 	r.NoError(err)
 
@@ -621,38 +612,9 @@ func TestValuesFromUsesProvidedNamespaceWhenNotCopiedDownstream(t *testing.T) {
 		DownstreamResources: []fleet.DownstreamResource{{Kind: "ConfigMap", Name: "some-other"}},
 	}
 
-	// enable experimental copy behavior for this test
-	t.Setenv(experimental.CopyResourcesDownstreamFlag, "true")
-
 	vals, err := h.getValues(context.TODO(), opts, defaultNS, kubeClient)
 	r.NoError(err)
 	a.Equal("cmProvided", vals["cmVal"])
-}
-
-func TestValuesFromErrorWhenCopiedDownstreamButExperimentalDisabled(t *testing.T) {
-	a := assert.New(t)
-	r := require.New(t)
-
-	kubeClient := kubernetesfake.NewSimpleClientset()
-	h := &Helm{template: false}
-
-	opts := fleet.BundleDeploymentOptions{
-		Helm: &fleet.HelmOptions{
-			ValuesFrom: []fleet.ValuesFrom{
-				{ConfigMapKeyRef: &fleet.ConfigMapKeySelector{LocalObjectReference: fleet.LocalObjectReference{Name: "cm-down"}, Namespace: "provided-ns"}},
-				{SecretKeyRef: &fleet.SecretKeySelector{LocalObjectReference: fleet.LocalObjectReference{Name: "sec-down"}, Namespace: "provided-ns"}},
-			},
-		},
-		DownstreamResources: []fleet.DownstreamResource{{Kind: "ConfigMap", Name: "cm-down"}, {Kind: "Secret", Name: "sec-down"}},
-	}
-
-	// ensure experimental feature is disabled
-	os.Unsetenv(experimental.CopyResourcesDownstreamFlag)
-
-	_, err := h.getValues(context.TODO(), opts, "default-ns", kubeClient)
-	r.Error(err)
-	// get will fail trying to read from provided-ns and should report not found
-	a.True(apierrors.IsNotFound(err), "expected a NotFound error when valuesFrom references resources and experimental feature is disabled")
 }
 
 func TestInstallActionCorrectDriftForce(t *testing.T) {

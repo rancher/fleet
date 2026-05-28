@@ -688,9 +688,6 @@ func TestReconcile_OCIReferenceSecretResolutionError(t *testing.T) {
 }
 
 func TestReconcile_DownstreamObjectsHandlingError(t *testing.T) {
-	envVar := "EXPERIMENTAL_COPY_RESOURCES_DOWNSTREAM"
-	t.Setenv(envVar, "true")
-
 	cases := []struct {
 		name                        string
 		downstreamResources         []fleetv1.DownstreamResource
@@ -1242,9 +1239,6 @@ func expectGetWithFinalizer(mockCli *mocks.MockK8sClient, bundle fleetv1.Bundle)
 }
 
 func TestReconcile_DownstreamResourcesGeneration_Increment(t *testing.T) {
-	envVar := "EXPERIMENTAL_COPY_RESOURCES_DOWNSTREAM"
-	t.Setenv(envVar, "true")
-
 	testCases := []struct {
 		name                     string
 		downstreamResources      []fleetv1.DownstreamResource
@@ -1550,130 +1544,6 @@ func TestReconcile_DownstreamResourcesGeneration_Increment(t *testing.T) {
 				t.Errorf("unexpected error: %v", err)
 			}
 		})
-	}
-}
-
-func TestReconcile_DownstreamResources_FeatureDisabled(t *testing.T) {
-	envVar := "EXPERIMENTAL_COPY_RESOURCES_DOWNSTREAM"
-	// Explicitly disable the feature
-	t.Setenv(envVar, "false")
-
-	mockCtrl := gomock.NewController(t)
-	defer mockCtrl.Finish()
-
-	scheme := runtime.NewScheme()
-	utilruntime.Must(corev1.AddToScheme(scheme))
-	utilruntime.Must(fleetv1.AddToScheme(scheme))
-
-	bundle := fleetv1.Bundle{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-bundle",
-			Namespace: "default",
-		},
-		Spec: fleetv1.BundleSpec{
-			BundleDeploymentOptions: fleetv1.BundleDeploymentOptions{
-				DownstreamResources: []fleetv1.DownstreamResource{
-					{Kind: "Secret", Name: "my-secret"},
-					{Kind: "ConfigMap", Name: "my-config"},
-				},
-			},
-		},
-	}
-
-	existingBundleDeployment := &fleetv1.BundleDeployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-bd",
-			Namespace: "cluster-ns",
-			UID:       "test-uid",
-		},
-		Spec: fleetv1.BundleDeploymentSpec{
-			DeploymentID:                  "test-deployment",
-			DownstreamResourcesGeneration: 5, // Has a non-zero value
-		},
-	}
-
-	namespacedName := types.NamespacedName{Name: bundle.Name, Namespace: bundle.Namespace}
-
-	mockClient := mocks.NewMockK8sClient(mockCtrl)
-	expectGetWithFinalizer(mockClient, bundle)
-
-	// Options secret deletion
-	mockClient.EXPECT().Delete(gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{}), gomock.Any()).
-		Return(&k8serrors.StatusError{ErrStatus: metav1.Status{Code: http.StatusNotFound}})
-
-	matchedTargets := []*target.Target{
-		{
-			Bundle: &bundle,
-			Cluster: &fleetv1.Cluster{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: "fleet-default",
-					Name:      "test-cluster",
-				},
-				Status: fleetv1.ClusterStatus{
-					Namespace: "cluster-ns",
-				},
-			},
-			Deployment:   existingBundleDeployment,
-			DeploymentID: "test-deployment",
-		},
-	}
-
-	targetBuilderMock := mocks.NewMockTargetBuilder(mockCtrl)
-	targetBuilderMock.EXPECT().Targets(gomock.Any(), gomock.Any(), gomock.Any()).Return(matchedTargets, false, nil)
-
-	storeMock := mocks.NewMockStore(mockCtrl)
-	storeMock.EXPECT().Store(gomock.Any(), gomock.Any()).Return(nil)
-
-	// List BundleDeployments for cleanup
-	mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.BundleDeploymentList{}), gomock.Any()).
-		DoAndReturn(func(ctx context.Context, list *fleetv1.BundleDeploymentList, opts ...any) error {
-			list.Items = []fleetv1.BundleDeployment{*existingBundleDeployment}
-			return nil
-		})
-
-	// BundleDeployment get (for CreateOrUpdate)
-	mockClient.EXPECT().Get(gomock.Any(), types.NamespacedName{Namespace: "cluster-ns", Name: "test-bd"}, gomock.AssignableToTypeOf(&fleetv1.BundleDeployment{}), gomock.Any()).
-		DoAndReturn(func(ctx context.Context, key types.NamespacedName, bd *fleetv1.BundleDeployment, opts ...any) error {
-			*bd = *existingBundleDeployment
-			return nil
-		})
-
-	// BundleDeployment update - when feature is disabled, generation stays unchanged
-	// because handleDownstreamObjects modifies BD in memory but doesn't persist it
-	mockClient.EXPECT().Update(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.BundleDeployment{}), gomock.Any()).
-		DoAndReturn(func(ctx context.Context, obj client.Object, opts ...any) error {
-			bd := obj.(*fleetv1.BundleDeployment)
-			// Feature is disabled, so resources are not cloned and generation stays as-is (5)
-			// The handleDownstreamObjects sets it to 0 in memory but doesn't persist that change
-			if bd.Spec.DownstreamResourcesGeneration != 5 {
-				t.Errorf("Expected generation to remain unchanged at 5 when feature is disabled, got %d", bd.Spec.DownstreamResourcesGeneration)
-			}
-			return nil
-		})
-
-	// No resource cloning calls expected since feature is disabled
-
-	// Status update
-	statusClient := mocks.NewMockStatusWriter(mockCtrl)
-	mockClient.EXPECT().Status().Return(statusClient).Times(1)
-	statusClient.EXPECT().Patch(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Bundle{}), gomock.Any()).
-		Return(nil)
-
-	recorderMock := mocks.NewMockEventRecorder(mockCtrl)
-
-	r := reconciler.BundleReconciler{
-		Client:   mockClient,
-		Scheme:   scheme,
-		Recorder: recorderMock,
-		Builder:  targetBuilderMock,
-		Store:    storeMock,
-	}
-
-	ctx := context.TODO()
-	_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: namespacedName})
-
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
 	}
 }
 

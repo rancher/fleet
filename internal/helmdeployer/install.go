@@ -18,7 +18,6 @@ import (
 	releasev1 "helm.sh/helm/v4/pkg/release/v1"
 	"helm.sh/helm/v4/pkg/storage/driver"
 
-	"github.com/rancher/fleet/internal/experimental"
 	"github.com/rancher/fleet/internal/helmdeployer/render"
 	"github.com/rancher/fleet/internal/manifest"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -658,9 +657,6 @@ func getDryRunConfig(chart *chartv2.Chart, dryRun bool) dryRunConfig {
 // If not found, returns false.
 func isInDownstreamResources(resourceName, kind string, options fleet.BundleDeploymentOptions) bool {
 	kind = strings.ToLower(kind)
-	if !experimental.CopyResourcesDownstreamEnabled() {
-		return false
-	}
 
 	for _, dr := range options.DownstreamResources {
 		if dr.Name == resourceName && strings.ToLower(dr.Kind) == kind {

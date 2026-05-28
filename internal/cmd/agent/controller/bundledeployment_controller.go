@@ -12,7 +12,6 @@ import (
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/cleanup"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/driftdetect"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/monitor"
-	"github.com/rancher/fleet/internal/experimental"
 	"github.com/rancher/fleet/internal/helmvalues"
 	"github.com/rancher/fleet/internal/namespaces"
 	fleetv1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -366,10 +365,6 @@ func (r *BundleDeploymentReconciler) copyResourcesFromUpstream(
 	bd *fleetv1.BundleDeployment,
 	logger logr.Logger,
 ) (bool, error) {
-	if !experimental.CopyResourcesDownstreamEnabled() {
-		return false, nil
-	}
-
 	if len(bd.Spec.Options.DownstreamResources) == 0 {
 		return false, nil
 	}
