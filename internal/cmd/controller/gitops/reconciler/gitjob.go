@@ -223,6 +223,43 @@ func (r *GitJobReconciler) newGitJob(ctx context.Context, obj *v1alpha1.GitRepo)
 	}
 	maps.Copy(jobSpec.Template.Spec.NodeSelector, fleetControllerDeployment.Spec.Template.Spec.NodeSelector)
 
+	jobSpec.Template.Spec.ImagePullSecrets = fleetControllerDeployment.Spec.Template.Spec.ImagePullSecrets
+
+	for _, ips := range fleetControllerDeployment.Spec.Template.Spec.ImagePullSecrets {
+		var secret corev1.Secret
+		err := r.Get(ctx, types.NamespacedName{
+			//Namespace: obj.Namespace,
+			Namespace: fleetControllerDeployment.Namespace,
+			Name:      ips.Name,
+		}, &secret)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not get image pull secret %q: %w", ips.Name, err)
+		}
+
+		gitjobSecret := corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      ips.Name,
+				Namespace: obj.Namespace,
+			},
+			Data: secret.Data,
+			Type: secret.Type,
+		}
+		if err := controllerutil.SetControllerReference(obj, &gitjobSecret, r.Scheme); err != nil {
+			return nil, fmt.Errorf("failed to set gitrepo ownership on image pull secret %q: %w", ips.Name, err)
+		}
+
+		_, err = controllerutil.CreateOrUpdate(ctx, r.Client, &gitjobSecret, func() error {
+			gitjobSecret.Data = secret.Data
+			gitjobSecret.Type = secret.Type
+
+			return nil
+		})
+		if err != nil {
+			return nil, fmt.Errorf("could not create or update image pull secret %q in git job namespace: %w", ips.Name, err)
+		}
+	}
+
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Annotations: map[string]string{
@@ -238,6 +275,7 @@ func (r *GitJobReconciler) newGitJob(ctx context.Context, obj *v1alpha1.GitRepo)
 		},
 		Spec: *jobSpec,
 	}
+
 	// if the repo references a shard, add the same label to the job
 	// this avoids a call to Reconcile for controllers that do not match
 	// the shard-id
