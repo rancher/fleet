@@ -31,12 +31,7 @@ func ApplyBootstrapResources(systemNamespace, systemRegistrationNamespace string
 		{
 			Verbs:     []string{"get"},
 			APIGroups: []string{""},
-			Resources: []string{"secrets"},
-		},
-		{
-			Verbs:     []string{"get"},
-			APIGroups: []string{""},
-			Resources: []string{"configmaps"},
+			Resources: []string{"secrets", "configmaps"},
 		},
 	}
 
