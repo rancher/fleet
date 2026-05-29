@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"fmt"
 	"os"
 	"path"
 	"strconv"
@@ -11,7 +10,6 @@ import (
 
 	"github.com/rancher/fleet/internal/cmd"
 	"github.com/rancher/fleet/internal/config"
-	"github.com/rancher/fleet/internal/experimental"
 	"github.com/rancher/fleet/internal/names"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -198,7 +196,6 @@ func agentApp(namespace string, agentScope string, opts ManifestOptions) *appsv1
 								{Name: "CATTLE_ELECTION_LEASE_DURATION", Value: opts.LeaseDuration.String()},
 								{Name: "CATTLE_ELECTION_RETRY_PERIOD", Value: opts.RetryPeriod.String()},
 								{Name: "CATTLE_ELECTION_RENEW_DEADLINE", Value: opts.RenewDeadline.String()},
-								{Name: "EXPERIMENTAL_COPY_RESOURCES_DOWNSTREAM", Value: fmt.Sprintf("%t", experimental.CopyResourcesDownstreamEnabled())},
 							},
 							Command: []string{
 								"fleetagent",

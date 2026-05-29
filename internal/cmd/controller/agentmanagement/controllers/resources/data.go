@@ -1,7 +1,6 @@
 package resources
 
 import (
-	"github.com/rancher/fleet/internal/experimental"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	"github.com/rancher/wrangler/v3/pkg/apply"
@@ -32,16 +31,8 @@ func ApplyBootstrapResources(systemNamespace, systemRegistrationNamespace string
 		{
 			Verbs:     []string{"get"},
 			APIGroups: []string{""},
-			Resources: []string{"secrets"},
+			Resources: []string{"secrets", "configmaps"},
 		},
-	}
-
-	if experimental.CopyResourcesDownstreamEnabled() {
-		rules = append(rules, rbacv1.PolicyRule{
-			Verbs:     []string{"get"},
-			APIGroups: []string{""},
-			Resources: []string{"configmaps"},
-		})
 	}
 
 	return apply.ApplyObjects(
