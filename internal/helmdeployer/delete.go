@@ -13,7 +13,6 @@ import (
 	"helm.sh/helm/v4/pkg/storage/driver"
 
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/kv"
-	"github.com/rancher/fleet/internal/experimental"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	corev1 "k8s.io/api/core/v1"
@@ -180,10 +179,6 @@ func deleteHistory(cfg *action.Configuration, logger logr.Logger, bundleID strin
 // deleteResourcesCopiedFromUpstream deletes resources referenced through a bundle's `DownstreamResources`
 // field, and copied from downstream.
 func deleteResourcesCopiedFromUpstream(ctx context.Context, c client.Client, bdName string) error {
-	if !experimental.CopyResourcesDownstreamEnabled() {
-		return nil
-	}
-
 	var merr []error
 
 	// No information is available about a deleted bundle deployment beside its name and namespace;

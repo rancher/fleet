@@ -27,9 +27,7 @@ helm upgrade rancher rancher-latest/rancher $args \
   --set hostname="$public_hostname" \
   --set bootstrapPassword=admin \
   --set "extraEnv[0].name=CATTLE_SERVER_URL" \
-  --set "extraEnv[0].value=https://$public_hostname" \
-  --set-string "fleet.extraEnv[0].name=EXPERIMENTAL_COPY_RESOURCES_DOWNSTREAM" \
-  --set-string "fleet.extraEnv[0].value=true"
+  --set "extraEnv[0].value=https://$public_hostname"
 
 # wait for deployment of rancher
 kubectl -n cattle-system rollout status deploy/rancher

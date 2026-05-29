@@ -20,7 +20,6 @@ import (
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
 	"github.com/rancher/fleet/internal/cmd/controller/target"
 	"github.com/rancher/fleet/internal/config"
-	"github.com/rancher/fleet/internal/experimental"
 	"github.com/rancher/fleet/internal/helmvalues"
 	"github.com/rancher/fleet/internal/manifest"
 	"github.com/rancher/fleet/internal/metrics"
@@ -815,10 +814,6 @@ func (r *BundleReconciler) updateErrorStatus(
 }
 
 func (r *BundleReconciler) handleDownstreamObjects(ctx context.Context, bundle *fleet.Bundle, bd *fleet.BundleDeployment) error {
-	if !experimental.CopyResourcesDownstreamEnabled() {
-		return nil
-	}
-
 	// Track if any resources were created or updated
 	resourcesUpdated := false
 
