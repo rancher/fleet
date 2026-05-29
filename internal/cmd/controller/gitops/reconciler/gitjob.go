@@ -179,7 +179,22 @@ func (r *GitJobReconciler) createJob(ctx context.Context, gitRepo *v1alpha1.GitR
 	if err := controllerutil.SetControllerReference(gitRepo, job, r.Scheme); err != nil {
 		return err
 	}
-	return r.Create(ctx, job)
+	// Job names are deterministic from (gitrepo, commit). An AlreadyExists here
+	// means a concurrent / cache-lagged reconcile already created the job for the
+	// same commit — treat it as a no-op rather than surfacing a reconcile
+	// error. The owning GitRepo and commit are encoded in the name, so we are not
+	// adopting a foreign job.
+	if err := r.Create(ctx, job); err != nil {
+		if apierrors.IsAlreadyExists(err) {
+			log.FromContext(ctx).V(1).Info(
+				"Git job already exists for this commit, skipping create",
+				"job", job.Name,
+			)
+			return nil
+		}
+		return err
+	}
+	return nil
 }
 
 func (r *GitJobReconciler) newGitJob(ctx context.Context, obj *v1alpha1.GitRepo) (*batchv1.Job, error) {

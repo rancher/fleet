@@ -960,6 +960,9 @@ var _ = Describe("GitJob controller", func() {
 			}).Should(BeTrue())
 
 			By("Setting WebhookCommit to simulate a webhook event")
+			// Make the mock fetcher return the webhook commit so LatestCommit
+			// resolves HEAD to the new tip rather than stableCommit.
+			expectedCommit = webhookCommit
 			Expect(setGitRepoWebhookCommit(gitRepo, webhookCommit)).To(Succeed())
 		})
 
@@ -971,6 +974,100 @@ var _ = Describe("GitJob controller", func() {
 			Eventually(func() error {
 				jobName := names.SafeConcatName(gitRepoName, names.Hex(repo+webhookCommit, 5))
 				return k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
+			}, testenv.MediumTimeout, testenv.ShortTimeout).Should(Not(HaveOccurred()))
+		})
+	})
+
+	// Regression test for the webhook-vs-head race condition: the reconciler must
+	// not create a job for a commit that the webhook announced but that HEAD has
+	// not yet propagated to the remote.  It must wait (up to webhookMaxWait) and
+	// only create the job once LatestCommit returns the expected commit.
+	When("a webhook arrives before HEAD is visible in the remote", func() {
+		var (
+			gitRepo     v1alpha1.GitRepo
+			gitRepoName string
+			job         batchv1.Job
+		)
+		const webhookCommit = "deaf1234cafe5678beef9012dead3456cafe7890"
+
+		BeforeEach(func() {
+			gitRepoName = "webhook-propagation-wait"
+			expectedCommit = stableCommit
+		})
+
+		JustBeforeEach(func() {
+			gitRepo = v1alpha1.GitRepo{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      gitRepoName,
+					Namespace: gitRepoNamespace,
+				},
+				Spec: v1alpha1.GitRepoSpec{
+					Repo:            webhookTestRepo,
+					PollingInterval: &metav1.Duration{Duration: 24 * time.Hour},
+				},
+			}
+			Expect(k8sClient.Create(ctx, &gitRepo)).To(Succeed())
+
+			By("Waiting for the initial job")
+			Eventually(func() error {
+				jobName := names.SafeConcatName(gitRepoName, names.Hex(webhookTestRepo+stableCommit, 5))
+				return k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
+			}, testenv.MediumTimeout, testenv.ShortTimeout).Should(Not(HaveOccurred()))
+
+			By("Marking the initial job succeeded and waiting for its deletion")
+			Eventually(func() error {
+				jobName := names.SafeConcatName(gitRepoName, names.Hex(webhookTestRepo+stableCommit, 5))
+				err := k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
+				if client.IgnoreNotFound(err) != nil {
+					return err
+				}
+				job.Status = succeeded(job.Status)
+				return k8sClient.Status().Update(ctx, &job)
+			}).Should(Not(HaveOccurred()))
+
+			Eventually(func() bool {
+				jobName := names.SafeConcatName(gitRepoName, names.Hex(webhookTestRepo+stableCommit, 5))
+				err := k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
+				return errors.IsNotFound(err)
+			}).Should(BeTrue())
+
+			By("Firing the webhook while HEAD is still stableCommit (propagation lag)")
+			// expectedCommit remains stableCommit — LatestCommit will keep returning the old
+			// HEAD, simulating a git host that hasn't replicated the push yet.
+			// sendGitHubPush sets both WebhookCommit and LastWebhookTime, which enables
+			// the propagation-wait path in the reconciler.
+			sendGitHubPush(webhookCommit)
+
+			// Confirm the webhook was applied before proceeding.
+			Eventually(func(g Gomega) {
+				var gr v1alpha1.GitRepo
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{
+					Name: gitRepoName, Namespace: gitRepoNamespace,
+				}, &gr)).To(Succeed())
+				g.Expect(gr.Status.WebhookCommit).To(Equal(webhookCommit))
+			}).Should(Succeed())
+		})
+
+		AfterEach(func() {
+			waitDeleteGitrepo(gitRepo)
+		})
+
+		It("does not create a job until HEAD advances, then creates one", func() {
+			newJobName := names.SafeConcatName(gitRepoName, names.Hex(webhookTestRepo+webhookCommit, 5))
+
+			By("Confirming no job for the webhook commit while HEAD lags")
+			Consistently(func(g Gomega) {
+				err := k8sClient.Get(ctx, types.NamespacedName{Name: newJobName, Namespace: gitRepoNamespace}, &job)
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(errors.IsNotFound(err)).To(BeTrue(), err)
+			}, 5*time.Second, time.Second).Should(Succeed())
+
+			By("Advancing HEAD to match the webhook commit")
+			expectedCommit = webhookCommit
+
+			By("Expecting the job to be created now that HEAD has caught up")
+			Eventually(func() error {
+				return k8sClient.Get(ctx, types.NamespacedName{Name: newJobName, Namespace: gitRepoNamespace}, &job)
 			}, testenv.MediumTimeout, testenv.ShortTimeout).Should(Not(HaveOccurred()))
 		})
 	})
