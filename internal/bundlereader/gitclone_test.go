@@ -271,7 +271,7 @@ func TestGitDownloadMalformedURLRedaction(t *testing.T) {
 	)
 	rawURL := "ssh://user:" + password + "@example.com:notaport/repo?sshkey=" + privateKey
 
-	err := gitDownload(context.Background(), t.TempDir(), rawURL, Auth{})
+	err := gitDownload(t.Context(), t.TempDir(), rawURL, Auth{})
 	require.Error(t, err)
 	assert.NotContains(t, err.Error(), password, "password must not leak in error")
 	assert.NotContains(t, err.Error(), privateKey, "sshkey must not leak in error")
