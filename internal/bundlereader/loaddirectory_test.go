@@ -752,7 +752,7 @@ func TestGetContent_InternalSymlinkAllowed(t *testing.T) {
 	// Symlink within the bundle pointing to the sibling real.yaml.
 	require.NoError(t, os.Symlink(filepath.Join(bundleDir, "real.yaml"), filepath.Join(bundleDir, "link.yaml")))
 
-	files, err := bundlereader.GetContent(context.Background(), bundleDir, bundleDir, "", bundlereader.Auth{}, false, nil)
+	files, err := bundlereader.GetContent(t.Context(), bundleDir, bundleDir, "", bundlereader.Auth{}, false, nil)
 	require.NoError(t, err)
 	assert.Equal(t, realContent, files["real.yaml"])
 	assert.Equal(t, realContent, files["link.yaml"], "symlink within bundle must be followed")
