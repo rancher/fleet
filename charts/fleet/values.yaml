@@ -1,11 +1,11 @@
 image:
   repository: rancher/fleet
-  tag: v0.16.0-alpha.8
+  tag: v0.16.0-alpha.9
   imagePullPolicy: IfNotPresent
 
 agentImage:
   repository: rancher/fleet-agent
-  tag: v0.16.0-alpha.8
+  tag: v0.16.0-alpha.9
   imagePullPolicy: IfNotPresent
 
 # For cluster registration the public URL of the Kubernetes API server must be set here
@@ -149,6 +149,8 @@ leaderElection:
 ## Fleet controller configuration
 controller:
   replicas: 1
+  registrationTokenTTL:
+    required: false
   reconciler:
     # The number of workers that are allowed to each type of reconciler
     workers:
@@ -192,8 +194,6 @@ agent:
 # Extra environment variables passed to the fleet pods.
 # extraEnv:
 # - name: OCI_STORAGE
-#   value: "false"
-# - name: EXPERIMENTAL_COPY_RESOURCES_DOWNSTREAM
 #   value: "false"
 
 # shards:
