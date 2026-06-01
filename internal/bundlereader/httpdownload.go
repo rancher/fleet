@@ -39,7 +39,7 @@ import (
 func httpDownload(ctx context.Context, dst, src string, auth Auth) error {
 	u, err := url.Parse(src)
 	if err != nil {
-		return fmt.Errorf("parsing URL %q: %w", redactURL(src), err)
+		return fmt.Errorf("parsing URL %q: %w", redactURL(src), redactParseError(err))
 	}
 
 	q := u.Query()

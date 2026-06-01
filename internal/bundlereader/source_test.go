@@ -73,6 +73,21 @@ func TestRedactURL(t *testing.T) {
 			input:    "git::https://example.com/repo?sshkey=PRIVATE_KEY_CONTENT",
 			expected: "git::https://example.com/repo",
 		},
+		{
+			name:     "malformed URL (invalid port) still redacts password and sshkey",
+			input:    "ssh://user:s3cr3t@example.com:notaport/repo?sshkey=PRIVATE_KEY_CONTENT",
+			expected: "ssh://user:REDACTED@example.com:notaport/repo?sshkey=REDACTED",
+		},
+		{
+			name:     "malformed URL (control char) still redacts sshkey",
+			input:    "https://example.com/re\x7fpo?sshkey=PRIVATE_KEY_CONTENT",
+			expected: "https://example.com/re\x7fpo?sshkey=REDACTED",
+		},
+		{
+			name:     "malformed forced-scheme URL still redacts password",
+			input:    "git::https://user:s3cr3t@example.com:notaport/repo",
+			expected: "git::https://user:REDACTED@example.com:notaport/repo",
+		},
 	}
 
 	for _, tt := range tests {
