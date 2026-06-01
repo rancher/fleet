@@ -230,7 +230,8 @@ func TestHttpDownload_ChecksumVerification(t *testing.T) {
 }
 
 // TestHttpDownload_ChecksumMismatch verifies that a wrong ?checksum= value
-// causes httpDownload to return a "checksum mismatch" error.
+// causes httpDownload to return a "checksum mismatch" error and does NOT write
+// any files to disk.
 func TestHttpDownload_ChecksumMismatch(t *testing.T) {
 	body := []byte("hello world")
 	wrongHash := "0000000000000000000000000000000000000000000000000000000000000000"
@@ -244,6 +245,10 @@ func TestHttpDownload_ChecksumMismatch(t *testing.T) {
 	err := httpDownload(t.Context(), dst, srv.URL+"/file.txt?checksum=sha256:"+wrongHash, Auth{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "checksum mismatch")
+
+	entries, readErr := os.ReadDir(dst)
+	require.NoError(t, readErr)
+	assert.Empty(t, entries, "no files must be written to disk when the checksum fails")
 }
 
 // TestHttpDownload_ArchiveOverride verifies that ?archive= forces format
@@ -280,6 +285,45 @@ func TestHttpDownload_ArchiveOverride(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join(dst, "inner.txt"))
 	require.NoError(t, err)
 	assert.Equal(t, content, data)
+}
+
+// TestHttpDownload_ChecksumBeforeExtraction verifies that when a ?checksum=
+// parameter is provided and does not match, no archive content is written to
+// disk. Extraction must not occur before the checksum is verified.
+func TestHttpDownload_ChecksumBeforeExtraction(t *testing.T) {
+	// Build a valid tar.gz containing a recognisable file.
+	innerContent := []byte("must not appear on disk")
+	var archiveBuf bytes.Buffer
+	gw := gzip.NewWriter(&archiveBuf)
+	tw := tar.NewWriter(gw)
+	require.NoError(t, tw.WriteHeader(&tar.Header{
+		Typeflag: tar.TypeReg,
+		Name:     "secret.txt",
+		Size:     int64(len(innerContent)),
+		Mode:     0600,
+	}))
+	_, err := tw.Write(innerContent)
+	require.NoError(t, err)
+	require.NoError(t, tw.Close())
+	require.NoError(t, gw.Close())
+	archiveBytes := archiveBuf.Bytes()
+
+	wrongHash := "0000000000000000000000000000000000000000000000000000000000000000"
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write(archiveBytes)
+	}))
+	defer srv.Close()
+
+	dst := t.TempDir()
+	err = httpDownload(t.Context(), dst, srv.URL+"/bundle.tar.gz?checksum=sha256:"+wrongHash, Auth{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "checksum mismatch")
+
+	// The archive contains "secret.txt"; it must not have been written to disk.
+	entries, readErr := os.ReadDir(dst)
+	require.NoError(t, readErr)
+	assert.Empty(t, entries, "archive must not be extracted before the checksum is verified")
 }
 
 // -- extractResponse round-trip tests ----------------------------------------
