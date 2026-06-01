@@ -733,7 +733,7 @@ func TestGetContent_EscapingSymlinkRejected(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(bundleDir, "legit.txt"), []byte("ok"), 0644))
 	require.NoError(t, os.Symlink(secretFile, filepath.Join(bundleDir, "evil-link.txt")))
 
-	_, err := bundlereader.GetContent(context.Background(), bundleDir, bundleDir, "", bundlereader.Auth{}, false, nil)
+	_, err := bundlereader.GetContent(t.Context(), bundleDir, bundleDir, "", bundlereader.Auth{}, false, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "escapes bundle directory")
 
