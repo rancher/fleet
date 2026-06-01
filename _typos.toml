@@ -13,6 +13,7 @@ extend-exclude = [
 "ANDed" = "ANDed"
 "HoTWPQxTJ5dIY31" = "HoTWPQxTJ5dIY31"
 "wre" = "wre"                         # warning regular expression, not 'were'
+"ue" = "ue"                           # allow short var name for *url.Error
 
 [default]
 extend-ignore-re = [
