@@ -3487,7 +3487,11 @@ func TestCreateJob_AlreadyExistsIsIgnored(t *testing.T) {
 		KnownHosts:      ssh.KnownHosts{},
 	}
 
-	if err := r.createJob(context.TODO(), gitRepo); err != nil {
+	created, err := r.createJob(context.TODO(), gitRepo)
+	if err != nil {
 		t.Fatalf("createJob should return nil on AlreadyExists, got: %v", err)
+	}
+	if created {
+		t.Fatal("createJob should return false when job already exists")
 	}
 }

@@ -67,18 +67,21 @@ func (r *GitJobReconciler) createJobAndResources(ctx context.Context, gitrepo *v
 	if _, err := r.createCABundleSecret(ctx, gitrepo, caBundleName(gitrepo)); err != nil {
 		return fmt.Errorf("failed to create cabundle secret for git job: %w", err)
 	}
-	if err := r.createJob(ctx, gitrepo); err != nil {
+	created, err := r.createJob(ctx, gitrepo)
+	if err != nil {
 		return fmt.Errorf("error creating git job: %w", err)
 	}
 
-	r.Recorder.Eventf(
-		gitrepo,
-		nil,
-		corev1.EventTypeNormal,
-		"Created",
-		"CreateGitJob",
-		"GitJob was created",
-	)
+	if created {
+		r.Recorder.Eventf(
+			gitrepo,
+			nil,
+			corev1.EventTypeNormal,
+			"Created",
+			"CreateGitJob",
+			"GitJob was created",
+		)
+	}
 	return nil
 }
 
@@ -171,13 +174,13 @@ func (r *GitJobReconciler) createCABundleSecret(ctx context.Context, gitrepo *v1
 	return true, nil
 }
 
-func (r *GitJobReconciler) createJob(ctx context.Context, gitRepo *v1alpha1.GitRepo) error {
+func (r *GitJobReconciler) createJob(ctx context.Context, gitRepo *v1alpha1.GitRepo) (bool, error) {
 	job, err := r.newGitJob(ctx, gitRepo)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if err := controllerutil.SetControllerReference(gitRepo, job, r.Scheme); err != nil {
-		return err
+		return false, err
 	}
 	// Job names are deterministic from (gitrepo, commit). An AlreadyExists here
 	// means a concurrent / cache-lagged reconcile already created the job for the
@@ -190,11 +193,11 @@ func (r *GitJobReconciler) createJob(ctx context.Context, gitRepo *v1alpha1.GitR
 				"Git job already exists for this commit, skipping create",
 				"job", job.Name,
 			)
-			return nil
+			return false, nil
 		}
-		return err
+		return false, err
 	}
-	return nil
+	return true, nil
 }
 
 func (r *GitJobReconciler) newGitJob(ctx context.Context, obj *v1alpha1.GitRepo) (*batchv1.Job, error) {
