@@ -28,18 +28,23 @@ import (
 
 const CRDKind = "CustomResourceDefinition"
 
+var (
+	yamlDocMarker    = []byte("---")
+	newlineDocMarker = []byte("\n---")
+)
+
 // isYAMLDocMarker reports whether b starts with a valid YAML document-start
 // marker: "---" followed by whitespace, CR, LF, or end of input. Per the
 // YAML spec, "---" is only a marker when it is the complete token on a line;
 // a sequence like "---foo" is NOT a marker and must not be stripped.
 func isYAMLDocMarker(b []byte) bool {
-	if !bytes.HasPrefix(b, []byte("---")) {
+	if !bytes.HasPrefix(b, yamlDocMarker) {
 		return false
 	}
-	if len(b) == 3 {
+	if len(b) == len(yamlDocMarker) {
 		return true
 	}
-	c := b[3]
+	c := b[len(yamlDocMarker)]
 	return c == ' ' || c == '\t' || c == '\r' || c == '\n'
 }
 
@@ -74,7 +79,7 @@ func normalizeFlowStyleDocs(data []byte) ([]byte, error) {
 		// strip a marker that is valid per YAML (followed by whitespace/EOF).
 		content := bytes.TrimSpace(doc)
 		if isYAMLDocMarker(content) {
-			content = bytes.TrimLeft(content[3:], " \t\r\n")
+			content = bytes.TrimLeft(content[len(yamlDocMarker):], " \t\r\n")
 		}
 		if len(content) == 0 {
 			continue
@@ -117,7 +122,7 @@ func hasFlowStyleCandidate(data []byte) bool {
 	// checked rather than the marker itself. CRLF before the marker is handled
 	// by TrimLeft.
 	if trimmed := bytes.TrimLeft(data, " \t\r\n"); isYAMLDocMarker(trimmed) {
-		rest = trimmed[3:]
+		rest = trimmed[len(yamlDocMarker):]
 	}
 	for {
 		if firstNonSpace(rest) == '{' {
@@ -125,11 +130,11 @@ func hasFlowStyleCandidate(data []byte) bool {
 		}
 		// Searching for "\n---" also covers CRLF separators ("\r\n---") because
 		// "\n---" is a substring of "\r\n---".
-		i := bytes.Index(rest, []byte("\n---"))
+		i := bytes.Index(rest, newlineDocMarker)
 		if i < 0 {
 			return false
 		}
-		rest = rest[i+4:]
+		rest = rest[i+len(newlineDocMarker):]
 	}
 }
 
