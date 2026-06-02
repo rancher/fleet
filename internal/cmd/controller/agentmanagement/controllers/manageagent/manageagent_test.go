@@ -518,6 +518,58 @@ func TestSortTolerations(t *testing.T) {
 	}
 }
 
+func TestSkipCluster(t *testing.T) {
+	now := metav1.Now()
+
+	for _, tt := range []struct {
+		name    string
+		cluster *fleet.Cluster
+		want    bool
+	}{
+		{
+			name:    "nil cluster",
+			cluster: nil,
+			want:    true,
+		},
+		{
+			name:    "active cluster without labels",
+			cluster: &fleet.Cluster{},
+			want:    false,
+		},
+		{
+			name: "cluster being deleted",
+			cluster: &fleet.Cluster{
+				ObjectMeta: metav1.ObjectMeta{DeletionTimestamp: &now},
+			},
+			want: true,
+		},
+		{
+			name: "cluster with management label",
+			cluster: &fleet.Cluster{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{fleet.ClusterManagementLabel: "custom"},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "cluster with empty management label",
+			cluster: &fleet.Cluster{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{fleet.ClusterManagementLabel: ""},
+				},
+			},
+			want: false,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := SkipCluster(tt.cluster); got != tt.want {
+				t.Fatalf("SkipCluster() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func checkRegisterAddToScheme(t *testing.T, f func(*runtime.Scheme) error) {
 	t.Helper()
 	err := schemes.Register(f)

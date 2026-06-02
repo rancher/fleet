@@ -13,6 +13,7 @@ import (
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
 	"github.com/rancher/fleet/internal/metrics"
+	"github.com/rancher/fleet/internal/names"
 	"github.com/rancher/fleet/internal/resourcestatus"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/durations"
@@ -371,12 +372,34 @@ func (r *ClusterReconciler) mapBundleDeploymentToCluster(ctx context.Context, a 
 	}}
 }
 
-// handleDelete runs cleanup the namespace associated to a Cluster,
+// handleDelete cleans up the namespace and fleet-agent bundle associated with a Cluster,
 // finally removing the finalizer to unblock the deletion of the object from kubernetes.
 func (r *ClusterReconciler) handleDelete(ctx context.Context, cluster *fleet.Cluster) (ctrl.Result, error) {
+	logger := log.FromContext(ctx).WithName("cluster")
+
 	if !controllerutil.ContainsFinalizer(cluster, finalize.ClusterFinalizer) {
 
 		return ctrl.Result{}, nil
+	}
+
+	// Delete the fleet-agent bundle for this cluster. The bundle lives
+	// in the cluster's management namespace (e.g. fleet-default), not
+	// in cluster.Status.Namespace, so it would not be cleaned up by
+	// the namespace deletion below.
+	bundleName := names.SafeConcatName("fleet-agent", cluster.Name)
+	bundle := &fleet.Bundle{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      bundleName,
+			Namespace: cluster.Namespace,
+		},
+	}
+	if err := r.Delete(ctx, bundle); err != nil {
+		if !apierrors.IsNotFound(err) {
+			return ctrl.Result{}, err
+		}
+		logger.V(1).Info("Fleet-agent bundle not found, skipping deletion", "bundle", bundleName)
+	} else {
+		logger.V(1).Info("Deleted fleet-agent bundle for cluster", "bundle", bundleName)
 	}
 
 	if cluster.Status.Namespace != "" {
