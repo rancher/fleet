@@ -325,6 +325,9 @@ func (r *GitJobReconciler) fetchLatestCommit(ctx context.Context, gitrepo *v1alp
 	condition.Cond(gitPollingCondition).SetError(&gitrepo.Status, "", fetchErr)
 	if fetchErr == nil && commit != "" {
 		gitrepo.Status.Commit = commit
+		// Keep PollingCommit aligned with the resolved HEAD.
+		// Consider it as the "last seen commit from polling".
+		gitrepo.Status.PollingCommit = commit
 	}
 	if fetchErr != nil {
 		r.Recorder.Eventf(
