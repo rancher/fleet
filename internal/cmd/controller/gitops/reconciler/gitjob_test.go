@@ -289,15 +289,6 @@ func TestReconcile_Error_WhenSecretDoesNotExist(t *testing.T) {
 		},
 	)
 
-	// we need to return a NotFound error, so the code tries to create it.
-	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&batchv1.Job{}), gomock.Any()).
-		Times(1).
-		DoAndReturn(
-			func(ctx context.Context, req types.NamespacedName, job *batchv1.Job, opts ...interface{}) error {
-				return apierrors.NewNotFound(schema.GroupResource{}, "TEST ERROR")
-			},
-		).Times(2)
-
 	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
 		func(ctx context.Context, req types.NamespacedName, job *corev1.Secret, opts ...interface{}) error {
 			return fmt.Errorf("SECRET ERROR")
@@ -451,7 +442,7 @@ func Test_CommitNotPromotedOnGitJobError(t *testing.T) {
 			gr.Spec.Repo = "repo"
 			gr.Spec.HelmSecretNameForPaths = "helm-secret"
 			gr.Status.Commit = oldCommit
-			gr.Status.WebhookCommit = newCommit // triggers shouldCreateJob via commit != oldCommit
+			gr.Status.PollingCommit = newCommit // triggers shouldCreateJob via getNextCommit
 		},
 		2,
 	)
@@ -3222,5 +3213,298 @@ func TestShouldCreateJob_NoCommitDisablePolling(t *testing.T) {
 	if !got {
 		t.Error("shouldCreateJob returned false with DisablePolling=true and generationChanged()=true; " +
 			"job should still be created when polling is disabled")
+	}
+}
+
+// TestGetNextCommit verifies that WebhookCommit is no longer promoted as a deployable
+// commit (the key change in the webhook-vs-head-race-condition fix). Only PollingCommit
+// can advance the deploy target beyond Status.Commit.
+func TestGetNextCommit(t *testing.T) {
+	tests := map[string]struct {
+		status   fleetv1.GitRepoStatus
+		expected string
+	}{
+		"returns Status.Commit when nothing else is set": {
+			status:   fleetv1.GitRepoStatus{Commit: "aaa"},
+			expected: "aaa",
+		},
+		"returns PollingCommit when it differs from Status.Commit": {
+			status:   fleetv1.GitRepoStatus{Commit: "aaa", PollingCommit: "bbb"},
+			expected: "bbb",
+		},
+		"WebhookCommit is NOT promoted as a deployable commit": {
+			status:   fleetv1.GitRepoStatus{Commit: "aaa", WebhookCommit: "ccc"},
+			expected: "aaa",
+		},
+		"PollingCommit takes precedence; WebhookCommit is ignored": {
+			status:   fleetv1.GitRepoStatus{Commit: "aaa", PollingCommit: "bbb", WebhookCommit: "ccc"},
+			expected: "bbb",
+		},
+		"PollingCommit matching Status.Commit leaves result unchanged": {
+			status:   fleetv1.GitRepoStatus{Commit: "aaa", PollingCommit: "aaa"},
+			expected: "aaa",
+		},
+		"all empty returns empty": {
+			status:   fleetv1.GitRepoStatus{},
+			expected: "",
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			got := getNextCommit(tc.status)
+			if got != tc.expected {
+				t.Errorf("getNextCommit() = %q, want %q", got, tc.expected)
+			}
+		})
+	}
+}
+
+// TestRealignWebhookCommit_AlreadyAligned verifies that realignWebhookCommit is a
+// no-op when WebhookCommit already equals the deployed commit.
+func TestRealignWebhookCommit_AlreadyAligned(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+
+	const deployed = "aaaa1111bbbb2222"
+	mockClient := mocks.NewMockK8sClient(mockCtrl)
+	mockClient.EXPECT().
+		Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.GitRepo{}), gomock.Any()).
+		DoAndReturn(func(_ context.Context, _ types.NamespacedName, obj client.Object, _ ...any) error {
+			obj.(*fleetv1.GitRepo).Status.WebhookCommit = deployed
+			return nil
+		})
+	// Status().Patch must NOT be called — no mock expectations for it.
+
+	r := &GitJobReconciler{Client: mockClient}
+	if err := r.realignWebhookCommit(context.TODO(), types.NamespacedName{}, deployed, nil); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+// TestRealignWebhookCommit_EmptyWebhookCommit verifies that realignWebhookCommit is a
+// no-op when no webhook has ever set WebhookCommit (empty string).
+func TestRealignWebhookCommit_EmptyWebhookCommit(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+
+	mockClient := mocks.NewMockK8sClient(mockCtrl)
+	mockClient.EXPECT().
+		Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.GitRepo{}), gomock.Any()).
+		DoAndReturn(func(_ context.Context, _ types.NamespacedName, obj client.Object, _ ...any) error {
+			// WebhookCommit intentionally left empty
+			return nil
+		})
+
+	r := &GitJobReconciler{Client: mockClient}
+	if err := r.realignWebhookCommit(context.TODO(), types.NamespacedName{}, "deployed", nil); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+// TestRealignWebhookCommit_StaleWebhook verifies that realignWebhookCommit patches
+// WebhookCommit to the deployed commit when the stored value is stale and no newer
+// webhook has arrived after the job started.
+func TestRealignWebhookCommit_StaleWebhook(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+
+	const stale = "stale1111"
+	const deployed = "deployed1"
+
+	mockClient := mocks.NewMockK8sClient(mockCtrl)
+	mockClient.EXPECT().
+		Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.GitRepo{}), gomock.Any()).
+		DoAndReturn(func(_ context.Context, _ types.NamespacedName, obj client.Object, _ ...any) error {
+			obj.(*fleetv1.GitRepo).Status.WebhookCommit = stale
+			// LastWebhookTime is zero — no recent webhook to preserve
+			return nil
+		})
+
+	var patchedCommit string
+	statusClient := mocks.NewMockStatusWriter(mockCtrl)
+	mockClient.EXPECT().Status().Return(statusClient)
+	statusClient.EXPECT().
+		Patch(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.GitRepo{}), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, obj client.Object, _ client.Patch, _ ...any) error {
+			patchedCommit = obj.(*fleetv1.GitRepo).Status.WebhookCommit
+			return nil
+		})
+
+	r := &GitJobReconciler{Client: mockClient}
+	if err := r.realignWebhookCommit(context.TODO(), types.NamespacedName{}, deployed, nil); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if patchedCommit != deployed {
+		t.Errorf("patched WebhookCommit = %q, want %q", patchedCommit, deployed)
+	}
+}
+
+// TestRealignWebhookCommit_NewerWebhookAfterJob verifies that realignWebhookCommit does
+// NOT overwrite a newer webhook that arrived after the job started. Without this guard, a
+// late-arriving webhook for a different commit would be silently clobbered.
+func TestRealignWebhookCommit_NewerWebhookAfterJob(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+
+	jobStart := metav1.Now()
+	laterWebhook := metav1.NewTime(jobStart.Add(time.Second))
+
+	mockClient := mocks.NewMockK8sClient(mockCtrl)
+	mockClient.EXPECT().
+		Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.GitRepo{}), gomock.Any()).
+		DoAndReturn(func(_ context.Context, _ types.NamespacedName, obj client.Object, _ ...any) error {
+			gr := obj.(*fleetv1.GitRepo)
+			gr.Status.WebhookCommit = "newer-webhook-commit"
+			gr.Status.LastWebhookTime = laterWebhook
+			return nil
+		})
+	// No Status().Patch expected — newer webhook must be preserved.
+
+	r := &GitJobReconciler{Client: mockClient}
+	if err := r.realignWebhookCommit(context.TODO(), types.NamespacedName{}, "deployed", &jobStart); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+// TestRealignWebhookCommit_TimeoutClearsToHead verifies the propagation-wait
+// give-up caller: realignWebhookCommit is invoked with the current HEAD and a
+// guard equal to the timed-out webhook's own timestamp (no newer webhook
+// arrived). The guard must NOT block, so the stale webhook commit is cleared to
+// HEAD, stopping webhookPending from firing an ls-remote on every reconcile.
+func TestRealignWebhookCommit_TimeoutClearsToHead(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+
+	const head = "head1111head2222"
+	const pendingWebhook = "neverappeared111"
+	webhookTime := metav1.Now()
+
+	mockClient := mocks.NewMockK8sClient(mockCtrl)
+	mockClient.EXPECT().
+		Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.GitRepo{}), gomock.Any()).
+		DoAndReturn(func(_ context.Context, _ types.NamespacedName, obj client.Object, _ ...any) error {
+			gr := obj.(*fleetv1.GitRepo)
+			gr.Status.WebhookCommit = pendingWebhook
+			gr.Status.LastWebhookTime = webhookTime
+			return nil
+		})
+
+	var patchedCommit string
+	statusClient := mocks.NewMockStatusWriter(mockCtrl)
+	mockClient.EXPECT().Status().Return(statusClient)
+	statusClient.EXPECT().
+		Patch(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.GitRepo{}), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, obj client.Object, _ client.Patch, _ ...any) error {
+			patchedCommit = obj.(*fleetv1.GitRepo).Status.WebhookCommit
+			return nil
+		})
+
+	// Guard equals the pending webhook's own timestamp: After() is false, so the
+	// clear proceeds.
+	ref := webhookTime
+	r := &GitJobReconciler{Client: mockClient}
+	if err := r.realignWebhookCommit(context.TODO(), types.NamespacedName{}, head, &ref); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if patchedCommit != head {
+		t.Errorf("patched WebhookCommit = %q, want %q (cleared to HEAD)", patchedCommit, head)
+	}
+}
+
+// TestRealignWebhookCommit_GitRepoGone verifies that realignWebhookCommit ignores a
+// NotFound error, treating a deleted GitRepo as a benign race.
+func TestRealignWebhookCommit_GitRepoGone(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+
+	mockClient := mocks.NewMockK8sClient(mockCtrl)
+	mockClient.EXPECT().
+		Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.GitRepo{}), gomock.Any()).
+		Return(apierrors.NewNotFound(schema.GroupResource{Resource: "gitrepos"}, "missing"))
+
+	r := &GitJobReconciler{Client: mockClient}
+	if err := r.realignWebhookCommit(context.TODO(), types.NamespacedName{}, "deployed", nil); err != nil {
+		t.Fatalf("expected nil for not-found, got: %v", err)
+	}
+}
+
+// TestCreateJob_AlreadyExistsIsIgnored verifies that createJob treats an AlreadyExists
+// error from the API server as a benign no-op. This handles a concurrent reconcile that
+// created the same job (same gitrepo + commit) between when
+// the current reconcile decided to create and when it actually called Create.
+func TestCreateJob_AlreadyExistsIsIgnored(t *testing.T) {
+	scheme := runtime.NewScheme()
+	utilruntime.Must(corev1.AddToScheme(scheme))
+	utilruntime.Must(appsv1.AddToScheme(scheme))
+	utilruntime.Must(batchv1.AddToScheme(scheme))
+	utilruntime.Must(fleetv1.AddToScheme(scheme))
+
+	gitRepo := &fleetv1.GitRepo{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "my-repo",
+			Namespace: "default",
+			UID:       "test-uid",
+		},
+		Spec:   fleetv1.GitRepoSpec{Repo: "https://example.com/org/repo.git"},
+		Status: fleetv1.GitRepoStatus{Commit: "abc1234567890"},
+	}
+
+	// Pre-create the job that createJob will try to create, so the fake client
+	// returns AlreadyExists on the Create call.
+	preExisting := &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      jobName(gitRepo),
+			Namespace: gitRepo.Namespace,
+		},
+	}
+
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(
+			preExisting,
+			&corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "known-hosts",
+					Namespace: config.DefaultNamespace,
+				},
+				Data: map[string]string{"known_hosts": ""},
+			},
+			&appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      config.ManagerConfigName,
+					Namespace: config.DefaultNamespace,
+				},
+				Spec: appsv1.DeploymentSpec{
+					Selector: &metav1.LabelSelector{
+						MatchLabels: map[string]string{"app": "fleet-controller"},
+					},
+					Template: corev1.PodTemplateSpec{
+						ObjectMeta: metav1.ObjectMeta{
+							Labels: map[string]string{"app": "fleet-controller"},
+						},
+						Spec: corev1.PodSpec{
+							Containers: []corev1.Container{{Name: "test", Image: "test"}},
+						},
+					},
+				},
+			},
+		).
+		Build()
+
+	r := &GitJobReconciler{
+		Client:          fakeClient,
+		Scheme:          scheme,
+		Image:           "test",
+		SystemNamespace: config.DefaultNamespace,
+		KnownHosts:      ssh.KnownHosts{},
+	}
+
+	created, err := r.createJob(context.TODO(), gitRepo)
+	if err != nil {
+		t.Fatalf("createJob should return nil on AlreadyExists, got: %v", err)
+	}
+	if created {
+		t.Fatal("createJob should return false when job already exists")
 	}
 }

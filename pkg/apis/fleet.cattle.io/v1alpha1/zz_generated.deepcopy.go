@@ -1707,6 +1707,7 @@ func (in *GitRepoSpec) DeepCopy() *GitRepoSpec {
 func (in *GitRepoStatus) DeepCopyInto(out *GitRepoStatus) {
 	*out = *in
 	in.StatusBase.DeepCopyInto(&out.StatusBase)
+	in.LastWebhookTime.DeepCopyInto(&out.LastWebhookTime)
 	in.LastSyncedImageScanTime.DeepCopyInto(&out.LastSyncedImageScanTime)
 	in.LastPollingTime.DeepCopyInto(&out.LastPollingTime)
 }

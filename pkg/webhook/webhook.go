@@ -178,6 +178,7 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 				}
 				orig := gitRepoFromCluster.DeepCopy()
 				gitRepoFromCluster.Status.WebhookCommit = revision
+				gitRepoFromCluster.Status.LastWebhookTime = metav1.Now()
 				// if PollingInterval is not set and webhook is configured, set it to 1 hour
 				if gitRepoFromCluster.Spec.PollingInterval == nil {
 					gitRepoFromCluster.Spec.PollingInterval = &metav1.Duration{

@@ -187,6 +187,9 @@ type GitRepoStatus struct {
 	// WebhookCommit is the latest Git commit hash received from a webhook
 	// +optional
 	WebhookCommit string `json:"webhookCommit,omitempty"`
+	// LastWebhookTime is the time of the last received webhook notification
+	// +optional
+	LastWebhookTime metav1.Time `json:"lastWebhookTime,omitempty"`
 	// PollingCommit is the latest Git commit hash received from polling
 	// +optional
 	PollingCommit string `json:"pollingCommit,omitempty"`
