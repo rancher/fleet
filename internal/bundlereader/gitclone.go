@@ -35,7 +35,7 @@ import (
 func gitDownload(ctx context.Context, dst, rawURL string, auth Auth) error {
 	u, err := url.Parse(rawURL)
 	if err != nil {
-		return fmt.Errorf("parsing git URL %q: %w", rawURL, err)
+		return fmt.Errorf("parsing git URL %q: %w", redactURL(rawURL), redactParseError(err))
 	}
 
 	ref, sshKeyPEM, depth, err := extractQueryParams(u)

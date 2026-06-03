@@ -273,7 +273,27 @@ func GetContent(ctx context.Context, base, source, version string, auth Auth, di
 			return nil
 		}
 
-		content, err := os.ReadFile(path) //nolint:gosec // G122: path is from WalkDir over a go-getter controlled temp directory
+		// Symlinks are allowed as long as their fully-resolved target stays
+		// within the bundle root. This permits legitimate intra-bundle symlinks
+		// (e.g. a chart with values.yaml -> defaults.yaml, or symlinks created
+		// by extractTar from a tar archive) while rejecting symlinks that point
+		// outside (e.g. to /etc/passwd or ../../secret). filepath.EvalSymlinks
+		// resolves the full chain, so chained escapes are also caught.
+		if info.Type()&os.ModeSymlink != 0 {
+			resolved, err := filepath.EvalSymlinks(path)
+			if err != nil {
+				return fmt.Errorf("GetContent: resolving symlink %q: %w", name, err)
+			}
+			cleanRoot := filepath.Clean(temp)
+			rel, relErr := filepath.Rel(cleanRoot, resolved)
+			if relErr != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+				return fmt.Errorf("GetContent: symlink %q: target escapes bundle directory", name)
+			}
+			// Target is within bundle; fall through to os.ReadFile which follows the link.
+		}
+
+		//nolint:gosec // G304: path is from WalkDir over a downloaded temp directory
+		content, err := os.ReadFile(path)
 		if err != nil {
 			return err
 		}

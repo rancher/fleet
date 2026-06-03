@@ -716,3 +716,44 @@ func createDirStruct(t *testing.T, basePath string, node fsNode) string {
 
 	return path
 }
+
+// TestGetContent_EscapingSymlinkRejected verifies that GetContent returns an
+// error when the bundle directory contains a symlink whose target resolves
+// outside the bundle root. Following such a symlink could allow a malicious
+// repository to exfiltrate files from outside the cloned directory.
+func TestGetContent_EscapingSymlinkRejected(t *testing.T) {
+	// Create a file outside the bundle directory to serve as the link target.
+	outsideDir := t.TempDir()
+	secretFile := filepath.Join(outsideDir, "secret.txt")
+	require.NoError(t, os.WriteFile(secretFile, []byte("sensitive content"), 0600))
+
+	// Build a bundle directory that contains one legitimate file and one
+	// symlink pointing to the secret file outside the bundle.
+	bundleDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(bundleDir, "legit.txt"), []byte("ok"), 0644))
+	require.NoError(t, os.Symlink(secretFile, filepath.Join(bundleDir, "evil-link.txt")))
+
+	_, err := bundlereader.GetContent(t.Context(), bundleDir, bundleDir, "", bundlereader.Auth{}, false, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "escapes bundle directory")
+
+	// The secret contents must not appear in the error message.
+	assert.NotContains(t, err.Error(), "sensitive content")
+}
+
+// TestGetContent_InternalSymlinkAllowed verifies that GetContent includes the
+// content of files pointed to by symlinks that stay within the bundle root.
+// Intra-bundle symlinks are valid in both git repositories and tar archives
+// (e.g. values.yaml -> defaults.yaml) and must not be rejected.
+func TestGetContent_InternalSymlinkAllowed(t *testing.T) {
+	bundleDir := t.TempDir()
+	realContent := []byte("real content")
+	require.NoError(t, os.WriteFile(filepath.Join(bundleDir, "real.yaml"), realContent, 0644))
+	// Symlink within the bundle pointing to the sibling real.yaml.
+	require.NoError(t, os.Symlink(filepath.Join(bundleDir, "real.yaml"), filepath.Join(bundleDir, "link.yaml")))
+
+	files, err := bundlereader.GetContent(t.Context(), bundleDir, bundleDir, "", bundlereader.Auth{}, false, nil)
+	require.NoError(t, err)
+	assert.Equal(t, realContent, files["real.yaml"])
+	assert.Equal(t, realContent, files["link.yaml"], "symlink within bundle must be followed")
+}

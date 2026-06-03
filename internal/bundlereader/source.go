@@ -1,9 +1,11 @@
 package bundlereader
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
@@ -259,7 +261,10 @@ func redactURL(src string) string {
 
 	u, err := url.Parse(cleanSrc)
 	if err != nil {
-		return src
+		// cleanSrc is not parseable as a URL (e.g. a malformed source string).
+		// url.Parse cannot help here, so fall back to a best-effort textual
+		// redaction so that an embedded sshkey or password is never returned.
+		return redactSensitiveText(src)
 	}
 
 	// Remove sshkey query param; it can carry a private key.
@@ -282,4 +287,38 @@ func redactURL(src string) string {
 		return forcedScheme + "::" + redacted
 	}
 	return redacted
+}
+
+var (
+	// sshkeyValueRe matches an "sshkey=<value>" query parameter, capturing the
+	// "sshkey=" prefix so the value (which can carry a private key) can be
+	// replaced.
+	sshkeyValueRe = regexp.MustCompile(`([?&]sshkey=)[^&]*`)
+	// userinfoPasswordRe matches the password portion of URL userinfo
+	// ("scheme://user:<password>@"), capturing everything up to and including
+	// the ":" so the password can be replaced.
+	userinfoPasswordRe = regexp.MustCompile(`(://[^/?#@]*:)[^/?#@]*@`)
+)
+
+// redactSensitiveText performs a best-effort textual redaction of credentials
+// for source strings that url.Parse cannot handle (e.g. a malformed URL that
+// still embeds an sshkey or password). It removes the value of any sshkey query
+// parameter and any password in the URL userinfo.
+func redactSensitiveText(src string) string {
+	src = sshkeyValueRe.ReplaceAllString(src, "${1}REDACTED")
+	src = userinfoPasswordRe.ReplaceAllString(src, "${1}REDACTED@")
+	return src
+}
+
+// redactParseError returns the underlying reason of a *url.Error without the
+// embedded raw URL. url.Error.Error() prints the offending URL verbatim, which
+// would leak any credentials it contains (basic-auth password, ?sshkey=) when
+// the error is wrapped into a message and logged. Other errors are returned
+// unchanged.
+func redactParseError(err error) error {
+	var ue *url.Error
+	if errors.As(err, &ue) {
+		return ue.Err
+	}
+	return err
 }

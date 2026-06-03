@@ -39,7 +39,7 @@ import (
 func httpDownload(ctx context.Context, dst, src string, auth Auth) error {
 	u, err := url.Parse(src)
 	if err != nil {
-		return fmt.Errorf("parsing URL %q: %w", redactURL(src), err)
+		return fmt.Errorf("parsing URL %q: %w", redactURL(src), redactParseError(err))
 	}
 
 	q := u.Query()
@@ -89,29 +89,41 @@ func httpDownload(ctx context.Context, dst, src string, auth Auth) error {
 		return err
 	}
 
-	body := io.Reader(resp.Body)
-	if checksum != nil {
-		checksum.hash.Reset()
-		body = io.TeeReader(resp.Body, checksum.hash)
-	}
-	// Limit the total compressed bytes read from the server before extracting.
-	// This covers all archive formats uniformly; without it a streaming format
-	// like tar.gz could pipe an unbounded compressed stream through the
-	// decompressor until MaxDecompressedBytes fires, consuming CPU and I/O
-	// with no bound on how much compressed data is transferred.
-	lr := &downloadLimitReader{r: body, limit: MaxCompressedBytes}
-	if err := extractResponse(dst, u.Path, archiveOverride, lr); err != nil {
-		return err
-	}
+	// Limit the total compressed bytes read from the server before any
+	// decompression begins. This covers all archive formats uniformly and
+	// prevents an arbitrarily large server response from consuming CPU and
+	// disk I/O before the per-archive MaxDecompressedBytes limit fires.
+	lr := &downloadLimitReader{r: resp.Body, limit: MaxCompressedBytes}
 
 	if checksum != nil {
-		actual := checksum.hash.Sum(nil)
-		if !bytes.Equal(actual, checksum.expected) {
+		// Spool the response to a temp file while computing the hash: verify
+		// the checksum over the raw compressed bytes before any archive content
+		// is written to the destination. A tampered archive must not write files
+		// even temporarily. Spooling to disk avoids buffering up to MaxCompressedBytes
+		// in memory when ?checksum= is present on a large archive.
+		checksum.hash.Reset()
+		tmpFile, err := os.CreateTemp("", "fleet-download-*")
+		if err != nil {
+			return fmt.Errorf("creating temp file for checksum verification: %w", err)
+		}
+		tmpPath := tmpFile.Name()
+		defer os.Remove(tmpPath)
+		defer tmpFile.Close()
+
+		if _, err := io.Copy(tmpFile, io.TeeReader(lr, checksum.hash)); err != nil {
+			return fmt.Errorf("downloading %q: %w", u.Redacted(), err)
+		}
+		if actual := checksum.hash.Sum(nil); !bytes.Equal(actual, checksum.expected) {
 			return fmt.Errorf("checksum mismatch for %q: expected %s:%x, got %x",
 				u.Redacted(), checksum.hashType, checksum.expected, actual)
 		}
+		if _, err := tmpFile.Seek(0, io.SeekStart); err != nil {
+			return fmt.Errorf("seeking temp file for extraction: %w", err)
+		}
+		return extractResponse(dst, u.Path, archiveOverride, tmpFile)
 	}
-	return nil
+
+	return extractResponse(dst, u.Path, archiveOverride, lr)
 }
 
 // MaxCompressedBytes caps the total number of compressed bytes accepted from
