@@ -166,6 +166,7 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 				}
 				orig := gitRepoFromCluster.DeepCopy()
 				gitRepoFromCluster.Status.WebhookCommit = revision
+				gitRepoFromCluster.Status.LastWebhookTime = metav1.Now()
 				if err := w.client.Status().Patch(ctx, &gitRepoFromCluster, client.MergeFrom(orig)); err != nil {
 					w.logAndReturn(rw, err)
 					return

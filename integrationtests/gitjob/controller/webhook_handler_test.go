@@ -101,4 +101,23 @@ var _ = Describe("Webhook handler", func() {
 			Expect(updated.Spec.PollingInterval.Duration).To(Equal(existingInterval))
 		})
 	})
+
+	When("a push webhook arrives", func() {
+		const pushCommit = "cccc3333dddd4444eeee5555ffff6666aaaa1111"
+
+		It("sets LastWebhookTime to a recent timestamp", func() {
+			// metav1.Time stores at second granularity, so truncate before comparing.
+			before := metav1.Now().Truncate(time.Second)
+			sendGitHubPush(pushCommit)
+
+			Eventually(func(g Gomega) {
+				var updated v1alpha1.GitRepo
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{
+					Name: gitRepo.Name, Namespace: gitRepo.Namespace,
+				}, &updated)).To(Succeed())
+				g.Expect(updated.Status.LastWebhookTime.IsZero()).To(BeFalse())
+				g.Expect(updated.Status.LastWebhookTime.Time).To(BeTemporally(">=", before))
+			}).Should(Succeed())
+		})
+	})
 })

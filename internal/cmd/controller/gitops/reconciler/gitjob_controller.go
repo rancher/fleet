@@ -70,6 +70,11 @@ const (
 	// in order to wait for the dependent resources cleanup to finish
 	requeueAfterResourceCleanup = 2 * time.Second
 
+	// max time to wait for a git host to propagate a pushed commit before giving up
+	webhookMaxWait = 30 * time.Second
+	// requeue delay while waiting for webhook commit propagation
+	webhookPropagationDelay = 2 * time.Second
+
 	// Annotation keys for tracking secret data hashes
 	clientSecretHashAnnotation       = "fleet.cattle.io/client-secret-hash"         //nolint:gosec // not a credential
 	helmSecretHashAnnotation         = "fleet.cattle.io/helm-secret-hash"           //nolint:gosec // not a credential
@@ -310,6 +315,43 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	return ctrl.Result{}, nil
 }
 
+// fetchLatestCommit resolves the remote HEAD via ls-remote, updates
+// gitrepo.Status.Commit and the polling condition, and emits the matching
+// events.
+func (r *GitJobReconciler) fetchLatestCommit(ctx context.Context, gitrepo *v1alpha1.GitRepo, oldCommit string) error {
+	commit, fetchErr := monitorLatestCommit(gitrepo, func() (string, error) {
+		return r.GitFetcher.LatestCommit(ctx, gitrepo, r.Client)
+	})
+	condition.Cond(gitPollingCondition).SetError(&gitrepo.Status, "", fetchErr)
+	if fetchErr == nil && commit != "" {
+		gitrepo.Status.Commit = commit
+		// Keep PollingCommit aligned with the resolved HEAD.
+		// Consider it as the "last seen commit from polling".
+		gitrepo.Status.PollingCommit = commit
+	}
+	if fetchErr != nil {
+		r.Recorder.Eventf(
+			gitrepo,
+			nil,
+			corev1.EventTypeWarning,
+			"Failed",
+			"MonitorLatestCommit",
+			"%v",
+			fetchErr,
+		)
+	} else if oldCommit != gitrepo.Status.Commit {
+		r.Recorder.Eventf(
+			gitrepo,
+			nil,
+			corev1.EventTypeNormal,
+			"GotNewCommit",
+			"GetNewCommit",
+			gitrepo.Status.Commit,
+		)
+	}
+	return fetchErr
+}
+
 func monitorLatestCommit(obj metav1.Object, fetch func() (string, error)) (string, error) {
 	start := time.Now()
 	commit, err := fetch()
@@ -324,6 +366,76 @@ func monitorLatestCommit(obj metav1.Object, fetch func() (string, error)) (strin
 
 // manageGitJob is responsible for creating, updating and deleting the GitJob and setting the GitRepo's status accordingly
 func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger, gitrepo *v1alpha1.GitRepo, oldCommit string) (ctrl.Result, error) {
+	// Validate referenced secrets up front. The result (clientSecretChanged,
+	// helmSecretChanged) is reused by both the job-create and job-delete paths
+	// below, avoiding a second hasReferencedSecretChanged call.
+	clientSecretChanged, helmSecretChanged, err := r.hasReferencedSecretChanged(ctx, gitrepo)
+	if err != nil {
+		r.Recorder.Eventf(
+			gitrepo,
+			nil,
+			corev1.EventTypeWarning,
+			"FailedValidatingSecret",
+			"ValidateSecret",
+			"%v",
+			err,
+		)
+		return ctrl.Result{}, fmt.Errorf("error validating external secrets: %w", err)
+	}
+
+	// A pending webhook means a commit was announced that we have not yet
+	// observed at the remote HEAD. Resolve HEAD up front, before we delete or
+	// create any job, so we never act on the stale commit and so a webhook
+	// arriving mid-job can advance Status.Commit and supersede the running job.
+	webhookPending := gitrepo.Status.WebhookCommit != "" && gitrepo.Status.WebhookCommit != oldCommit
+	if webhookPending {
+		fetchErr := r.fetchLatestCommit(ctx, gitrepo, oldCommit)
+
+		// Propagation wait: HEAD hasn't moved yet after a recent webhook.
+		// The git host may still be replicating the pushed commit. Requeue
+		// with a short delay instead of deploying a stale HEAD. Give up after
+		// webhookMaxWait so a miss-delivered webhook never blocks indefinitely.
+		if fetchErr == nil && gitrepo.Status.Commit == oldCommit {
+			if !gitrepo.Status.LastWebhookTime.IsZero() &&
+				r.Clock.Since(gitrepo.Status.LastWebhookTime.Time) < webhookMaxWait {
+				logger.V(1).Info("Webhook announced commit not yet visible in remote HEAD, requeuing",
+					"webhookCommit", gitrepo.Status.WebhookCommit,
+					"headCommit", gitrepo.Status.Commit)
+				return ctrl.Result{RequeueAfter: webhookPropagationDelay}, nil
+			}
+			logger.V(1).Info("Webhook announced commit did not appear in remote HEAD within timeout",
+				"webhookCommit", gitrepo.Status.WebhookCommit,
+				"headCommit", gitrepo.Status.Commit)
+
+			// Surface the give-up so it is not a silent no-op.
+			r.Recorder.Eventf(
+				gitrepo,
+				nil,
+				corev1.EventTypeWarning,
+				"WebhookCommitNotVisible",
+				"MonitorLatestCommit",
+				"webhook commit %s not visible at remote HEAD after %s; clearing pending webhook",
+				gitrepo.Status.WebhookCommit,
+				webhookMaxWait,
+			)
+
+			// Clear the pending webhook by realigning WebhookCommit to the current
+			// HEAD. Without this, webhookPending stays true forever and every
+			// subsequent reconcile fires another ls-remote.
+			ref := gitrepo.Status.LastWebhookTime
+			if err := r.realignWebhookCommit(
+				ctx,
+				types.NamespacedName{Namespace: gitrepo.Namespace, Name: gitrepo.Name},
+				oldCommit,
+				&ref,
+			); err != nil {
+				logger.V(1).Error(err, "failed to clear timed-out webhook commit")
+			}
+		}
+	}
+
+	// With Status.Commit now reflecting the real HEAD (or unchanged when no
+	// fetch was required), delete the previous Job if the commit advanced.
 	deleted, err := r.deletePreviousJob(ctx, logger, *gitrepo, oldCommit)
 	if err != nil {
 		return ctrl.Result{}, err
@@ -356,54 +468,8 @@ func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger,
 	}
 
 	if apierrors.IsNotFound(err) {
-		clientSecretChanged, helmSecretChanged, err := r.hasReferencedSecretChanged(ctx, gitrepo)
-		if err != nil {
-			r.Recorder.Eventf(
-				gitrepo,
-				nil,
-				corev1.EventTypeWarning,
-				"FailedValidatingSecret",
-				"ValidateSecret",
-				"%v",
-				err,
-			)
-			return ctrl.Result{}, fmt.Errorf("error validating external secrets: %w", err)
-		}
-
-		// In cases where we have a very large polling interval and the first commit
-		// could not be retrieved because the secret was incorrect, the gitRepo does
-		// not show any commit.
-		// If the client secret has changed, we now retrieve the latest commit.
-		// If the secret is still incorrect, we will not need to create
-		// the gitJob (which is more expensive) and we will return an error earlier.
-		if gitrepo.Spec.DisablePolling || clientSecretChanged {
-			commit, err := monitorLatestCommit(gitrepo, func() (string, error) {
-				return r.GitFetcher.LatestCommit(ctx, gitrepo, r.Client)
-			})
-			condition.Cond(gitPollingCondition).SetError(&gitrepo.Status, "", err)
-			if err == nil && commit != "" {
-				gitrepo.Status.Commit = commit
-			}
-			if err != nil {
-				r.Recorder.Eventf(
-					gitrepo,
-					nil,
-					corev1.EventTypeWarning,
-					"Failed",
-					"MonitorLatestCommit",
-					"%v",
-					err,
-				)
-			} else if oldCommit != gitrepo.Status.Commit {
-				r.Recorder.Eventf(
-					gitrepo,
-					nil,
-					corev1.EventTypeNormal,
-					"GotNewCommit",
-					"GetNewCommit",
-					gitrepo.Status.Commit,
-				)
-			}
+		if !webhookPending && (gitrepo.Spec.DisablePolling || clientSecretChanged) {
+			_ = r.fetchLatestCommit(ctx, gitrepo, oldCommit)
 		}
 
 		if r.shouldCreateJob(gitrepo, oldCommit, helmSecretChanged) {
@@ -427,7 +493,7 @@ func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger,
 			gitjobsCreatedSuccess.Inc(gitrepo)
 		}
 	} else if gitrepo.Status.Commit != "" && gitrepo.Status.Commit == oldCommit {
-		err, recreateGitJob := r.deleteJobIfNeeded(ctx, gitrepo, &job)
+		err, recreateGitJob := r.deleteJobIfNeeded(ctx, gitrepo, &job, clientSecretChanged, helmSecretChanged)
 		if err != nil {
 			return ctrl.Result{}, fmt.Errorf("error deleting git job: %w", err)
 		}
@@ -442,6 +508,23 @@ func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger,
 
 	if err = setStatusFromGitjob(ctx, r.Client, gitrepo, &job); err != nil {
 		return ctrl.Result{}, fmt.Errorf("error setting GitRepo status from git job: %w", err)
+	}
+
+	// Once the job is successful clear the pending webhook commit if it matches the deployed commit.
+	// Without this, an out-of-order older delivery (a webhook for an older SHA arriving after a newer one)
+	// would keep webhookPending=true on every subsequent reconcile
+	// and fire redundant ls-remote calls indefinitely.
+	if job.Status.Succeeded == 1 {
+		if deployedCommit := job.Annotations["commit"]; deployedCommit != "" {
+			if err := r.realignWebhookCommit(
+				ctx,
+				types.NamespacedName{Namespace: gitrepo.Namespace, Name: gitrepo.Name},
+				deployedCommit,
+				job.Status.StartTime,
+			); err != nil {
+				logger.V(1).Error(err, "best-effort WebhookCommit realignment failed")
+			}
+		}
 	}
 
 	return ctrl.Result{}, nil
@@ -615,7 +698,10 @@ func (r *GitJobReconciler) validateExternalSecretExist(ctx context.Context, gitr
 	return nil
 }
 
-func (r *GitJobReconciler) deleteJobIfNeeded(ctx context.Context, gitRepo *v1alpha1.GitRepo, job *batchv1.Job) (error, bool) {
+// deleteJobIfNeeded deletes the Job when a force-sync, generation change, success,
+// or secret rotation requires it. The secret-changed flags are precomputed by
+// the caller (manageGitJob already needs them for the LatestCommit decision).
+func (r *GitJobReconciler) deleteJobIfNeeded(ctx context.Context, gitRepo *v1alpha1.GitRepo, job *batchv1.Job, clientSecretChanged, helmSecretChanged bool) (error, bool) {
 	logger := log.FromContext(ctx)
 
 	// the following cases imply that the job is still running but we need to stop it and
@@ -678,11 +764,8 @@ func (r *GitJobReconciler) deleteJobIfNeeded(ctx context.Context, gitRepo *v1alp
 	}
 
 	// finally if there's a job and any of the secrets related to the gitrepo changed,
-	// we need to delete the job so it gets recreated
-	clientSecretChanged, helmSecretChanged, err := r.hasReferencedSecretChanged(ctx, gitRepo)
-	if err != nil {
-		return err, false
-	}
+	// we need to delete the job so it gets recreated. The flags are computed once
+	// in manageGitJob and passed in to avoid a second hasReferencedSecretChanged call.
 	if clientSecretChanged || helmSecretChanged {
 		jobDeletedMessage := "job deletion triggered because referenced secret changed"
 		logger.Info(jobDeletedMessage)
@@ -693,6 +776,41 @@ func (r *GitJobReconciler) deleteJobIfNeeded(ctx context.Context, gitRepo *v1alp
 	}
 
 	return nil, false
+}
+
+// realignWebhookCommit clears a stale WebhookCommit by setting it to the
+// just-deployed commit. Without this, an out-of-order older delivery (a
+// webhook for an older SHA arriving after a newer one) would keep
+// webhookPending=true on every subsequent reconcile and fire redundant
+// calls indefinitely.
+func (r *GitJobReconciler) realignWebhookCommit(
+	ctx context.Context,
+	nsName types.NamespacedName,
+	deployedCommit string,
+	jobStartTime *metav1.Time,
+) error {
+	return retry.OnError(retry.DefaultRetry, apierrors.IsConflict, func() error {
+		current := &v1alpha1.GitRepo{}
+		if err := r.Get(ctx, nsName, current); err != nil {
+			return client.IgnoreNotFound(err)
+		}
+		// already aligned or never received a webhook
+		if current.Status.WebhookCommit == "" || current.Status.WebhookCommit == deployedCommit {
+			return nil
+		}
+		if jobStartTime != nil &&
+			!current.Status.LastWebhookTime.IsZero() &&
+			current.Status.LastWebhookTime.After(jobStartTime.Time) {
+			return nil
+		}
+		orig := current.DeepCopy()
+		current.Status.WebhookCommit = deployedCommit
+		return r.Status().Patch(
+			ctx,
+			current,
+			client.MergeFromWithOptions(orig, client.MergeFromWithOptimisticLock{}),
+		)
+	})
 }
 
 func jobKey(g v1alpha1.GitRepo) *quartz.JobKey {
@@ -1272,19 +1390,16 @@ func getFleetCLIErrorsFromLine(l string) string {
 	return s
 }
 
-// getNextCommit returns a commit SHA coming either from the status' webhook
-// commit or, with lower precedence, from the polling commit.
+// getNextCommit returns the candidate commit to deploy, using the polling commit
+// with higher precedence than the last-deployed commit. WebhookCommit is
+// intentionally excluded: it is a trigger and freshness hint only, not a value
+// to deploy. HEAD is resolved via LatestCommit in manageGitJob when a webhook
+// is pending.
 func getNextCommit(status v1alpha1.GitRepoStatus) string {
 	commit := status.Commit
 	if status.PollingCommit != "" && status.PollingCommit != commit {
 		commit = status.PollingCommit
 	}
-	// We could be using polling but webhooks react immediately to updates.
-	// Give preference to the webhook commit.
-	if status.WebhookCommit != "" && status.WebhookCommit != commit {
-		commit = status.WebhookCommit
-	}
-
 	return commit
 }
 
