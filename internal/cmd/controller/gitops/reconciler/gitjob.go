@@ -245,13 +245,14 @@ func (r *GitJobReconciler) newGitJob(ctx context.Context, obj *v1alpha1.GitRepo)
 			Data: secret.Data,
 			Type: secret.Type,
 		}
-		if err := controllerutil.SetControllerReference(obj, &gitjobSecret, r.Scheme); err != nil {
-			return nil, fmt.Errorf("failed to set gitrepo ownership on image pull secret %q: %w", ips.Name, err)
-		}
 
 		_, err = controllerutil.CreateOrUpdate(ctx, r.Client, &gitjobSecret, func() error {
 			gitjobSecret.Data = secret.Data
 			gitjobSecret.Type = secret.Type
+
+			if err := controllerutil.SetControllerReference(obj, &gitjobSecret, r.Scheme); err != nil {
+				return fmt.Errorf("failed to set gitrepo ownership on image pull secret %q: %w", ips.Name, err)
+			}
 
 			return nil
 		})
