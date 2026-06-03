@@ -41,6 +41,8 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
+        - name: KUBE_FEATURE_WatchListClient
+          value: "false"
         {{- if $.Values.clusterEnqueueDelay }}
         - name: FLEET_CLUSTER_ENQUEUE_DELAY
           value: {{ $.Values.clusterEnqueueDelay }}
@@ -191,6 +193,8 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
+        - name: KUBE_FEATURE_WatchListClient
+          value: "false"
         - name: FLEET_PROPAGATE_DEBUG_SETTINGS_TO_AGENTS
           value: {{ quote $.Values.propagateDebugSettingsToAgents }}
         - name: FLEET_DEBUG_DISABLE_SECURITY_CONTEXT

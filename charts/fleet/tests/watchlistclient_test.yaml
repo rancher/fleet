@@ -1,0 +1,19 @@
+suite: WatchListClient feature gate env var tests
+templates:
+  - deployment.yaml
+tests:
+  - it: should set KUBE_FEATURE_WatchListClient to false in the fleet-controller container
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[?(@.name == 'fleet-controller')].env
+          content:
+            name: KUBE_FEATURE_WatchListClient
+            value: "false"
+
+  - it: should set KUBE_FEATURE_WatchListClient to false in the fleet-agentmanagement container
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[?(@.name == 'fleet-agentmanagement')].env
+          content:
+            name: KUBE_FEATURE_WatchListClient
+            value: "false"
