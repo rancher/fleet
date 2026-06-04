@@ -16,12 +16,13 @@ import (
 
 var _ = Describe("GitRepo using Helm chart with auth", Label("infra-setup"), func() {
 	var (
-		gitRepoPath     string
-		tmpdir          string
-		k               kubectl.Command
-		gh              *githelper.Git
-		targetNamespace string
-		helmSecretName  string
+		gitRepoPath      string
+		tmpdir           string
+		k                kubectl.Command
+		gh               *githelper.Git
+		targetNamespace  string
+		helmSecretName   string
+		helmRepoURLRegex string
 	)
 
 	JustBeforeEach(func() {
@@ -32,13 +33,15 @@ var _ = Describe("GitRepo using Helm chart with auth", Label("infra-setup"), fun
 
 		gitrepo := path.Join(tmpdir, "gitrepo.yaml")
 		err := testenv.Template(gitrepo, testenv.AssetPath("single-cluster/helm-with-auth.yaml"), struct {
-			Repo       string
-			Path       string
-			SecretName string
+			Repo             string
+			Path             string
+			SecretName       string
+			HelmRepoURLRegex string
 		}{
 			inClusterRepoURL,
 			gitRepoPath,
 			helmSecretName,
+			helmRepoURLRegex,
 		})
 		Expect(err).ToNot(HaveOccurred())
 
@@ -47,6 +50,10 @@ var _ = Describe("GitRepo using Helm chart with auth", Label("infra-setup"), fun
 	})
 
 	When("creating a gitrepo resource", func() {
+		BeforeEach(func() {
+			helmRepoURLRegex = ""
+		})
+
 		Context("containing a private OCI-based helm chart and setting insecureSkipVerify to false", Label("oci-registry"), func() {
 			BeforeEach(func() {
 				gitRepoPath = "oci-with-auth-external"
@@ -147,6 +154,7 @@ var _ = Describe("GitRepo using Helm chart with auth", Label("infra-setup"), fun
 			BeforeEach(func() {
 				gitRepoPath = "oci-with-auth-external"
 				helmSecretName = "helm-secret-insecure"
+				helmRepoURLRegex = "oci://.*"
 				targetNamespace = "fleet-helm-oci-with-auth"
 				k = env.Kubectl.Namespace(env.Namespace)
 
@@ -180,6 +188,7 @@ var _ = Describe("GitRepo using Helm chart with auth", Label("infra-setup"), fun
 			BeforeEach(func() {
 				gitRepoPath = "oci-with-auth-external"
 				helmSecretName = "helm-secret-insecure"
+				helmRepoURLRegex = "oci://.*"
 				targetNamespace = "fleet-helm-oci-with-auth"
 				k = env.Kubectl.Namespace(env.Namespace)
 
@@ -211,6 +220,7 @@ var _ = Describe("GitRepo using Helm chart with auth", Label("infra-setup"), fun
 			BeforeEach(func() {
 				gitRepoPath = "oci-with-auth"
 				helmSecretName = "helm-secret"
+				helmRepoURLRegex = "oci://.*"
 				targetNamespace = "fleet-helm-" + gitRepoPath
 				k = env.Kubectl.Namespace(env.Namespace)
 
@@ -229,6 +239,7 @@ var _ = Describe("GitRepo using Helm chart with auth", Label("infra-setup"), fun
 			BeforeEach(func() {
 				gitRepoPath = "oci-with-auth-chart"
 				helmSecretName = "helm-secret"
+				helmRepoURLRegex = "oci://.*"
 				targetNamespace = "fleet-helm-oci-with-auth"
 				k = env.Kubectl.Namespace(env.Namespace)
 
@@ -246,6 +257,7 @@ var _ = Describe("GitRepo using Helm chart with auth", Label("infra-setup"), fun
 			BeforeEach(func() {
 				gitRepoPath = "http-with-auth-repo-path"
 				helmSecretName = "helm-secret-no-ca"
+				helmRepoURLRegex = "https://chartmuseum-service\\..*"
 				targetNamespace = "fleet-helm-" + gitRepoPath
 				k = env.Kubectl.Namespace(env.Namespace)
 
@@ -295,6 +307,7 @@ var _ = Describe("GitRepo using Helm chart with auth", Label("infra-setup"), fun
 			BeforeEach(func() {
 				gitRepoPath = "http-with-auth-repo-path"
 				helmSecretName = "helm-secret"
+				helmRepoURLRegex = "https://chartmuseum-service\\..*"
 				targetNamespace = "fleet-helm-" + gitRepoPath
 				k = env.Kubectl.Namespace(env.Namespace)
 
@@ -312,6 +325,7 @@ var _ = Describe("GitRepo using Helm chart with auth", Label("infra-setup"), fun
 			BeforeEach(func() {
 				gitRepoPath = "http-with-auth-chart-path"
 				helmSecretName = "helm-secret"
+				helmRepoURLRegex = "https://chartmuseum-service\\..*"
 				targetNamespace = "fleet-helm-" + gitRepoPath
 				k = env.Kubectl.Namespace(env.Namespace)
 

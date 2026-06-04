@@ -10,6 +10,7 @@ import (
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/data"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/data/convert"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/kv"
+	"github.com/rancher/fleet/internal/config"
 	fleetv1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1/summary"
 
 	"github.com/sirupsen/logrus"
@@ -22,9 +23,8 @@ import (
 )
 
 const (
-	kindSep                    = ", Kind="
-	reason                     = "%REASON%"
-	checkGVKErrorMappingEnvVar = "CATTLE_WRANGLER_CHECK_GVK_ERROR_MAPPING"
+	kindSep = ", Kind="
+	reason  = "%REASON%"
 )
 
 var (
@@ -152,7 +152,7 @@ func init() {
 }
 
 func initializeCheckErrors() {
-	gvkConfig := os.Getenv(checkGVKErrorMappingEnvVar)
+	gvkConfig := os.Getenv(config.EnvVarWranglerCheckGVKErrorMapping)
 	if gvkConfig != "" {
 		logrus.Debugf("GVK Error Mapping Provided")
 		gvkErrorMapping := ConditionTypeStatusErrorMapping{}

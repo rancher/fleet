@@ -12,7 +12,6 @@ import (
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/cleanup"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/driftdetect"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/monitor"
-	"github.com/rancher/fleet/internal/experimental"
 	"github.com/rancher/fleet/internal/helmvalues"
 	"github.com/rancher/fleet/internal/namespaces"
 	fleetv1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -51,6 +50,13 @@ type BundleDeploymentReconciler struct {
 	Monitor     *monitor.Monitor
 	DriftDetect *driftdetect.DriftDetect
 	Cleanup     *cleanup.Cleanup
+
+	// DriftChan is shared with the DriftReconciler. Sending a BundleDeployment
+	// here wakes up the drift controller so it can run drift correction. It is
+	// used to handle the case where CorrectDrift is enabled after the drift has
+	// already been detected — no further resource watch event would otherwise
+	// fire to trigger correction.
+	DriftChan chan event.TypedGenericEvent[*fleetv1.BundleDeployment]
 
 	DefaultNamespace string
 
@@ -290,6 +296,18 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		merr = append(merr, fmt.Errorf("failed refreshing drift detection: %w", err))
 	}
 
+	// If drift correction was just enabled (or any spec change occurred while
+	// drift is already present), the resource watcher won't re-emit for
+	// already-drifted resources, so wake up the DriftReconciler ourselves.
+	// Non-blocking: if no receiver is ready, a subsequent reconcile or
+	// resource event will deliver the signal.
+	if bd.Spec.CorrectDrift != nil && bd.Spec.CorrectDrift.Enabled && len(bd.Status.ModifiedStatus) > 0 && r.DriftChan != nil {
+		select {
+		case r.DriftChan <- event.TypedGenericEvent[*fleetv1.BundleDeployment]{Object: bd}:
+		default:
+		}
+	}
+
 	// Check if this bundle deployment has overlapping resources with a previously deleted bundle (Overwrites
 	// field): if so, requeue to ensure the corresponding Helm release, and therefore its resources, are
 	// reinstalled.
@@ -347,10 +365,6 @@ func (r *BundleDeploymentReconciler) copyResourcesFromUpstream(
 	bd *fleetv1.BundleDeployment,
 	logger logr.Logger,
 ) (bool, error) {
-	if !experimental.CopyResourcesDownstreamEnabled() {
-		return false, nil
-	}
-
 	if len(bd.Spec.Options.DownstreamResources) == 0 {
 		return false, nil
 	}

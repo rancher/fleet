@@ -288,6 +288,8 @@ func newReconciler(
 		DriftDetect: driftdetect,
 		Cleanup:     cleanup,
 
+		DriftChan: driftChan,
+
 		DefaultNamespace: defaultNamespace,
 
 		AgentScope: agentScope,

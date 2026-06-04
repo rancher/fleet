@@ -48,8 +48,6 @@ const (
 )
 
 var (
-	ImportTokenPrefix = "import-token-"
-
 	errUnavailableAPIServerURL = errors.New("missing apiServerURL in fleet config for cluster auto registration")
 )
 
@@ -356,7 +354,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 	setID := desiredset.GetSetID(config.AgentBootstrapConfigName, "", cluster.Spec.AgentNamespace)
 	apply = apply.WithDynamicLookup().WithSetID(setID).WithNoDeleteGVK(fleetns.GVK())
 
-	tokenName := names.SafeConcatName(ImportTokenPrefix + cluster.Name)
+	tokenName := names.SafeConcatName(config.ImportTokenPrefix + cluster.Name)
 	token, err := i.tokens.Get(cluster.Namespace, tokenName)
 	if err != nil {
 		// If token doesn't exist, try to create it

@@ -105,10 +105,8 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 			w.logAndReturn(rw, err)
 			return
 		}
-
-		path := strings.Replace(u.EscapedPath()[1:], "/_git/", "(/_git)?/", 1)
-
-		regexpStr := `(?i)(http://|https://|\w+@|ssh://(\w+@)?|git@(ssh\.)?)` + u.Hostname() +
+		path := strings.Replace(regexp.QuoteMeta(u.EscapedPath()[1:]), `/_git/`, `(/_git)?/`, 1)
+		regexpStr := `(?i)(http://|https://|\w+@|ssh://(\w+@)?|git@(ssh\.)?)` + regexp.QuoteMeta(u.Hostname()) +
 			"(:[0-9]+|)[:/](v\\d/)?" + path + "(\\.git)?$"
 		repoRegexp, err := regexp.Compile(regexpStr)
 		if err != nil {
@@ -168,16 +166,23 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 				}
 				orig := gitRepoFromCluster.DeepCopy()
 				gitRepoFromCluster.Status.WebhookCommit = revision
-				// if PollingInterval is not set and webhook is configured, set it to 1 hour
-				if gitRepoFromCluster.Spec.PollingInterval == nil {
+				gitRepoFromCluster.Status.LastWebhookTime = metav1.Now()
+				if err := w.client.Status().Patch(ctx, &gitRepoFromCluster, client.MergeFrom(orig)); err != nil {
+					w.logAndReturn(rw, err)
+					return
+				}
+				// if PollingInterval is not set, set it to 1 hour to reduce polling load
+				// now that a webhook handles commit notifications. Use a separate spec
+				// patch because Status().Patch() only applies status subresource changes.
+				if orig.Spec.PollingInterval == nil {
+					specOrig := gitRepoFromCluster.DeepCopy()
 					gitRepoFromCluster.Spec.PollingInterval = &metav1.Duration{
 						Duration: webhookDefaultSyncInterval * time.Second,
 					}
-				}
-				p := client.MergeFrom(orig)
-				if err := w.client.Status().Patch(ctx, &gitRepoFromCluster, p); err != nil {
-					w.logAndReturn(rw, err)
-					return
+					if err := w.client.Patch(ctx, &gitRepoFromCluster, client.MergeFrom(specOrig)); err != nil {
+						w.logAndReturn(rw, err)
+						return
+					}
 				}
 			}
 		}

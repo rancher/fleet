@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"os"
 	"path"
 	"strconv"
 	"strings"
@@ -9,7 +10,6 @@ import (
 
 	"github.com/rancher/fleet/internal/cmd"
 	"github.com/rancher/fleet/internal/config"
-	"github.com/rancher/fleet/internal/experimental"
 	"github.com/rancher/fleet/internal/names"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -196,7 +196,6 @@ func agentApp(namespace string, agentScope string, opts ManifestOptions) *appsv1
 								{Name: "CATTLE_ELECTION_LEASE_DURATION", Value: opts.LeaseDuration.String()},
 								{Name: "CATTLE_ELECTION_RETRY_PERIOD", Value: opts.RetryPeriod.String()},
 								{Name: "CATTLE_ELECTION_RENEW_DEADLINE", Value: opts.RenewDeadline.String()},
-								{Name: "EXPERIMENTAL_COPY_RESOURCES_DOWNSTREAM", Value: strconv.FormatBool(experimental.CopyResourcesDownstreamEnabled())},
 							},
 							Command: []string{
 								"fleetagent",
@@ -304,6 +303,12 @@ func agentApp(namespace string, agentScope string, opts ManifestOptions) *appsv1
 		}
 
 		// additional env vars from cluster
+		if gvkVal := os.Getenv(config.EnvVarWranglerCheckGVKErrorMapping); gvkVal != "" && !envVarPresent(opts.AgentEnvVars, config.EnvVarWranglerCheckGVKErrorMapping) {
+			container.Env = append(container.Env, corev1.EnvVar{
+				Name:  config.EnvVarWranglerCheckGVKErrorMapping,
+				Value: gvkVal,
+			})
+		}
 		if opts.AgentEnvVars != nil {
 			container.Env = append(container.Env, opts.AgentEnvVars...)
 		}
@@ -322,6 +327,15 @@ func agentApp(namespace string, agentScope string, opts ManifestOptions) *appsv1
 	}
 
 	return app
+}
+
+func envVarPresent(vars []corev1.EnvVar, name string) bool {
+	for _, v := range vars {
+		if v.Name == name {
+			return true
+		}
+	}
+	return false
 }
 
 func serviceAccount(namespace, name string) *corev1.ServiceAccount {

@@ -9,8 +9,6 @@ on:
 permissions:
   contents: write
   id-token: write # this is important, it's how we authenticate with Vault
-  pull-requests: read
-  checks: read
 
 env:
   GOARCH: amd64
@@ -20,6 +18,11 @@ env:
 jobs:
   build-fleet:
     runs-on: runs-on,runner=8cpu-linux-x64,mem=16,run-id=${{ github.run_id }}
+    permissions:
+      contents: write
+      id-token: write
+      pull-requests: read
+      checks: read
 
     env:
       IS_HOTFIX: ${{ contains(github.ref, '-hotfix-') }}
@@ -34,33 +37,8 @@ jobs:
       - name: Verify CI passed on tagged commit
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          COMMIT_SHA=$(git rev-list -n 1 "$RELEASE_TAG")
-          echo "Verifying CI checks for ${RELEASE_TAG} (${COMMIT_SHA})"
-
-          PR_NUMBER=$(gh api \
-            "repos/${{ github.repository }}/commits/${COMMIT_SHA}/pulls" \
-            --jq '[.[] | select(.merged_at != null)] | first | .number // empty')
-
-          if [[ -n "${PR_NUMBER:-}" ]]; then
-            echo "Found PR #${PR_NUMBER}, verifying required checks..."
-            gh pr checks "${PR_NUMBER}" \
-              --repo "${{ github.repository }}" \
-              --required
-          else
-            echo "No merged PR found (hotfix), verifying all commit checks..."
-            ISSUES=$(gh api \
-              "repos/${{ github.repository }}/commits/${COMMIT_SHA}/check-runs" \
-              --jq 'if .total_count == 0 then "no CI checks found" else ([.check_runs[] | select(.status != "completed" or (.conclusion != "success" and .conclusion != "skipped")) | .name] | join(", ")) end')
-
-            if [[ -n "${ISSUES}" ]]; then
-              echo "ERROR: ${ISSUES}"
-              exit 1
-            fi
-
-            echo "✓ All checks passed for ${RELEASE_TAG} (${COMMIT_SHA})"
-          fi
+          REPO: ${{ github.repository }}
+        run: ./.github/scripts/verify-ci-on-commit.sh
 
       - name: Set up Go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
@@ -81,10 +59,10 @@ jobs:
         uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 # v4.1.1
 
       - name: Install Slsactl
-        uses: rancherlabs/slsactl/actions/install-slsactl@a5177a3699b7cabfa4797e883314dde7e40523cc # v0.1.22
+        uses: rancherlabs/slsactl/actions/install-slsactl@132f4c15b16537cf031aae50c788fdad1a8fe723 # v0.1.33
         with:
-          # renovate: datasource=github-releases depName=rancherlabs/slsactl
-          version: v0.1.22
+          # renovate: datasource=github-tags depName=rancherlabs/slsactl
+          version: v0.1.33
 
       - name: "Read Vault Secrets"
         uses: rancher-eio/read-vault-secrets@0da85151ad1f19ed7986c41587e45aac1ace74b6 # v3
@@ -123,9 +101,9 @@ jobs:
           fi
 
           # renovate: datasource=github-releases depName=goreleaser/goreleaser
-          GORELEASER_VERSION="v2.15.4"
-          # renovate: datasource=github-release-attachments depName=goreleaser/goreleaser digestVersion=v2.15.4
-          GORELEASER_CHECKSUM_amd64="aae00c71a4a6d55e08cce9273a1516bdce33c1e07cffb7e502fa6fec4377dede"
+          GORELEASER_VERSION="v2.16.0"
+          # renovate: datasource=github-release-attachments depName=goreleaser/goreleaser digestVersion=v2.16.0
+          GORELEASER_CHECKSUM_amd64="eaae05b5eba07533bd0f06846b68c808399504784df00c62eb219541fc04e5e2"
 
           ARCH=$(uname -m)
           CHECKSUM="${GORELEASER_CHECKSUM_amd64}"
@@ -288,3 +266,56 @@ jobs:
         run: gh release edit "${RELEASE_TAG}" --draft=false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  dispatch-charts-bump:
+    permissions:
+      contents: read
+      id-token: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: build-fleet
+    # Skip hotfix releases; they follow a separate process.
+    if: github.repository == 'rancher/fleet' && !contains(github.ref, '-hotfix-')
+    steps:
+      - name: Read App Secrets
+        uses: rancher-eio/read-vault-secrets@0da85151ad1f19ed7986c41587e45aac1ace74b6 # v3
+        with:
+          secrets: |
+            secret/data/github/repo/${{ github.repository }}/github/workflow-dispatcher/app-credentials appId | APP_ID ;
+            secret/data/github/repo/${{ github.repository }}/github/workflow-dispatcher/app-credentials privateKey | PRIVATE_KEY
+
+      - name: Create App Token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        id: app-token
+        with:
+          app-id: ${{ env.APP_ID }}
+          private-key: ${{ env.PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: charts
+          permission-actions: write
+
+      - name: Dispatch to rancher/charts
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          FLEET_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [[ "$FLEET_TAG" =~ ^v([0-9]+)\.([0-9]+)([.-].*)?$ ]]; then
+            fleet_minor="${BASH_REMATCH[2]}"
+          else
+            echo "Error: unexpected Fleet tag format '${FLEET_TAG}'. Expected tags starting with v<major>.<minor>." >&2
+            exit 1
+          fi
+          if (( fleet_minor < 1 )); then
+            echo "Error: Fleet tag '${FLEET_TAG}' has minor version ${fleet_minor}; cannot derive a valid rancher/charts target branch." >&2
+            exit 1
+          fi
+          rancher_minor=$((fleet_minor - 1))
+          target_branch="dev-v2.${rancher_minor}"
+          echo "Dispatching auto-bump for Fleet ${FLEET_TAG} to rancher/charts branch ${target_branch}"
+          gh workflow run "Manual Trigger for Auto Bump" \
+            --repo rancher/charts \
+            --ref "$target_branch" \
+            -F chart=fleet \
+            -F branch="$target_branch" \
+            -F multi-rc=true

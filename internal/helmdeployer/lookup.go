@@ -150,7 +150,7 @@ func nodeIsNil(node parse.Node) bool {
 		return true
 	}
 	rv := reflect.ValueOf(node)
-	if rv.Kind() == reflect.Ptr && rv.IsNil() {
+	if rv.Kind() == reflect.Pointer && rv.IsNil() {
 		return true
 	}
 	return false

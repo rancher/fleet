@@ -20,7 +20,6 @@ import (
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
 	"github.com/rancher/fleet/internal/cmd/controller/target"
 	"github.com/rancher/fleet/internal/config"
-	"github.com/rancher/fleet/internal/experimental"
 	"github.com/rancher/fleet/internal/helmvalues"
 	"github.com/rancher/fleet/internal/manifest"
 	"github.com/rancher/fleet/internal/metrics"
@@ -192,6 +191,13 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// Migration: Remove the obsolete created-by-display-name label if it exists
 	if err := r.removeDisplayNameLabel(ctx, bundle); err != nil {
 		return r.computeResult(ctx, logger, bundleOrig, bundle, "failed to remove display name label", err)
+	}
+
+	// Policy restrictions: validate the Bundle before producing any BundleDeployments.
+	// This closes the direct fleet-apply bypass path: a Bundle that violates policy is
+	// never deployed regardless of how it was created.
+	if err := r.authorizeBundle(ctx, bundle); err != nil {
+		return ctrl.Result{}, r.updateErrorStatus(ctx, bundleOrig, bundle, err)
 	}
 
 	logger.V(1).Info(
@@ -770,6 +776,25 @@ func (r *BundleReconciler) handleContentAccessSecrets(ctx context.Context, bundl
 	return nil
 }
 
+// authorizeBundle validates the Bundle against Policy objects and records a
+// warning event if a violation is found. Returns a non-nil error on violation.
+func (r *BundleReconciler) authorizeBundle(ctx context.Context, bundle *fleet.Bundle) error {
+	if err := AuthorizeBundle(ctx, r.Client, bundle); err != nil {
+		r.Recorder.Eventf(
+			bundle,
+			nil,
+			corev1.EventTypeWarning,
+			"PolicyViolation",
+			"ApplyPolicyRestrictions",
+			"Bundle in namespace %s violates Policy: %v",
+			bundle.Namespace,
+			err,
+		)
+		return err
+	}
+	return nil
+}
+
 // updateErrorStatus sets the Ready condition in the bundle status and tries to update the resource.
 // Setting that condition makes the error message visible in the Rancher UI.
 // Upon successful update of the status, updateErrorStatus returns a TerminalError, preventing requeues.
@@ -789,14 +814,10 @@ func (r *BundleReconciler) updateErrorStatus(
 }
 
 func (r *BundleReconciler) handleDownstreamObjects(ctx context.Context, bundle *fleet.Bundle, bd *fleet.BundleDeployment) error {
-	if !experimental.CopyResourcesDownstreamEnabled() {
-		return nil
-	}
-
 	// Track if any resources were created or updated
 	resourcesUpdated := false
 
-	for _, dr := range bundle.Spec.DownstreamResources {
+	for _, dr := range bd.Spec.Options.DownstreamResources {
 		switch strings.ToLower(dr.Kind) {
 		case "secret":
 			result, err := r.cloneSecret(ctx, bundle.Namespace, dr.Name, "", bd)

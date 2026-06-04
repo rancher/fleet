@@ -28,6 +28,9 @@ const (
 	// contains the controller and agent
 	DefaultNamespace       = "cattle-fleet-system"
 	LegacyDefaultNamespace = "fleet-system"
+	// ImportTokenPrefix is the prefix for ClusterRegistrationToken names
+	// created during manager-initiated cluster imports.
+	ImportTokenPrefix = "import-token-"
 	// ImportTokenSecretValuesKey is the key in the import token secret,
 	// which contains the values for cluster registration.
 	ImportTokenSecretValuesKey = "values"
@@ -42,6 +45,9 @@ const (
 	// APIServerCAKey is the key which contains the CA of the upstream
 	// server.
 	APIServerCAKey = "apiServerCA"
+
+	// EnvVarWranglerCheckGVKErrorMapping is the env var name used to configure Wrangler's GVK error mapping.
+	EnvVarWranglerCheckGVKErrorMapping = "CATTLE_WRANGLER_CHECK_GVK_ERROR_MAPPING"
 
 	// Default secret name for git credentials, used as a fallback if no secret is referenced by an app.
 	DefaultGitCredentialsSecretName = "gitcredential" //nolint:gosec // this is a resource name

@@ -138,6 +138,7 @@ disableSecurityContext: false
 migrations:
   clusterRegistrationCleanup: true
   gitrepoJobsCleanup: true
+  gitrepoHelmURLRegexMigration: true
 
 ## Leader election configuration
 leaderElection:
@@ -148,6 +149,8 @@ leaderElection:
 ## Fleet controller configuration
 controller:
   replicas: 1
+  registrationTokenTTL:
+    required: false
   reconciler:
     # The number of workers that are allowed to each type of reconciler
     workers:
@@ -191,8 +194,6 @@ agent:
 # Extra environment variables passed to the fleet pods.
 # extraEnv:
 # - name: OCI_STORAGE
-#   value: "false"
-# - name: EXPERIMENTAL_COPY_RESOURCES_DOWNSTREAM
 #   value: "false"
 
 # shards:

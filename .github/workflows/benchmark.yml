@@ -25,7 +25,7 @@ concurrency:
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
-  SETUP_K3S_VERSION: "v1.35.1-k3s1"
+  SETUP_K3S_VERSION: "v1.36.0-k3s1"
   # Defaults for both manual and scheduled runs
   BENCH_TIMEOUT: ${{ github.event.inputs.timeout || '2m' }}
   BENCH_NAMESPACE: ${{ github.event.inputs.namespace || 'fleet-local' }}
@@ -61,7 +61,7 @@ jobs:
 
       - name: Cache k3d CLI
         id: cache-k3d
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ~/.local/bin/k3d
           key: ${{ runner.os }}-k3d-${{ hashFiles('.github/scripts/install-k3d.sh') }}
@@ -124,7 +124,7 @@ jobs:
           echo "Found report: $safe_file"
 
       - name: Upload benchmark JSON
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: benchmark-report
           path: ${{ steps.report.outputs.report }}

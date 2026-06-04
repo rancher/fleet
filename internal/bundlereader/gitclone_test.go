@@ -257,3 +257,22 @@ func TestSetGitAuth(t *testing.T) {
 		assert.NotNil(t, opts.Auth)
 	})
 }
+
+// TestGitDownloadMalformedURLRedaction verifies that a malformed git URL
+// containing an embedded password and ?sshkey= private key does not leak those
+// secrets through the returned error (which is logged). url.Parse fails on the
+// invalid port, and its error otherwise echoes the full URL verbatim.
+func TestGitDownloadMalformedURLRedaction(t *testing.T) {
+	t.Parallel()
+
+	const (
+		password   = "s3cr3tpassword"
+		privateKey = "PRIVATE_KEY_CONTENT"
+	)
+	rawURL := "ssh://user:" + password + "@example.com:notaport/repo?sshkey=" + privateKey
+
+	err := gitDownload(t.Context(), t.TempDir(), rawURL, Auth{})
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), password, "password must not leak in error")
+	assert.NotContains(t, err.Error(), privateKey, "sshkey must not leak in error")
+}

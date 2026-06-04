@@ -25,7 +25,7 @@ on:
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
-  SETUP_K3S_VERSION: 'v1.35.1-k3s1'
+  SETUP_K3S_VERSION: 'v1.36.0-k3s1'
 
 jobs:
   release-against-test-charts:
@@ -68,7 +68,7 @@ jobs:
       -
         name: Cache crust-gather CLI
         id: cache-crust
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ~/.local/bin/crust-gather
           key: ${{ runner.os }}-crust-gather-${{ hashFiles('./fleet/.github/scripts/install-crust-gather.sh') }}
@@ -86,7 +86,7 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       -
         name: Set up build cache
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         id: rancher-cli-cache
         with:
           path: ~/.local/bin/rancher
@@ -95,7 +95,7 @@ jobs:
       -
         name: Cache kubectl and helm
         id: deps-cache
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: |
             ~/.local/bin/kubectl
@@ -107,8 +107,8 @@ jobs:
         run: |
           mkdir -p ~/.local/bin
           if [ "${{ steps.deps-cache.outputs.cache-hit }}" != "true" ]; then
-            KUBECTL_VERSION="v1.35.3"
-            KUBECTL_SUM_amd64="fd31c7d7129260e608f6faf92d5984c3267ad0b5ead3bced2fe125686e286ad6"
+            KUBECTL_VERSION="v1.36.0"
+            KUBECTL_SUM_amd64="123d8c8844f46b1244c547fffb3c17180c0c26dac9890589fe7e67763298748e"
             curl -sSfL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl" -o kubectl
             echo "${KUBECTL_SUM_amd64}  kubectl" | sha256sum -c -
             mv kubectl ~/.local/bin/
@@ -128,9 +128,9 @@ jobs:
         run: |
           mkdir -p ~/.local/bin
           # renovate: datasource=github-releases depName=rancher/cli
-          RANCHER_CLI_VERSION="v2.14.0"
-          # renovate: datasource=github-release-attachments depName=rancher/cli digestVersion=v2.14.0
-          RANCHER_CLI_SUM_amd64="d05e207d9830f22171e62801dc51a32417125ecb7aaf50c073bf423e7da36a94"
+          RANCHER_CLI_VERSION="v2.14.1"
+          # renovate: datasource=github-release-attachments depName=rancher/cli digestVersion=v2.14.1
+          RANCHER_CLI_SUM_amd64="1e7ab790a5d153122dad1bfceb256afbbee28b763e670c79e63d39133cd24022"
           curl -fsSL -o "rancher-linux-amd64-${RANCHER_CLI_VERSION}.tar.gz" \
             "https://github.com/rancher/cli/releases/download/${RANCHER_CLI_VERSION}/rancher-linux-amd64-${RANCHER_CLI_VERSION}.tar.gz"
           echo "${RANCHER_CLI_SUM_amd64}  rancher-linux-amd64-${RANCHER_CLI_VERSION}.tar.gz" | sha256sum -c -
@@ -139,7 +139,7 @@ jobs:
       -
         name: Cache k3d CLI
         id: cache-k3d
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ~/.local/bin/k3d
           key: ${{ runner.os }}-k3d-${{ hashFiles('./fleet/.github/scripts/install-k3d.sh') }}
@@ -230,9 +230,7 @@ jobs:
             --set "extraEnv[2].name=CATTLE_FLEET_VERSION" \
             --set "extraEnv[2].value=${fleet_version}" \
             --set "extraEnv[3].name=CATTLE_SERVER_URL" \
-            --set "extraEnv[3].value=https://$ip.sslip.io" \
-            --set-string fleet.extraEnv[0].name=EXPERIMENTAL_COPY_RESOURCES_DOWNSTREAM \
-            --set-string fleet.extraEnv[0].value=true
+            --set "extraEnv[3].value=https://$ip.sslip.io"
 
           # wait for deployment of rancher
           kubectl -n cattle-system rollout status deploy/rancher
@@ -307,7 +305,7 @@ jobs:
 
       -
         name: Upload logs
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: failure()
         with:
           name: gha-fleet-rancher-logs-${{ github.sha }}-${{ github.run_id }}

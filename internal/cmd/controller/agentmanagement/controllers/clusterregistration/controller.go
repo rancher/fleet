@@ -50,6 +50,7 @@ type handler struct {
 	serviceAccountCache         corecontrollers.ServiceAccountCache
 	secretsCache                corecontrollers.SecretCache
 	secrets                     corecontrollers.SecretController
+	tokenCache                  fleetcontrollers.ClusterRegistrationTokenCache
 }
 
 func Register(ctx context.Context,
@@ -61,7 +62,8 @@ func Register(ctx context.Context,
 	role rbaccontrollers.RoleController,
 	roleBinding rbaccontrollers.RoleBindingController,
 	clusterRegistration fleetcontrollers.ClusterRegistrationController,
-	clusters fleetcontrollers.ClusterController) {
+	clusters fleetcontrollers.ClusterController,
+	clusterRegistrationToken fleetcontrollers.ClusterRegistrationTokenController) {
 	h := &handler{
 		systemNamespace:             systemNamespace,
 		systemRegistrationNamespace: systemRegistrationNamespace,
@@ -71,6 +73,7 @@ func Register(ctx context.Context,
 		serviceAccountCache:         serviceAccount.Cache(),
 		secrets:                     secret,
 		secretsCache:                secret.Cache(),
+		tokenCache:                  clusterRegistrationToken.Cache(),
 	}
 
 	fleetcontrollers.RegisterClusterRegistrationGeneratingHandler(ctx,
@@ -252,15 +255,14 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 
 	logrus.Infof("Cluster registration request '%s/%s' granted, creating cluster, request service account, registration secret", request.Namespace, request.Name)
 
-	return []runtime.Object{
+	objs := []runtime.Object{
 		// the registration secret c-clientID-clientRandom
 		secret,
 		// Update the existing service account 'request-UID' in the
 		// cluster namespace, e.g. 'cluster-fleet-default-NAME-ID'
 		requestSA(saName, cluster, request),
 		// Add role bindings to manage bundledeployments and contents,
-		// the agent could previously only access secrets in
-		// 'cattle-fleet-clusters-system' and clusterregistrations in
+		// the agent could previously only access clusterregistrations in
 		// the cluster registration namespace (e.g. 'fleet-default'). See
 		// clusterregistrationtoken controller for details.
 		&rbacv1.Role{
@@ -346,7 +348,125 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 				Name:     resources.ContentClusterRole,
 			},
 		},
-	}, status, nil
+	}
+
+	// For manager-initiated imports, grant the import service account access
+	// to the specific credential secret it needs to read. The import token
+	// only exists in manager-initiated flows; agent-initiated flows skip this.
+	importTokenName := names.SafeConcatName(config.ImportTokenPrefix + cluster.Name)
+	importToken, err := h.tokenCache.Get(request.Namespace, importTokenName)
+	if err != nil && !apierrors.IsNotFound(err) {
+		return nil, status, fmt.Errorf("failed to look up import token %s/%s: %w", request.Namespace, importTokenName, err)
+	}
+	if err == nil {
+		// Grant access scoped to the single credential secret for this cluster.
+		importSAName := names.SafeConcatName(importTokenName, string(importToken.UID))
+		credRoleName := names.SafeConcatName(importSAName, "creds")
+		objs = append(objs,
+			&rbacv1.Role{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      credRoleName,
+					Namespace: h.systemRegistrationNamespace,
+					Labels: map[string]string{
+						fleet.ManagedLabel: "true",
+					},
+				},
+				Rules: []rbacv1.PolicyRule{
+					{
+						Verbs:         []string{"get"},
+						APIGroups:     []string{""},
+						Resources:     []string{"secrets"},
+						ResourceNames: []string{secret.Name},
+					},
+				},
+			},
+			&rbacv1.RoleBinding{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      credRoleName,
+					Namespace: h.systemRegistrationNamespace,
+					Labels: map[string]string{
+						fleet.ManagedLabel: "true",
+					},
+				},
+				Subjects: []rbacv1.Subject{
+					{
+						Kind:      "ServiceAccount",
+						Name:      importSAName,
+						Namespace: request.Namespace,
+					},
+				},
+				RoleRef: rbacv1.RoleRef{
+					APIGroup: rbacv1.GroupName,
+					Kind:     "Role",
+					Name:     credRoleName,
+				},
+			},
+		)
+	} else {
+		// Agent-initiated: no import-token-<cluster> exists because the cluster
+		// is auto-created at registration time. The ClusterRegistration carries
+		// a label identifying the token that was used, so we can grant only
+		// that token's SA scoped read access to the credential secret.
+		tokenName := request.Labels[fleet.RegistrationTokenLabel]
+		if tokenName == "" {
+			logrus.Warnf("ClusterRegistration '%s/%s' has no %s label; cannot grant credential secret access for agent-initiated registration",
+				request.Namespace, request.Name, fleet.RegistrationTokenLabel)
+		} else {
+			agentToken, tokenErr := h.tokenCache.Get(request.Namespace, tokenName)
+			if tokenErr != nil && !apierrors.IsNotFound(tokenErr) {
+				return nil, status, fmt.Errorf("looking up registration token %s/%s: %w", request.Namespace, tokenName, tokenErr)
+			}
+			if apierrors.IsNotFound(tokenErr) {
+				logrus.Warnf("ClusterRegistration '%s/%s': registration token %s/%s not found (may have expired), skipping credential secret access grant",
+					request.Namespace, request.Name, request.Namespace, tokenName)
+				return objs, status, nil
+			}
+			agentSAName := names.SafeConcatName(tokenName, string(agentToken.UID))
+			credRoleName := names.SafeConcatName(request.Name, "creds")
+			objs = append(objs,
+				&rbacv1.Role{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      credRoleName,
+						Namespace: h.systemRegistrationNamespace,
+						Labels: map[string]string{
+							fleet.ManagedLabel: "true",
+						},
+					},
+					Rules: []rbacv1.PolicyRule{
+						{
+							Verbs:         []string{"get"},
+							APIGroups:     []string{""},
+							Resources:     []string{"secrets"},
+							ResourceNames: []string{secret.Name},
+						},
+					},
+				},
+				&rbacv1.RoleBinding{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      credRoleName,
+						Namespace: h.systemRegistrationNamespace,
+						Labels: map[string]string{
+							fleet.ManagedLabel: "true",
+						},
+					},
+					Subjects: []rbacv1.Subject{
+						{
+							Kind:      "ServiceAccount",
+							Name:      agentSAName,
+							Namespace: request.Namespace,
+						},
+					},
+					RoleRef: rbacv1.RoleRef{
+						APIGroup: rbacv1.GroupName,
+						Kind:     "Role",
+						Name:     credRoleName,
+					},
+				},
+			)
+		}
+	}
+
+	return objs, status, nil
 }
 
 // shouldDelete returns true for any other cluster registration with the same clientID, but different random and older creation timestamp

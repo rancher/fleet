@@ -713,8 +713,17 @@ func TestGitHubSecretAndCommitUpdated(t *testing.T) {
 					if repo.Status.WebhookCommit != expectedCommit {
 						t.Errorf("expecting gitrepo webhook commit %s, got %s", expectedCommit, repo.Status.WebhookCommit)
 					}
-					if repo.Spec.PollingInterval.Duration != time.Hour {
-						t.Errorf("expecting gitrepo polling interval 1h, got %s", repo.Spec.PollingInterval.Duration)
+					// PollingInterval must NOT be set via Status().Patch(); it uses a separate spec patch
+					if repo.Spec.PollingInterval != nil {
+						t.Errorf("PollingInterval must not appear in the status patch, got %s", repo.Spec.PollingInterval.Duration)
+					}
+				},
+			).Times(1)
+			// PollingInterval is nil on the GitRepo fixture, so a separate spec Patch() must follow
+			mockClient.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any()).Do(
+				func(ctx context.Context, repo *v1alpha1.GitRepo, _ client.Patch, opts ...any) {
+					if repo.Spec.PollingInterval == nil || repo.Spec.PollingInterval.Duration != time.Hour {
+						t.Errorf("expecting polling interval 1h in spec patch, got %v", repo.Spec.PollingInterval)
 					}
 				},
 			).Times(1)
@@ -832,8 +841,17 @@ func TestGitRepoURLMatch(t *testing.T) {
 			if repo.Status.WebhookCommit != expectedCommit {
 				t.Errorf("expecting gitrepo webhook commit %s, got %s", expectedCommit, repo.Status.WebhookCommit)
 			}
-			if repo.Spec.PollingInterval.Duration != time.Hour {
-				t.Errorf("expecting gitrepo polling interval 1h, got %s", repo.Spec.PollingInterval.Duration)
+			// PollingInterval must NOT be set via Status().Patch(); it uses a separate spec patch
+			if repo.Spec.PollingInterval != nil {
+				t.Errorf("PollingInterval must not appear in the status patch, got %s", repo.Spec.PollingInterval.Duration)
+			}
+		},
+	).Times(1)
+	// PollingInterval is nil on both GitRepo fixtures, so a spec Patch() must follow for the matching one
+	mockClient.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any()).Do(
+		func(ctx context.Context, repo *v1alpha1.GitRepo, _ client.Patch, opts ...any) {
+			if repo.Spec.PollingInterval == nil || repo.Spec.PollingInterval.Duration != time.Hour {
+				t.Errorf("expecting polling interval 1h in spec patch, got %v", repo.Spec.PollingInterval)
 			}
 		},
 	).Times(1)
@@ -882,5 +900,91 @@ func TestErrorReadingRequest(t *testing.T) {
 	// Verify the response status code is correct
 	if status := rr.Code; status != http.StatusInternalServerError {
 		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusInternalServerError)
+	}
+}
+
+// TestGitHubWildcardURLDoesNotMatchUnintendedRepo verifies that regex metacharacters
+// in a webhook payload's repo URL (e.g. a hostname or path of ".*") are treated as
+// literals and do not accidentally match GitRepos whose URLs are unrelated to the
+// webhook source.
+func TestGitHubWildcardURLDoesNotMatchUnintendedRepo(t *testing.T) {
+	tests := []struct {
+		name           string
+		gitRepoURL     string // the GitRepo's configured repo
+		webhookRepoURL string // the repo URL embedded in the webhook payload
+	}{
+		{
+			name:           "wildcard hostname does not match unrelated gitrepo",
+			gitRepoURL:     "https://github.com/example/repo",
+			webhookRepoURL: "https://.*/example/repo",
+		},
+		{
+			name:           "wildcard path does not match unrelated gitrepo",
+			gitRepoURL:     "https://github.com/example/repo",
+			webhookRepoURL: "https://github.com/.*/.*",
+		},
+		{
+			name:           "wildcard hostname and path do not match unrelated gitrepo",
+			gitRepoURL:     "https://github.com/example/repo",
+			webhookRepoURL: "https://.*/.*",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sch := runtime.NewScheme()
+			if err := v1alpha1.AddToScheme(sch); err != nil {
+				t.Fatalf("unable to add to scheme: %v", err)
+			}
+			utilruntime.Must(corev1.AddToScheme(sch))
+
+			gitRepo := &v1alpha1.GitRepo{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "default",
+				},
+				Spec: v1alpha1.GitRepoSpec{
+					Repo:   tt.gitRepoURL,
+					Branch: "main",
+				},
+			}
+			fakeClient := cfake.NewClientBuilder().
+				WithScheme(sch).
+				WithRuntimeObjects(gitRepo).
+				WithStatusSubresource(gitRepo).
+				Build()
+
+			w := &Webhook{client: fakeClient, namespace: "default"}
+
+			commit := "af69d162de5a276abc86e0686b2b44033cd3f442"
+			jsonBody := fmt.Appendf(nil, `{
+				"ref": "refs/heads/main",
+				"after": "%s",
+				"repository": {"html_url": "%s"}
+			}`, commit, tt.webhookRepoURL)
+
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "/", bytes.NewReader(jsonBody))
+			if err != nil {
+				t.Fatalf("failed to create request: %v", err)
+			}
+			req.Header.Set("X-Github-Event", "push")
+
+			rr := httptest.NewRecorder()
+			w.ServeHTTP(rr, req)
+
+			updated := &v1alpha1.GitRepo{}
+			if err := fakeClient.Get(context.TODO(), types.NamespacedName{Name: gitRepo.Name, Namespace: gitRepo.Namespace}, updated); err != nil {
+				t.Fatalf("failed to get gitrepo: %v", err)
+			}
+			if rr.Code != http.StatusOK {
+				t.Errorf("expected status %d, got %d", http.StatusOK, rr.Code)
+			}
+			if body := rr.Body.String(); body != "succeeded" {
+				t.Errorf("expected body %q, got %q", "succeeded", body)
+			}
+			if updated.Status.WebhookCommit != "" {
+				t.Errorf("expected WebhookCommit to remain empty (no match), but got %q", updated.Status.WebhookCommit)
+			}
+		})
 	}
 }

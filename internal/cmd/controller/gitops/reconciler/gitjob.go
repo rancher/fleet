@@ -67,18 +67,21 @@ func (r *GitJobReconciler) createJobAndResources(ctx context.Context, gitrepo *v
 	if _, err := r.createCABundleSecret(ctx, gitrepo, caBundleName(gitrepo)); err != nil {
 		return fmt.Errorf("failed to create cabundle secret for git job: %w", err)
 	}
-	if err := r.createJob(ctx, gitrepo); err != nil {
+	created, err := r.createJob(ctx, gitrepo)
+	if err != nil {
 		return fmt.Errorf("error creating git job: %w", err)
 	}
 
-	r.Recorder.Eventf(
-		gitrepo,
-		nil,
-		corev1.EventTypeNormal,
-		"Created",
-		"CreateGitJob",
-		"GitJob was created",
-	)
+	if created {
+		r.Recorder.Eventf(
+			gitrepo,
+			nil,
+			corev1.EventTypeNormal,
+			"Created",
+			"CreateGitJob",
+			"GitJob was created",
+		)
+	}
 	return nil
 }
 
@@ -171,15 +174,30 @@ func (r *GitJobReconciler) createCABundleSecret(ctx context.Context, gitrepo *v1
 	return true, nil
 }
 
-func (r *GitJobReconciler) createJob(ctx context.Context, gitRepo *v1alpha1.GitRepo) error {
+func (r *GitJobReconciler) createJob(ctx context.Context, gitRepo *v1alpha1.GitRepo) (bool, error) {
 	job, err := r.newGitJob(ctx, gitRepo)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if err := controllerutil.SetControllerReference(gitRepo, job, r.Scheme); err != nil {
-		return err
+		return false, err
 	}
-	return r.Create(ctx, job)
+	// Job names are deterministic from (gitrepo, commit). An AlreadyExists here
+	// means a concurrent / cache-lagged reconcile already created the job for the
+	// same commit — treat it as a no-op rather than surfacing a reconcile
+	// error. The owning GitRepo and commit are encoded in the name, so we are not
+	// adopting a foreign job.
+	if err := r.Create(ctx, job); err != nil {
+		if apierrors.IsAlreadyExists(err) {
+			log.FromContext(ctx).V(1).Info(
+				"Git job already exists for this commit, skipping create",
+				"job", job.Name,
+			)
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
 }
 
 func (r *GitJobReconciler) newGitJob(ctx context.Context, obj *v1alpha1.GitRepo) (*batchv1.Job, error) {
@@ -200,6 +218,11 @@ func (r *GitJobReconciler) newGitJob(ctx context.Context, obj *v1alpha1.GitRepo)
 		jobSpec.Template.Spec.Tolerations,
 		fleetControllerDeployment.Spec.Template.Spec.Tolerations...,
 	)
+	if jobSpec.Template.Spec.NodeSelector == nil {
+		jobSpec.Template.Spec.NodeSelector = map[string]string{}
+	}
+	maps.Copy(jobSpec.Template.Spec.NodeSelector, fleetControllerDeployment.Spec.Template.Spec.NodeSelector)
+
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Annotations: map[string]string{

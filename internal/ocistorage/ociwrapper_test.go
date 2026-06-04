@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"net/http"
 	"os"
@@ -136,16 +137,180 @@ var _ = Describe("OCIUtils tests", func() {
 		Expect(repo.PlainHTTP).To(BeFalse())
 	})
 	It("return the expected tls client", func() {
-		client := getHTTPClient(true)
-		expected := &http.Client{
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-			},
-		}
-		Expect(client).To(Equal(expected))
+		client := getHTTPClient(true, nil)
 
-		client = getHTTPClient(false)
+		// Custom path wraps transport in retry.Transport
+		retryTransport, ok := client.Transport.(*retry.Transport)
+		Expect(ok).To(BeTrue())
+		innerTransport, ok := retryTransport.Base.(*http.Transport)
+		Expect(ok).To(BeTrue())
+		Expect(innerTransport.TLSClientConfig).ToNot(BeNil())
+		Expect(innerTransport.TLSClientConfig.InsecureSkipVerify).To(BeTrue())
+		Expect(innerTransport.Proxy).ToNot(BeNil())
+
+		client = getHTTPClient(false, nil)
 		Expect(client).To(Equal(retry.DefaultClient))
+	})
+	It("should use custom CA bundle when provided", func() {
+		// Use a valid test certificate from the codebase pattern (same as netutils_test.go)
+		caBundle := []byte(`-----BEGIN CERTIFICATE-----
+MIICGTCCAZ+gAwIBAgIQCeCTZaz32ci5PhwLBCou8zAKBggqhkjOPQQDAzBOMQsw
+CQYDVQQGEwJVUzEXMBUGA1UEChMORGlnaUNlcnQsIEluYy4xJjAkBgNVBAMTHURp
+Z2lDZXJ0IFRMUyBFQ0MgUDM4NCBSb290IEc1MB4XDTIxMDExNTAwMDAwMFoXDTQ2
+MDExNDIzNTk1OVowTjELMAkGA1UEBhMCVVMxFzAVBgNVBAoTDkRpZ2lDZXJ0LCBJ
+bmMuMSYwJAYDVQQDEx1EaWdpQ2VydCBUTFMgRUNDIFAzODQgUm9vdCBHNTB2MBAG
+ByqGSM49AgEGBSuBBAAiA2IABMFEoc8Rl1Ca3iOCNQfN0MsYndLxf3c1TzvdlHJS
+7cI7+Oz6e2tYIOyZrsn8aLN1udsJ7MgT9U7GCh1mMEy7H0cKPGEQQil8pQgO4CLp
+0zVozptjn4S1mU1YoI71VOeVyaNCMEAwHQYDVR0OBBYEFMFRRVBZqz7nLFr6ICIS
+B4CIfBFqMA4GA1UdDwEB/wQEAwIBhjAPBgNVHRMBAf8EBTADAQH/MAoGCCqGSM49
+BAMDA2gAMGUCMQCJao1H5+z8blUD2WdsJk6Dxv3J+ysTvLd6jLRl0mlpYxNjOyZQ
+LgGheQaRnUi/wr4CMEfDFXuxoJGZSZOoPHzoRgaLLPIxAJSdYsiJvRmEFOml+wG4
+DXZDjC5Ty3zfDBeWUA==
+-----END CERTIFICATE-----`)
+		client := getHTTPClient(false, caBundle)
+
+		// Verify transport is configured with custom TLS config
+		retryT, ok := client.Transport.(*retry.Transport)
+		Expect(ok).To(BeTrue())
+		transport, ok := retryT.Base.(*http.Transport)
+		Expect(ok).To(BeTrue())
+		Expect(transport.TLSClientConfig).ToNot(BeNil())
+		Expect(transport.TLSClientConfig.RootCAs).ToNot(BeNil())
+		Expect(transport.TLSClientConfig.MinVersion).To(Equal(uint16(tls.VersionTLS12)))
+		Expect(transport.TLSClientConfig.InsecureSkipVerify).To(BeFalse())
+	})
+	It("should merge proxy CA bundle from environment variable", func() {
+		// Use a valid certificate for proxy CA (same as custom test)
+		proxyCA := `-----BEGIN CERTIFICATE-----
+MIICGTCCAZ+gAwIBAgIQCeCTZaz32ci5PhwLBCou8zAKBggqhkjOPQQDAzBOMQsw
+CQYDVQQGEwJVUzEXMBUGA1UEChMORGlnaUNlcnQsIEluYy4xJjAkBgNVBAMTHURp
+Z2lDZXJ0IFRMUyBFQ0MgUDM4NCBSb290IEc1MB4XDTIxMDExNTAwMDAwMFoXDTQ2
+MDExNDIzNTk1OVowTjELMAkGA1UEBhMCVVMxFzAVBgNVBAoTDkRpZ2lDZXJ0LCBJ
+bmMuMSYwJAYDVQQDEx1EaWdpQ2VydCBUTFMgRUNDIFAzODQgUm9vdCBHNTB2MBAG
+ByqGSM49AgEGBSuBBAAiA2IABMFEoc8Rl1Ca3iOCNQfN0MsYndLxf3c1TzvdlHJS
+7cI7+Oz6e2tYIOyZrsn8aLN1udsJ7MgT9U7GCh1mMEy7H0cKPGEQQil8pQgO4CLp
+0zVozptjn4S1mU1YoI71VOeVyaNCMEAwHQYDVR0OBBYEFMFRRVBZqz7nLFr6ICIS
+B4CIfBFqMA4GA1UdDwEB/wQEAwIBhjAPBgNVHRMBAf8EBTADAQH/MAoGCCqGSM49
+BAMDA2gAMGUCMQCJao1H5+z8blUD2WdsJk6Dxv3J+ysTvLd6jLRl0mlpYxNjOyZQ
+LgGheQaRnUi/wr4CMEfDFXuxoJGZSZOoPHzoRgaLLPIxAJSdYsiJvRmEFOml+wG4
+DXZDjC5Ty3zfDBeWUA==
+-----END CERTIFICATE-----`
+		os.Setenv("PROXY_CA_BUNDLE", proxyCA)
+		defer os.Unsetenv("PROXY_CA_BUNDLE")
+
+		// Use the same valid certificate for custom CA (simpler for testing)
+		customCA := []byte(proxyCA)
+		client := getHTTPClient(false, customCA)
+
+		// Should have merged both CAs
+		retryT, ok := client.Transport.(*retry.Transport)
+		Expect(ok).To(BeTrue())
+		transport, ok := retryT.Base.(*http.Transport)
+		Expect(ok).To(BeTrue())
+		Expect(transport.TLSClientConfig).ToNot(BeNil())
+		Expect(transport.TLSClientConfig.RootCAs).ToNot(BeNil())
+		Expect(transport.TLSClientConfig.MinVersion).To(Equal(uint16(tls.VersionTLS12)))
+
+		// Verify both CAs are valid and would have been loaded
+		testPool := x509.NewCertPool()
+		ok = testPool.AppendCertsFromPEM(customCA)
+		Expect(ok).To(BeTrue(), "custom CA bundle should be valid PEM")
+		ok = testPool.AppendCertsFromPEM([]byte(proxyCA))
+		Expect(ok).To(BeTrue(), "proxy CA bundle should be valid PEM")
+	})
+	It("should handle invalid CA bundle gracefully", func() {
+		invalidCA := []byte("not a valid PEM certificate")
+		client := getHTTPClient(false, invalidCA)
+
+		// Should still create a client with TLS config (warning logged)
+		retryT, ok := client.Transport.(*retry.Transport)
+		Expect(ok).To(BeTrue())
+		transport, ok := retryT.Base.(*http.Transport)
+		Expect(ok).To(BeTrue())
+		Expect(transport.TLSClientConfig).ToNot(BeNil())
+		Expect(transport.TLSClientConfig.RootCAs).ToNot(BeNil())
+	})
+	It("should handle invalid proxy CA bundle gracefully", func() {
+		os.Setenv("PROXY_CA_BUNDLE", "invalid proxy PEM")
+		defer os.Unsetenv("PROXY_CA_BUNDLE")
+
+		client := getHTTPClient(false, nil)
+
+		// Should return default client when no valid CA and not insecure
+		Expect(client).To(Equal(retry.DefaultClient))
+	})
+	It("should combine insecureSkipTLS with CA bundle", func() {
+		caBundle := []byte(`-----BEGIN CERTIFICATE-----
+MIICGTCCAZ+gAwIBAgIQCeCTZaz32ci5PhwLBCou8zAKBggqhkjOPQQDAzBOMQsw
+CQYDVQQGEwJVUzEXMBUGA1UEChMORGlnaUNlcnQsIEluYy4xJjAkBgNVBAMTHURp
+Z2lDZXJ0IFRMUyBFQ0MgUDM4NCBSb290IEc1MB4XDTIxMDExNTAwMDAwMFoXDTQ2
+MDExNDIzNTk1OVowTjELMAkGA1UEBhMCVVMxFzAVBgNVBAoTDkRpZ2lDZXJ0LCBJ
+bmMuMSYwJAYDVQQDEx1EaWdpQ2VydCBUTFMgRUNDIFAzODQgUm9vdCBHNTB2MBAG
+ByqGSM49AgEGBSuBBAAiA2IABMFEoc8Rl1Ca3iOCNQfN0MsYndLxf3c1TzvdlHJS
+7cI7+Oz6e2tYIOyZrsn8aLN1udsJ7MgT9U7GCh1mMEy7H0cKPGEQQil8pQgO4CLp
+0zVozptjn4S1mU1YoI71VOeVyaNCMEAwHQYDVR0OBBYEFMFRRVBZqz7nLFr6ICIS
+B4CIfBFqMA4GA1UdDwEB/wQEAwIBhjAPBgNVHRMBAf8EBTADAQH/MAoGCCqGSM49
+BAMDA2gAMGUCMQCJao1H5+z8blUD2WdsJk6Dxv3J+ysTvLd6jLRl0mlpYxNjOyZQ
+LgGheQaRnUi/wr4CMEfDFXuxoJGZSZOoPHzoRgaLLPIxAJSdYsiJvRmEFOml+wG4
+DXZDjC5Ty3zfDBeWUA==
+-----END CERTIFICATE-----`)
+		client := getHTTPClient(true, caBundle)
+
+		retryT, ok := client.Transport.(*retry.Transport)
+		Expect(ok).To(BeTrue())
+		transport, ok := retryT.Base.(*http.Transport)
+		Expect(ok).To(BeTrue())
+		Expect(transport.TLSClientConfig).ToNot(BeNil())
+		Expect(transport.TLSClientConfig.InsecureSkipVerify).To(BeTrue())
+		Expect(transport.TLSClientConfig.RootCAs).ToNot(BeNil())
+		Expect(transport.TLSClientConfig.MinVersion).To(Equal(uint16(tls.VersionTLS12)))
+
+		// Verify the CA bundle is valid PEM (even though InsecureSkipVerify is set)
+		testPool := x509.NewCertPool()
+		ok = testPool.AppendCertsFromPEM(caBundle)
+		Expect(ok).To(BeTrue(), "CA bundle should be valid PEM")
+	})
+	It("should not mutate the original CA bundle slice", func() {
+		// validPEM is a real certificate so that AppendCertsFromPEM succeeds and
+		// getHTTPClient actually reaches the append(caBundle, proxyBytes...) path.
+		// An invalid PEM would make the function return early without appending,
+		// meaning the defensive copy would never be exercised.
+		validPEM := []byte(`-----BEGIN CERTIFICATE-----
+MIICGTCCAZ+gAwIBAgIQCeCTZaz32ci5PhwLBCou8zAKBggqhkjOPQQDAzBOMQsw
+CQYDVQQGEwJVUzEXMBUGA1UEChMORGlnaUNlcnQsIEluYy4xJjAkBgNVBAMTHURp
+Z2lDZXJ0IFRMUyBFQ0MgUDM4NCBSb290IEc1MB4XDTIxMDExNTAwMDAwMFoXDTQ2
+MDExNDIzNTk1OVowTjELMAkGA1UEBhMCVVMxFzAVBgNVBAoTDkRpZ2lDZXJ0LCBJ
+bmMuMSYwJAYDVQQDEx1EaWdpQ2VydCBUTFMgRUNDIFAzODQgUm9vdCBHNTB2MBAG
+ByqGSM49AgEGBSuBBAAiA2IABMFEoc8Rl1Ca3iOCNQfN0MsYndLxf3c1TzvdlHJS
+7cI7+Oz6e2tYIOyZrsn8aLN1udsJ7MgT9U7GCh1mMEy7H0cKPGEQQil8pQgO4CLp
+0zVozptjn4S1mU1YoI71VOeVyaNCMEAwHQYDVR0OBBYEFMFRRVBZqz7nLFr6ICIS
+B4CIfBFqMA4GA1UdDwEB/wQEAwIBhjAPBgNVHRMBAf8EBTADAQH/MAoGCCqGSM49
+BAMDA2gAMGUCMQCJao1H5+z8blUD2WdsJk6Dxv3J+ysTvLd6jLRl0mlpYxNjOyZQ
+LgGheQaRnUi/wr4CMEfDFXuxoJGZSZOoPHzoRgaLLPIxAJSdYsiJvRmEFOml+wG4
+DXZDjC5Ty3zfDBeWUA==
+-----END CERTIFICATE-----`)
+
+		os.Setenv("PROXY_CA_BUNDLE", string(validPEM))
+		defer os.Unsetenv("PROXY_CA_BUNDLE")
+
+		// Allocate with excess capacity so that append can write into the backing
+		// array without reallocating. With len == cap (e.g. []byte("literal")),
+		// append always reallocates and the defensive copy makes no observable
+		// difference — the test would pass even without it.
+		originalCA := make([]byte, len(validPEM), len(validPEM)+512)
+		copy(originalCA, validPEM)
+
+		// backing covers the full allocation so we can detect writes past len(originalCA).
+		backing := originalCA[:cap(originalCA)]
+
+		_ = getHTTPClient(false, originalCA)
+
+		// The slice header and visible content must be unchanged.
+		Expect(originalCA).To(Equal(validPEM))
+		// Without the defensive copy, getHTTPClient would append '\n'+proxyBytes
+		// directly into the excess capacity of the caller's backing array.
+		Expect(backing[len(validPEM):]).To(Equal(make([]byte, 512)),
+			"backing array beyond len(originalCA) must not be written to")
 	})
 	It("return the expected credentials", func() {
 		opts := OCIOpts{

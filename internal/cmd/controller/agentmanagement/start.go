@@ -18,7 +18,7 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-func start(ctx context.Context, kubeConfig, namespace string, disableBootstrap bool) error {
+func start(ctx context.Context, kubeConfig, namespace string, disableBootstrap bool, enforceTTL bool) error {
 	clientConfig := kubeconfig.GetNonInteractiveClientConfig(kubeConfig)
 	kc, err := clientConfig.ClientConfig()
 	if err != nil {
@@ -51,7 +51,7 @@ func start(ctx context.Context, kubeConfig, namespace string, disableBootstrap b
 		if err != nil {
 			logrus.Fatal(err)
 		}
-		if err := controllers.Register(ctx, appCtx, namespace, disableBootstrap); err != nil {
+		if err := controllers.Register(ctx, appCtx, namespace, disableBootstrap, enforceTTL); err != nil {
 			logrus.Fatal(err)
 		}
 		if err := appCtx.Start(ctx); err != nil {
