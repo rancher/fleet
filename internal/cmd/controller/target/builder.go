@@ -15,6 +15,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	errutil "github.com/rancher/fleet/internal/cmd/controller/errorutil"
 	"github.com/rancher/fleet/internal/cmd/controller/labelselectors"
 	"github.com/rancher/fleet/internal/cmd/controller/options"
 	"github.com/rancher/fleet/internal/cmd/controller/target/matcher"
@@ -170,7 +171,7 @@ func (m *Manager) Targets(ctx context.Context, bundle *fleet.Bundle, manifestID 
 
 			h := helmvalues.HashOptions(secret.Data[helmvalues.ValuesKey], secret.Data[helmvalues.StagedValuesKey])
 			if h != bd.Spec.ValuesHash {
-				return nil, false, fmt.Errorf("retrying, hash mismatch between secret and bundledeployment: actual %s != expected %s", h, bd.Spec.ValuesHash)
+				return nil, false, fmt.Errorf("%w: actual %s != expected %s", errutil.ErrHashMismatch, h, bd.Spec.ValuesHash)
 			}
 
 			if err := helmvalues.SetOptions(bd, secret.Data); err != nil {
