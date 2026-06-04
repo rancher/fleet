@@ -95,6 +95,7 @@ var _ = Describe("ClusterReconciler", func() {
 
 	Context("Reconcile deletion", func() {
 		var clusterNamespace *corev1.Namespace
+		var agentBundle *fleet.Bundle
 
 		BeforeEach(func() {
 			cluster.Finalizers = []string{finalize.ClusterFinalizer}
@@ -106,19 +107,26 @@ var _ = Describe("ClusterReconciler", func() {
 					Name: cluster.Status.Namespace,
 				},
 			}
+
+			agentBundle = &fleet.Bundle{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "fleet-agent-test-cluster",
+					Namespace: cluster.Namespace,
+				},
+			}
 		})
 
 		JustBeforeEach(func() {
 			k8sclient = fake.NewClientBuilder().
 				WithScheme(sch).
-				WithObjects(cluster, clusterNamespace).
+				WithObjects(cluster, clusterNamespace, agentBundle).
 				WithStatusSubresource(&fleet.Cluster{}).
 				Build()
 
 			reconciler.Client = k8sclient
 		})
 
-		It("should delete the cluster namespace and remove the finalizer", func() {
+		It("should delete the cluster namespace, fleet-agent bundle, and remove the finalizer", func() {
 			_, err := reconciler.Reconcile(ctx, req)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -132,6 +140,12 @@ var _ = Describe("ClusterReconciler", func() {
 			err = k8sclient.Get(ctx, client.ObjectKey{Name: clusterNamespace.Name}, ns)
 			Expect(err).To(HaveOccurred())
 			Expect(errors.IsNotFound(err)).To(BeTrue(), "cluster namespace should be deleted")
+
+			// Check fleet-agent bundle is deleted
+			b := &fleet.Bundle{}
+			err = k8sclient.Get(ctx, client.ObjectKey{Name: agentBundle.Name, Namespace: agentBundle.Namespace}, b)
+			Expect(err).To(HaveOccurred())
+			Expect(errors.IsNotFound(err)).To(BeTrue(), "fleet-agent bundle should be deleted")
 		})
 
 		It("should remove the finalizer when cluster namespace is not set", func() {
@@ -139,7 +153,7 @@ var _ = Describe("ClusterReconciler", func() {
 			cluster.Status.Namespace = ""
 			k8sclient = fake.NewClientBuilder().
 				WithScheme(sch).
-				WithObjects(cluster).
+				WithObjects(cluster, agentBundle).
 				WithStatusSubresource(&fleet.Cluster{}).
 				Build()
 			reconciler.Client = k8sclient
@@ -151,11 +165,18 @@ var _ = Describe("ClusterReconciler", func() {
 			err = k8sclient.Get(ctx, req.NamespacedName, cluster)
 			Expect(err).To(HaveOccurred())
 			Expect(errors.IsNotFound(err)).To(BeTrue(), "cluster should be gone as finalizer is removed")
+
+			// Check fleet-agent bundle is deleted
+			b := &fleet.Bundle{}
+			err = k8sclient.Get(ctx, client.ObjectKey{Name: agentBundle.Name, Namespace: agentBundle.Namespace}, b)
+			Expect(err).To(HaveOccurred())
+			Expect(errors.IsNotFound(err)).To(BeTrue(), "fleet-agent bundle should be deleted")
 		})
 
-		It("should remove the finalizer even if the namespace is already gone", func() {
-			// Delete the namespace before the test
+		It("should remove the finalizer even if the namespace and bundle are already gone", func() {
+			// Delete the namespace and bundle before the test
 			Expect(k8sclient.Delete(ctx, clusterNamespace)).To(Succeed())
+			Expect(k8sclient.Delete(ctx, agentBundle)).To(Succeed())
 
 			_, err := reconciler.Reconcile(ctx, req)
 			Expect(err).NotTo(HaveOccurred())
