@@ -37,6 +37,10 @@ spec:
 {{- end }}
     spec:
       serviceAccountName: gitjob
+{{- if $.Values.global.cattle.imagePullSecrets }}
+      imagePullSecrets:
+{{ toYaml $.Values.global.cattle.imagePullSecrets | indent 8 }}
+{{- end }}
       containers:
         - image: "{{ template "system_default_registry" $ }}{{ $.Values.image.repository }}:{{ $.Values.image.tag }}"
           name: gitjob

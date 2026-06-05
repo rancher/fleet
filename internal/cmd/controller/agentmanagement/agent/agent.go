@@ -57,6 +57,26 @@ func AgentWithConfig(ctx context.Context, agentNamespace, controllerNamespace, a
 
 	objs = append(objs, secret)
 
+	// Copy image pull secrets, if any, to the agent namespace.
+	// This ensures that those secrets are available at agent deployment time.
+	for _, ips := range opts.ImagePullSecrets {
+		source, err := client.Core.Secret().Get(controllerNamespace, ips.Name, metav1.GetOptions{})
+		if err != nil {
+			return objs, fmt.Errorf("failed to get image pull secret %q from controller namespace: %w", ips.Name, err)
+		}
+
+		dest := &v1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      ips.Name,
+				Namespace: agentNamespace,
+			},
+			Type: source.Type,
+			Data: source.Data,
+		}
+
+		objs = append(objs, dest)
+	}
+
 	agentConfig, err := agentConfig(ctx, agentNamespace, controllerNamespace, cg, &opts.ConfigOptions)
 	if err != nil {
 		return objs, err
@@ -73,6 +93,7 @@ func AgentWithConfig(ctx context.Context, agentNamespace, controllerNamespace, a
 	// keep in sync with manageagent.go
 	mo := opts.ManifestOptions
 	mo.AgentImage = cfg.AgentImage
+	mo.ImagePullSecrets = cfg.ImagePullSecrets
 	mo.AgentImagePullPolicy = cfg.AgentImagePullPolicy
 	mo.CheckinInterval = cfg.AgentCheckinInterval.Duration.String()
 	mo.SystemDefaultRegistry = cfg.SystemDefaultRegistry

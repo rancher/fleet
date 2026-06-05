@@ -35,6 +35,10 @@ spec:
 {{ toYaml $.Values.extraAnnotations.fleetController | indent 8 }}
 {{- end }}
     spec:
+{{- if $.Values.global.cattle.imagePullSecrets }}
+      imagePullSecrets:
+{{ toYaml $.Values.global.cattle.imagePullSecrets | indent 8 }}
+{{- end }}
       containers:
       - env:
         - name: NAMESPACE

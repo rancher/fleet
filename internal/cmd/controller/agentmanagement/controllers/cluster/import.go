@@ -459,6 +459,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 				HostNetwork:       *cmp.Or(cluster.Spec.HostNetwork, new(false)),
 				AgentReplicas:     agentReplicas,
 				PriorityClassName: priorityClassName,
+				ImagePullSecrets:  cfg.ImagePullSecrets,
 			},
 		})
 	objs = append(objs, agentObjs...)

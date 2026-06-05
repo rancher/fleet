@@ -72,6 +72,7 @@ bootstrap:
 
 global:
   cattle:
+    imagePullSecrets: []
     systemDefaultRegistry: ""
 
 ## Node labels for pod assignment
