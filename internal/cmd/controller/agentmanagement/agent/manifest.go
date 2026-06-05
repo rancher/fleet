@@ -191,6 +191,7 @@ func agentApp(namespace string, agentScope string, opts ManifestOptions) *appsv1
 										},
 									},
 								},
+								{Name: "KUBE_FEATURE_WatchListClient", Value: "false"},
 								{Name: "AGENT_SCOPE", Value: agentScope},
 								{Name: "CHECKIN_INTERVAL", Value: opts.CheckinInterval},
 								{Name: "CATTLE_ELECTION_LEASE_DURATION", Value: opts.LeaseDuration.String()},

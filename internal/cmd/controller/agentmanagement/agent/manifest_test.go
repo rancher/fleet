@@ -416,3 +416,20 @@ func TestManifestCheckGVKErrorMappingEnvVar(t *testing.T) {
 		})
 	}
 }
+
+func TestManifestWatchListClientDisabled(t *testing.T) {
+	d := getAgentFromManifests("test-scope", agent.ManifestOptions{
+		LeaderElectionOptions: leaderOpts,
+	})
+	if d == nil {
+		t.Fatal("no deployment returned from manifests")
+	}
+
+	envVar, found := findEnvVar(d.Spec.Template.Spec.Containers, "KUBE_FEATURE_WatchListClient")
+	if !found {
+		t.Fatal("env var KUBE_FEATURE_WatchListClient not found in agent container")
+	}
+	if envVar.Value != "false" {
+		t.Fatalf("expected KUBE_FEATURE_WatchListClient=false, got %q", envVar.Value)
+	}
+}
