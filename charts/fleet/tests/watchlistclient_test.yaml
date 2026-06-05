@@ -1,8 +1,11 @@
 suite: WatchListClient feature gate env var tests
 templates:
   - deployment.yaml
+  - deployment_gitjob.yaml
+  - deployment_helmops.yaml
 tests:
   - it: should set KUBE_FEATURE_WatchListClient to false in the fleet-controller container
+    template: deployment.yaml
     asserts:
       - contains:
           path: spec.template.spec.containers[?(@.name == 'fleet-controller')].env
@@ -11,9 +14,28 @@ tests:
             value: "false"
 
   - it: should set KUBE_FEATURE_WatchListClient to false in the fleet-agentmanagement container
+    template: deployment.yaml
     asserts:
       - contains:
           path: spec.template.spec.containers[?(@.name == 'fleet-agentmanagement')].env
+          content:
+            name: KUBE_FEATURE_WatchListClient
+            value: "false"
+
+  - it: should set KUBE_FEATURE_WatchListClient to false in the gitjob container
+    template: deployment_gitjob.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[?(@.name == 'gitjob')].env
+          content:
+            name: KUBE_FEATURE_WatchListClient
+            value: "false"
+
+  - it: should set KUBE_FEATURE_WatchListClient to false in the helmops container
+    template: deployment_helmops.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[?(@.name == 'helmops')].env
           content:
             name: KUBE_FEATURE_WatchListClient
             value: "false"
