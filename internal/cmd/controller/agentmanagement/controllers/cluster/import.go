@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/labels"
@@ -95,7 +96,12 @@ func RegisterImport(
 		if cluster == nil || len(cluster.Spec.KubeConfigSecret) == 0 {
 			return []string{}, nil
 		}
-		secretKey := getKubeConfigSecretNS(cluster) + "/" + cluster.Spec.KubeConfigSecret
+		ns, err := allowedKubeConfigSecretNamespace(cluster)
+		if err != nil {
+			logrus.Debugf("Cluster %s/%s: skipping kubeconfig secret index: %v", cluster.Namespace, cluster.Name, err)
+			return []string{}, nil
+		}
+		secretKey := ns + "/" + cluster.Spec.KubeConfigSecret
 		return []string{secretKey}, nil
 	})
 	secrets.OnChange(ctx, "kubeconfig-secrets-watch", func(key string, secret *corev1.Secret) (*corev1.Secret, error) {
@@ -138,7 +144,12 @@ func (i *importHandler) onConfig(cfg *config.Config) error {
 			continue
 		}
 
-		secret, err := i.secretsCache.Get(getKubeConfigSecretNS(cluster), cluster.Spec.KubeConfigSecret)
+		kubeConfigNS, err := allowedKubeConfigSecretNamespace(cluster)
+		if err != nil {
+			logrus.WithError(err).Warnf("cluster %s/%s: skipping config change check", cluster.Namespace, cluster.Name)
+			continue
+		}
+		secret, err := i.secretsCache.Get(kubeConfigNS, cluster.Spec.KubeConfigSecret)
 		if err != nil {
 			return fmt.Errorf("cluster %s/%s: could not check for config changes: %w", cluster.Namespace, cluster.Name, err)
 		}
@@ -302,7 +313,10 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 		return status, nil
 	}
 
-	kubeConfigSecretNamespace := getKubeConfigSecretNS(cluster)
+	kubeConfigSecretNamespace, err := allowedKubeConfigSecretNamespace(cluster)
+	if err != nil {
+		return status, err
+	}
 
 	logrus.Debugf("Cluster import for '%s/%s'. Getting kubeconfig from secret in namespace %s", cluster.Namespace, cluster.Name, kubeConfigSecretNamespace)
 
@@ -590,12 +604,25 @@ func (i *importHandler) checkForConfigChange(cfg *config.Config, cluster *fleet.
 	return err
 }
 
-func getKubeConfigSecretNS(cluster *fleet.Cluster) string {
-	if cluster.Spec.KubeConfigSecretNamespace == "" {
-		return cluster.Namespace
+// allowedKubeConfigSecretNamespace returns the namespace from which the
+// kubeconfig secret may be read. Only Fleet-managed namespaces are permitted.
+func allowedKubeConfigSecretNamespace(cluster *fleet.Cluster) (string, error) {
+	if cluster.Spec.KubeConfigSecretNamespace == "" || cluster.Spec.KubeConfigSecretNamespace == cluster.Namespace {
+		return cluster.Namespace, nil
 	}
 
-	return cluster.Spec.KubeConfigSecretNamespace
+	ns := cluster.Spec.KubeConfigSecretNamespace
+	if ns == "fleet-local" ||
+		ns == "fleet-default" ||
+		ns == config.DefaultNamespace ||
+		ns == config.LegacyDefaultNamespace ||
+		ns == fleetns.SystemRegistrationNamespace(config.DefaultNamespace) ||
+		ns == fleetns.SystemRegistrationNamespace(config.LegacyDefaultNamespace) ||
+		strings.HasPrefix(ns, "cluster-") {
+		return ns, nil
+	}
+
+	return "", fmt.Errorf("kubeConfigSecretNamespace %q is not an allowed Fleet namespace", ns)
 }
 
 func hasGarbageCollectionIntervalChanged(config *config.Config, cluster *fleet.Cluster) bool {

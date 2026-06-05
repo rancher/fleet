@@ -1,6 +1,7 @@
 package cluster
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -360,6 +361,150 @@ func TestOnConfig(t *testing.T) {
 				t.Errorf("unexpected error: expected nil, got %v", err)
 			}
 
+		})
+	}
+}
+
+func TestOnConfig_DisallowedNamespace(t *testing.T) {
+	// A cluster with kubeConfigSecretNamespace set to a disallowed namespace
+	// must be silently skipped during onConfig — the controller must not read
+	// any secret from that namespace.
+	cfg := config.Config{
+		APIServerCA:  []byte("foo"),
+		APIServerURL: "https://hello.world",
+		AgentTLSMode: "system-store",
+	}
+
+	ctrl := gomock.NewController(t)
+	secretsCache := fake.NewMockCacheInterface[*corev1.Secret](ctrl)
+	// secretsCache.Get must never be called for the disallowed namespace.
+
+	clustersCache := fake.NewMockCacheInterface[*fleet.Cluster](ctrl)
+	clustersCache.EXPECT().List("", gomock.Eq(labels.Everything())).Return([]*fleet.Cluster{
+		{
+			ObjectMeta: metav1.ObjectMeta{Name: "bad-cluster", Namespace: "fleet-default"},
+			Spec: fleet.ClusterSpec{
+				KubeConfigSecret:          "some-secret",
+				KubeConfigSecretNamespace: "kube-system",
+			},
+		},
+	}, nil)
+
+	ih := importHandler{clustersCache: clustersCache, secretsCache: secretsCache}
+	// onConfig silently skips clusters with disallowed namespaces (logs a warning
+	// and continues); it does not propagate the error to the caller.
+	if err := ih.onConfig(&cfg); err != nil {
+		t.Errorf("unexpected error: expected nil, got %v", err)
+	}
+}
+
+func TestAllowedKubeConfigSecretNamespace(t *testing.T) {
+	cases := map[string]struct {
+		clusterNamespace string
+		fieldValue       string
+		wantNS           string
+		wantErrContains  string
+	}{
+		"empty field returns cluster namespace": {
+			clusterNamespace: "fleet-default",
+			fieldValue:       "",
+			wantNS:           "fleet-default",
+		},
+		"fleet-default is allowed": {
+			clusterNamespace: "fleet-local",
+			fieldValue:       "fleet-default",
+			wantNS:           "fleet-default",
+		},
+		"fleet-local is allowed": {
+			clusterNamespace: "fleet-default",
+			fieldValue:       "fleet-local",
+			wantNS:           "fleet-local",
+		},
+		"cattle-fleet-system is allowed": {
+			clusterNamespace: "fleet-default",
+			fieldValue:       config.DefaultNamespace,
+			wantNS:           config.DefaultNamespace,
+		},
+		"fleet-system (legacy) is allowed": {
+			clusterNamespace: "fleet-default",
+			fieldValue:       config.LegacyDefaultNamespace,
+			wantNS:           config.LegacyDefaultNamespace,
+		},
+		"cattle-fleet-clusters-system is allowed": {
+			clusterNamespace: "fleet-default",
+			fieldValue:       "cattle-fleet-clusters-system",
+			wantNS:           "cattle-fleet-clusters-system",
+		},
+		"fleet-clusters-system (legacy) is allowed": {
+			clusterNamespace: "fleet-default",
+			fieldValue:       "fleet-clusters-system",
+			wantNS:           "fleet-clusters-system",
+		},
+		"cluster-* prefix is allowed": {
+			clusterNamespace: "fleet-default",
+			fieldValue:       "cluster-fleet-default-my-cluster-abc123",
+			wantNS:           "cluster-fleet-default-my-cluster-abc123",
+		},
+		"custom workspace cluster referencing own namespace is allowed": {
+			clusterNamespace: "my-workspace",
+			fieldValue:       "my-workspace",
+			wantNS:           "my-workspace",
+		},
+		"cattle-system cluster can reference own namespace": {
+			clusterNamespace: "cattle-system",
+			fieldValue:       "cattle-system",
+			wantNS:           "cattle-system",
+		},
+		"kube-system is rejected": {
+			clusterNamespace: "fleet-default",
+			fieldValue:       "kube-system",
+			wantErrContains:  "not an allowed Fleet namespace",
+		},
+		"cattle-system is rejected": {
+			clusterNamespace: "fleet-default",
+			fieldValue:       "cattle-system",
+			wantErrContains:  "not an allowed Fleet namespace",
+		},
+		"arbitrary namespace is rejected": {
+			clusterNamespace: "fleet-default",
+			fieldValue:       "tenant-a-secrets",
+			wantErrContains:  "not an allowed Fleet namespace",
+		},
+		"default namespace is rejected": {
+			clusterNamespace: "fleet-default",
+			fieldValue:       "default",
+			wantErrContains:  "not an allowed Fleet namespace",
+		},
+	}
+
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			cluster := &fleet.Cluster{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-cluster",
+					Namespace: c.clusterNamespace,
+				},
+				Spec: fleet.ClusterSpec{
+					KubeConfigSecretNamespace: c.fieldValue,
+				},
+			}
+
+			got, err := allowedKubeConfigSecretNamespace(cluster)
+			if c.wantErrContains != "" {
+				if err == nil {
+					t.Errorf("expected error for namespace %q, got nil", c.fieldValue)
+				} else if !strings.Contains(err.Error(), c.wantErrContains) {
+					t.Errorf("expected error containing %q, got %q", c.wantErrContains, err.Error())
+				}
+				return
+			}
+			if err != nil {
+				t.Errorf("unexpected error for namespace %q: %v", c.fieldValue, err)
+				return
+			}
+			if got != c.wantNS {
+				t.Errorf("expected namespace %q, got %q", c.wantNS, got)
+			}
 		})
 	}
 }
