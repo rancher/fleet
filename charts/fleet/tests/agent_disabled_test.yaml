@@ -1,0 +1,71 @@
+suite: bootstrap.agentDisabled is rendered into the fleet-controller configmap
+# These tests guard the chart side of the "disable the local fleet-agent" feature.
+templates:
+  - configmap.yaml
+tests:
+  - it: defaults agentDisabled to false
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchRegex:
+          path: data.config
+          pattern: '"agentDisabled":\s*false'
+
+  - it: emits agentDisabled true when set
+    set:
+      bootstrap.agentDisabled: true
+    asserts:
+      - matchRegex:
+          path: data.config
+          pattern: '"agentDisabled":\s*true'
+      # Must be the JSON boolean true, NOT the string "true": the Go
+      # Bootstrap.AgentDisabled field is bool and json.Unmarshal would reject
+      # the quoted form.
+      - notMatchRegex:
+          path: data.config
+          pattern: '"agentDisabled":\s*"true"'
+
+  - it: keeps the other bootstrap keys intact alongside agentDisabled
+    # Regression guard for the trailing-comma change on the agentNamespace line:
+    # if a future edit drops a comma or removes a field, this test fails before
+    # the broken configmap reaches a cluster.
+    set:
+      bootstrap.agentDisabled: true
+      bootstrap.namespace: fleet-local
+      bootstrap.agentNamespace: cattle-fleet-local-system
+      bootstrap.repo: https://example.com/repo
+      bootstrap.branch: main
+      bootstrap.paths: deploy
+      bootstrap.secret: my-secret
+    asserts:
+      - matchRegex:
+          path: data.config
+          pattern: '"namespace":\s*"fleet-local"'
+      - matchRegex:
+          path: data.config
+          pattern: '"agentNamespace":\s*"cattle-fleet-local-system"'
+      - matchRegex:
+          path: data.config
+          pattern: '"repo":\s*"https://example.com/repo"'
+      - matchRegex:
+          path: data.config
+          pattern: '"branch":\s*"main"'
+      - matchRegex:
+          path: data.config
+          pattern: '"paths":\s*"deploy"'
+      - matchRegex:
+          path: data.config
+          pattern: '"secret":\s*"my-secret"'
+      - matchRegex:
+          path: data.config
+          pattern: '"agentDisabled":\s*true'
+
+  - it: still emits agentDisabled when explicitly set to false
+    set:
+      bootstrap.agentDisabled: false
+    asserts:
+      - matchRegex:
+          path: data.config
+          pattern: '"agentDisabled":\s*false'

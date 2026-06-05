@@ -194,6 +194,10 @@ func hashStatusField(field any) string {
 	return hex.EncodeToString(hasher.Sum(nil))
 }
 
+func localAgentDisabled(cluster *fleet.Cluster) bool {
+	return cluster.Labels[fleet.LocalAgentDisabledLabel] == "true"
+}
+
 func agentDeployed(cluster *fleet.Cluster) bool {
 	if cluster.Status.AgentConfigChanged {
 		return false
@@ -230,7 +234,7 @@ func (i *importHandler) OnChange(key string, cluster *fleet.Cluster) (_ *fleet.C
 		return cluster, nil
 	}
 
-	if manageagent.SkipCluster(cluster) {
+	if manageagent.SkipCluster(cluster) || localAgentDisabled(cluster) {
 		return cluster, nil
 	}
 
@@ -297,6 +301,23 @@ func (i *importHandler) deleteOldAgent(cluster *fleet.Cluster, kc kubernetes.Int
 //nolint:gocyclo
 func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.ClusterStatus) (fleet.ClusterStatus, error) {
 	if manageagent.SkipCluster(cluster) {
+		return status, nil
+	}
+
+	if localAgentDisabled(cluster) {
+		// Never deployed or already torn down: nothing to do.
+		if status.Agent.Namespace == "" && status.AgentDeployedGeneration == nil {
+			return status, nil
+		}
+		// Tear down a previously-deployed agent.
+		if cluster.Spec.KubeConfigSecret != "" {
+			if err := i.teardownLocalAgent(cluster); err != nil {
+				return status, err
+			}
+		}
+		status.Agent = fleet.AgentStatus{}
+		status.AgentDeployedGeneration = nil
+		status.AgentConfigChanged = false
 		return status, nil
 	}
 
@@ -523,6 +544,63 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 	status.GarbageCollectionInterval = &cfg.GarbageCollectionInterval
 
 	return status, nil
+}
+
+// teardownLocalAgent removes the fleet-agent and its associated bundle from the
+// local cluster. It is idempotent: NotFound errors from the deletes are ignored.
+func (i *importHandler) teardownLocalAgent(cluster *fleet.Cluster) error {
+	kubeConfigSecretNamespace, err := allowedKubeConfigSecretNamespace(cluster)
+	if err != nil {
+		return err
+	}
+	secret, err := i.secretsCache.Get(kubeConfigSecretNamespace, cluster.Spec.KubeConfigSecret)
+	if err != nil {
+		return err
+	}
+
+	cfg := config.Get()
+	restConfig, err := i.restConfigFromKubeConfig(secret.Data[config.KubeConfigSecretValueKey], cfg.AgentTLSMode)
+	if err != nil {
+		return err
+	}
+	restConfig.Timeout = durations.RestConfigTimeout
+
+	kc, err := kubernetes.NewForConfig(restConfig)
+	if err != nil {
+		return err
+	}
+
+	if err := connection.SmokeTestKubeClientConnection(kc); err != nil {
+		return err
+	}
+
+	agentNamespace := cluster.Status.Agent.Namespace
+	if agentNamespace == "" {
+		agentNamespace = i.systemNamespace
+	}
+
+	if err := i.bundleClient.Delete(cluster.Namespace, names.SafeConcatName(manageagent.AgentBundleName, cluster.Name), nil); err != nil && !apierrors.IsNotFound(err) {
+		return err
+	}
+	i.namespaceController.Enqueue(cluster.Namespace)
+
+	if err := i.deleteOldAgent(cluster, kc, agentNamespace); err != nil {
+		return err
+	}
+
+	if i.systemNamespace != config.DefaultNamespace {
+		_, err := kc.CoreV1().Namespaces().Get(i.ctx, config.DefaultNamespace, metav1.GetOptions{})
+		if err == nil {
+			if err := i.deleteOldAgent(cluster, kc, config.DefaultNamespace); err != nil {
+				return err
+			}
+		} else if !apierrors.IsNotFound(err) {
+			return err
+		}
+	}
+
+	logrus.Infof("Cluster import for '%s/%s'. Removed local agent (agentDisabled=true)", cluster.Namespace, cluster.Name)
+	return nil
 }
 
 func shouldMigrateFromLegacyNamespace(agentStatusNs string) bool {

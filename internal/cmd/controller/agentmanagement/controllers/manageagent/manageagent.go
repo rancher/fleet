@@ -115,7 +115,7 @@ func Register(ctx context.Context,
 }
 
 func (h *handler) onClusterStatusChange(cluster *fleet.Cluster, status fleet.ClusterStatus) (fleet.ClusterStatus, error) {
-	if SkipCluster(cluster) {
+	if SkipCluster(cluster) || cluster.Labels[fleet.LocalAgentDisabledLabel] == "true" {
 		return status, nil
 	}
 
@@ -293,7 +293,7 @@ func (h *handler) OnNamespace(key string, namespace *corev1.Namespace) (*corev1.
 	var objs []runtime.Object
 
 	for _, cluster := range clusters {
-		if SkipCluster(cluster) {
+		if SkipCluster(cluster) || cluster.Labels[fleet.LocalAgentDisabledLabel] == "true" {
 			continue
 		}
 		logrus.Infof("Update agent bundle for cluster %s/%s", cluster.Namespace, cluster.Name)

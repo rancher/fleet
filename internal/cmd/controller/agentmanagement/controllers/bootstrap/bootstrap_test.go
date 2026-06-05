@@ -22,6 +22,7 @@ func TestOnConfig_AppliesClusterLabels(t *testing.T) {
 	cases := []struct {
 		name           string
 		configLabels   map[string]string
+		agentDisabled  bool
 		expectedLabels map[string]string
 	}{
 		{
@@ -42,6 +43,33 @@ func TestOnConfig_AppliesClusterLabels(t *testing.T) {
 				"random-hash-12345": "enabled",
 			},
 		},
+		{
+			name:          "agentDisabled stamps the local-agent-disabled label",
+			agentDisabled: true,
+			expectedLabels: map[string]string{
+				"name":                        "local",
+				fleet.LocalAgentDisabledLabel: "true",
+			},
+		},
+		{
+			name:          "agentDisabled false leaves the label off",
+			agentDisabled: false,
+			expectedLabels: map[string]string{
+				"name": "local",
+			},
+		},
+		{
+			name:          "agentDisabled coexists with user-supplied clusterLabels",
+			agentDisabled: true,
+			configLabels: map[string]string{
+				"region": "eu-west-1",
+			},
+			expectedLabels: map[string]string{
+				"name":                        "local",
+				"region":                      "eu-west-1",
+				fleet.LocalAgentDisabledLabel: "true",
+			},
+		},
 	}
 
 	for _, c := range cases {
@@ -51,6 +79,7 @@ func TestOnConfig_AppliesClusterLabels(t *testing.T) {
 				Bootstrap: fleetconfig.Bootstrap{
 					Namespace:     "bootstrap-ns", // not empty
 					ClusterLabels: c.configLabels,
+					AgentDisabled: c.agentDisabled,
 				},
 			}
 

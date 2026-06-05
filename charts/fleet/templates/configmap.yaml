@@ -30,7 +30,8 @@ data:
         "clusterLabels": {{toJson .Values.bootstrap.clusterLabels}},
         "branch":  "{{.Values.bootstrap.branch}}",
         "namespace": "{{.Values.bootstrap.namespace}}",
-        "agentNamespace": "{{.Values.bootstrap.agentNamespace}}"
+        "agentNamespace": "{{.Values.bootstrap.agentNamespace}}",
+        "agentDisabled": {{.Values.bootstrap.agentDisabled}}
       },
       "webhookReceiverURL": "{{.Values.webhookReceiverURL}}",
       "githubURLPrefix": "{{.Values.githubURLPrefix}}",

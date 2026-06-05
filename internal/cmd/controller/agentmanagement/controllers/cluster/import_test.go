@@ -1,6 +1,7 @@
 package cluster
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -504,6 +505,180 @@ func TestAllowedKubeConfigSecretNamespace(t *testing.T) {
 			}
 			if got != c.wantNS {
 				t.Errorf("expected namespace %q, got %q", c.wantNS, got)
+			}
+		})
+	}
+}
+
+func TestLocalAgentDisabled(t *testing.T) {
+	cases := []struct {
+		name    string
+		cluster *fleet.Cluster
+		want    bool
+	}{
+		{
+			name:    "nil labels",
+			cluster: &fleet.Cluster{},
+			want:    false,
+		},
+		{
+			name: "label absent",
+			cluster: &fleet.Cluster{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{"name": "local"},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "label set to true",
+			cluster: &fleet.Cluster{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"name":                        "local",
+						fleet.LocalAgentDisabledLabel: "true",
+					},
+				},
+			},
+			want: true,
+		},
+		{
+			// Only the literal string "true" enables it: anything else (false,
+			// empty, "1", "yes") is treated as not-disabled so users can't
+			// accidentally disable the agent by toggling the label.
+			name: "label set to a non-true value is treated as not disabled",
+			cluster: &fleet.Cluster{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						fleet.LocalAgentDisabledLabel: "1",
+					},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "label set to false",
+			cluster: &fleet.Cluster{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						fleet.LocalAgentDisabledLabel: "false",
+					},
+				},
+			},
+			want: false,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := localAgentDisabled(c.cluster); got != c.want {
+				t.Errorf("localAgentDisabled = %v, want %v", got, c.want)
+			}
+		})
+	}
+}
+
+func TestOnChange_LocalAgentDisabledShortCircuits(t *testing.T) {
+	// A cluster carrying the local-agent-disabled label must short-circuit
+	// out of OnChange before it touches any of the controllers/caches —
+	// no ClientID generation, no clusters.Update, nothing.
+	//
+	// We assert this by leaving every field of importHandler nil; reaching
+	// any of them would panic.
+	cluster := &fleet.Cluster{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "local",
+			Namespace: "fleet-local",
+			Labels: map[string]string{
+				"name":                        "local",
+				fleet.LocalAgentDisabledLabel: "true",
+			},
+		},
+		Spec: fleet.ClusterSpec{
+			KubeConfigSecret: "local-cluster", // would normally trigger ClientID gen
+		},
+	}
+
+	ih := importHandler{}
+	got, err := ih.OnChange("fleet-local/local", cluster)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != cluster {
+		t.Errorf("OnChange returned a different cluster; want short-circuit returning the input as-is")
+	}
+}
+
+func TestImportCluster_LocalAgentDisabled(t *testing.T) {
+	cases := map[string]struct {
+		cluster    *fleet.Cluster
+		status     fleet.ClusterStatus
+		wantStatus fleet.ClusterStatus
+	}{
+		"never deployed: returns immediately with status unchanged": {
+			// status.Agent.Namespace == "" && status.AgentDeployedGeneration == nil
+			// → no teardown, no status mutation. Avoids reconnecting to the
+			// downstream every reconcile after teardown has already run.
+			cluster: &fleet.Cluster{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "local",
+					Namespace: "fleet-local",
+					Labels: map[string]string{
+						fleet.LocalAgentDisabledLabel: "true",
+					},
+				},
+				Spec: fleet.ClusterSpec{
+					// non-empty would normally drive the deploy path,
+					// but the label must skip past it.
+					KubeConfigSecret: "local-cluster",
+				},
+			},
+			status:     fleet.ClusterStatus{},
+			wantStatus: fleet.ClusterStatus{},
+		},
+		"previously deployed without a kubeconfig secret: clears status, skips teardown": {
+			// Defensive branch: the teardown only runs when there's a
+			// kubeconfig to connect with. The status is still wiped so
+			// later reconciles take the early-return path above.
+			cluster: &fleet.Cluster{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "local",
+					Namespace: "fleet-local",
+					Labels: map[string]string{
+						fleet.LocalAgentDisabledLabel: "true",
+					},
+				},
+				Spec: fleet.ClusterSpec{
+					KubeConfigSecret: "", // skips teardownLocalAgent
+				},
+			},
+			status: fleet.ClusterStatus{
+				Agent: fleet.AgentStatus{
+					Namespace: "cattle-fleet-local-system",
+				},
+				AgentDeployedGeneration: new(int64),
+				AgentConfigChanged:      true,
+			},
+			wantStatus: fleet.ClusterStatus{
+				Agent:                   fleet.AgentStatus{},
+				AgentDeployedGeneration: nil,
+				AgentConfigChanged:      false,
+			},
+		},
+	}
+
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			// All importHandler fields nil — any access would panic, proving
+			// the disabled path does not reach the kubeconfig/secrets/apply
+			// code.
+			ih := importHandler{}
+			gotStatus, err := ih.importCluster(c.cluster, c.status)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !reflect.DeepEqual(gotStatus, c.wantStatus) {
+				t.Errorf("status mismatch.\nwant: %#v\ngot:  %#v", c.wantStatus, gotStatus)
 			}
 		})
 	}
