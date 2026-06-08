@@ -8,8 +8,7 @@
     "release/v0.15",
     "release/v0.14",
     "release/v0.13",
-    "release/v0.12",
-    "release/v0.11"
+    "release/v0.12"
   ],
   "ignorePaths": [
     "**/assets/**"
@@ -59,14 +58,6 @@
       ],
       "extends": [
         "github>rancher/renovate-config//rancher-2.11#release"
-      ]
-    },
-    {
-      "matchBaseBranches": [
-        "release/v0.11"
-      ],
-      "extends": [
-        "github>rancher/renovate-config//rancher-2.10#release"
       ]
     }
   ]
