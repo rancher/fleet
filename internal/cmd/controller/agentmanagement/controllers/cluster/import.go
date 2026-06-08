@@ -605,7 +605,7 @@ func (i *importHandler) teardownLocalAgent(cluster *fleet.Cluster) error {
 		}
 	}
 
-	logrus.Infof("Cluster import for '%s/%s'. Removed local agent (agentDisabled=true)", cluster.Namespace, cluster.Name)
+	logrus.Infof("Cluster import for '%s/%s'. Removed local agent (%s=true)", cluster.Namespace, cluster.Name, fleet.LocalAgentDisabledLabel)
 	return nil
 }
 
@@ -660,9 +660,9 @@ func (i *importHandler) deleteAgentResources(kc kubernetes.Interface, agentNames
 		return err
 	}
 
-	// Also clean up the default SA on older installs that left it with a modified
-	// AutomountServiceAccountToken. Candidate namespaces: agent's namespace plus
-	// the legacy default if the system namespace was customized.
+	// Also clean up legacy fleet-agent resources that may exist in the default system
+	// namespace on older installs (e.g. if the system namespace was later customized).
+	// Candidate namespaces: agent's namespace plus the legacy default if the system namespace was customized.
 	if i.systemNamespace != config.DefaultNamespace && agentNamespace != config.DefaultNamespace {
 		if err := ignoreNotFound(kc.CoreV1().Secrets(config.DefaultNamespace).Delete(i.ctx, config.AgentConfigName, metav1.DeleteOptions{})); err != nil {
 			return err
