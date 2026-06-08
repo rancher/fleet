@@ -419,6 +419,9 @@ func SkipCluster(cluster *fleet.Cluster) bool {
 	if cluster == nil {
 		return true
 	}
+	if !cluster.DeletionTimestamp.IsZero() {
+		return true
+	}
 	if cluster.Labels == nil {
 		return false
 	}
