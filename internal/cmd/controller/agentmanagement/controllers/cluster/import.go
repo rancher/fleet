@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/sirupsen/logrus"
 
@@ -222,9 +223,9 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 		return status, nil
 	}
 
-	kubeConfigSecretNamespace := cluster.Namespace
-	if cluster.Spec.KubeConfigSecretNamespace != "" {
-		kubeConfigSecretNamespace = cluster.Spec.KubeConfigSecretNamespace
+	kubeConfigSecretNamespace, err := allowedKubeConfigSecretNamespace(cluster)
+	if err != nil {
+		return status, err
 	}
 	logrus.Debugf("Cluster import for '%s/%s'. Getting kubeconfig from secret in namespace %s", cluster.Namespace, cluster.Name, kubeConfigSecretNamespace)
 
@@ -405,6 +406,27 @@ func isLegacyAgentNamespaceSelectedByUser() bool {
 
 	return os.Getenv("NAMESPACE") == config.LegacyDefaultNamespace ||
 		cfg.Bootstrap.AgentNamespace == config.LegacyDefaultNamespace
+}
+
+// allowedKubeConfigSecretNamespace returns the namespace from which the
+// kubeconfig secret may be read. Only Fleet-managed namespaces are permitted.
+func allowedKubeConfigSecretNamespace(cluster *fleet.Cluster) (string, error) {
+	if cluster.Spec.KubeConfigSecretNamespace == "" || cluster.Spec.KubeConfigSecretNamespace == cluster.Namespace {
+		return cluster.Namespace, nil
+	}
+
+	ns := cluster.Spec.KubeConfigSecretNamespace
+	if ns == "fleet-local" ||
+		ns == "fleet-default" ||
+		ns == config.DefaultNamespace ||
+		ns == config.LegacyDefaultNamespace ||
+		ns == fleetns.SystemRegistrationNamespace(config.DefaultNamespace) ||
+		ns == fleetns.SystemRegistrationNamespace(config.LegacyDefaultNamespace) ||
+		strings.HasPrefix(ns, "cluster-") {
+		return ns, nil
+	}
+
+	return "", fmt.Errorf("kubeConfigSecretNamespace %q is not an allowed Fleet namespace", ns)
 }
 
 // restConfigFromKubeConfig checks kubeconfig data and tries to connect to server. If server is behind public CA, remove
