@@ -22,7 +22,6 @@ on:
           - release/v0.14
           - release/v0.13
           - release/v0.12
-          - release/v0.11
 
 env:
   GOARCH: amd64
