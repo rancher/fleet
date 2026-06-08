@@ -2,7 +2,7 @@ module github.com/rancher/fleet
 
 go 1.25.8
 
-toolchain go1.25.10
+toolchain go1.25.11
 
 replace (
 	github.com/imdario/mergo => github.com/imdario/mergo v0.3.16
