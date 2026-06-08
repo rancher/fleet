@@ -574,32 +574,113 @@ func (i *importHandler) teardownLocalAgent(cluster *fleet.Cluster) error {
 		return err
 	}
 
+	// Agent bundle lives on the management cluster — independent of the wrangler set.
+	if err := i.bundleClient.Delete(
+		cluster.Namespace,
+		names.SafeConcatName(manageagent.AgentBundleName, cluster.Name),
+		nil,
+	); err != nil && !apierrors.IsNotFound(err) {
+		return err
+	}
+	i.namespaceController.Enqueue(cluster.Namespace)
+
 	agentNamespace := cluster.Status.Agent.Namespace
 	if agentNamespace == "" {
 		agentNamespace = i.systemNamespace
 	}
 
-	if err := i.bundleClient.Delete(cluster.Namespace, names.SafeConcatName(manageagent.AgentBundleName, cluster.Name), nil); err != nil && !apierrors.IsNotFound(err) {
-		return err
-	}
-	i.namespaceController.Enqueue(cluster.Namespace)
-
-	if err := i.deleteOldAgent(cluster, kc, agentNamespace); err != nil {
+	if err := i.deleteAgentResources(kc, agentNamespace); err != nil {
 		return err
 	}
 
+	// Mirror the deploy path: when the system namespace was customized, drop the
+	// now-orphaned legacy system-registration namespace too.
 	if i.systemNamespace != config.DefaultNamespace {
-		_, err := kc.CoreV1().Namespaces().Get(i.ctx, config.DefaultNamespace, metav1.GetOptions{})
-		if err == nil {
-			if err := i.deleteOldAgent(cluster, kc, config.DefaultNamespace); err != nil {
-				return err
-			}
-		} else if !apierrors.IsNotFound(err) {
+		if err := kc.CoreV1().Namespaces().Delete(
+			i.ctx,
+			fleetns.SystemRegistrationNamespace(config.DefaultNamespace),
+			metav1.DeleteOptions{},
+		); err != nil && !apierrors.IsNotFound(err) {
 			return err
 		}
 	}
 
 	logrus.Infof("Cluster import for '%s/%s'. Removed local agent (agentDisabled=true)", cluster.Namespace, cluster.Name)
+	return nil
+}
+
+// deleteAgentResources removes every resource the deploy path creates for a
+// fleet-agent, identified by the fixed names that agent.Manifest assigns.
+func (i *importHandler) deleteAgentResources(kc kubernetes.Interface, agentNamespace string) error {
+	ignoreNotFound := func(err error) error {
+		if err == nil || apierrors.IsNotFound(err) {
+			return nil
+		}
+		return err
+	}
+
+	// Cluster-scoped RBAC — names are constructed the same way as in agent.Manifest.
+	crName := names.SafeConcatName(agentNamespace, agent.DefaultName, "role")
+	crbName := names.SafeConcatName(agentNamespace, agent.DefaultName, "role", "binding")
+	if err := ignoreNotFound(kc.RbacV1().ClusterRoles().Delete(i.ctx, crName, metav1.DeleteOptions{})); err != nil {
+		return err
+	}
+	if err := ignoreNotFound(kc.RbacV1().ClusterRoleBindings().Delete(i.ctx, crbName, metav1.DeleteOptions{})); err != nil {
+		return err
+	}
+
+	// Cluster-scoped scheduling resources.
+	if err := ignoreNotFound(kc.SchedulingV1().PriorityClasses().Delete(i.ctx, scheduling.FleetAgentPriorityClassName, metav1.DeleteOptions{})); err != nil {
+		return err
+	}
+
+	// Namespaced resources.
+	if err := ignoreNotFound(kc.CoreV1().Secrets(agentNamespace).Delete(i.ctx, config.AgentConfigName, metav1.DeleteOptions{})); err != nil {
+		return err
+	}
+	if err := ignoreNotFound(kc.CoreV1().Secrets(agentNamespace).Delete(i.ctx, config.AgentBootstrapConfigName, metav1.DeleteOptions{})); err != nil {
+		return err
+	}
+	if err := ignoreNotFound(kc.CoreV1().ConfigMaps(agentNamespace).Delete(i.ctx, config.AgentConfigName, metav1.DeleteOptions{})); err != nil {
+		return err
+	}
+	if err := ignoreNotFound(kc.CoreV1().ServiceAccounts(agentNamespace).Delete(i.ctx, agent.DefaultName, metav1.DeleteOptions{})); err != nil {
+		return err
+	}
+	if err := ignoreNotFound(kc.NetworkingV1().NetworkPolicies(agentNamespace).Delete(i.ctx, "default-allow-all", metav1.DeleteOptions{})); err != nil {
+		return err
+	}
+	if err := ignoreNotFound(kc.AppsV1().Deployments(agentNamespace).Delete(i.ctx, config.AgentConfigName, metav1.DeleteOptions{})); err != nil {
+		return err
+	}
+	if err := ignoreNotFound(kc.AppsV1().StatefulSets(agentNamespace).Delete(i.ctx, config.AgentConfigName, metav1.DeleteOptions{})); err != nil {
+		return err
+	}
+	if err := ignoreNotFound(kc.PolicyV1().PodDisruptionBudgets(agentNamespace).Delete(i.ctx, scheduling.FleetAgentPodDisruptionBudgetName, metav1.DeleteOptions{})); err != nil {
+		return err
+	}
+
+	// Also clean up the default SA on older installs that left it with a modified
+	// AutomountServiceAccountToken. Candidate namespaces: agent's namespace plus
+	// the legacy default if the system namespace was customized.
+	if i.systemNamespace != config.DefaultNamespace && agentNamespace != config.DefaultNamespace {
+		if err := ignoreNotFound(kc.CoreV1().Secrets(config.DefaultNamespace).Delete(i.ctx, config.AgentConfigName, metav1.DeleteOptions{})); err != nil {
+			return err
+		}
+		if err := ignoreNotFound(kc.CoreV1().Secrets(config.DefaultNamespace).Delete(i.ctx, config.AgentBootstrapConfigName, metav1.DeleteOptions{})); err != nil {
+			return err
+		}
+		if err := ignoreNotFound(kc.CoreV1().ServiceAccounts(config.DefaultNamespace).Delete(i.ctx, agent.DefaultName, metav1.DeleteOptions{})); err != nil {
+			return err
+		}
+		if err := ignoreNotFound(kc.AppsV1().Deployments(config.DefaultNamespace).Delete(i.ctx, config.AgentConfigName, metav1.DeleteOptions{})); err != nil {
+			return err
+		}
+		if err := ignoreNotFound(kc.AppsV1().StatefulSets(config.DefaultNamespace).Delete(i.ctx, config.AgentConfigName, metav1.DeleteOptions{})); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
