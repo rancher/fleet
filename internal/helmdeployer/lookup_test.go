@@ -112,6 +112,75 @@ func TestHasLookupFunction(t *testing.T) {
 			},
 			expectedResult: true,
 		},
+		{
+			name: "Lookup inside helper template definition",
+			templates: []*common.File{
+				{
+					Name: "templates/_helpers.tpl",
+					Data: []byte(`
+{{- define "mychart.lookupHelper" -}}
+{{ lookup "v1" "Service" "default" "kubernetes" }}
+{{- end -}}
+`),
+				},
+			},
+			expectedResult: true,
+		},
+		{
+			name: "Lookup inside helper referenced by include",
+			templates: []*common.File{
+				{
+					Name: "templates/_helpers.tpl",
+					Data: []byte(`
+{{- define "mychart.lookupHelper" -}}
+{{ lookup "v1" "Deployment" "default" "mydep" }}
+{{- end -}}
+`),
+				},
+				{
+					Name: "templates/configmap.yaml",
+					Data: []byte(`
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: test
+data:
+  value: {{ include "mychart.lookupHelper" . }}
+`),
+				},
+			},
+			expectedResult: true,
+		},
+		{
+			name: "Lookup inside helper with chained expression",
+			templates: []*common.File{
+				{
+					Name: "templates/_helpers.tpl",
+					Data: []byte(`
+{{- define "mychart.lookupHelper" -}}
+{{- range $index, $pod := (lookup "v1" "Pod" "kube-system" "").items }}
+{{ $pod.metadata.name }}
+{{- end }}
+{{- end }}
+`),
+				},
+			},
+			expectedResult: true,
+		},
+		{
+			name: "Helper template without lookup",
+			templates: []*common.File{
+				{
+					Name: "templates/_helpers.tpl",
+					Data: []byte(`
+{{- define "mychart.noLookup" -}}
+hello world
+{{- end -}}
+`),
+				},
+			},
+			expectedResult: false,
+		},
 	}
 
 	for _, tc := range testCases {

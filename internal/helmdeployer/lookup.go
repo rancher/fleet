@@ -31,8 +31,12 @@ func hasLookupFunction(ch *chartv2.Chart) bool {
 		}
 
 		// Walk all parse trees in this template and look for lookup invocations.
-		if t.Tree != nil && t.Root != nil {
-			if containsLookup(t.Root) {
+		for _, parsedTpl := range t.Templates() {
+			if parsedTpl == nil || parsedTpl.Tree == nil || parsedTpl.Root == nil {
+				continue
+			}
+
+			if containsLookup(parsedTpl.Root) {
 				return true
 			}
 		}
