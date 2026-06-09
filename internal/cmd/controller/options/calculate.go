@@ -6,10 +6,36 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"maps"
+	"strings"
 
+	"github.com/rancher/fleet/internal/merge"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/wrangler/v3/pkg/data"
 )
+
+// mergeUnique merges two slices by key, with custom entries taking precedence
+// over base entries for the same key. See merge.ByKey for full semantics.
+func mergeUnique[T any](base, custom []T, keyFn func(T) string) []T {
+	return merge.ByKey(base, custom, keyFn, func(_ T, c T) T { return c })
+}
+
+func downstreamResourceKey(r fleet.DownstreamResource) string {
+	return strings.ToLower(r.Kind) + "|" + r.Name
+}
+
+func valuesFromKey(v fleet.ValuesFrom) string {
+	if v.ConfigMapKeyRef != nil {
+		return "configmap|" + v.ConfigMapKeyRef.Namespace + "|" + v.ConfigMapKeyRef.Name + "|" + v.ConfigMapKeyRef.Key
+	}
+	if v.SecretKeyRef != nil {
+		return "secret|" + v.SecretKeyRef.Namespace + "|" + v.SecretKeyRef.Name + "|" + v.SecretKeyRef.Key
+	}
+	return "" // no stable identity; always append
+}
+
+func comparePatchKey(p fleet.ComparePatch) string {
+	return p.APIVersion + "|" + p.Kind + "|" + p.Namespace + "|" + p.Name
+}
 
 // DeploymentID hashes the options to a string
 func DeploymentID(manifestID string, opts fleet.BundleDeploymentOptions) (string, error) {
@@ -64,8 +90,8 @@ func Merge(base, custom fleet.BundleDeploymentOptions) fleet.BundleDeploymentOpt
 		} else if custom.Helm.TemplateValues != nil {
 			maps.Copy(result.Helm.TemplateValues, custom.Helm.TemplateValues)
 		}
-		if custom.Helm.ValuesFrom != nil {
-			result.Helm.ValuesFrom = append(result.Helm.ValuesFrom, custom.Helm.ValuesFrom...)
+		if len(custom.Helm.ValuesFrom) > 0 {
+			result.Helm.ValuesFrom = mergeUnique(result.Helm.ValuesFrom, custom.Helm.ValuesFrom, valuesFromKey)
 		}
 		if custom.Helm.Repo != "" {
 			result.Helm.Repo = custom.Helm.Repo
@@ -98,7 +124,7 @@ func Merge(base, custom fleet.BundleDeploymentOptions) fleet.BundleDeploymentOpt
 		if result.Diff == nil {
 			result.Diff = &fleet.DiffOptions{}
 		}
-		result.Diff.ComparePatches = append(result.Diff.ComparePatches, custom.Diff.ComparePatches...)
+		result.Diff.ComparePatches = mergeUnique(result.Diff.ComparePatches, custom.Diff.ComparePatches, comparePatchKey)
 	}
 	if custom.YAML != nil {
 		if result.YAML == nil {
@@ -114,7 +140,7 @@ func Merge(base, custom fleet.BundleDeploymentOptions) fleet.BundleDeploymentOpt
 		result.CorrectDrift = custom.CorrectDrift
 	}
 	if len(custom.DownstreamResources) > 0 {
-		result.DownstreamResources = append(result.DownstreamResources, custom.DownstreamResources...)
+		result.DownstreamResources = mergeUnique(result.DownstreamResources, custom.DownstreamResources, downstreamResourceKey)
 	}
 
 	return result

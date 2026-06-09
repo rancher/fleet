@@ -19,6 +19,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	command "github.com/rancher/fleet/internal/cmd"
+	"github.com/rancher/fleet/internal/merge"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
@@ -249,54 +250,57 @@ func convertMergePatchToRemoveOps(patch map[string]any, basePath string) []patch
 	return ops
 }
 
-// mergeComparePatches merges new comparePatches with existing ones, avoiding duplicates.
-// This preserves any user-configured comparePatches while adding new ones from drift detection.
-func mergeComparePatches(existing, new []fleet.ComparePatch) []fleet.ComparePatch {
-	patchMap := make(map[string]fleet.ComparePatch)
+// patchIdentityKey returns the key that identifies a ComparePatch resource.
+func patchIdentityKey(p fleet.ComparePatch) string {
+	return p.APIVersion + "|" + p.Kind + "|" + p.Namespace + "|" + p.Name
+}
 
-	// Key function for resource identity
-	resourceKey := func(p fleet.ComparePatch) string {
-		return fmt.Sprintf("%s|%s|%s|%s", p.APIVersion, p.Kind, p.Namespace, p.Name)
+// unionComparePatchOps merges two ComparePatch entries for the same resource by
+// unioning their operations: base operations are kept and custom operations not
+// already present in base are appended.
+func unionComparePatchOps(base, custom fleet.ComparePatch) fleet.ComparePatch {
+	opSet := make(map[string]struct{}, len(base.Operations))
+	for _, op := range base.Operations {
+		opSet[op.Op+"|"+op.Path+"|"+op.Value] = struct{}{}
 	}
-
-	for _, patch := range existing {
-		key := resourceKey(patch)
-		patchMap[key] = patch
-	}
-
-	// Merge new patches, combining operations for same resource
-	for _, newPatch := range new {
-		key := resourceKey(newPatch)
-		if existingPatch, found := patchMap[key]; found {
-			merged := existingPatch
-			opSet := make(map[string]bool)
-			for _, op := range existingPatch.Operations {
-				opKey := fmt.Sprintf("%s|%s|%s", op.Op, op.Path, op.Value)
-				opSet[opKey] = true
-			}
-			for _, op := range newPatch.Operations {
-				opKey := fmt.Sprintf("%s|%s|%s", op.Op, op.Path, op.Value)
-				if !opSet[opKey] {
-					merged.Operations = append(merged.Operations, op)
-				}
-			}
-			patchMap[key] = merged
-		} else {
-			patchMap[key] = newPatch
+	result := base
+	for _, op := range custom.Operations {
+		if _, exists := opSet[op.Op+"|"+op.Path+"|"+op.Value]; !exists {
+			result.Operations = append(result.Operations, op)
 		}
 	}
+	return result
+}
 
-	// Convert map back to slice, sorted for deterministic output
-	var result []fleet.ComparePatch
-	keys := make([]string, 0, len(patchMap))
-	for k := range patchMap {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	for _, k := range keys {
-		result = append(result, patchMap[k])
-	}
+// mergeComparePatches merges new comparePatches with existing ones.
+// For the same resource identity, operations are unioned — existing operations
+// are kept and new operations not already present are appended. The result is
+// sorted by resource identity for deterministic output.
+func mergeComparePatches(existing, new []fleet.ComparePatch) []fleet.ComparePatch {
+	// Consolidate duplicate resource identities within new by unioning their
+	// operations before merging with existing, so no operations are dropped.
+	consolidated := consolidatePatches(new)
+	merged := merge.ByKey(existing, consolidated, patchIdentityKey, unionComparePatchOps)
+	sort.Slice(merged, func(i, j int) bool {
+		return patchIdentityKey(merged[i]) < patchIdentityKey(merged[j])
+	})
+	return merged
+}
 
+// consolidatePatches folds entries with the same resource identity by unioning
+// their operations, preserving the order of first occurrence.
+func consolidatePatches(patches []fleet.ComparePatch) []fleet.ComparePatch {
+	seen := make(map[string]int, len(patches))
+	result := make([]fleet.ComparePatch, 0, len(patches))
+	for _, p := range patches {
+		k := patchIdentityKey(p)
+		if idx, ok := seen[k]; ok {
+			result[idx] = unionComparePatchOps(result[idx], p)
+		} else {
+			seen[k] = len(result)
+			result = append(result, p)
+		}
+	}
 	return result
 }
 
