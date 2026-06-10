@@ -395,5 +395,3 @@ func normalizeReplicasPatch(
 
 	return false, nil
 }
-
-

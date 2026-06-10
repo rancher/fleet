@@ -151,6 +151,114 @@ func (r *BundleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
+func (r *BundleReconciler) handleMatchedTarget(
+	ctx context.Context,
+	logger logr.Logger,
+	bundle *fleet.Bundle,
+	bundleOrig *fleet.Bundle,
+	tgt *target.Target,
+	contentsInOCI, contentsInHelmChart bool,
+	manifestID string,
+	bundleDeploymentUIDs sets.Set[types.UID],
+	merr *[]error,
+) (ctrl.Result, error) {
+	if tgt.Deployment == nil {
+		return ctrl.Result{}, nil
+	}
+	if tgt.Deployment.Namespace == "" {
+		logger.V(1).Info(
+			"Skipping bundledeployment with empty namespace, waiting for agentmanagement to set cluster.status.namespace",
+			"bundledeployment", tgt.Deployment,
+		)
+		return ctrl.Result{}, nil
+	}
+
+	// NOTE we don't re-use the existing BundleDeployment, we discard annotations, status, etc.
+	// and copy labels from Bundle as they might have changed.
+	// However, matchedTargets tgt.Deployment contains existing BundleDeployments.
+	bd := tgt.BundleDeployment()
+	logger = logger.WithValues("bundledeployment", bd.Name)
+
+	// No need to check the deletion timestamp here before adding a finalizer, since the bundle has just
+	// been created.
+	controllerutil.AddFinalizer(bd, finalize.BundleDeploymentFinalizer)
+
+	bd.Spec.OCIContents = contentsInOCI
+	bd.Spec.HelmChartOptions = bundle.Spec.HelmOpOptions
+
+	var optionsSecret *corev1.Secret
+	// If the options secret was unavailable during Targets(). Preserve the
+	// existing ValuesHash (already present in bd.Spec from BundleDeployment())
+	// and skip writing the secret so we don't overwrite it with empty values.
+	if !bd.Spec.WaitingForValues {
+		var valuesHash string
+		var err error
+		valuesHash, optionsSecret, err = r.manageOptionsSecret(ctx, bd)
+		if err != nil {
+			return r.computeResult(ctx, logger, bundleOrig, bundle, "failed to initialize options secret", err)
+		}
+
+		// Changes in the values hash trigger a bundle deployment reconcile.
+		bd.Spec.ValuesHash = valuesHash
+	}
+
+	// When content resources are stored in etcd, we need to keep track of the content resource so they
+	// are properly garbage-collected by the content controller.
+	if !contentsInOCI && !contentsInHelmChart {
+		if bd.Labels == nil {
+			bd.Labels = make(map[string]string)
+		}
+		bd.Labels[fleet.ContentNameLabel] = manifestID
+	}
+
+	helmvalues.ClearOptions(bd)
+
+	// If there's already a bundledeployment for this target, track its UID
+	// before calling createBundleDeployment, which might fail. This prevents
+	// cleanupOrphanedBundleDeployments from incorrectly removing this bundledeployment
+	// as "orphaned". See https://github.com/rancher/fleet/issues/4144
+	if tgt.Deployment != nil && tgt.Deployment.UID != "" {
+		bundleDeploymentUIDs.Insert(tgt.Deployment.UID)
+	}
+
+	op, bd, err := r.createBundleDeployment(
+		ctx,
+		logger,
+		bd)
+	if err != nil {
+		// We could end up here, because we cannot add a
+		// finalizer to a content resource, which has a
+		// deletion timestamp.
+		// Log the problem and keep trying to create the other
+		// bundledeployments, but retry the whole reconcile
+		// afterwards.
+		*merr = append(*merr, fmt.Errorf("failed to create bundle deployment: %w", err))
+		logger.Info(fmt.Sprintf("failed to create a bundledeployment, skipping and requeuing: %v", err))
+		return ctrl.Result{}, nil
+	}
+	bundleDeploymentUIDs.Insert(bd.UID)
+
+	// At this stage, we know the UID of our bundle deployment, hence we can use it to populate the owner reference in the
+	// options secret.
+	// If the bundle deployment already existed and has simply been updated, the secret will already bear an owner
+	// reference from its creation or latest update.
+	if op == controllerutil.OperationResultCreated {
+		if err := r.ensureOwnerReferences(ctx, bd, optionsSecret); err != nil {
+			return r.computeResult(ctx, logger, bundleOrig, bundle, "failed to ensure owner references are set in options secret", err)
+		}
+	}
+
+	if err := r.handleDownstreamObjects(ctx, bundle, bd); err != nil {
+		return r.computeResult(ctx, logger, bundleOrig, bundle, "failed to clone config maps and secrets downstream", err)
+	}
+
+	if err := r.handleContentAccessSecrets(ctx, bundle, bd); err != nil {
+		return r.computeResult(ctx, logger, bundleOrig, bundle, "failed to clone secrets downstream", err)
+	}
+
+	return ctrl.Result{}, nil
+}
+
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=bundles,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=bundles/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=bundles/finalizers,verbs=update
@@ -345,101 +453,12 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// bundle's DependsOn (pure function) and replacing the labels with the bundle's labels
 	merr := []error{}
 	bundleDeploymentUIDs := make(sets.Set[types.UID])
-	for _, target := range matchedTargets {
-		if target.Deployment == nil {
-			continue
-		}
-		if target.Deployment.Namespace == "" {
-			logger.V(1).Info(
-				"Skipping bundledeployment with empty namespace, waiting for agentmanagement to set cluster.status.namespace",
-				"bundledeployment", target.Deployment,
-			)
-			continue
-		}
-
-		// NOTE we don't re-use the existing BundleDeployment, we discard annotations, status, etc.
-		// and copy labels from Bundle as they might have changed.
-		// However, matchedTargets target.Deployment contains existing BundleDeployments.
-		bd := target.BundleDeployment()
-		logger := logger.WithValues("bundledeployment", bd.Name)
-
-		// No need to check the deletion timestamp here before adding a finalizer, since the bundle has just
-		// been created.
-		controllerutil.AddFinalizer(bd, finalize.BundleDeploymentFinalizer)
-
-		bd.Spec.OCIContents = contentsInOCI
-		bd.Spec.HelmChartOptions = bundle.Spec.HelmOpOptions
-
-		var optionsSecret *corev1.Secret
-		// If the options secret was unavailable during Targets(). Preserve the
-		// existing ValuesHash (already present in bd.Spec from BundleDeployment())
-		// and skip writing the secret so we don't overwrite it with empty values.
-		if !bd.Spec.WaitingForValues {
-			var valuesHash string
-			valuesHash, optionsSecret, err = r.manageOptionsSecret(ctx, bd)
-			if err != nil {
-				return r.computeResult(ctx, logger, bundleOrig, bundle, "failed to initialize options secret", err)
-			}
-
-			// Changes in the values hash trigger a bundle deployment reconcile.
-			bd.Spec.ValuesHash = valuesHash
-		}
-
-		// When content resources are stored in etcd, we need to keep track of the content resource so they
-		// are properly gargabe-collected by the content controller.
-		if !contentsInOCI && !contentsInHelmChart {
-			if bd.Labels == nil {
-				bd.Labels = make(map[string]string)
-			}
-			bd.Labels[fleet.ContentNameLabel] = manifestID
-		}
-
-		helmvalues.ClearOptions(bd)
-
-		// If there's already a bundledeployment for this target, track its UID
-		// before calling createBundleDeployment, which might fail. This prevents
-		// cleanupOrphanedBundleDeployments from incorrectly removing this bundledeployment
-		// as "orphaned". See https://github.com/rancher/fleet/issues/4144
-		if target.Deployment != nil && target.Deployment.UID != "" {
-			bundleDeploymentUIDs.Insert(target.Deployment.UID)
-		}
-
-		op, bd, err := r.createBundleDeployment(
-			ctx,
-			logger,
-			bd)
-		if err != nil {
-			// We could end up here, because we cannot add a
-			// finalizer to a content resource, which has a
-			// deletion timestamp.
-			// Log the problem and keep trying to create the other
-			// bundledeployments, but retry the whole reconcile
-			// afterwards.
-			merr = append(merr, fmt.Errorf("failed to create bundle deployment: %w", err))
-			logger.Info(fmt.Sprintf("failed to create a bundledeployment, skipping and requeuing: %v", err))
-			continue
-		}
-		bundleDeploymentUIDs.Insert(bd.UID)
-
-		// At this stage, we know the UID of our bundle deployment, hence we can use it to populate the owner reference in the
-		// options secret.
-		// If the bundle deployment already existed and has simply been updated, the secret will already bear an owner
-		// reference from its creation or latest update.
-		if op == controllerutil.OperationResultCreated {
-			if err := r.ensureOwnerReferences(ctx, bd, optionsSecret); err != nil {
-				return r.computeResult(ctx, logger, bundleOrig, bundle, "failed to ensure owner references are set in options secret", err)
-			}
-		}
-
-		if err := r.handleDownstreamObjects(ctx, bundle, bd); err != nil {
-			return r.computeResult(ctx, logger, bundleOrig, bundle, "failed to clone config maps and secrets downstream", err)
-		}
-
-		if err := r.handleContentAccessSecrets(ctx, bundle, bd); err != nil {
-			return r.computeResult(ctx, logger, bundleOrig, bundle, "failed to clone secrets downstream", err)
+	for _, tgt := range matchedTargets {
+		result, err := r.handleMatchedTarget(ctx, logger, bundle, bundleOrig, tgt, contentsInOCI, contentsInHelmChart, manifestID, bundleDeploymentUIDs, &merr)
+		if err != nil || !result.IsZero() {
+			return result, err
 		}
 	}
-
 	// the targets configuration may have changed, leaving behind some BundleDeployments that are no longer needed
 	if err := r.cleanupOrphanedBundleDeployments(ctx, bundle, bundleDeploymentUIDs); err != nil {
 		logger.V(1).Error(err, "deleting orphaned bundle deployments", "bundle", bundle.GetName())
