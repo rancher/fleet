@@ -798,7 +798,7 @@ func hasGarbageCollectionIntervalChanged(config *config.Config, cluster *fleet.C
 			config.GarbageCollectionInterval.Duration != cluster.Status.GarbageCollectionInterval.Duration)
 }
 
-// getPullSecrets determines where image pull secrets should be source from for agent deployments.
+// getPullSecrets determines where image pull secrets should be sourced from for agent deployments.
 // It returns a set of references to those secrets, along with a boolean evaluating to `true` if those secrets must be
 // propagated by Fleet to downstream clusters.
 func getPullSecrets(config *config.Config, cluster *fleet.Cluster) ([]corev1.LocalObjectReference, bool) {
