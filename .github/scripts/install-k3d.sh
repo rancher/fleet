@@ -4,14 +4,14 @@
 # placing the binary on PATH.
 #
 # renovate: datasource=github-releases depName=k3d-io/k3d
-K3D_VERSION="v5.8.3"
+K3D_VERSION="v5.9.0"
 
 # shellcheck disable=SC2034
-# renovate: datasource=github-release-attachments depName=k3d-io/k3d digestVersion=v5.8.3
-K3D_SUM_amd64="dbaa79a76ace7f4ca230a1ff41dc7d8a5036a8ad0309e9c54f9bf3836dbe853e"
+# renovate: datasource=github-release-attachments depName=k3d-io/k3d digestVersion=v5.9.0
+K3D_SUM_amd64="06d8f25bc3a971c4eb29e0ff08429b180402db0f4dec838c9eac427e296800a0"
 # shellcheck disable=SC2034
-# renovate: datasource=github-release-attachments depName=k3d-io/k3d digestVersion=v5.8.3
-K3D_SUM_arm64="0b8110f2229631af7402fb828259330985918b08fefd38b7f1b788a1c8687216"
+# renovate: datasource=github-release-attachments depName=k3d-io/k3d digestVersion=v5.9.0
+K3D_SUM_arm64="03cde5cf23e6e8e67de5a039ecf26e5b85aca82fba3e5d13dadf904cd218a250"
 
 set -euo pipefail
 
