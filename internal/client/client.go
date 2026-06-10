@@ -14,6 +14,12 @@ import (
 	"github.com/rancher/wrangler/v3/pkg/kubeconfig"
 )
 
+// GetterInterface is an interface for getting a Client
+type GetterInterface interface {
+	Get() (*Client, error)
+	GetNamespace() string
+}
+
 type Getter struct {
 	Kubeconfig string
 	Context    string

@@ -36,7 +36,15 @@ type Options struct {
 // configmap.
 //
 // This is used when importing a cluster.
-func AgentWithConfig(ctx context.Context, agentNamespace, controllerNamespace, agentScope string, cg *client.Getter, tokenName string, opts *Options) ([]runtime.Object, error) {
+func AgentWithConfig(
+	ctx context.Context,
+	agentNamespace,
+	controllerNamespace,
+	agentScope string,
+	cg client.GetterInterface,
+	tokenName string,
+	opts *Options,
+) ([]runtime.Object, error) {
 	if opts == nil {
 		opts = &Options{}
 	}
@@ -57,9 +65,15 @@ func AgentWithConfig(ctx context.Context, agentNamespace, controllerNamespace, a
 
 	objs = append(objs, secret)
 
-	// Copy image pull secrets, if any, to the agent namespace.
+	// Copy image pull secrets, if any, to the agent namespace, if their propagation is configured in manifest
+	// options. This will typically not be necessary if cluster-level image pull secrets are configured, as they will be
+	// propagated by Rancher.
 	// This ensures that those secrets are available at agent deployment time.
 	for _, ips := range opts.ImagePullSecrets {
+		if !opts.PropagatePullSecrets {
+			break
+		}
+
 		source, err := client.Core.Secret().Get(controllerNamespace, ips.Name, metav1.GetOptions{})
 		if err != nil {
 			return objs, fmt.Errorf("failed to get image pull secret %q from controller namespace: %w", ips.Name, err)
@@ -90,10 +104,15 @@ func AgentWithConfig(ctx context.Context, agentNamespace, controllerNamespace, a
 		return objs, err
 	}
 
+	pullSecrets := cfg.ImagePullSecrets
+	if len(opts.ImagePullSecrets) != 0 {
+		pullSecrets = opts.ImagePullSecrets
+	}
+
 	// keep in sync with manageagent.go
 	mo := opts.ManifestOptions
 	mo.AgentImage = cfg.AgentImage
-	mo.ImagePullSecrets = cfg.ImagePullSecrets
+	mo.ImagePullSecrets = pullSecrets
 	mo.AgentImagePullPolicy = cfg.AgentImagePullPolicy
 	mo.CheckinInterval = cfg.AgentCheckinInterval.Duration.String()
 	mo.SystemDefaultRegistry = cfg.SystemDefaultRegistry

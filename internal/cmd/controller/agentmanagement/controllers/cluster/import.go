@@ -459,6 +459,8 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 		}
 	}
 
+	pullSecrets, propagate := getPullSecrets(cfg, cluster)
+
 	// Notice we only set the agentScope when it's a non-default agentNamespace. This is for backwards compatibility
 	// for when we didn't have agent scope before
 	agentObjs, err := agent.AgentWithConfig(
@@ -477,15 +479,16 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 			},
 			// keep in sync with manageagent.go
 			ManifestOptions: agent.ManifestOptions{
-				AgentEnvVars:      cluster.Spec.AgentEnvVars,
-				AgentTolerations:  cluster.Spec.AgentTolerations,
-				PrivateRepoURL:    cluster.Spec.PrivateRepoURL,
-				AgentAffinity:     cluster.Spec.AgentAffinity,
-				AgentResources:    cluster.Spec.AgentResources,
-				HostNetwork:       *cmp.Or(cluster.Spec.HostNetwork, new(false)),
-				AgentReplicas:     agentReplicas,
-				PriorityClassName: priorityClassName,
-				ImagePullSecrets:  cfg.ImagePullSecrets,
+				AgentEnvVars:         cluster.Spec.AgentEnvVars,
+				AgentTolerations:     cluster.Spec.AgentTolerations,
+				PrivateRepoURL:       cluster.Spec.PrivateRepoURL,
+				AgentAffinity:        cluster.Spec.AgentAffinity,
+				AgentResources:       cluster.Spec.AgentResources,
+				HostNetwork:          *cmp.Or(cluster.Spec.HostNetwork, new(false)),
+				AgentReplicas:        agentReplicas,
+				PriorityClassName:    priorityClassName,
+				ImagePullSecrets:     pullSecrets,
+				PropagatePullSecrets: propagate,
 			},
 		})
 	objs = append(objs, agentObjs...)
@@ -793,4 +796,25 @@ func hasGarbageCollectionIntervalChanged(config *config.Config, cluster *fleet.C
 	return (config.GarbageCollectionInterval.Duration != 0 && cluster.Status.GarbageCollectionInterval == nil) ||
 		(cluster.Status.GarbageCollectionInterval != nil &&
 			config.GarbageCollectionInterval.Duration != cluster.Status.GarbageCollectionInterval.Duration)
+}
+
+// getPullSecrets determines where image pull secrets should be source from for agent deployments.
+// It returns a set of references to those secrets, along with a boolean evaluating to `true` if those secrets must be
+// propagated by Fleet to downstream clusters.
+func getPullSecrets(config *config.Config, cluster *fleet.Cluster) ([]corev1.LocalObjectReference, bool) {
+	var pullSecrets []corev1.LocalObjectReference
+
+	// A nil AgentPullSecrets field indicates that the
+	// global fleet config should be used. An empty AgentPullSecrets
+	// field indicates that no pull secrets should be used.
+	if cluster.Spec.AgentPullSecrets != nil {
+		pullSecrets = *cluster.Spec.AgentPullSecrets
+	} else {
+		pullSecrets = config.ImagePullSecrets
+	}
+
+	// If image pull secrets are provided at cluster level, their propagation is expected to be handled by Rancher.
+	propagatePullSecrets := (cluster.Spec.AgentPullSecrets == nil)
+
+	return pullSecrets, propagatePullSecrets
 }
