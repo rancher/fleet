@@ -17,6 +17,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 
+	"github.com/rancher/fleet/integrationtests/utils"
 	"github.com/rancher/fleet/internal/cmd/controller/gitops"
 	"github.com/rancher/fleet/internal/cmd/controller/gitops/reconciler"
 	ctrlreconciler "github.com/rancher/fleet/internal/cmd/controller/reconciler"
@@ -71,7 +72,7 @@ var _ = BeforeSuite(func() {
 	}
 
 	var err error
-	cfg, err = testEnv.Start()
+	cfg, err = utils.StartTestEnv(testEnv)
 	Expect(err).NotTo(HaveOccurred())
 	Expect(cfg).NotTo(BeNil())
 
@@ -81,13 +82,11 @@ var _ = BeforeSuite(func() {
 	k8sClientSet, err = kubernetes.NewForConfig(cfg)
 	Expect(err).NotTo(HaveOccurred())
 
-	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
+	k8sClient, err = utils.NewClient(cfg)
 	Expect(err).NotTo(HaveOccurred())
 	Expect(k8sClient).NotTo(BeNil())
 
-	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
-		Scheme: scheme.Scheme,
-	})
+	mgr, err := utils.NewManager(cfg)
 	Expect(err).ToNot(HaveOccurred())
 
 	Expect(gitops.AddRepoNameLabelIndexer(ctx, mgr)).ToNot(HaveOccurred())

@@ -71,13 +71,11 @@ var _ = BeforeSuite(func() {
 	k8sClientSet, err = kubernetes.NewForConfig(cfg)
 	Expect(err).NotTo(HaveOccurred())
 
-	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
+	k8sClient, err = utils.NewClient(cfg)
 	Expect(err).NotTo(HaveOccurred())
 	Expect(k8sClient).NotTo(BeNil())
 
-	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
-		Scheme: scheme.Scheme,
-	})
+	mgr, err := utils.NewManager(cfg)
 	Expect(err).ToNot(HaveOccurred())
 
 	ctlr := gomock.NewController(GinkgoT())
