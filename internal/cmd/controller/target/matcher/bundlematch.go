@@ -78,7 +78,7 @@ func (a *BundleMatch) MatchAllTargetCustomizations(clusterName string, clusterGr
 type targetMatch struct {
 	bundleTarget    *fleet.BundleTarget
 	criteria        *ClusterMatcher
-	isCustomization bool // true when this target comes from fleet.yaml targetCustomizations, not a GitRepo target
+	isCustomization bool // true when this target comes from fleet.yaml targetCustomizations, not a GitRepo or HelmOp target
 }
 
 type matcher struct {
@@ -132,12 +132,12 @@ func determineIsCustomization(target fleet.BundleTarget, index int, numCustomiza
 	// OLD BUNDLES: Source field is empty (created before this field existed)
 	// Use position-based detection as fallback:
 	// - bundlereader appends targetCustomizations first (read.go:187)
-	// - Then appends GitRepo targets from targets file (read.go:332)
+	// - Then appends GitRepo targets from targets file (read.go:appendTargets)
 	// - Therefore: first N targets are customizations
 	//   where N = len(Targets) - len(TargetRestrictions)
 	//
 	// SPECIAL CASE: If there are no targetRestrictions, this bundle wasn't
-	// created by a GitRepo (e.g., CLI-loaded bundles, standalone bundles).
+	// created by a GitRepo nor by a HelmOp (e.g., CLI-loaded bundles, standalone bundles).
 	// In this case, treat all targets as regular bundle targets (not customizations)
 	// to maintain backward compatibility with bundles that predate the Source field.
 	//
