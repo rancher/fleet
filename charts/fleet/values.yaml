@@ -63,7 +63,7 @@ bootstrap:
   # If true, the local cluster stays registered (Cluster + ClusterGroup) but the
   # fleet-agent is NOT deployed into it. An already-running local agent will be removed.
   # The local cluster will not receive deployments.
-  agentDisabled: false
+  localAgentDisabled: false
   # Apply extra clusterLabels to the local cluster bootstrapped by fleet-controller
   clusterLabels: {}
   # A repo to add at install time that will deploy to the local cluster. This allows

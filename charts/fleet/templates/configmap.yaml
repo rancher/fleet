@@ -31,7 +31,7 @@ data:
         "branch":  "{{.Values.bootstrap.branch}}",
         "namespace": "{{.Values.bootstrap.namespace}}",
         "agentNamespace": "{{.Values.bootstrap.agentNamespace}}",
-        "agentDisabled": {{.Values.bootstrap.agentDisabled}}
+        "localAgentDisabled": {{.Values.bootstrap.localAgentDisabled}}
       },
       "webhookReceiverURL": "{{.Values.webhookReceiverURL}}",
       "githubURLPrefix": "{{.Values.githubURLPrefix}}",

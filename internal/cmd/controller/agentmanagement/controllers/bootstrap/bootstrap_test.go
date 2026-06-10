@@ -77,9 +77,9 @@ func TestOnConfig_AppliesClusterLabels(t *testing.T) {
 
 			inputConfig := &fleetconfig.Config{
 				Bootstrap: fleetconfig.Bootstrap{
-					Namespace:     "bootstrap-ns", // not empty
-					ClusterLabels: c.configLabels,
-					AgentDisabled: c.agentDisabled,
+					Namespace:          "bootstrap-ns", // not empty
+					ClusterLabels:      c.configLabels,
+					LocalAgentDisabled: c.agentDisabled,
 				},
 			}
 
