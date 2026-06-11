@@ -25,12 +25,13 @@ func TestAgentWithConfig(t *testing.T) {
 	tests := []struct {
 		name                string
 		imagePullSecrets    []corev1.LocalObjectReference
+		cfgImagePullSecrets string
 		propagate           bool
 		expectSecretsInObj  bool
 		expectSecretsInDepl bool
 	}{
 		{
-			name: "with ImagePullSecrets and propagation enabled: secrets should be copied",
+			name: "with non-empty ImagePullSecrets and propagation enabled: secrets should be copied",
 			imagePullSecrets: []corev1.LocalObjectReference{
 				{Name: "my-pull-secret"},
 			},
@@ -39,13 +40,20 @@ func TestAgentWithConfig(t *testing.T) {
 			expectSecretsInDepl: true,
 		},
 		{
-			name: "with ImagePullSecrets and propagation disabled: no secrets should be copied",
+			name: "with non-empty ImagePullSecrets and propagation disabled: no secrets should be copied",
 			imagePullSecrets: []corev1.LocalObjectReference{
 				{Name: "my-pull-secret"},
 			},
 			propagate:           false,
 			expectSecretsInObj:  false,
 			expectSecretsInDepl: true, // no propagation, but the secret should still be referenced by the agent deployment
+		},
+		{
+			name:                "with empty ImagePullSecrets and non-empty config secrets: no secrets should be referenced in the deployment",
+			imagePullSecrets:    []corev1.LocalObjectReference{},
+			cfgImagePullSecrets: `{"name": "foo"},{"name": "bar"}`,
+			expectSecretsInObj:  false,
+			expectSecretsInDepl: false,
 		},
 		{
 			name:               "without ImagePullSecrets: no secrets should be copied",
@@ -118,7 +126,7 @@ systemRegistrationNamespace: cattle-fleet-clusters-system`),
 						"agentImagePullPolicy": "Always",
 						"agentCheckinInterval": "20m",
 						"systemDefaultRegistry": "",
-						"imagePullSecrets": []
+						"imagePullSecrets": [` + tc.cfgImagePullSecrets + `]
 					}`,
 				},
 			}

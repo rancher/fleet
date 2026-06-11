@@ -105,7 +105,7 @@ func AgentWithConfig(
 	}
 
 	pullSecrets := cfg.ImagePullSecrets
-	if len(opts.ImagePullSecrets) != 0 {
+	if opts.ImagePullSecrets != nil {
 		pullSecrets = opts.ImagePullSecrets
 	}
 
