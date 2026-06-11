@@ -13,6 +13,10 @@ spec:
       labels:
         app: fleet-job
     spec:
+{{- if .Values.global.cattle.imagePullSecrets }}
+      imagePullSecrets:
+{{ toYaml .Values.global.cattle.imagePullSecrets | indent 8 }}
+{{- end }}
       serviceAccountName: fleet-controller
       restartPolicy: Never
       securityContext:

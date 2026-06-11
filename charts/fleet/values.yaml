@@ -1,11 +1,11 @@
 image:
   repository: rancher/fleet
-  tag: v0.16.0-alpha.9
+  tag: v0.16.0-alpha.10
   imagePullPolicy: IfNotPresent
 
 agentImage:
   repository: rancher/fleet-agent
-  tag: v0.16.0-alpha.9
+  tag: v0.16.0-alpha.10
   imagePullPolicy: IfNotPresent
 
 # For cluster registration the public URL of the Kubernetes API server must be set here
@@ -72,6 +72,7 @@ bootstrap:
 
 global:
   cattle:
+    imagePullSecrets: []
     systemDefaultRegistry: ""
 
 ## Node labels for pod assignment

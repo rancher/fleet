@@ -7403,6 +7403,11 @@ spec:
                     scan.
                   format: date-time
                   type: string
+                lastWebhookTime:
+                  description: LastWebhookTime is the time of the last received webhook
+                    notification
+                  format: date-time
+                  type: string
                 observedGeneration:
                   description: 'ObservedGeneration is the current generation of the
                     resource in the cluster. It is copied from k8s

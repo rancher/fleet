@@ -19,6 +19,9 @@ data:
       {{ if .Values.garbageCollectionInterval }}
       "garbageCollectionInterval": "{{.Values.garbageCollectionInterval}}",
       {{ end }}
+      {{ if .Values.global.cattle.imagePullSecrets }}
+      "imagePullSecrets": {{toJson .Values.global.cattle.imagePullSecrets}},
+      {{ end }}
       "ignoreClusterRegistrationLabels": {{.Values.ignoreClusterRegistrationLabels}},
       "bootstrap": {
         "paths": "{{.Values.bootstrap.paths}}",
