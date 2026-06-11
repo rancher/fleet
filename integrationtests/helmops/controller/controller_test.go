@@ -406,7 +406,6 @@ var _ = Describe("HelmOps controller", func() {
 						{
 							Name:         "default",
 							ClusterGroup: "default",
-							Source:       "helmop",
 						},
 					}
 
@@ -456,7 +455,6 @@ var _ = Describe("HelmOps controller", func() {
 						{
 							Name:         "default",
 							ClusterGroup: "default",
-							Source:       "helmop",
 						},
 					}
 
@@ -487,7 +485,6 @@ var _ = Describe("HelmOps controller", func() {
 						{
 							Name:         "default",
 							ClusterGroup: "default",
-							Source:       "helmop",
 						},
 					}
 					checkBundleIsAsExpected(g, *bundle, helmop, t)
@@ -590,7 +587,6 @@ var _ = Describe("HelmOps controller", func() {
 						{
 							Name:         "default",
 							ClusterGroup: "default",
-							Source:       "helmop",
 						},
 					}
 
@@ -656,7 +652,6 @@ var _ = Describe("HelmOps controller", func() {
 						{
 							Name:         "default",
 							ClusterGroup: "default",
-							Source:       "helmop",
 						},
 					}
 					// the original helmop has no version defined.
@@ -681,7 +676,6 @@ var _ = Describe("HelmOps controller", func() {
 						{
 							Name:         "default",
 							ClusterGroup: "default",
-							Source:       "helmop",
 						},
 					}
 					// the original helmop has no version defined.
@@ -710,7 +704,6 @@ var _ = Describe("HelmOps controller", func() {
 						{
 							Name:         "default",
 							ClusterGroup: "default",
-							Source:       "helmop",
 						},
 					}
 					// the original helmop has no version defined.
@@ -1030,7 +1023,6 @@ var _ = Describe("HelmOps controller", func() {
 						{
 							Name:         "default",
 							ClusterGroup: "default",
-							Source:       "helmop",
 						},
 					}
 					// the original helmop has no version defined.
@@ -1210,7 +1202,6 @@ var _ = Describe("HelmOps controller", func() {
 						{
 							Name:         "default",
 							ClusterGroup: "default",
-							Source:       "helmop",
 						},
 					}
 					// the original helmop has no version defined.
@@ -1285,7 +1276,6 @@ var _ = Describe("HelmOps controller", func() {
 						{
 							Name:         "default",
 							ClusterGroup: "default",
-							Source:       "helmop",
 						},
 					}
 					// the original helmop has no version defined.
@@ -1326,7 +1316,7 @@ var _ = Describe("HelmOps controller", func() {
 					ns := types.NamespacedName{Name: helmop.Name, Namespace: helmop.Namespace}
 					err := k8sClient.Get(ctx, ns, bundle)
 					g.Expect(err).ToNot(HaveOccurred())
-					t := []fleet.BundleTarget{{Name: "default", ClusterGroup: "default", Source: "helmop"}}
+					t := []fleet.BundleTarget{{Name: "default", ClusterGroup: "default"}}
 					helmop.Spec.Helm.Version = "0.2.0"
 					checkBundleIsAsExpected(g, *bundle, helmop, t)
 				}).Should(Succeed())
@@ -1360,7 +1350,7 @@ var _ = Describe("HelmOps controller", func() {
 					ns := types.NamespacedName{Name: helmop.Name, Namespace: helmop.Namespace}
 					err := k8sClient.Get(ctx, ns, bundle)
 					g.Expect(err).ToNot(HaveOccurred())
-					t := []fleet.BundleTarget{{Name: "default", ClusterGroup: "default", Source: "helmop"}}
+					t := []fleet.BundleTarget{{Name: "default", ClusterGroup: "default"}}
 					helmop.Spec.Helm.Version = "0.2.0"
 					checkBundleIsAsExpected(g, *bundle, helmop, t)
 				}).Should(Succeed())

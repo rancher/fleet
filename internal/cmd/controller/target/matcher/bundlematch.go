@@ -89,7 +89,6 @@ type matcher struct {
 func (a *BundleMatch) initMatcher() error {
 	m := &matcher{}
 
-	// Calculate position-based split point for fallback
 	// The first N targets are customizations, where N = total - restrictions
 	numRestrictions := len(a.bundle.Spec.TargetRestrictions)
 	numCustomizations := len(a.bundle.Spec.Targets) - numRestrictions
@@ -102,7 +101,7 @@ func (a *BundleMatch) initMatcher() error {
 		t := targetMatch{
 			bundleTarget:    &a.bundle.Spec.Targets[i],
 			criteria:        clusterMatcher,
-			isCustomization: determineIsCustomization(target, i, numCustomizations, numRestrictions),
+			isCustomization: determineIsCustomization(i, numCustomizations, numRestrictions),
 		}
 
 		m.matches = append(m.matches, t)
@@ -120,28 +119,16 @@ func (a *BundleMatch) initMatcher() error {
 	return nil
 }
 
-// determineIsCustomization uses explicit Source field if present,
-// falls back to position-based detection for backward compatibility.
-func determineIsCustomization(target fleet.BundleTarget, index int, numCustomizations int, numRestrictions int) bool {
-	// NEW BUNDLES: Source field is populated by bundlereader
-	// This is the preferred method for long-term maintainability
-	if target.Source != "" {
-		return target.Source == "customization"
-	}
-
-	// OLD BUNDLES: Source field is empty (created before this field existed)
-	// Use position-based detection as fallback:
-	// - bundlereader appends targetCustomizations first (read.go:187)
-	// - Then appends GitRepo targets from targets file (read.go:appendTargets)
-	// - Therefore: first N targets are customizations
-	//   where N = len(Targets) - len(TargetRestrictions)
-	//
-	// SPECIAL CASE: If there are no targetRestrictions, this bundle wasn't
-	// created by a GitRepo nor by a HelmOp (e.g., CLI-loaded bundles, standalone bundles).
-	// In this case, treat all targets as regular bundle targets (not customizations)
-	// to maintain backward compatibility with bundles that predate the Source field.
-	//
-	// This fixes the collision bug for old Bundles without requiring recreation
+// determineIsCustomization uses position-based detection to distinguish
+// targetCustomizations (from fleet.yaml) from GitRepo/HelmOp targets.
+// bundlereader appends targetCustomizations first (bundleFromDir), then
+// GitRepo targets (appendTargets), so the first N targets are customizations
+// where N = len(Targets) - len(TargetRestrictions).
+//
+// If there are no TargetRestrictions, the bundle wasn't created by a GitRepo
+// or HelmOp (e.g. CLI-loaded bundles). In that case all targets are treated
+// as regular bundle targets.
+func determineIsCustomization(index int, numCustomizations int, numRestrictions int) bool {
 	if numRestrictions == 0 {
 		return false
 	}
@@ -149,7 +136,7 @@ func determineIsCustomization(target fleet.BundleTarget, index int, numCustomiza
 }
 
 func (m *matcher) isRestricted(clusterName, clusterGroup string, clusterGroupLabels, clusterLabels map[string]string) bool {
-	// There are no restrictions. That means this Bundle was not created by a GitRepo.
+	// No restrictions means this Bundle was not created by a GitRepo (HelmOps and CLI bundles don't set restrictions).
 	if len(m.restrictions) == 0 {
 		return false
 	}

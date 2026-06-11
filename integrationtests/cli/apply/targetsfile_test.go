@@ -59,7 +59,7 @@ var _ = Describe("Fleet apply targets", func() {
 		)
 
 		BeforeEach(func() {
-			targets = []fleet.BundleTarget{{Name: "target1", ClusterName: "test1", Source: "gitrepo"}}
+			targets = []fleet.BundleTarget{{Name: "target1", ClusterName: "test1"}}
 			targetRestrictions = []fleet.BundleTargetRestriction{{Name: "target1", ClusterName: "test1"}}
 			file := createTargetsFile(targets, targetRestrictions)
 			options = apply.Options{TargetsFile: file.Name()}
@@ -81,7 +81,7 @@ var _ = Describe("Fleet apply targets", func() {
 		)
 
 		BeforeEach(func() {
-			targets = []fleet.BundleTarget{{Name: "target1", ClusterName: "test1", Source: "gitrepo"}}
+			targets = []fleet.BundleTarget{{Name: "target1", ClusterName: "test1"}}
 			targetRestrictions = []fleet.BundleTargetRestriction{{Name: "target1", ClusterName: "test1"}}
 			file := createTargetsFile(targets, targetRestrictions)
 			options = apply.Options{TargetsFile: file.Name()}

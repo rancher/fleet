@@ -184,11 +184,7 @@ func bundleFromDir(ctx context.Context, name, baseDir string, bundleData []byte,
 		})
 	}
 
-	// Mark targetCustomizations with explicit source
-	for _, tc := range fy.TargetCustomizations {
-		tc.Source = "customization"
-		fy.Targets = append(fy.Targets, tc)
-	}
+	fy.Targets = append(fy.Targets, fy.TargetCustomizations...)
 
 	meta, err := readMetadata(bundleData)
 	if err != nil {
@@ -248,7 +244,6 @@ func bundleFromDir(ctx context.Context, name, baseDir string, bundleData []byte,
 				ClusterSelector:      target.ClusterSelector,
 				ClusterGroup:         target.ClusterGroup,
 				ClusterGroupSelector: target.ClusterGroupSelector,
-				Source:               "gitrepo", // OverrideTargets replace GitRepo targets
 			})
 			bundle.Spec.TargetRestrictions = append(bundle.Spec.TargetRestrictions, fleet.BundleTargetRestriction(target))
 		}
@@ -264,7 +259,6 @@ func bundleFromDir(ctx context.Context, name, baseDir string, bundleData []byte,
 			{
 				Name:         "default",
 				ClusterGroup: "default",
-				Source:       "gitrepo",
 			},
 		}
 	}
@@ -334,11 +328,7 @@ func appendTargets(def *fleet.Bundle, targetsFile string) (*fleet.Bundle, error)
 		return nil, err
 	}
 
-	// Mark GitRepo targets with explicit source
-	for _, target := range spec.Targets {
-		target.Source = "gitrepo"
-		def.Spec.Targets = append(def.Spec.Targets, target)
-	}
+	def.Spec.Targets = append(def.Spec.Targets, spec.Targets...)
 	def.Spec.TargetRestrictions = append(def.Spec.TargetRestrictions, spec.TargetRestrictions...)
 
 	return def, nil

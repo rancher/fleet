@@ -156,14 +156,13 @@ func TestMatchTargetCustomizations_StillFirstMatch(t *testing.T) {
 //
 // This test verifies that customizations are applied based on their provenance
 // (fleet.yaml vs GitRepo), not just selector equality. The hybrid approach uses
-// position-based detection for old Bundles (without Source field), correctly
-// identifying the first target as a customization even when selectors match.
+// position-based detection, correctly identifying the first target as a
+// customization even when selectors match.
 func TestCustomizationWithSameSelectorsAsGitRepoTarget(t *testing.T) {
 	// GitRepo target: deploys to clusters with env=prod
 	gitRepoTarget := fleet.BundleTarget{
 		Name:            "production",
 		ClusterSelector: labelSelector(map[string]string{"env": "prod"}),
-		// Source field not set, simulating an old Bundle
 	}
 
 	// fleet.yaml targetCustomization: has IDENTICAL selectors to gitRepoTarget,
@@ -172,8 +171,7 @@ func TestCustomizationWithSameSelectorsAsGitRepoTarget(t *testing.T) {
 	customization := fleet.BundleTarget{
 		Name:            "production",                                    // same name
 		ClusterSelector: labelSelector(map[string]string{"env": "prod"}), // same selector
-		// Source field not set, simulating an old Bundle
-		// Position-based fallback: index 0 < numCustomizations (1), so this is a customization
+		// Position-based: index 0 < numCustomizations (1), so this is a customization
 	}
 
 	// Build bundle with customization first (as bundlereader does), then GitRepo target
@@ -210,104 +208,60 @@ func TestCustomizationWithSameSelectorsAsGitRepoTarget(t *testing.T) {
 	})
 }
 
-func TestDetermineIsCustomization_Hybrid(t *testing.T) {
-	labelSelector := func(m map[string]string) *metav1.LabelSelector {
-		return &metav1.LabelSelector{MatchLabels: m}
-	}
-
+func TestDetermineIsCustomization(t *testing.T) {
 	tests := []struct {
 		name              string
-		target            fleet.BundleTarget
 		index             int
 		numCustomizations int
 		numRestrictions   int
 		want              bool
 	}{
 		{
-			name:              "new bundle - explicit customization source",
-			target:            fleet.BundleTarget{Name: "edge", Source: "customization"},
+			name:              "position-based customization",
 			index:             0,
 			numCustomizations: 1,
 			numRestrictions:   1,
 			want:              true,
 		},
 		{
-			name:              "new bundle - explicit gitrepo source",
-			target:            fleet.BundleTarget{Name: "prod", Source: "gitrepo"},
+			name:              "position-based gitrepo target",
 			index:             1,
 			numCustomizations: 1,
 			numRestrictions:   1,
 			want:              false,
 		},
 		{
-			name:              "old bundle - position-based customization",
-			target:            fleet.BundleTarget{Name: "edge", Source: ""}, // empty
+			name:              "no customizations (all gitrepo)",
 			index:             0,
-			numCustomizations: 1,
-			numRestrictions:   1,
-			want:              true, // index < numCustomizations
-		},
-		{
-			name:              "old bundle - position-based gitrepo target",
-			target:            fleet.BundleTarget{Name: "prod", Source: ""}, // empty
-			index:             1,
-			numCustomizations: 1,
-			numRestrictions:   1,
-			want:              false, // index >= numCustomizations
-		},
-		{
-			name:              "collision case - old bundle position fixes bug",
-			target:            fleet.BundleTarget{Name: "prod", ClusterSelector: labelSelector(map[string]string{"env": "prod"}), Source: ""},
-			index:             0, // First in list
-			numCustomizations: 1,
-			numRestrictions:   1,
-			want:              true, // Treated as customization via position, bug fixed!
-		},
-		{
-			name:              "new bundle - explicit source overrides position",
-			target:            fleet.BundleTarget{Name: "test", Source: "gitrepo"},
-			index:             0, // Position suggests customization
-			numCustomizations: 1,
-			numRestrictions:   1,
-			want:              false, // But Source field says gitrepo, so not a customization
-		},
-		{
-			name:              "old bundle - no customizations (all gitrepo)",
-			target:            fleet.BundleTarget{Name: "target", Source: ""},
-			index:             0,
-			numCustomizations: 0, // All targets are gitrepo targets
+			numCustomizations: 0,
 			numRestrictions:   1,
 			want:              false,
 		},
 		{
-			name:              "old bundle - standalone bundle (no restrictions)",
-			target:            fleet.BundleTarget{Name: "target", Source: ""},
+			name:              "standalone bundle (no restrictions)",
 			index:             0,
-			numCustomizations: 1,     // Would be calculated as 1 if there were restrictions
-			numRestrictions:   0,     // But no restrictions means not a GitRepo bundle
-			want:              false, // All targets treated as regular targets
+			numCustomizations: 1,
+			numRestrictions:   0,
+			want:              false,
 		},
 		{
-			name:              "old bundle - multiple customizations",
-			target:            fleet.BundleTarget{Name: "custom2", Source: ""},
-			index:             2, // Third target (index 2)
-			numCustomizations: 3, // First 3 are customizations
+			name:              "multiple customizations",
+			index:             2,
+			numCustomizations: 3,
 			numRestrictions:   2,
 			want:              true,
 		},
 		{
-			name:              "old bundle - boundary case (last customization)",
-			target:            fleet.BundleTarget{Name: "last-custom", Source: ""},
-			index:             2, // Third target (index 2)
-			numCustomizations: 3, // First 3 are customizations (indices 0, 1, 2)
+			name:              "boundary case (last customization)",
+			index:             2,
+			numCustomizations: 3,
 			numRestrictions:   1,
 			want:              true,
 		},
 		{
-			name:              "old bundle - boundary case (first gitrepo target)",
-			target:            fleet.BundleTarget{Name: "first-gitrepo", Source: ""},
-			index:             3, // Fourth target (index 3)
-			numCustomizations: 3, // First 3 are customizations (indices 0, 1, 2)
+			name:              "boundary case (first gitrepo target)",
+			index:             3,
+			numCustomizations: 3,
 			numRestrictions:   1,
 			want:              false,
 		},
@@ -315,7 +269,7 @@ func TestDetermineIsCustomization_Hybrid(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := determineIsCustomization(tt.target, tt.index, tt.numCustomizations, tt.numRestrictions)
+			got := determineIsCustomization(tt.index, tt.numCustomizations, tt.numRestrictions)
 			assert.Equal(t, tt.want, got)
 		})
 	}
