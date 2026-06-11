@@ -221,7 +221,7 @@ systemRegistrationNamespace: cattle-fleet-clusters-system`),
 			}
 
 			if deployment == nil {
-				t.Error("Expected non-nil Fleet agent deployment")
+				t.Fatal("Expected non-nil Fleet agent deployment")
 			}
 
 			if tc.expectSecretsInDepl && len(deployment.Spec.Template.Spec.ImagePullSecrets) == 0 {

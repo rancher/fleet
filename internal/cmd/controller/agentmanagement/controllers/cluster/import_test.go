@@ -1084,7 +1084,7 @@ func TestGetPullSecrets(t *testing.T) {
 
 			for idx := range tc.expectedSecretRefs {
 				if refs[idx] != tc.expectedSecretRefs[idx] {
-					t.Errorf("expected image pull secret refs at index %d to be %v, got %v", idx, tc.expectedSecretRefs[idx], refs[idx])
+					t.Fatalf("expected image pull secret refs at index %d to be %v, got %v", idx, tc.expectedSecretRefs[idx], refs[idx])
 				}
 			}
 
