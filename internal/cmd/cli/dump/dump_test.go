@@ -389,6 +389,18 @@ func Test_addMetrics(t *testing.T) {
 			expErrStr: "service cattle-fleet-system/monitoring-prefixed does not have any exposed ports",
 		},
 		{
+			name: "monitoring service in non-default namespace is still discovered",
+			svcs: []corev1.Service{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "monitoring-prefixed",
+						Namespace: "custom-fleet-system",
+					},
+				},
+			},
+			expErrStr: "service custom-fleet-system/monitoring-prefixed does not have any exposed ports",
+		},
+		{
 			name: "monitoring service with exposed ports but no labels",
 			svcs: []corev1.Service{
 				{
@@ -501,7 +513,6 @@ func Test_addMetrics(t *testing.T) {
 			mockClient.EXPECT().List(
 				ctx,
 				gomock.AssignableToTypeOf(&corev1.ServiceList{}),
-				client.InNamespace("cattle-fleet-system"),
 				gomock.Any(), // client.Limit(...)
 				gomock.Any(), // client.Continue(...)
 			).
