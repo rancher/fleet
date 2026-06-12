@@ -11,6 +11,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"sort"
 
 	"github.com/sirupsen/logrus"
@@ -18,6 +19,7 @@ import (
 	"github.com/rancher/fleet/internal/cmd"
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/agent"
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/scheduling"
+	secretutils "github.com/rancher/fleet/internal/cmd/controller/agentmanagement/secret"
 	"github.com/rancher/fleet/internal/config"
 	"github.com/rancher/fleet/internal/names"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -83,6 +85,7 @@ type handler struct {
 	systemNamespace string
 	clusterCache    fleetcontrollers.ClusterCache
 	bundleCache     fleetcontrollers.BundleCache
+	secretCache     corecontrollers.SecretCache
 	namespaces      corecontrollers.NamespaceController
 }
 
@@ -90,6 +93,7 @@ func Register(ctx context.Context,
 	systemNamespace string,
 	apply apply.Apply,
 	namespaces corecontrollers.NamespaceController,
+	secret corecontrollers.SecretController,
 	clusters fleetcontrollers.ClusterController,
 	bundle fleetcontrollers.BundleController,
 ) {
@@ -98,6 +102,7 @@ func Register(ctx context.Context,
 		clusterCache:    clusters.Cache(),
 		bundleCache:     bundle.Cache(),
 		namespaces:      namespaces,
+		secretCache:     secret.Cache(),
 		apply: apply.
 			WithSetID("fleet-manage-agent").
 			WithCacheTypes(bundle),
@@ -297,12 +302,12 @@ func (h *handler) OnNamespace(key string, namespace *corev1.Namespace) (*corev1.
 			continue
 		}
 		logrus.Infof("Update agent bundle for cluster %s/%s", cluster.Namespace, cluster.Name)
-		bundle, err := h.newAgentBundle(namespace.Name, cluster)
+		bundleObjs, err := h.newAgentBundle(namespace.Name, cluster)
 		if err != nil {
 			logrus.Errorf("Failed to update agent bundle for cluster %s/%s", cluster.Namespace, cluster.Name)
 			return nil, err
 		}
-		objs = append(objs, bundle)
+		objs = append(objs, bundleObjs...)
 	}
 
 	return namespace, h.apply.
@@ -312,7 +317,7 @@ func (h *handler) OnNamespace(key string, namespace *corev1.Namespace) (*corev1.
 		ApplyObjects(objs...)
 }
 
-func (h *handler) newAgentBundle(ns string, cluster *fleet.Cluster) (runtime.Object, error) {
+func (h *handler) newAgentBundle(ns string, cluster *fleet.Cluster) ([]runtime.Object, error) {
 	cfg := config.Get()
 	agentNamespace := h.systemNamespace
 	if cluster.Spec.AgentNamespace != "" {
@@ -334,6 +339,30 @@ func (h *handler) newAgentBundle(ns string, cluster *fleet.Cluster) (runtime.Obj
 		sortTolerations(cluster.Spec.AgentTolerations)
 	}
 
+	var bundleObjs []runtime.Object
+	agentPullSecrets, propagate := secretutils.GetAgentPullSecrets(cfg, cluster)
+	if propagate {
+		for _, ips := range agentPullSecrets {
+			source, err := h.secretCache.Get(ns, ips.Name)
+			if err != nil {
+				return bundleObjs, fmt.Errorf("failed to get image pull secret %q from controller namespace: %w", ips.Name, err)
+			}
+
+			dest := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      ips.Name,
+					Namespace: agentNamespace,
+				},
+				Type: source.Type,
+				Data: source.Data,
+			}
+
+			// We do not want these secrets as part of `objs` below, as they should not be exposed in the agent bundle's
+			// resources.
+			bundleObjs = append(bundleObjs, dest)
+		}
+	}
+
 	// Notice we only set the agentScope when it's a non-default agentNamespace. This is for backwards compatibility
 	// for when we didn't have agent scope before
 	objs := agent.Manifest(
@@ -350,7 +379,7 @@ func (h *handler) newAgentBundle(ns string, cluster *fleet.Cluster) (runtime.Obj
 			// keep in sync with agent/agent.go
 			AgentImage:              cfg.AgentImage,
 			AgentImagePullPolicy:    cfg.AgentImagePullPolicy,
-			ImagePullSecrets:        cfg.ImagePullSecrets,
+			ImagePullSecrets:        agentPullSecrets,
 			CheckinInterval:         cfg.AgentCheckinInterval.Duration.String(),
 			SystemDefaultRegistry:   cfg.SystemDefaultRegistry,
 			BundleDeploymentWorkers: cfg.AgentWorkers.BundleDeployment,
@@ -375,7 +404,7 @@ func (h *handler) newAgentBundle(ns string, cluster *fleet.Cluster) (runtime.Obj
 		}
 	}
 
-	return &fleet.Bundle{
+	bundleObjs = append(bundleObjs, &fleet.Bundle{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      names.SafeConcatName(AgentBundleName, cluster.Name),
 			Namespace: ns,
@@ -410,7 +439,9 @@ func (h *handler) newAgentBundle(ns string, cluster *fleet.Cluster) (runtime.Obj
 				},
 			},
 		},
-	}, nil
+	})
+
+	return bundleObjs, nil
 }
 
 // SkipCluster checks if the cluster, according to its label, should be skipped

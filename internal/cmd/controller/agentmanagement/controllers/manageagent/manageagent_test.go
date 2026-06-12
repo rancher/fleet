@@ -1,6 +1,7 @@
 package manageagent
 
 import (
+	"maps"
 	"reflect"
 	"strings"
 	"testing"
@@ -146,14 +147,27 @@ func TestNewAgentBundle_SortsAgentTolerations(t *testing.T) {
 	t.Setenv("FLEET_AGENT_ELECTION_RENEW_DEADLINE", "10s")
 	t.Setenv("FLEET_AGENT_ELECTION_RETRY_PERIOD", "2s")
 
-	obj, err := h.newAgentBundle("ns", cluster)
+	objs, err := h.newAgentBundle("ns", cluster)
 	if err != nil {
 		t.Fatalf("unexpected error from newAgentBundle: %v", err)
 	}
 
-	b, ok := obj.(*fleet.Bundle)
-	if !ok {
-		t.Fatalf("expected bundle object, got %#v", obj)
+	if len(objs) < 1 {
+		t.Fatalf("unexpected empty object set from newAgentBundle")
+	}
+
+	var foundBundle bool
+	var b *fleet.Bundle
+	for _, o := range objs {
+		b, foundBundle = o.(*fleet.Bundle)
+
+		if foundBundle {
+			break
+		}
+	}
+
+	if !foundBundle || b == nil {
+		t.Fatalf("expected bundle object in returned agent bundle objs, got %#v", objs)
 	}
 
 	if len(b.Spec.Resources) == 0 {
@@ -192,6 +206,182 @@ func TestNewAgentBundle_SortsAgentTolerations(t *testing.T) {
 
 	if !found {
 		t.Fatalf("no Deployment found in bundle yaml")
+	}
+}
+
+func TestNewAgentBundle_PropagatesAgentImagePullSecrets(t *testing.T) {
+	testCases := []struct {
+		name                       string
+		clusterPullSecrets         *[]corev1.LocalObjectReference
+		configPullSecrets          *[]corev1.LocalObjectReference
+		expectedAgentBundleSecrets []corev1.Secret
+	}{
+		{
+			name: "no pull secrets; none appear in the agent deployment",
+		},
+		{
+			name: "cluster pull secrets; they do not appear in the agent deployment",
+			clusterPullSecrets: &[]corev1.LocalObjectReference{
+				{Name: "secret1"},
+				{Name: "secret2"},
+			},
+			expectedAgentBundleSecrets: []corev1.Secret{},
+		},
+		{
+			name: "config pull secrets; they appear in the agent deployment",
+			configPullSecrets: &[]corev1.LocalObjectReference{
+				{Name: "secret1"},
+				{Name: "secret2"},
+			},
+			expectedAgentBundleSecrets: []corev1.Secret{
+				corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "secret1",
+						Namespace: "ns",
+					},
+					Type: corev1.SecretTypeDockercfg,
+					Data: map[string][]byte{
+						"field1":       []byte("bar1"),
+						"other-field1": []byte("other-value1"),
+					},
+				},
+				corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "secret2",
+						Namespace: "ns",
+					},
+					Type: corev1.SecretTypeDockercfg,
+					Data: map[string][]byte{
+						"field2":       []byte("bar2"),
+						"other-field2": []byte("other-value2"),
+					},
+				},
+			},
+		},
+		// Not testing all combinations of config vs cluster-level image pull secrets; secret utils'
+		// `GetAgentPullSecrets` has a test suite covering those.
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// make sure config is set for newAgentBundle
+			cfg := config.DefaultConfig()
+			if tc.configPullSecrets != nil {
+				cfg.ImagePullSecrets = *tc.configPullSecrets
+			}
+			config.Set(cfg)
+
+			checkRegisterAddToScheme(t, appsv1.AddToScheme)
+			checkRegisterAddToScheme(t, networkv1.AddToScheme)
+
+			ctrl := gomock.NewController(t)
+			secretCache := fake.NewMockCacheInterface[*corev1.Secret](ctrl)
+			for _, es := range tc.expectedAgentBundleSecrets {
+				secretCache.EXPECT().Get(es.Namespace, es.Name).Return(&es, nil)
+			}
+
+			h := &handler{
+				systemNamespace: "fleet-system",
+				secretCache:     secretCache,
+			}
+
+			cluster := &fleet.Cluster{
+				ObjectMeta: metav1.ObjectMeta{Name: "c1"},
+				Spec:       fleet.ClusterSpec{AgentPullSecrets: tc.clusterPullSecrets},
+			}
+
+			// ensure leader election env is set so NewLeaderElectionOptionsWithPrefix doesn't error
+			t.Setenv("FLEET_AGENT_ELECTION_LEASE_DURATION", "15s")
+			t.Setenv("FLEET_AGENT_ELECTION_RENEW_DEADLINE", "10s")
+			t.Setenv("FLEET_AGENT_ELECTION_RETRY_PERIOD", "2s")
+
+			objs, err := h.newAgentBundle("ns", cluster)
+			if err != nil {
+				t.Fatalf("unexpected error from newAgentBundle: %v", err)
+			}
+
+			if len(objs) < 1 {
+				t.Fatalf("unexpected empty object set from newAgentBundle")
+			}
+
+			var foundBundle bool
+			var b *fleet.Bundle
+			var foundSecrets []corev1.Secret
+			for _, o := range objs {
+				b, foundBundle = o.(*fleet.Bundle)
+
+				if foundBundle {
+					break
+				}
+
+				s, isSecret := o.(*corev1.Secret)
+				if isSecret {
+					foundSecrets = append(foundSecrets, *s)
+				}
+			}
+
+			if !foundBundle || b == nil {
+				t.Fatalf("expected bundle object in returned agent bundle objs, got %#v", objs)
+			}
+
+			if len(b.Spec.Resources) == 0 {
+				t.Fatalf("bundle resources empty")
+			}
+
+			if len(foundSecrets) != len(tc.expectedAgentBundleSecrets) {
+				t.Fatalf(
+					"expected %d image pull secrets in returned agent bundle objs, got %#v",
+					len(tc.expectedAgentBundleSecrets),
+					foundSecrets,
+				)
+			}
+
+			for idx, es := range tc.expectedAgentBundleSecrets {
+				if es.Name != foundSecrets[idx].Name ||
+					es.Type != foundSecrets[idx].Type ||
+					len(es.Data) != len(foundSecrets[idx].Data) {
+					t.Fatalf(
+						"found secret at index %d does not match expectation, want %#v, got %#v",
+						idx,
+						es,
+						foundSecrets[idx],
+					)
+				}
+
+				// If name and type match, check (more expensive) that the data also does
+				for k := range maps.Keys(es.Data) {
+					_, foundKey := foundSecrets[idx].Data[k]
+					if !foundKey {
+						t.Fatalf("expected data field %q in secret %q not found", k, foundSecrets[idx].Name)
+					}
+				}
+
+			}
+
+			content := b.Spec.Resources[0].Content
+			docs := strings.Split(content, "\n---\n")
+
+			var found bool
+			for _, d := range docs {
+				var m map[string]any
+				if err := yaml.Unmarshal([]byte(d), &m); err != nil {
+					continue
+				}
+				if kind, _ := m["kind"].(string); kind == "Deployment" {
+					dep := &appsv1.Deployment{}
+					if err := yaml.Unmarshal([]byte(d), dep); err != nil {
+						t.Fatalf("failed to unmarshal deployment: %v", err)
+					}
+
+					found = true
+					break
+				}
+			}
+
+			if !found {
+				t.Fatalf("no Deployment found in bundle yaml")
+			}
+		})
 	}
 }
 
