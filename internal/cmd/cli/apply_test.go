@@ -11,6 +11,7 @@ import (
 	gogit "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/google/go-cmp/cmp"
+	"k8s.io/client-go/util/homedir"
 	"sigs.k8s.io/yaml"
 
 	"github.com/rancher/fleet/internal/bundlereader"
@@ -202,4 +203,47 @@ func TestCurrentCommit(t *testing.T) {
 			t.Errorf("expected a 40-char hex SHA from nested subdir, got %q", got)
 		}
 	})
+}
+
+func TestNewApplyKubeconfigFlag(t *testing.T) {
+	customPath := filepath.Join(homedir.HomeDir(), "custom", "config")
+	testCases := []struct {
+		name                       string
+		args                       []string
+		expectedKubeconfig         string
+		shouldUseDefaultKubeconfig bool
+	}{
+		{
+			name:                       "custom kubeconfig",
+			args:                       []string{"--kubeconfig", customPath, "test-bundle"},
+			expectedKubeconfig:         customPath,
+			shouldUseDefaultKubeconfig: false,
+		},
+		{
+			name:                       "no custom kubeconfig",
+			args:                       []string{"test-bundle"},
+			expectedKubeconfig:         "",
+			shouldUseDefaultKubeconfig: true,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			cmd := NewApply()
+
+			err := cmd.ParseFlags(tc.args)
+			if err != nil {
+				t.Fatalf("failed to parse flags: %v", err)
+			}
+
+			kubeconfigFlag := cmd.Flag("kubeconfig")
+			if kubeconfigFlag == nil {
+				t.Fatal("kubeconfig flag not registered")
+			}
+
+			gotKubeconfig := kubeconfigFlag.Value.String()
+			if gotKubeconfig != tc.expectedKubeconfig {
+				t.Errorf("kubeconfig flag value mismatch: expected %q, got %q", tc.expectedKubeconfig, gotKubeconfig)
+			}
+		})
+	}
 }
