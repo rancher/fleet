@@ -343,7 +343,7 @@ func (h *handler) newAgentBundle(ns string, cluster *fleet.Cluster) ([]runtime.O
 	agentPullSecrets, propagate := secretutils.GetAgentPullSecrets(cfg, cluster)
 	if propagate {
 		for _, ips := range agentPullSecrets {
-			source, err := h.secretCache.Get(ns, ips.Name)
+			source, err := h.secretCache.Get(h.systemNamespace, ips.Name)
 			if err != nil {
 				return bundleObjs, fmt.Errorf("failed to get image pull secret %q from controller namespace: %w", ips.Name, err)
 			}

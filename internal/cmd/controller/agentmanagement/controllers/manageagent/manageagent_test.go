@@ -274,14 +274,25 @@ func TestNewAgentBundle_PropagatesAgentImagePullSecrets(t *testing.T) {
 			checkRegisterAddToScheme(t, appsv1.AddToScheme)
 			checkRegisterAddToScheme(t, networkv1.AddToScheme)
 
+			systemNS := "fleet-system"
+
 			ctrl := gomock.NewController(t)
 			secretCache := fake.NewMockCacheInterface[*corev1.Secret](ctrl)
 			for _, es := range tc.expectedAgentBundleSecrets {
-				secretCache.EXPECT().Get(es.Namespace, es.Name).Return(&es, nil)
+				// secrets are expected to eventually make it into the agent namespace, but they must be sourced from
+				// the controller (system) namespace
+				secretCache.EXPECT().Get(systemNS, es.Name).DoAndReturn(
+					func(namespace, name any) (runtime.Object, error) {
+						res := es.DeepCopy()
+						res.Namespace = systemNS
+
+						return res, nil
+					},
+				)
 			}
 
 			h := &handler{
-				systemNamespace: "fleet-system",
+				systemNamespace: systemNS,
 				secretCache:     secretCache,
 			}
 
