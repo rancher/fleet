@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"strings"
 	"testing"
@@ -828,6 +829,11 @@ func TestIsManagementCluster(t *testing.T) {
 			localUID:  "",
 			remoteUID: "",
 			want:      false,
+		},
+		{
+			name:     "error fetching the local kube-system namespace propagates",
+			localErr: errors.New("boom"),
+			wantErr:  true,
 		},
 	}
 
