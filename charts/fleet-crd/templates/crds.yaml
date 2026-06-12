@@ -2461,6 +2461,19 @@ spec:
                   description: ServiceAccount which will be used to perform this deployment.
                   nullable: true
                   type: string
+                targetCustomizationMode:
+                  default: FirstMatch
+                  description: 'TargetCustomizationMode controls how targetCustomizations
+                    from fleet.yaml
+
+                    are evaluated. "FirstMatch" (default) stops at the first matching
+                    entry.
+
+                    "AllMatches" applies all matching entries in order, merging them.'
+                  enum:
+                    - FirstMatch
+                    - AllMatches
+                  type: string
                 targetRestrictions:
                   description: TargetRestrictions is an allow list, which controls
                     if a bundledeployment is created for a target.
@@ -2468,10 +2481,10 @@ spec:
                     description: 'BundleTargetRestriction is used internally by Fleet
                       and should not be modified.
 
-                      It acts as an allow list, to prevent the creation of BundleDeployments
-                      from
+                      It acts as an allow list, restricting BundleDeployment creation
+                      to only those clusters
 
-                      Targets created by TargetCustomizations in fleet.yaml.'
+                      that are explicitly listed in the GitRepo targets.'
                     properties:
                       clusterGroup:
                         nullable: true
@@ -6048,6 +6061,39 @@ spec:
                     cattle-fleet-system.
                   nullable: true
                   type: string
+                agentPullSecrets:
+                  description: 'AgentPullSecrets references image pull secrets to
+                    be used by the Fleet agent deployment on this cluster.
+
+                    If set, it overrides any global image pull secrets set as values
+                    in the Fleet chart, and Fleet will not
+
+                    propagate/copy them, as Rancher would then be expected to handle
+                    that propagation.'
+                  items:
+                    description: 'LocalObjectReference contains enough information
+                      to let you locate the
+
+                      referenced object inside the same namespace.'
+                    properties:
+                      name:
+                        default: ''
+                        description: 'Name of the referent.
+
+                          This field is effectively required, but due to backwards
+                          compatibility is
+
+                          allowed to be empty. Instances of this type with an empty
+                          value here are
+
+                          almost certainly wrong.
+
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names'
+                        type: string
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  nullable: true
+                  type: array
                 agentResources:
                   description: AgentResources sets the resources for the cluster's
                     agent deployment.
@@ -8713,6 +8759,19 @@ spec:
                   description: ServiceAccount which will be used to perform this deployment.
                   nullable: true
                   type: string
+                targetCustomizationMode:
+                  default: FirstMatch
+                  description: 'TargetCustomizationMode controls how targetCustomizations
+                    from fleet.yaml
+
+                    are evaluated. "FirstMatch" (default) stops at the first matching
+                    entry.
+
+                    "AllMatches" applies all matching entries in order, merging them.'
+                  enum:
+                    - FirstMatch
+                    - AllMatches
+                  type: string
                 targetRestrictions:
                   description: TargetRestrictions is an allow list, which controls
                     if a bundledeployment is created for a target.
@@ -8720,10 +8779,10 @@ spec:
                     description: 'BundleTargetRestriction is used internally by Fleet
                       and should not be modified.
 
-                      It acts as an allow list, to prevent the creation of BundleDeployments
-                      from
+                      It acts as an allow list, restricting BundleDeployment creation
+                      to only those clusters
 
-                      Targets created by TargetCustomizations in fleet.yaml.'
+                      that are explicitly listed in the GitRepo targets.'
                     properties:
                       clusterGroup:
                         nullable: true
