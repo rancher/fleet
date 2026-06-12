@@ -112,6 +112,13 @@ type BundleSpec struct {
 	// +nullable
 	Resources []BundleResource `json:"resources,omitempty"`
 
+	// TargetCustomizationMode controls how targetCustomizations from fleet.yaml
+	// are evaluated. "FirstMatch" (default) stops at the first matching entry.
+	// "AllMatches" applies all matching entries in order, merging them.
+	// +kubebuilder:default=FirstMatch
+	// +kubebuilder:validation:Enum=FirstMatch;AllMatches
+	TargetCustomizationMode TargetCustomizationMode `json:"targetCustomizationMode,omitempty"`
+
 	// Targets refer to the clusters which will be deployed to.
 	// Targets are evaluated in order and the first one to match is used.
 	Targets []BundleTarget `json:"targets,omitempty"`
@@ -234,8 +241,8 @@ type Partition struct {
 }
 
 // BundleTargetRestriction is used internally by Fleet and should not be modified.
-// It acts as an allow list, to prevent the creation of BundleDeployments from
-// Targets created by TargetCustomizations in fleet.yaml.
+// It acts as an allow list, restricting BundleDeployment creation to only those clusters
+// that are explicitly listed in the GitRepo targets.
 type BundleTargetRestriction struct {
 	// +nullable
 	Name string `json:"name,omitempty"`
@@ -342,6 +349,18 @@ type NonReadyResource struct {
 	// +nullable
 	NonReadyStatus []NonReadyStatus `json:"nonReadyStatus,omitempty"`
 }
+
+// TargetCustomizationMode controls how targetCustomizations from fleet.yaml are evaluated.
+type TargetCustomizationMode string
+
+const (
+	// TargetCustomizationModeFirstMatch stops at the first matching targetCustomization entry.
+	// This is the default behaviour.
+	TargetCustomizationModeFirstMatch TargetCustomizationMode = "FirstMatch"
+	// TargetCustomizationModeAllMatches applies all matching targetCustomization entries
+	// in order, merging their options.
+	TargetCustomizationModeAllMatches TargetCustomizationMode = "AllMatches"
+)
 
 const (
 	// BundleConditionReady is unused. A "Ready" condition on a bundle
