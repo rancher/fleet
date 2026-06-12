@@ -50,6 +50,17 @@ var (
 
 	// ClusterManagementLabel can be used to specify a custom cluster manager
 	ClusterManagementLabel = "fleet.cattle.io/cluster-management"
+
+	// LocalAgentDisabledLabel, when set on a Cluster, instructs the agent
+	// management import handler to skip deploying the fleet-agent and to tear
+	// down any agent already deployed. Used for the local cluster only.
+	LocalAgentDisabledLabel = "fleet.cattle.io/local-agent-disabled"
+
+	// LocalClusterName is the name of the Cluster object that represents the
+	// management (local) cluster. It is created by the bootstrap controller in
+	// the bootstrap namespace and is also used as the value of the "name" label
+	// the local cluster's ClusterGroup selects on.
+	LocalClusterName = "local"
 )
 
 // +genclient
