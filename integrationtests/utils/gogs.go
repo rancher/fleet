@@ -16,8 +16,8 @@ import (
 	"strings"
 	"time"
 
-	dockercontainer "github.com/docker/docker/api/types/container"
 	gogs "github.com/gogits/go-gogs-client"
+	dockercontainer "github.com/moby/moby/api/types/container"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	cp "github.com/otiai10/copy"
