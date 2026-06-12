@@ -8,7 +8,6 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/docker/go-connections/nat"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/rancher/fleet/integrationtests/cli"
@@ -92,7 +91,7 @@ var _ = Describe("Fleet apply helm release with HTTP OCI registry", Ordered, fun
 	var (
 		container testcontainers.Container
 		host      string
-		port      nat.Port
+		port      string
 		tmpDir    string
 		relTmpDir string
 	)
@@ -106,18 +105,19 @@ var _ = Describe("Fleet apply helm release with HTTP OCI registry", Ordered, fun
 		host, err = container.Host(context.Background())
 		Expect(err).ToNot(HaveOccurred())
 
-		port, err = container.MappedPort(context.Background(), nat.Port("5000"))
+		mappedPort, err := container.MappedPort(context.Background(), "5000")
 		Expect(err).ToNot(HaveOccurred())
+		port = mappedPort.Port()
 
 		cmd := exec.Command("helm", "package", cli.AssetsPath+"config-chart/")
 		out, err := cmd.CombinedOutput()
 		Expect(err).ToNot(HaveOccurred(), out)
 
-		cmd = exec.Command("helm", "push", "config-chart-0.1.0.tgz", fmt.Sprintf("oci://%s:%d", host, port.Int()), "--plain-http")
+		cmd = exec.Command("helm", "push", "config-chart-0.1.0.tgz", fmt.Sprintf("oci://%s:%s", host, port), "--plain-http")
 		out, err = cmd.CombinedOutput()
 		Expect(err).ToNot(HaveOccurred(), out)
 
-		err = createGitRepoDataForTest(tmpDir, host, port.Port(), "config-chart")
+		err = createGitRepoDataForTest(tmpDir, host, port, "config-chart")
 		Expect(err).ToNot(HaveOccurred())
 
 		pwd, err := os.Getwd()
