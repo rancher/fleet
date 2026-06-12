@@ -22,6 +22,7 @@ import (
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/connection"
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/controllers/manageagent"
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/scheduling"
+	secretutils "github.com/rancher/fleet/internal/cmd/controller/agentmanagement/secret"
 	fleetns "github.com/rancher/fleet/internal/cmd/controller/namespace"
 	"github.com/rancher/fleet/internal/config"
 	"github.com/rancher/fleet/internal/names"
@@ -459,6 +460,8 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 		}
 	}
 
+	pullSecrets, propagate := secretutils.GetAgentPullSecrets(cfg, cluster)
+
 	// Notice we only set the agentScope when it's a non-default agentNamespace. This is for backwards compatibility
 	// for when we didn't have agent scope before
 	agentObjs, err := agent.AgentWithConfig(
@@ -477,15 +480,16 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 			},
 			// keep in sync with manageagent.go
 			ManifestOptions: agent.ManifestOptions{
-				AgentEnvVars:      cluster.Spec.AgentEnvVars,
-				AgentTolerations:  cluster.Spec.AgentTolerations,
-				PrivateRepoURL:    cluster.Spec.PrivateRepoURL,
-				AgentAffinity:     cluster.Spec.AgentAffinity,
-				AgentResources:    cluster.Spec.AgentResources,
-				HostNetwork:       *cmp.Or(cluster.Spec.HostNetwork, new(false)),
-				AgentReplicas:     agentReplicas,
-				PriorityClassName: priorityClassName,
-				ImagePullSecrets:  cfg.ImagePullSecrets,
+				AgentEnvVars:         cluster.Spec.AgentEnvVars,
+				AgentTolerations:     cluster.Spec.AgentTolerations,
+				PrivateRepoURL:       cluster.Spec.PrivateRepoURL,
+				AgentAffinity:        cluster.Spec.AgentAffinity,
+				AgentResources:       cluster.Spec.AgentResources,
+				HostNetwork:          *cmp.Or(cluster.Spec.HostNetwork, new(false)),
+				AgentReplicas:        agentReplicas,
+				PriorityClassName:    priorityClassName,
+				ImagePullSecrets:     pullSecrets,
+				PropagatePullSecrets: propagate,
 			},
 		})
 	objs = append(objs, agentObjs...)

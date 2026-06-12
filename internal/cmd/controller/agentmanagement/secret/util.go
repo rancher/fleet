@@ -1,4 +1,5 @@
-// Package secret gets or creates service account secrets for cluster registration.
+// Package secret gets or creates service account secrets for cluster registration, and gets image pull secrets for
+// agent deployments.
 package secret
 
 import (
@@ -7,6 +8,8 @@ import (
 
 	"github.com/sirupsen/logrus"
 
+	"github.com/rancher/fleet/internal/config"
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/durations"
 	corecontrollers "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 
@@ -14,6 +17,27 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+// GetAgentPullSecrets determines where image pull secrets should be sourced from for agent deployments.
+// It returns a set of references to those secrets, along with a boolean evaluating to `true` if those secrets must be
+// propagated by Fleet to downstream clusters.
+func GetAgentPullSecrets(config *config.Config, cluster *fleet.Cluster) ([]corev1.LocalObjectReference, bool) {
+	var pullSecrets []corev1.LocalObjectReference
+
+	// A nil AgentPullSecrets field indicates that the
+	// global fleet config should be used. An empty AgentPullSecrets
+	// field indicates that no pull secrets should be used.
+	if cluster.Spec.AgentPullSecrets != nil {
+		pullSecrets = *cluster.Spec.AgentPullSecrets
+	} else {
+		pullSecrets = config.ImagePullSecrets
+	}
+
+	// If image pull secrets are provided at cluster level, their propagation is expected to be handled by Rancher.
+	propagatePullSecrets := (cluster.Spec.AgentPullSecrets == nil)
+
+	return pullSecrets, propagatePullSecrets
+}
 
 // GetServiceAccountTokenSecret gets or creates a secret for the service
 // account. It waits 2 seconds for the data to be populated with a token.

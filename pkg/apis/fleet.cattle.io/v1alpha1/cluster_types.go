@@ -169,6 +169,13 @@ type ClusterSpec struct {
 	// +nullable
 	// +optional
 	AgentSchedulingCustomization *AgentSchedulingCustomization `json:"agentSchedulingCustomization,omitempty"`
+
+	// +nullable
+	// +optional
+	// AgentPullSecrets references image pull secrets to be used by the Fleet agent deployment on this cluster.
+	// If set, it overrides any global image pull secrets set as values in the Fleet chart, and Fleet will not
+	// propagate/copy them, as Rancher would then be expected to handle that propagation.
+	AgentPullSecrets *[]corev1.LocalObjectReference `json:"agentPullSecrets,omitempty"`
 }
 
 type ClusterStatus struct {

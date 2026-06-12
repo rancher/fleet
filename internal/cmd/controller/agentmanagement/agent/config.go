@@ -18,7 +18,7 @@ type ConfigOptions struct {
 	GarbageCollectionInterval metav1.Duration
 }
 
-func agentConfig(ctx context.Context, agentNamespace, controllerNamespace string, cg *client.Getter, opts *ConfigOptions) ([]runtime.Object, error) {
+func agentConfig(ctx context.Context, agentNamespace, controllerNamespace string, cg client.GetterInterface, opts *ConfigOptions) ([]runtime.Object, error) {
 	if opts == nil {
 		opts = &ConfigOptions{}
 	}
