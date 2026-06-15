@@ -20,12 +20,12 @@ replace (
 	k8s.io/component-base => k8s.io/component-base v0.35.5
 	k8s.io/component-helpers => k8s.io/component-helpers v0.35.5
 	k8s.io/controller-manager => k8s.io/controller-manager v0.35.5
-	k8s.io/cri-api => k8s.io/cri-api v0.35.5
+	k8s.io/cri-api => k8s.io/cri-api v0.35.6
 	k8s.io/cri-client => k8s.io/cri-client v0.35.5
 	k8s.io/csi-translation-lib => k8s.io/csi-translation-lib v0.35.5
 	k8s.io/dynamic-resource-allocation => k8s.io/dynamic-resource-allocation v0.35.5
 	k8s.io/endpointslice => k8s.io/endpointslice v0.35.5
-	k8s.io/externaljwt => k8s.io/externaljwt v0.35.5
+	k8s.io/externaljwt => k8s.io/externaljwt v0.35.6
 	k8s.io/kms => k8s.io/kms v0.35.5
 	k8s.io/kube-aggregator => k8s.io/kube-aggregator v0.35.5
 	k8s.io/kube-controller-manager => k8s.io/kube-controller-manager v0.35.5
@@ -35,7 +35,7 @@ replace (
 	k8s.io/kubelet => k8s.io/kubelet v0.35.5
 	k8s.io/kubernetes => k8s.io/kubernetes v1.35.5
 	k8s.io/metrics => k8s.io/metrics v0.35.5
-	k8s.io/mount-utils => k8s.io/mount-utils v0.35.5
+	k8s.io/mount-utils => k8s.io/mount-utils v0.35.6
 	k8s.io/pod-security-admission => k8s.io/pod-security-admission v0.35.5
 	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.35.5
 	k8s.io/streaming => k8s.io/streaming v0.35.5
