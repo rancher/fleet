@@ -60,24 +60,26 @@ func AuthorizeAndAssignDefaults(ctx context.Context, c client.Client, gitrepo *f
 		return errors.New("empty targetNamespace denied, because allowedTargetNamespaceSelector restriction is present")
 	}
 
-	targetNamespace, err := isAllowed(gitrepo.Spec.TargetNamespace, "", allowedTargetNS)
-	if err != nil {
+	// Apply defaults before validation, so a default that is not in the allow-list
+	// is rejected rather than silently accepted. This keeps the GitRepo path
+	// consistent with the HelmOp and Bundle paths.
+	serviceAccount := firstNonEmpty(gitrepo.Spec.ServiceAccount, defaultSA)
+	clientSecretName := firstNonEmpty(gitrepo.Spec.ClientSecretName, defaultClientSecret)
+
+	if _, err := isAllowed(gitrepo.Spec.TargetNamespace, "", allowedTargetNS); err != nil {
 		return fmt.Errorf("disallowed targetNamespace %s: %w", gitrepo.Spec.TargetNamespace, err)
 	}
 
-	serviceAccount, err := isAllowed(gitrepo.Spec.ServiceAccount, defaultSA, allowedSAs)
-	if err != nil {
-		return fmt.Errorf("disallowed serviceAccount %s: %w", gitrepo.Spec.ServiceAccount, err)
+	if _, err := isAllowed(serviceAccount, "", allowedSAs); err != nil {
+		return fmt.Errorf("disallowed serviceAccount %s: %w", serviceAccount, err)
 	}
 
-	repo, err := isAllowedByRepo(gitrepo.Spec.Repo, grr.AllowedRepoPatterns, pol.GitAllowedRepoPatterns)
-	if err != nil {
+	if _, err := isAllowedByRepo(gitrepo.Spec.Repo, grr.AllowedRepoPatterns, pol.GitAllowedRepoPatterns); err != nil {
 		return fmt.Errorf("disallowed repo %s: %w", gitrepo.Spec.Repo, err)
 	}
 
-	clientSecretName, err := isAllowed(gitrepo.Spec.ClientSecretName, defaultClientSecret, allowedClientSecrets)
-	if err != nil {
-		return fmt.Errorf("disallowed clientSecretName %s: %w", gitrepo.Spec.ClientSecretName, err)
+	if _, err := isAllowed(clientSecretName, "", allowedClientSecrets); err != nil {
+		return fmt.Errorf("disallowed clientSecretName %s: %w", clientSecretName, err)
 	}
 
 	// Policy: RequireServiceAccount is checked after all defaulting.
@@ -86,9 +88,7 @@ func AuthorizeAndAssignDefaults(ctx context.Context, c client.Client, gitrepo *f
 	}
 
 	// Write resolved values back to the GitRepo.
-	gitrepo.Spec.TargetNamespace = targetNamespace
 	gitrepo.Spec.ServiceAccount = serviceAccount
-	gitrepo.Spec.Repo = repo
 	gitrepo.Spec.ClientSecretName = clientSecretName
 
 	return nil
