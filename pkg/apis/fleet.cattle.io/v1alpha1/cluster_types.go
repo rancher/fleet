@@ -50,6 +50,17 @@ var (
 
 	// ClusterManagementLabel can be used to specify a custom cluster manager
 	ClusterManagementLabel = "fleet.cattle.io/cluster-management"
+
+	// LocalAgentDisabledLabel, when set on a Cluster, instructs the agent
+	// management import handler to skip deploying the fleet-agent and to tear
+	// down any agent already deployed. Used for the local cluster only.
+	LocalAgentDisabledLabel = "fleet.cattle.io/local-agent-disabled"
+
+	// LocalClusterName is the name of the Cluster object that represents the
+	// management (local) cluster. It is created by the bootstrap controller in
+	// the bootstrap namespace and is also used as the value of the "name" label
+	// the local cluster's ClusterGroup selects on.
+	LocalClusterName = "local"
 )
 
 // +genclient
@@ -158,6 +169,13 @@ type ClusterSpec struct {
 	// +nullable
 	// +optional
 	AgentSchedulingCustomization *AgentSchedulingCustomization `json:"agentSchedulingCustomization,omitempty"`
+
+	// +nullable
+	// +optional
+	// AgentPullSecrets references image pull secrets to be used by the Fleet agent deployment on this cluster.
+	// If set, it overrides any global image pull secrets set as values in the Fleet chart, and Fleet will not
+	// propagate/copy them, as Rancher would then be expected to handle that propagation.
+	AgentPullSecrets *[]corev1.LocalObjectReference `json:"agentPullSecrets,omitempty"`
 }
 
 type ClusterStatus struct {

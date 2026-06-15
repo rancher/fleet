@@ -71,10 +71,14 @@ func (h *handler) OnConfig(config *fleetconfig.Config) error {
 	logrus.Debugf("Bootstrap config set, building namespace '%s', secret, local cluster, cluster group, ...", config.Bootstrap.Namespace)
 
 	var objs []runtime.Object
-	localClusterLabels := map[string]string{"name": "local"}
+	localClusterLabels := map[string]string{"name": fleet.LocalClusterName}
 
 	if config.Bootstrap.ClusterLabels != nil {
 		maps.Copy(localClusterLabels, config.Bootstrap.ClusterLabels)
+	}
+
+	if config.Bootstrap.LocalAgentDisabled {
+		localClusterLabels[fleet.LocalAgentDisabledLabel] = "true"
 	}
 
 	if config.Bootstrap.Namespace == "" || config.Bootstrap.Namespace == "-" {
@@ -96,7 +100,7 @@ func (h *handler) OnConfig(config *fleetconfig.Config) error {
 		},
 	}, secret, &fleet.Cluster{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "local",
+			Name:      fleet.LocalClusterName,
 			Namespace: config.Bootstrap.Namespace,
 			Labels:    localClusterLabels,
 		},
@@ -114,7 +118,7 @@ func (h *handler) OnConfig(config *fleetconfig.Config) error {
 		Spec: fleet.ClusterGroupSpec{
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
-					"name": "local",
+					"name": fleet.LocalClusterName,
 				},
 			},
 		},

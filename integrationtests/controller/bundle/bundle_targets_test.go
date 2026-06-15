@@ -459,9 +459,10 @@ var _ = Describe("Bundle targets", Ordered, func() {
 		})
 	})
 
-	// Regression test for https://github.com/rancher/fleet/issues/3580:
+	// With FirstMatch semantics (the default), only the first matching targetCustomization is applied.
 	// When a broader-matching target appears before a doNotDeploy target in the list,
-	// the doNotDeploy target was previously bypassed due to first-match semantics.
+	// the broader match wins and the doNotDeploy entry is never evaluated.
+	// Users must order their targetCustomizations from specific to general to use doNotDeploy effectively.
 	When("a broader-matching targetCustomization appears before a doNotDeploy targetCustomization", func() {
 		BeforeEach(func() {
 			bundleName = "donot-deploy-after-broader-match"
@@ -469,12 +470,12 @@ var _ = Describe("Bundle targets", Ordered, func() {
 				"fleet.cattle.io/bundle-name":      bundleName,
 				"fleet.cattle.io/bundle-namespace": namespace,
 			}
-			expectedNumberOfBundleDeployments = 0
+			expectedNumberOfBundleDeployments = 1
 			// simulate targets in fleet.yaml:
 			// - first entry matches all clusters (broader match)
 			// - second entry matches cluster "one" with doNotDeploy=true
-			// With the old first-match logic, cluster "one" would match the first entry and
-			// the doNotDeploy entry would never be evaluated.
+			// With FirstMatch semantics, cluster "one" matches the first entry and gets deployed.
+			// The doNotDeploy entry is never evaluated because the first match wins.
 			targets = []v1alpha1.BundleTarget{
 				{
 					BundleDeploymentOptions: v1alpha1.BundleDeploymentOptions{
@@ -500,8 +501,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 			targets = append(targets, targetsInGitRepo...)
 		})
 
-		It("no BundleDeployments are created", func() {
-			waitForBundleToBeReady(bundleName)
+		It("creates a BundleDeployment because first match wins", func() {
 			_ = verifyBundlesDeploymentsAreCreated(expectedNumberOfBundleDeployments, bdLabels, bundleName)
 		})
 	})
@@ -588,6 +588,124 @@ var _ = Describe("Bundle targets", Ordered, func() {
 			}
 		})
 	})
+
+	// AllMatches mode: every matching targetCustomization is applied in order,
+	// so a cluster that matches two customizations receives the merged options
+	// from both, whereas FirstMatch would stop at the first.
+	When("TargetCustomizationMode is AllMatches and two customizations match cluster one", func() {
+		BeforeEach(func() {
+			bundleName = "all-matches-mode"
+			bdLabels = map[string]string{
+				"fleet.cattle.io/bundle-name":      bundleName,
+				"fleet.cattle.io/bundle-namespace": namespace,
+			}
+			expectedNumberOfBundleDeployments = 3
+
+			// Customization 1: only cluster group "one" → sets region
+			// Customization 2: all clusters → sets env
+			// GitRepo target: all clusters (no extra values)
+			targetsInGitRepo := []v1alpha1.BundleTarget{
+				{ClusterGroup: "all"},
+			}
+			targets = []v1alpha1.BundleTarget{
+				{
+					BundleDeploymentOptions: v1alpha1.BundleDeploymentOptions{
+						Helm: &v1alpha1.HelmOptions{
+							Values: &v1alpha1.GenericMap{Data: map[string]interface{}{"region": "us-west"}},
+						},
+					},
+					ClusterGroup: "one",
+				},
+				{
+					BundleDeploymentOptions: v1alpha1.BundleDeploymentOptions{
+						Helm: &v1alpha1.HelmOptions{
+							Values: &v1alpha1.GenericMap{Data: map[string]interface{}{"env": "prod"}},
+						},
+					},
+					ClusterGroup: "all",
+				},
+			}
+			targetRestrictions = make([]v1alpha1.BundleTarget, len(targetsInGitRepo))
+			copy(targetRestrictions, targetsInGitRepo)
+			targets = append(targets, targetsInGitRepo...)
+		})
+
+		JustBeforeEach(func() {
+			// The outer JustBeforeEach already created the bundle with FirstMatch
+			// (the default). Patch it to AllMatches so the reconciler re-evaluates.
+			mod := bundle.DeepCopy()
+			mod.Spec.TargetCustomizationMode = v1alpha1.TargetCustomizationModeAllMatches
+			Expect(k8sClient.Patch(ctx, mod, client.MergeFrom(bundle))).ToNot(HaveOccurred())
+			bundle = mod
+		})
+
+		It("merges all matching customizations into cluster one's BundleDeployment", func() {
+			bdList := verifyBundlesDeploymentsAreCreated(expectedNumberOfBundleDeployments, bdLabels, bundleName)
+			for _, bd := range bdList.Items {
+				values, _ := loadValues(bd)
+				if strings.Contains(bd.Namespace, "cluster-one") {
+					// cluster "one" matches both customizations: both keys must be present
+					Expect(values).To(HaveKeyWithValue("region", "us-west"), "cluster-one should have region from cust1")
+					Expect(values).To(HaveKeyWithValue("env", "prod"), "cluster-one should have env from cust2")
+				} else {
+					// other clusters match only cust2
+					Expect(values).ToNot(HaveKey("region"), "non-one clusters should not have region")
+					Expect(values).To(HaveKeyWithValue("env", "prod"), "non-one clusters should have env from cust2")
+				}
+			}
+		})
+	})
+
+	// AllMatches mode with doNotDeploy: if any matching customization has
+	// doNotDeploy=true the cluster is skipped entirely (OR logic).
+	When("TargetCustomizationMode is AllMatches and one matching customization has doNotDeploy", func() {
+		BeforeEach(func() {
+			bundleName = "all-matches-do-not-deploy"
+			bdLabels = map[string]string{
+				"fleet.cattle.io/bundle-name":      bundleName,
+				"fleet.cattle.io/bundle-namespace": namespace,
+			}
+			// cluster "one" matches both customizations; one has doNotDeploy so
+			// cluster "one" should be skipped. The other two clusters only match
+			// cust2 (no doNotDeploy) and get deployed.
+			expectedNumberOfBundleDeployments = 2
+
+			targetsInGitRepo := []v1alpha1.BundleTarget{
+				{ClusterGroup: "all"},
+			}
+			targets = []v1alpha1.BundleTarget{
+				{
+					ClusterGroup: "one",
+					DoNotDeploy:  true,
+				},
+				{
+					BundleDeploymentOptions: v1alpha1.BundleDeploymentOptions{
+						Helm: &v1alpha1.HelmOptions{
+							Values: &v1alpha1.GenericMap{Data: map[string]interface{}{"env": "prod"}},
+						},
+					},
+					ClusterGroup: "all",
+				},
+			}
+			targetRestrictions = make([]v1alpha1.BundleTarget, len(targetsInGitRepo))
+			copy(targetRestrictions, targetsInGitRepo)
+			targets = append(targets, targetsInGitRepo...)
+		})
+
+		JustBeforeEach(func() {
+			mod := bundle.DeepCopy()
+			mod.Spec.TargetCustomizationMode = v1alpha1.TargetCustomizationModeAllMatches
+			Expect(k8sClient.Patch(ctx, mod, client.MergeFrom(bundle))).ToNot(HaveOccurred())
+			bundle = mod
+		})
+
+		It("skips cluster one and deploys to the other clusters", func() {
+			bdList := verifyBundlesDeploymentsAreCreated(expectedNumberOfBundleDeployments, bdLabels, bundleName)
+			for _, bd := range bdList.Items {
+				Expect(bd.Namespace).ToNot(ContainSubstring("cluster-one"), "cluster-one should be skipped due to doNotDeploy")
+			}
+		})
+	})
 })
 
 func verifyBundlesDeploymentsAreCreated(numBundleDeployments int, bdLabels map[string]string, bundleName string) *v1alpha1.BundleDeploymentList {
@@ -608,6 +726,7 @@ func verifyBundlesDeploymentsAreCreated(numBundleDeployments int, bdLabels map[s
 }
 
 func waitForBundleToBeReady(bundleName string) {
+	GinkgoHelper()
 	Eventually(func() bool {
 		bundle := &v1alpha1.Bundle{}
 		err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: bundleName}, bundle)

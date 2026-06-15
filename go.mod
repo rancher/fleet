@@ -22,6 +22,7 @@ replace (
 	k8s.io/controller-manager => k8s.io/controller-manager v0.36.1
 	k8s.io/cri-api => k8s.io/cri-api v0.36.1
 	k8s.io/cri-client => k8s.io/cri-client v0.36.1
+	k8s.io/cri-streaming => k8s.io/cri-streaming v0.36.1
 	k8s.io/csi-translation-lib => k8s.io/csi-translation-lib v0.36.1
 	k8s.io/dynamic-resource-allocation => k8s.io/dynamic-resource-allocation v0.36.1
 	k8s.io/endpointslice => k8s.io/endpointslice v0.36.1
@@ -67,7 +68,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/client_model v0.6.2
-	github.com/prometheus/common v0.68.0
+	github.com/prometheus/common v0.68.1
 	github.com/rancher/fleet/pkg/apis v0.15.2
 	github.com/rancher/lasso v0.2.9
 	github.com/rancher/wrangler/v3 v3.7.0
@@ -80,7 +81,7 @@ require (
 	go.uber.org/zap v1.28.0
 	golang.org/x/crypto v0.52.0
 	golang.org/x/net v0.55.0
-	golang.org/x/sync v0.20.0
+	golang.org/x/sync v0.21.0
 	gonum.org/v1/gonum v0.17.0
 	gotest.tools v2.2.0+incompatible
 	helm.sh/helm/v4 v4.2.0
@@ -94,7 +95,7 @@ require (
 	k8s.io/kubectl v0.36.1
 	k8s.io/kubernetes v1.36.1
 	k8s.io/streaming v0.36.1
-	oras.land/oras-go/v2 v2.6.0
+	oras.land/oras-go/v2 v2.6.1
 	sigs.k8s.io/cli-utils v0.37.2
 	sigs.k8s.io/controller-runtime v0.24.1
 	sigs.k8s.io/controller-tools v0.21.0

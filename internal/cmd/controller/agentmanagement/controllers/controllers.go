@@ -141,6 +141,7 @@ func Register(ctx context.Context, appCtx *AppContext, systemNamespace string, d
 		systemNamespace,
 		appCtx.Apply,
 		appCtx.Core.Namespace(),
+		appCtx.Core.Secret(),
 		appCtx.Cluster(),
 		appCtx.Bundle())
 

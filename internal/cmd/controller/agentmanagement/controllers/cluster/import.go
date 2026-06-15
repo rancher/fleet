@@ -22,6 +22,7 @@ import (
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/connection"
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/controllers/manageagent"
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/scheduling"
+	secretutils "github.com/rancher/fleet/internal/cmd/controller/agentmanagement/secret"
 	fleetns "github.com/rancher/fleet/internal/cmd/controller/namespace"
 	"github.com/rancher/fleet/internal/config"
 	"github.com/rancher/fleet/internal/names"
@@ -194,6 +195,44 @@ func hashStatusField(field any) string {
 	return hex.EncodeToString(hasher.Sum(nil))
 }
 
+// localAgentDisabled reports whether the agent must not be deployed for this
+// cluster. It only ever applies to the management (local) cluster: the
+// disabling label is honored exclusively there, so that labeling a downstream
+// cluster cannot prevent its agent from being deployed or tear it down.
+func localAgentDisabled(cluster *fleet.Cluster) bool {
+	return isLocalCluster(cluster) && cluster.Labels[fleet.LocalAgentDisabledLabel] == "true"
+}
+
+// isLocalCluster is a fast, metadata-only check that a Cluster object is the
+// management (local) cluster: it must carry the well-known name in the
+// configured bootstrap namespace, matching what the bootstrap controller
+// creates.
+func isLocalCluster(cluster *fleet.Cluster) bool {
+	return cluster.Name == fleet.LocalClusterName &&
+		cluster.Namespace == config.Get().Bootstrap.Namespace
+}
+
+// isManagementCluster confirms, with certainty, that the cluster reachable
+// through kc is the very cluster the controller runs on. It compares the UID of
+// the kube-system namespace as seen locally (through the controller's own
+// client) and through the downstream client: that UID is unique per cluster and
+// immutable, so a match proves both clients target the same cluster. Used to
+// guard the agent teardown so we never remove an agent from a cluster that only
+// looks local by name.
+func (i *importHandler) isManagementCluster(kc kubernetes.Interface) (bool, error) {
+	local, err := i.namespaceController.Get(metav1.NamespaceSystem, metav1.GetOptions{})
+	if err != nil {
+		return false, err
+	}
+
+	remote, err := kc.CoreV1().Namespaces().Get(i.ctx, metav1.NamespaceSystem, metav1.GetOptions{})
+	if err != nil {
+		return false, err
+	}
+
+	return local.UID != "" && local.UID == remote.UID, nil
+}
+
 func agentDeployed(cluster *fleet.Cluster) bool {
 	if cluster.Status.AgentConfigChanged {
 		return false
@@ -230,7 +269,7 @@ func (i *importHandler) OnChange(key string, cluster *fleet.Cluster) (_ *fleet.C
 		return cluster, nil
 	}
 
-	if manageagent.SkipCluster(cluster) {
+	if manageagent.SkipCluster(cluster) || localAgentDisabled(cluster) {
 		return cluster, nil
 	}
 
@@ -262,41 +301,29 @@ func (i *importHandler) deleteOldAgentBundle(cluster *fleet.Cluster) error {
 	return nil
 }
 
-func (i *importHandler) deleteOldAgent(cluster *fleet.Cluster, kc kubernetes.Interface, namespace string) error {
-	err := kc.CoreV1().Secrets(namespace).Delete(i.ctx, config.AgentConfigName, metav1.DeleteOptions{})
-	if err != nil && !apierrors.IsNotFound(err) {
-		return err
-	}
-
-	err = kc.CoreV1().Secrets(namespace).Delete(i.ctx, config.AgentBootstrapConfigName, metav1.DeleteOptions{})
-	if err != nil && !apierrors.IsNotFound(err) {
-		return err
-	}
-
-	if err := kc.AppsV1().StatefulSets(namespace).Delete(i.ctx, config.AgentConfigName, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
-		return err
-	}
-	if err := kc.AppsV1().Deployments(namespace).Delete(i.ctx, config.AgentConfigName, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
-		return err
-	}
-	if err := kc.SchedulingV1().PriorityClasses().Delete(i.ctx, scheduling.FleetAgentPriorityClassName, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
-		return err
-	}
-	if err := kc.PolicyV1().PodDisruptionBudgets(namespace).Delete(i.ctx, scheduling.FleetAgentPodDisruptionBudgetName, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
-		return err
-	}
-
-	logrus.Infof("Deleted old agent for cluster (%s/%s) in namespace %s", cluster.Namespace, cluster.Name, namespace)
-
-	return nil
-}
-
 // importCluster is triggered for manager initiated deployments and the local agent, It re-deploys the agent on the downstream cluster.
 // Since it re-creates the fleet-agent-bootstrap secret, it will also re-register the agent.
 //
 //nolint:gocyclo
 func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.ClusterStatus) (fleet.ClusterStatus, error) {
 	if manageagent.SkipCluster(cluster) {
+		return status, nil
+	}
+
+	if localAgentDisabled(cluster) {
+		// Never deployed or already torn down: nothing to do.
+		if status.Agent.Namespace == "" && status.AgentDeployedGeneration == nil {
+			return status, nil
+		}
+		// Tear down a previously-deployed agent.
+		if cluster.Spec.KubeConfigSecret != "" {
+			if err := i.teardownLocalAgent(cluster); err != nil {
+				return status, err
+			}
+		}
+		status.Agent = fleet.AgentStatus{}
+		status.AgentDeployedGeneration = nil
+		status.AgentConfigChanged = false
 		return status, nil
 	}
 
@@ -433,6 +460,8 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 		}
 	}
 
+	pullSecrets, propagate := secretutils.GetAgentPullSecrets(cfg, cluster)
+
 	// Notice we only set the agentScope when it's a non-default agentNamespace. This is for backwards compatibility
 	// for when we didn't have agent scope before
 	agentObjs, err := agent.AgentWithConfig(
@@ -451,15 +480,16 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 			},
 			// keep in sync with manageagent.go
 			ManifestOptions: agent.ManifestOptions{
-				AgentEnvVars:      cluster.Spec.AgentEnvVars,
-				AgentTolerations:  cluster.Spec.AgentTolerations,
-				PrivateRepoURL:    cluster.Spec.PrivateRepoURL,
-				AgentAffinity:     cluster.Spec.AgentAffinity,
-				AgentResources:    cluster.Spec.AgentResources,
-				HostNetwork:       *cmp.Or(cluster.Spec.HostNetwork, new(false)),
-				AgentReplicas:     agentReplicas,
-				PriorityClassName: priorityClassName,
-				ImagePullSecrets:  cfg.ImagePullSecrets,
+				AgentEnvVars:         cluster.Spec.AgentEnvVars,
+				AgentTolerations:     cluster.Spec.AgentTolerations,
+				PrivateRepoURL:       cluster.Spec.PrivateRepoURL,
+				AgentAffinity:        cluster.Spec.AgentAffinity,
+				AgentResources:       cluster.Spec.AgentResources,
+				HostNetwork:          *cmp.Or(cluster.Spec.HostNetwork, new(false)),
+				AgentReplicas:        agentReplicas,
+				PriorityClassName:    priorityClassName,
+				ImagePullSecrets:     pullSecrets,
+				PropagatePullSecrets: propagate,
 			},
 		})
 	objs = append(objs, agentObjs...)
@@ -473,13 +503,13 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 			return status, err
 		}
 		if cluster.Status.Agent.Namespace != "" {
-			if err := i.deleteOldAgent(cluster, kc, cluster.Status.Agent.Namespace); err != nil {
+			if err := i.deleteAgentResources(kc, cluster.Status.Agent.Namespace); err != nil {
 				return status, err
 			}
 		}
 	}
 
-	if err := i.deleteOldAgent(cluster, kc, agentNamespace); err != nil {
+	if err := i.deleteAgentResources(kc, agentNamespace); err != nil {
 		return status, err
 	}
 
@@ -489,24 +519,8 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 	}
 	logrus.Infof("Cluster import for '%s/%s'. Deployed new agent", cluster.Namespace, cluster.Name)
 
-	if i.systemNamespace != config.DefaultNamespace {
-		// Clean up the leftover agent if it exists.
-		_, err := kc.CoreV1().Namespaces().Get(i.ctx, config.DefaultNamespace, metav1.GetOptions{})
-		if err == nil {
-			logrus.Infof("System namespace (%s) does not equal default namespace (%s), checking for leftover objects...", i.systemNamespace, config.DefaultNamespace)
-			if err := i.deleteOldAgent(cluster, kc, config.DefaultNamespace); err != nil {
-				return status, err
-			}
-		} else if !apierrors.IsNotFound(err) {
-			return status, err
-		}
-
-		// Clean up the leftover clusters namespace if it exists.
-		// We want to keep the DefaultNamespace alive, but not the clusters namespace.
-		err = kc.CoreV1().Namespaces().Delete(i.ctx, fleetns.SystemRegistrationNamespace(config.DefaultNamespace), metav1.DeleteOptions{})
-		if err != nil && !apierrors.IsNotFound(err) {
-			return status, err
-		}
+	if err := i.cleanupLeftoverDefaultNamespace(kc); err != nil {
+		return status, err
 	}
 
 	status.AgentDeployedGeneration = &cluster.Spec.RedeployAgentGeneration
@@ -523,6 +537,161 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 	status.GarbageCollectionInterval = &cfg.GarbageCollectionInterval
 
 	return status, nil
+}
+
+// teardownLocalAgent removes the fleet-agent and its associated bundle from the
+// local cluster. It is idempotent: NotFound errors from the deletes are ignored.
+func (i *importHandler) teardownLocalAgent(cluster *fleet.Cluster) error {
+	kubeConfigSecretNamespace, err := allowedKubeConfigSecretNamespace(cluster)
+	if err != nil {
+		return err
+	}
+	secret, err := i.secretsCache.Get(kubeConfigSecretNamespace, cluster.Spec.KubeConfigSecret)
+	if err != nil {
+		return err
+	}
+
+	cfg := config.Get()
+	restConfig, err := i.restConfigFromKubeConfig(secret.Data[config.KubeConfigSecretValueKey], cfg.AgentTLSMode)
+	if err != nil {
+		return err
+	}
+	restConfig.Timeout = durations.RestConfigTimeout
+
+	kc, err := kubernetes.NewForConfig(restConfig)
+	if err != nil {
+		return err
+	}
+
+	if err := connection.SmokeTestKubeClientConnection(kc); err != nil {
+		return err
+	}
+
+	// Before deleting anything, make absolutely sure the kubeconfig points at
+	// the management cluster itself. isLocalCluster already gated us here based
+	// on metadata, but tearing down an agent is destructive, so we confirm
+	// cluster identity for real.
+	isLocal, err := i.isManagementCluster(kc)
+	if err != nil {
+		return err
+	}
+	if !isLocal {
+		logrus.Warnf(
+			"Cluster import for '%s/%s'. Refusing to remove agent: label %s=true is set but the cluster reached through its kubeconfig is not the management cluster",
+			cluster.Namespace, cluster.Name, fleet.LocalAgentDisabledLabel,
+		)
+		return nil
+	}
+
+	// Agent bundle lives on the management cluster — independent of the wrangler set.
+	if err := i.bundleClient.Delete(
+		cluster.Namespace,
+		names.SafeConcatName(manageagent.AgentBundleName, cluster.Name),
+		nil,
+	); err != nil && !apierrors.IsNotFound(err) {
+		return err
+	}
+	i.namespaceController.Enqueue(cluster.Namespace)
+
+	agentNamespace := cluster.Status.Agent.Namespace
+	if agentNamespace == "" {
+		agentNamespace = i.systemNamespace
+	}
+
+	if err := i.deleteAgentResources(kc, agentNamespace); err != nil {
+		return err
+	}
+
+	if err := i.cleanupLeftoverDefaultNamespace(kc); err != nil {
+		return err
+	}
+
+	logrus.Infof("Cluster import for '%s/%s'. Removed local agent (%s=true)", cluster.Namespace, cluster.Name, fleet.LocalAgentDisabledLabel)
+	return nil
+}
+
+// deleteAgentResources removes every resource the
+// deploy path creates for a fleet-agent (identified by the fixed names that
+// agent.Manifest assigns). It is idempotent: NotFound errors are ignored.
+func (i *importHandler) deleteAgentResources(kc kubernetes.Interface, namespace string) error {
+	ignoreNotFound := func(err error) error {
+		if err == nil || apierrors.IsNotFound(err) {
+			return nil
+		}
+		return err
+	}
+
+	// Cluster-scoped RBAC — names are constructed the same way as in agent.Manifest.
+	crName := names.SafeConcatName(namespace, agent.DefaultName, "role")
+	crbName := names.SafeConcatName(namespace, agent.DefaultName, "role", "binding")
+	if err := ignoreNotFound(kc.RbacV1().ClusterRoles().Delete(i.ctx, crName, metav1.DeleteOptions{})); err != nil {
+		return err
+	}
+	if err := ignoreNotFound(kc.RbacV1().ClusterRoleBindings().Delete(i.ctx, crbName, metav1.DeleteOptions{})); err != nil {
+		return err
+	}
+
+	// Cluster-scoped scheduling resources.
+	if err := ignoreNotFound(kc.SchedulingV1().PriorityClasses().Delete(i.ctx, scheduling.FleetAgentPriorityClassName, metav1.DeleteOptions{})); err != nil {
+		return err
+	}
+
+	// Namespaced resources.
+	if err := ignoreNotFound(kc.CoreV1().Secrets(namespace).Delete(i.ctx, config.AgentConfigName, metav1.DeleteOptions{})); err != nil {
+		return err
+	}
+	if err := ignoreNotFound(kc.CoreV1().Secrets(namespace).Delete(i.ctx, config.AgentBootstrapConfigName, metav1.DeleteOptions{})); err != nil {
+		return err
+	}
+	if err := ignoreNotFound(kc.CoreV1().ConfigMaps(namespace).Delete(i.ctx, config.AgentConfigName, metav1.DeleteOptions{})); err != nil {
+		return err
+	}
+	if err := ignoreNotFound(kc.CoreV1().ServiceAccounts(namespace).Delete(i.ctx, agent.DefaultName, metav1.DeleteOptions{})); err != nil {
+		return err
+	}
+	if err := ignoreNotFound(kc.NetworkingV1().NetworkPolicies(namespace).Delete(i.ctx, "default-allow-all", metav1.DeleteOptions{})); err != nil {
+		return err
+	}
+	if err := ignoreNotFound(kc.AppsV1().Deployments(namespace).Delete(i.ctx, config.AgentConfigName, metav1.DeleteOptions{})); err != nil {
+		return err
+	}
+	if err := ignoreNotFound(kc.AppsV1().StatefulSets(namespace).Delete(i.ctx, config.AgentConfigName, metav1.DeleteOptions{})); err != nil {
+		return err
+	}
+	if err := ignoreNotFound(kc.PolicyV1().PodDisruptionBudgets(namespace).Delete(i.ctx, scheduling.FleetAgentPodDisruptionBudgetName, metav1.DeleteOptions{})); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// cleanupLeftoverDefaultNamespace removes a fleet-agent left behind in the
+// default system namespace and drops the now-orphaned default registration
+// namespace. This only matters when the system namespace was customized away
+// from the default; otherwise there is nothing to clean up. The default
+// namespace itself is kept.
+func (i *importHandler) cleanupLeftoverDefaultNamespace(kc kubernetes.Interface) error {
+	if i.systemNamespace == config.DefaultNamespace {
+		return nil
+	}
+
+	// Clean up the leftover agent if the default namespace still exists.
+	_, err := kc.CoreV1().Namespaces().Get(i.ctx, config.DefaultNamespace, metav1.GetOptions{})
+	if err == nil {
+		logrus.Infof("System namespace (%s) does not equal default namespace (%s), checking for leftover objects...", i.systemNamespace, config.DefaultNamespace)
+		if err := i.deleteAgentResources(kc, config.DefaultNamespace); err != nil {
+			return err
+		}
+	} else if !apierrors.IsNotFound(err) {
+		return err
+	}
+
+	// Keep the default namespace alive, but drop the orphaned registration namespace.
+	if err := kc.CoreV1().Namespaces().Delete(i.ctx, fleetns.SystemRegistrationNamespace(config.DefaultNamespace), metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+		return err
+	}
+
+	return nil
 }
 
 func shouldMigrateFromLegacyNamespace(agentStatusNs string) bool {

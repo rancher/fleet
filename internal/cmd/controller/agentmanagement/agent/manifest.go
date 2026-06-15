@@ -45,8 +45,9 @@ type ManifestOptions struct {
 	BundleDeploymentWorkers string
 	DriftWorkers            string
 	cmd.LeaderElectionOptions
-	PriorityClassName string
-	ImagePullSecrets  []corev1.LocalObjectReference
+	PriorityClassName    string
+	ImagePullSecrets     []corev1.LocalObjectReference
+	PropagatePullSecrets bool
 }
 
 // Manifest builds and returns a deployment manifest for the fleet-agent with a
