@@ -16,8 +16,8 @@ import (
 
 	"github.com/rancher/fleet/internal/cmd/cli/gitcloner"
 
-	dockercontainer "github.com/docker/docker/api/types/container"
-	dockermount "github.com/docker/docker/api/types/mount"
+	dockercontainer "github.com/moby/moby/api/types/container"
+	dockermount "github.com/moby/moby/api/types/mount"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing/object"
