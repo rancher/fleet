@@ -66,11 +66,11 @@ func AuthorizeAndAssignDefaults(ctx context.Context, c client.Client, gitrepo *f
 	serviceAccount := firstNonEmpty(gitrepo.Spec.ServiceAccount, defaultSA)
 	clientSecretName := firstNonEmpty(gitrepo.Spec.ClientSecretName, defaultClientSecret)
 
-	if _, err := isAllowed(gitrepo.Spec.TargetNamespace, "", allowedTargetNS); err != nil {
+	if err := isAllowed(gitrepo.Spec.TargetNamespace, allowedTargetNS); err != nil {
 		return fmt.Errorf("disallowed targetNamespace %s: %w", gitrepo.Spec.TargetNamespace, err)
 	}
 
-	if _, err := isAllowed(serviceAccount, "", allowedSAs); err != nil {
+	if err := isAllowed(serviceAccount, allowedSAs); err != nil {
 		return fmt.Errorf("disallowed serviceAccount %s: %w", serviceAccount, err)
 	}
 
@@ -78,7 +78,7 @@ func AuthorizeAndAssignDefaults(ctx context.Context, c client.Client, gitrepo *f
 		return fmt.Errorf("disallowed repo %s: %w", gitrepo.Spec.Repo, err)
 	}
 
-	if _, err := isAllowed(clientSecretName, "", allowedClientSecrets); err != nil {
+	if err := isAllowed(clientSecretName, allowedClientSecrets); err != nil {
 		return fmt.Errorf("disallowed clientSecretName %s: %w", clientSecretName, err)
 	}
 
@@ -123,18 +123,15 @@ func aggregate(restrictions []fleet.GitRepoRestriction) (result fleet.GitRepoRes
 	return result
 }
 
-func isAllowed(currentValue, defaultValue string, allowedValues []string) (string, error) {
-	if currentValue == "" {
-		return defaultValue, nil
-	}
-	if len(allowedValues) == 0 {
-		return currentValue, nil
+func isAllowed(currentValue string, allowedValues []string) error {
+	if currentValue == "" || len(allowedValues) == 0 {
+		return nil
 	}
 	if slices.Contains(allowedValues, currentValue) {
-		return currentValue, nil
+		return nil
 	}
 
-	return currentValue, fmt.Errorf("%s not in allowed set %v", currentValue, allowedValues)
+	return fmt.Errorf("%s not in allowed set %v", currentValue, allowedValues)
 }
 
 func isAllowedByRegex(currentValue, defaultValue string, patterns []string) (string, error) {
