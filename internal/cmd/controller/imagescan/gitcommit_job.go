@@ -197,8 +197,13 @@ func (j *GitCommitJob) cloneAndReplace(ctx context.Context) {
 		paths = []string{"/"}
 	}
 
-	for _, path := range paths {
-		updatePath := filepath.Join(tmp, path)
+	for _, p := range paths {
+		updatePath := filepath.Clean(filepath.Join(tmp, p))
+		if pathEscapesBase(tmp, p) {
+			err = j.updateErrorStatus(ctx, gitrepo, fmt.Errorf("path %q resolves outside the repository root", p))
+			logger.V(1).Info("Skipping path outside repository root", "path", p, "error", err)
+			return
+		}
 		if err := update.WithSetters(updatePath, updatePath, scans); err != nil {
 			err = j.updateErrorStatus(ctx, gitrepo, err)
 			logger.V(1).Info("Cannot update image tags in repo", "error", err)
@@ -257,6 +262,13 @@ func (j *GitCommitJob) updateErrorStatus(ctx context.Context, gitrepo *fleet.Git
 		merr = append(merr, err)
 	}
 	return errutil.NewAggregate(merr)
+}
+
+// pathEscapesBase reports whether relPath, when resolved relative to base, points outside base.
+func pathEscapesBase(base, relPath string) bool {
+	resolved := filepath.Clean(filepath.Join(base, relPath))
+	clean := filepath.Clean(base)
+	return !strings.HasPrefix(resolved, clean+string(os.PathSeparator)) && resolved != clean
 }
 
 func shouldSync(gitrepo *fleet.GitRepo) bool {
