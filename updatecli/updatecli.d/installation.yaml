@@ -58,7 +58,6 @@ actions:
     kind: github/pullrequest
     scmid: fleet
     spec:
-      automerge: false
       mergemethod: squash
       labels:
         - dependencies
