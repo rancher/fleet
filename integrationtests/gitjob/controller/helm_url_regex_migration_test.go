@@ -12,6 +12,7 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 )
 
 const (
@@ -254,9 +255,11 @@ var _ = Describe("HelmURLRegex migration", func() {
 		Expect(getGitRepo("run-twice").Spec.HelmRepoURLRegex).To(Equal(`^https://charts\.example\.com/`))
 
 		// Manually reset to simulate a hypothetical re-entry attempt.
-		gr := getGitRepo("run-twice")
-		gr.Spec.HelmRepoURLRegex = ""
-		Expect(k8sClient.Update(ctx, gr)).To(Succeed())
+		Expect(retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			gr := getGitRepo("run-twice")
+			gr.Spec.HelmRepoURLRegex = ""
+			return k8sClient.Update(ctx, gr)
+		})).To(Succeed())
 
 		// Second run: marker present, migration skipped.
 		Expect(runHelmURLRegexMigration()).To(Succeed())
