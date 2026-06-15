@@ -233,6 +233,24 @@ func Metrics(experiment *gm.Experiment, suffix string) {
 	}
 }
 
+// requiredMetricFamilies lists every metric family that
+// extractFromMetricFamilies dereferences unconditionally. Some of these are
+// lazily created, e.g. rest_client_requests_total only appears after the
+// controller's first API request, so a scrape taken too early may miss them.
+var requiredMetricFamilies = []string{
+	"controller_runtime_reconcile_total",
+	"rest_client_requests_total",
+	"controller_runtime_reconcile_time_seconds",
+	"workqueue_adds_total",
+	"workqueue_queue_duration_seconds",
+	"workqueue_retries_total",
+	"workqueue_work_duration_seconds",
+	"go_gc_duration_seconds",
+	"process_cpu_seconds_total",
+	"process_network_receive_bytes_total",
+	"process_network_transmit_bytes_total",
+}
+
 func getMetrics(res map[string]float64, url string, controllers ...string) {
 	pod := addRandomSuffix("curl")
 	var (
@@ -251,8 +269,10 @@ func getMetrics(res map[string]float64, url string, controllers ...string) {
 			return err
 		}
 
-		if _, ok := mfs["controller_runtime_reconcile_total"]; !ok {
-			return errors.New("controller_runtime_reconcile_total not found")
+		for _, name := range requiredMetricFamilies {
+			if _, ok := mfs[name]; !ok {
+				return errors.New(name + " not found")
+			}
 		}
 
 		return nil
