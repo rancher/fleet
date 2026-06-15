@@ -59,14 +59,23 @@ func MakeSSHKeyPair() (publicKey, privateKey string, _ error) {
 
 // CreateTempFolder returns a temporary directory for test data.
 // On GitHub Actions, os.MkdirTemp is used to avoid cleanup failures;
-// locally GinkgoT().TempDir() is used so Ginkgo cleans up automatically.
+// DeferCleanup fixes permissions locally in order to clean up automatically,
+// since containers may create subdirs owned by a different UID.
 func CreateTempFolder(prefix string) string {
-	if os.Getenv("GITHUB_ACTIONS") == "true" {
-		tmp, err := os.MkdirTemp("", prefix)
-		gomega.Expect(err).ToNot(gomega.HaveOccurred())
-		return tmp
+	tmp, err := os.MkdirTemp("", prefix)
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
+	if os.Getenv("GITHUB_ACTIONS") != "true" {
+		ginkgo.DeferCleanup(func() {
+			_ = filepath.WalkDir(tmp, func(path string, _ os.DirEntry, err error) error {
+				if err == nil {
+					_ = os.Chmod(path, 0755)
+				}
+				return nil
+			})
+			_ = os.RemoveAll(tmp)
+		})
 	}
-	return ginkgo.GinkgoT().TempDir()
+	return tmp
 }
 
 // GetGogsHTTPSURL returns the mapped HTTPS base URL for a running gogs container.
