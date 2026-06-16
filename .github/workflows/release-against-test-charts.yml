@@ -53,12 +53,12 @@ jobs:
     steps:
       - name: Set environment variables
         id: compute_env
+        env:
+          INPUT_CHARTS_BASE_BRANCH: ${{ inputs.charts_base_branch }}
+          INPUT_CHARTS_REPO: ${{ inputs.charts_repo }}
         run: |
-          tmp=${{github.event.inputs.charts_base_branch}}
-          charts_base_branch=${tmp:-'dev-v2.14'}
-
-          tmp=${{github.event.inputs.charts_repo}}
-          charts_repo=${tmp:-fleetrepoci/charts}
+          charts_base_branch="${INPUT_CHARTS_BASE_BRANCH:-dev-v2.14}"
+          charts_repo="${INPUT_CHARTS_REPO:-fleetrepoci/charts}"
 
           echo "charts_base_branch=$charts_base_branch" >> "$GITHUB_OUTPUT"
           echo "charts_repo=$charts_repo" >> "$GITHUB_OUTPUT"
@@ -131,19 +131,24 @@ jobs:
 
       - name: Compute target branch name
         id: compute_target_branch
+        env:
+          INPUT_CHARTS_TARGET_BRANCH: ${{ inputs.charts_target_branch }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          BASE_BRANCH: ${{ steps.compute_env.outputs.charts_base_branch }}
         run: |
-          target_branch_name=${{github.event.inputs.charts_target_branch}}
+          target_branch_name="${INPUT_CHARTS_TARGET_BRANCH:-}"
 
-          if [ ${{github.event_name}} = 'pull_request' ]; then
-            target_branch_name=${{github.event.pull_request.head.ref}}
-          elif [ -z ${{github.event.inputs.charts_target_branch}} ]; then
-            target_branch_name=${{steps.compute_env.outputs.charts_base_branch}}-$(date +%Y%m%d%H%M%S)
+          if [ "$EVENT_NAME" = 'pull_request' ]; then
+            target_branch_name="$PR_HEAD_REF"
+          elif [ -z "$target_branch_name" ]; then
+            target_branch_name="$BASE_BRANCH-$(date +%Y%m%d%H%M%S)"
           fi
 
           # Append prefix if not present
           prefix='fleetci-'
-          if [ "${target_branch_name/$prefix/}" = $target_branch_name ]; then
-            target_branch_name=$prefix$target_branch_name
+          if [[ "$target_branch_name" != "$prefix"* ]]; then
+            target_branch_name="$prefix$target_branch_name"
           fi
 
           echo "target_branch=$target_branch_name" >> "$GITHUB_OUTPUT"
