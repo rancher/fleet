@@ -1,6 +1,7 @@
 package manageagent
 
 import (
+	"fmt"
 	"maps"
 	"reflect"
 	"strings"
@@ -23,23 +24,40 @@ import (
 )
 
 func TestNewAgentBundle(t *testing.T) {
-	config.Set(&config.Config{AgentCheckinInterval: metav1.Duration{Duration: 0 * time.Second}})
-
-	// ensure leader election env is set so NewLeaderElectionOptionsWithPrefix doesn't error
-	t.Setenv("FLEET_AGENT_ELECTION_LEASE_DURATION", "15s")
-	t.Setenv("FLEET_AGENT_ELECTION_RENEW_DEADLINE", "10s")
-	t.Setenv("FLEET_AGENT_ELECTION_RETRY_PERIOD", "2s")
-
-	h := handler{systemNamespace: "blah"}
-	obj, err := h.newAgentBundle("foo", &fleet.Cluster{Spec: fleet.ClusterSpec{AgentNamespace: "bar"}})
-
-	if obj != nil {
-		t.Fatalf("expected obj returned by newAgentBundle to be nil")
+	testCases := []struct {
+		agentCheckInInterval time.Duration
+	}{
+		{
+			0 * time.Second,
+		},
+		{
+			-5 * time.Second,
+		},
 	}
 
-	expectedStr := "interval cannot be 0"
-	if !strings.Contains(err.Error(), expectedStr) {
-		t.Fatalf("expected error %q returned by newAgentBundle to contain %q", err, expectedStr)
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("agent check-in interval of %s", tc.agentCheckInInterval), func(t *testing.T) {
+			config.Set(&config.Config{
+				AgentCheckinInterval: metav1.Duration{Duration: tc.agentCheckInInterval},
+			})
+
+			// ensure leader election env is set so NewLeaderElectionOptionsWithPrefix doesn't error
+			t.Setenv("FLEET_AGENT_ELECTION_LEASE_DURATION", "15s")
+			t.Setenv("FLEET_AGENT_ELECTION_RENEW_DEADLINE", "10s")
+			t.Setenv("FLEET_AGENT_ELECTION_RETRY_PERIOD", "2s")
+
+			h := handler{systemNamespace: "blah"}
+			obj, err := h.newAgentBundle("foo", &fleet.Cluster{Spec: fleet.ClusterSpec{AgentNamespace: "bar"}})
+
+			if obj != nil {
+				t.Fatalf("expected obj returned by newAgentBundle to be nil")
+			}
+
+			expectedStr := "interval cannot be 0 or less"
+			if err == nil || !strings.Contains(err.Error(), expectedStr) {
+				t.Fatalf("expected error %v returned by newAgentBundle to contain %q", err, expectedStr)
+			}
+		})
 	}
 }
 
