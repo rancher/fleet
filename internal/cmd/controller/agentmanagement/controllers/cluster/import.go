@@ -357,8 +357,8 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 		apiServerCA  = secret.Data[config.APIServerCAKey]
 	)
 
-	if cfg.AgentCheckinInterval.Seconds() == 0 {
-		return status, errors.New("agent check-in interval cannot be 0")
+	if cfg.AgentCheckinInterval.Seconds() <= 0 {
+		return status, errors.New("agent check-in interval cannot be 0 or less")
 	}
 
 	if apiServerURL == "" {
