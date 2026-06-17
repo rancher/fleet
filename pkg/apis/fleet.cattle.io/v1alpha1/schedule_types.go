@@ -37,7 +37,11 @@ type ScheduleList struct {
 }
 
 type ScheduleSpec struct {
-	Schedule string          `json:"schedule,omitempty"`
+	Schedule string `json:"schedule,omitempty"`
+	// +kubebuilder:validation:Type=string
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=32
+	// +kubebuilder:validation:XValidation:rule="self == '0' || (self.matches('^([0-9]+([.][0-9]+)?(ns|us|µs|ms|s|m|h))+$') && duration(self) <= duration('2562047h'))",message="must be a valid Go duration using units ns, us, µs, ms, s, m, h (e.g. 15s, 5m, 2h, 1h30m); units like d (days) or w (weeks) are not supported"
 	Duration metav1.Duration `json:"duration,omitempty"`
 	Location string          `json:"location,omitempty"`
 	// Targets is a list of resources affected by this schedule

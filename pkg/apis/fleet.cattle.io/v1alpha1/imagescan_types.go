@@ -53,6 +53,10 @@ type ImageScanSpec struct {
 	// scans of the image repository.
 	// +nullable
 	// +required
+	// +kubebuilder:validation:Type=string
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=32
+	// +kubebuilder:validation:XValidation:rule="self == '0' || (self.matches('^([0-9]+([.][0-9]+)?(ns|us|µs|ms|s|m|h))+$') && duration(self) <= duration('2562047h'))",message="must be a valid Go duration using units ns, us, µs, ms, s, m, h (e.g. 15s, 5m, 2h, 1h30m); units like d (days) or w (weeks) are not supported"
 	Interval metav1.Duration `json:"interval,omitempty"`
 
 	// SecretRef can be given the name of a secret containing
