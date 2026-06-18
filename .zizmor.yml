@@ -1,0 +1,14 @@
+rules:
+  cache-poisoning:
+    ignore:
+      # Allow caching outside of the release process to have fast CI
+      # while ensuring reliability of the release action
+      - e2e-rancher-upgrade-fleet-to-head-ci.yml
+      - e2e-test-fleet-in-rancher.yml
+      - release-against-test-charts.yml
+  artipacked:
+    ignore:
+      # These release workflows perform authenticated git operations.
+      # Forcing checkout credential removal risks breaking release publishing.
+      - release-against-test-charts.yml
+      - release.yml

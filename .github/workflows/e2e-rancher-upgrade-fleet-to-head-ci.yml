@@ -16,6 +16,9 @@ on:
     paths-ignore:
       - '*.md'
 
+permissions:
+  contents: read
+
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
@@ -30,6 +33,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
+          persist-credentials: false
           ref: ${{ github.event.inputs.ref }}
       -
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
@@ -49,8 +53,10 @@ jobs:
             ${{ runner.os }}-crust-gather-
       -
         name: Install crust-gather CLI
+        env:
+          CACHE_HIT: ${{ steps.cache-crust.outputs.cache-hit }}
         run: |
-          if [ "${{ steps.cache-crust.outputs.cache-hit }}" != "true" ]; then
+          if [ "$CACHE_HIT" != "true" ]; then
             ./.github/scripts/install-crust-gather.sh
           else
             echo "Using cached crust-gather CLI"
@@ -142,8 +148,10 @@ jobs:
             ${{ runner.os }}-k3d-
       -
         name: Install k3d
+        env:
+          CACHE_HIT: ${{ steps.cache-k3d.outputs.cache-hit }}
         run: |
-          if [ "${{ steps.cache-k3d.outputs.cache-hit }}" != "true" ]; then
+          if [ "$CACHE_HIT" != "true" ]; then
             ./.github/scripts/install-k3d.sh
           else
             echo "Using cached k3d"
@@ -214,9 +222,12 @@ jobs:
           until kubectl get bundles -n fleet-default test-simple-simple-chart -o=jsonpath='{.status.conditions[?(@.type=="Ready")].status}' | grep -q "True"; do sleep 3; done
       -
         name: Deploy development fleet
+        env:
+          FLEET_TAGS: ${{ steps.meta-fleet.outputs.tags }}
+          FLEET_AGENT_TAGS: ${{ steps.meta-fleet-agent.outputs.tags }}
         run: |
-          echo "${{ steps.meta-fleet.outputs.tags }} ${{ steps.meta-fleet-agent.outputs.tags }}"
-          ./.github/scripts/upgrade-rancher-fleet-to-dev-fleet.sh ${{ steps.meta-fleet.outputs.tags }} ${{ steps.meta-fleet-agent.outputs.tags }}
+          echo "$FLEET_TAGS $FLEET_AGENT_TAGS"
+          ./.github/scripts/upgrade-rancher-fleet-to-dev-fleet.sh "$FLEET_TAGS" "$FLEET_AGENT_TAGS"
       -
         name: E2E tests for examples
         env:

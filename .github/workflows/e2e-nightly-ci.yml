@@ -21,6 +21,9 @@ on:
           - e2e-secrets
           - e2e-nosecrets
 
+permissions:
+  contents: read
+
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
@@ -48,6 +51,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
+          persist-credentials: false
       -
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
@@ -66,8 +70,10 @@ jobs:
             ${{ runner.os }}-crust-gather-
       -
         name: Install crust-gather CLI
+        env:
+          CACHE_HIT: ${{ steps.cache-crust.outputs.cache-hit }}
         run: |
-          if [ "${{ steps.cache-crust.outputs.cache-hit }}" != "true" ]; then
+          if [ "$CACHE_HIT" != "true" ]; then
             ./.github/scripts/install-crust-gather.sh
           else
             echo "Using cached crust-gather CLI"
@@ -98,8 +104,10 @@ jobs:
             ${{ runner.os }}-k3d-
       -
         name: Install k3d
+        env:
+          CACHE_HIT: ${{ steps.cache-k3d.outputs.cache-hit }}
         run: |
-          if [ "${{ steps.cache-k3d.outputs.cache-hit }}" != "true" ]; then
+          if [ "$CACHE_HIT" != "true" ]; then
             ./.github/scripts/install-k3d.sh
           else
             echo "Using cached k3d"
@@ -107,11 +115,13 @@ jobs:
           fi
       -
         name: Provision k3d Cluster
+        env:
+          K3S_VERSION: ${{ matrix.k3s_version }}
         run: |
           k3d cluster create upstream --wait \
             --agents 1 \
             --network "nw01" \
-            --image docker.io/rancher/k3s:${{matrix.k3s_version}} \
+            --image "docker.io/rancher/k3s:${K3S_VERSION}" \
             --k3s-arg "--cluster-init@server:0"
       -
         name: Import Images Into k3d
