@@ -21,6 +21,9 @@ on:
           - e2e-secrets
           - e2e-nosecrets
 
+permissions:
+  contents: read
+
 env:
   GOARCH: amd64
   CGO_ENABLED: 0

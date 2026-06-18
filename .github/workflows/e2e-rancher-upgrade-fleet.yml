@@ -35,6 +35,9 @@ on:
         required: true
         default: "v0.13.1"
 
+permissions:
+  contents: read
+
 env:
   GOARCH: amd64
   CGO_ENABLED: 0

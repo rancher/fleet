@@ -6,6 +6,9 @@ on:
     - cron: '0 8 */2 * *'
   pull_request:
 
+permissions:
+  contents: read
+
 env:
   GOARCH: amd64
   CGO_ENABLED: 0

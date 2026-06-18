@@ -22,6 +22,9 @@ on:
     paths-ignore:
       - '*.md'
 
+permissions:
+  contents: read
+
 env:
   GOARCH: amd64
   CGO_ENABLED: 0

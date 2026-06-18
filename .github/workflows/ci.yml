@@ -8,6 +8,9 @@ on:
     branches:
     - '*-hotfix-*'
 
+permissions:
+  contents: read
+
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
