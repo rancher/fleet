@@ -69,8 +69,10 @@ jobs:
             ${{ runner.os }}-k3d-
 
       - name: Install k3d
+        env:
+          CACHE_HIT: ${{ steps.cache-k3d.outputs.cache-hit }}
         run: |
-          if [ "${{ steps.cache-k3d.outputs.cache-hit }}" != "true" ]; then
+          if [ "$CACHE_HIT" != "true" ]; then
             ./.github/scripts/install-k3d.sh
           else
             echo "Using cached k3d"

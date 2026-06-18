@@ -103,18 +103,24 @@ jobs:
         run: go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.17.2
 
       - name: Run release script
+        env:
+          NEW_FLEET: ${{ steps.versions.outputs.new_fleet }}
+          NEW_CHART: ${{ steps.versions.outputs.new_chart }}
         run: |
           ./fleet/.github/scripts/release-against-rancher.sh \
-            "${{ steps.versions.outputs.new_fleet }}" \
-            "${{ steps.versions.outputs.new_chart }}"
+            "$NEW_FLEET" \
+            "$NEW_CHART"
 
       - name: Create Pull Request
         env:
           GITHUB_TOKEN: ${{ secrets.PUSH_TO_FORKS_SUBMIT_PRS }}
+          RANCHER_REF: ${{ steps.versions.outputs.rancher_ref }}
+          NEW_FLEET: ${{ steps.versions.outputs.new_fleet }}
+          NEW_CHART: ${{ steps.versions.outputs.new_chart }}
         working-directory: ./rancher/
         run: |
           ../fleet/.github/scripts/create-pr.sh \
-            "${{ steps.versions.outputs.rancher_ref }}" \
-            "${{ steps.versions.outputs.new_fleet }}" \
-            "${{ steps.versions.outputs.new_chart }}" \
+            "$RANCHER_REF" \
+            "$NEW_FLEET" \
+            "$NEW_CHART" \
             rancher

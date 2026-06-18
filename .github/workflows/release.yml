@@ -225,8 +225,9 @@ jobs:
         if: ${{ env.IS_HOTFIX == 'false' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GORELEASER_METADATA: ${{ steps.goreleaser.outputs.metadata }}
         run: |
-          version=$(jq -r '.version' <<< '${{ steps.goreleaser.outputs.metadata }}')
+          version=$(jq -r '.version' <<< "$GORELEASER_METADATA")
           branch_version=v$(cut -d'.' -f1,2 <<< "$version")
           charts_branch=charts/$branch_version
 

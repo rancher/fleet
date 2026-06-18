@@ -81,8 +81,10 @@ jobs:
             ${{ runner.os }}-crust-gather-
       -
         name: Install crust-gather CLI
+        env:
+          CACHE_HIT: ${{ steps.cache-crust.outputs.cache-hit }}
         run: |
-          if [ "${{ steps.cache-crust.outputs.cache-hit }}" != "true" ]; then
+          if [ "$CACHE_HIT" != "true" ]; then
             ./fleet/.github/scripts/install-crust-gather.sh
           else
             echo "Using cached crust-gather CLI"
@@ -109,9 +111,11 @@ jobs:
 
       -
         name: Install Dependencies
+        env:
+          DEPS_CACHE_HIT: ${{ steps.deps-cache.outputs.cache-hit }}
         run: |
           mkdir -p ~/.local/bin
-          if [ "${{ steps.deps-cache.outputs.cache-hit }}" != "true" ]; then
+          if [ "$DEPS_CACHE_HIT" != "true" ]; then
             KUBECTL_VERSION="v1.36.0"
             KUBECTL_SUM_amd64="123d8c8844f46b1244c547fffb3c17180c0c26dac9890589fe7e67763298748e"
             curl -sSfL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl" -o kubectl
@@ -152,8 +156,10 @@ jobs:
             ${{ runner.os }}-k3d-
       -
         name: Install k3d
+        env:
+          CACHE_HIT: ${{ steps.cache-k3d.outputs.cache-hit }}
         run: |
-          if [ "${{ steps.cache-k3d.outputs.cache-hit }}" != "true" ]; then
+          if [ "$CACHE_HIT" != "true" ]; then
             ./fleet/.github/scripts/install-k3d.sh
           else
             echo "Using cached k3d"
@@ -190,11 +196,14 @@ jobs:
 
       -
         name: Set up latest Rancher
+        env:
+          CHARTS_REPO: ${{ needs.release-against-test-charts.outputs.charts_repo }}
+          CHARTS_BRANCH: ${{ needs.release-against-test-charts.outputs.target_branch }}
         run: |
           set -x
 
-          charts_repo=${{ needs.release-against-test-charts.outputs.charts_repo }}
-          charts_branch=${{ needs.release-against-test-charts.outputs.target_branch }}
+          charts_repo="$CHARTS_REPO"
+          charts_branch="$CHARTS_BRANCH"
           fleet_version=999.9.9+up9.9.9
 
           kubectl config use-context k3d-upstream
@@ -264,9 +273,11 @@ jobs:
 
       -
         name: Rancher Provisioning Tests
+        env:
+          K8S_VERSION: ${{ env.SETUP_K3S_VERSION }}
         run: |
           cd rancher
-          k8s_version=${{ env.SETUP_K3S_VERSION }}
+          k8s_version="$K8S_VERSION"
           export SOME_K8S_VERSION=${k8s_version/-/+}
           go test -v -count=1 ./tests/v2prov/tests/fleet
 

@@ -157,6 +157,9 @@ jobs:
           echo "target_branch=$target_branch_name" >> "$GITHUB_OUTPUT"
 
       - name: Set up test charts repo with latest upstream state
+        env:
+          TARGET_BRANCH: ${{steps.compute_target_branch.outputs.target_branch}}
+          BASE_BRANCH: ${{steps.compute_env.outputs.charts_base_branch}}
         run: |
           cd charts
           # Add upstream remote and fetch from it
@@ -164,13 +167,13 @@ jobs:
           git remote rename origin fleetoci
           git remote add -f origin https://github.com/rancher/charts
 
-          target_branch=${{steps.compute_target_branch.outputs.target_branch}}
-          base_branch=${{steps.compute_env.outputs.charts_base_branch}}
+          target_branch="$TARGET_BRANCH"
+          base_branch="$BASE_BRANCH"
 
-          git checkout -b $target_branch origin/$base_branch
+          git checkout -b "$target_branch" "origin/$base_branch"
           if [ $? -eq 128 ]; then # branch already exists
-            git checkout $target_branch
-            git rebase origin/$base_branch
+            git checkout "$target_branch"
+            git rebase "origin/$base_branch"
           fi
 
       - name: Install dependencies
@@ -180,6 +183,8 @@ jobs:
           sudo snap install yq --channel=v4/stable
 
       - name: Run release script
+        env:
+          UUID: ${{ steps.uuid.outputs.uuid }}
         run: |
           fleet_test_version=9.9.9
 
@@ -188,13 +193,15 @@ jobs:
           latest_fleet="${latest_fleet_rancher_version#*+up}"
 
           ./fleet/.github/scripts/release-against-test-charts.sh \
-            $latest_fleet \
-            $fleet_test_version \
-            $latest_chart \
-            999.9.9 \
-            ${{ steps.uuid.outputs.uuid }}
+            "$latest_fleet" \
+            "$fleet_test_version" \
+            "$latest_chart" \
+            "999.9.9" \
+            "$UUID"
 
       - name: Push to custom branch
+        env:
+          TARGET_BRANCH: ${{ steps.compute_target_branch.outputs.target_branch }}
         run: |
           cd charts
-          git push -u fleetoci ${{ steps.compute_target_branch.outputs.target_branch }}
+          git push -u fleetoci "$TARGET_BRANCH"
