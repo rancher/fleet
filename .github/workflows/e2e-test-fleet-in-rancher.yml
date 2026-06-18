@@ -36,7 +36,8 @@ jobs:
     with:
       charts_repo: ${{ github.event.inputs.charts_repo }}
       charts_base_branch: ${{ github.event.inputs.charts_branch }}
-    secrets: inherit # needed to enable access to repo secrets from the called workflow
+    secrets:
+      CI_PUSH_TO_FLEETREPOCI: ${{ secrets.CI_PUSH_TO_FLEETREPOCI }}
 
   rancher-integration:
     runs-on: ubuntu-latest
