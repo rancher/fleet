@@ -1,0 +1,8 @@
+rules:
+  cache-poisoning:
+    ignore:
+      # Allow caching outside of the release process to have fast CI
+      # while ensuring reliability of the release action
+      - e2e-rancher-upgrade-fleet-to-head-ci.yml
+      - e2e-test-fleet-in-rancher.yml
+      - release-against-test-charts.yml
