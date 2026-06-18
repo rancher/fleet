@@ -87,7 +87,7 @@ var _ = Describe("Fleet dump", Label("sharding"), func() {
 					continue
 				}
 
-				Expect(fileName).To(HaveLen(2))
+				Expect(fileName).To(HaveLen(3), "metrics file name should have format metrics_<namespace>_<servicename>")
 				Expect(content).ToNot(BeEmpty())
 
 				// Run a few basic checks on expected strings, checking full contents would be cumbersome
@@ -97,11 +97,12 @@ var _ = Describe("Fleet dump", Label("sharding"), func() {
 				Expect(c).To(ContainSubstring("controller_runtime_reconcile_total"))
 
 				exampleMonitoredRsc := "bundle"
-				if strings.Contains(fileName[1], "gitjob") {
+				if strings.Contains(fileName[2], "gitjob") {
 					exampleMonitoredRsc = "gitrepo"
-				} else if !strings.Contains(fileName[1], "shard") {
+				} else if !strings.Contains(fileName[2], "shard") {
 					// Check for fleet_*_desired_ready metrics on non-sharded services
-					Expect(c).To(ContainSubstring(fmt.Sprintf("fleet_%s_desired_ready", exampleMonitoredRsc)))
+					expectedStr := fmt.Sprintf("fleet_%s_desired_ready", exampleMonitoredRsc)
+					Expect(c).To(ContainSubstring(expectedStr), fmt.Sprintf("expected file %q to contain %q", header.Name, expectedStr))
 				}
 
 				Expect(c).To(ContainSubstring(fmt.Sprintf(`workqueue_work_duration_seconds_bucket{controller="%s",name="%s",`, exampleMonitoredRsc, exampleMonitoredRsc)))
@@ -110,14 +111,14 @@ var _ = Describe("Fleet dump", Label("sharding"), func() {
 			}
 
 			Expect(foundFiles).To(HaveLen(8))
-			Expect(foundFiles).To(ContainElement("metrics_monitoring-gitjob"))
-			Expect(foundFiles).To(ContainElement("metrics_monitoring-gitjob-shard-shard0"))
-			Expect(foundFiles).To(ContainElement("metrics_monitoring-gitjob-shard-shard1"))
-			Expect(foundFiles).To(ContainElement("metrics_monitoring-gitjob-shard-shard2"))
-			Expect(foundFiles).To(ContainElement("metrics_monitoring-fleet-controller"))
-			Expect(foundFiles).To(ContainElement("metrics_monitoring-fleet-controller-shard-shard0"))
-			Expect(foundFiles).To(ContainElement("metrics_monitoring-fleet-controller-shard-shard1"))
-			Expect(foundFiles).To(ContainElement("metrics_monitoring-fleet-controller-shard-shard2"))
+			Expect(foundFiles).To(ContainElement("metrics_cattle-fleet-system_monitoring-gitjob"))
+			Expect(foundFiles).To(ContainElement("metrics_cattle-fleet-system_monitoring-gitjob-shard-shard0"))
+			Expect(foundFiles).To(ContainElement("metrics_cattle-fleet-system_monitoring-gitjob-shard-shard1"))
+			Expect(foundFiles).To(ContainElement("metrics_cattle-fleet-system_monitoring-gitjob-shard-shard2"))
+			Expect(foundFiles).To(ContainElement("metrics_cattle-fleet-system_monitoring-fleet-controller"))
+			Expect(foundFiles).To(ContainElement("metrics_cattle-fleet-system_monitoring-fleet-controller-shard-shard0"))
+			Expect(foundFiles).To(ContainElement("metrics_cattle-fleet-system_monitoring-fleet-controller-shard-shard1"))
+			Expect(foundFiles).To(ContainElement("metrics_cattle-fleet-system_monitoring-fleet-controller-shard-shard2"))
 		})
 	})
 
