@@ -110,11 +110,13 @@ jobs:
           fi
       -
         name: Provision k3d Cluster
+        env:
+          K3S_VERSION: ${{ matrix.k3s_version }}
         run: |
           k3d cluster create upstream --wait \
             --agents 1 \
             --network "nw01" \
-            --image docker.io/rancher/k3s:${{matrix.k3s_version}} \
+            --image "docker.io/rancher/k3s:${K3S_VERSION}" \
             --k3s-arg "--cluster-init@server:0"
       -
         name: Import Images Into k3d
