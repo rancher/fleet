@@ -45,7 +45,7 @@ require (
 	github.com/go-logr/logr v1.4.3
 	github.com/gogits/go-gogs-client v0.0.0-20210131175652-1d7215cd8d85
 	github.com/moby/moby/api v1.54.2
-	github.com/onsi/ginkgo/v2 v2.29.0
+	github.com/onsi/ginkgo/v2 v2.30.0
 	github.com/onsi/gomega v1.41.0
 	github.com/otiai10/copy v1.14.1
 	github.com/rancher/fleet v0.0.0-00010101000000-000000000000
