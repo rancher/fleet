@@ -18,7 +18,7 @@ env:
   RELEASE_TAG: ${{ github.ref_name }}
 
 jobs:
-  build-fleet:
+  release-fleet:
     runs-on: runs-on,runner=8cpu-linux-x64,mem=16,run-id=${{ github.run_id }}
 
     env:
@@ -280,3 +280,66 @@ jobs:
         run: gh release edit "${RELEASE_TAG}" --draft=false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  dispatch-charts-bump:
+    permissions:
+      contents: read
+      id-token: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: release-fleet
+    # Skip hotfix releases; they follow a separate process.
+    if: github.repository == 'rancher/fleet' && !contains(github.ref, '-hotfix-')
+    steps:
+      - name: Read App Secrets
+        uses: rancher-eio/read-vault-secrets@0da85151ad1f19ed7986c41587e45aac1ace74b6 # v3
+        with:
+          secrets: |
+            secret/data/github/repo/${{ github.repository }}/github/workflow-dispatcher/app-credentials appId | APP_ID ;
+            secret/data/github/repo/${{ github.repository }}/github/workflow-dispatcher/app-credentials privateKey | PRIVATE_KEY
+
+      - name: Create App Token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        id: app-token
+        with:
+          app-id: ${{ env.APP_ID }}
+          private-key: ${{ env.PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: |
+            charts
+            fleet-helm-charts
+          permission-actions: write
+
+      - name: Dispatch to rancher/charts
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          FLEET_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [[ "$FLEET_TAG" =~ ^v([0-9]+)\.([0-9]+)([.-].*)?$ ]]; then
+            fleet_minor="${BASH_REMATCH[2]}"
+          else
+            echo "Error: unexpected Fleet tag format '${FLEET_TAG}'. Expected tags starting with v<major>.<minor>." >&2
+            exit 1
+          fi
+          if (( fleet_minor < 1 )); then
+            echo "Error: Fleet tag '${FLEET_TAG}' has minor version ${fleet_minor}; cannot derive a valid rancher/charts target branch." >&2
+            exit 1
+          fi
+          rancher_minor=$((fleet_minor - 1))
+          target_branch="dev-v2.${rancher_minor}"
+          echo "Dispatching auto-bump for Fleet ${FLEET_TAG} to rancher/charts branch ${target_branch}"
+          gh workflow run "Manual Trigger for Auto Bump" \
+            --repo rancher/charts \
+            --ref "$target_branch" \
+            -F chart=fleet \
+            -F branch="$target_branch" \
+            -F multi-rc=true
+
+      - name: Dispatch to rancher/fleet-helm-charts
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          set -euo pipefail
+          gh workflow run sync-fleet-releases.yml \
+            --repo rancher/fleet-helm-charts
