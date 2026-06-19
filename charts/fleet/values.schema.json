@@ -1,0 +1,75 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Fleet controller chart values",
+  "type": "object",
+  "definitions": {
+    "goDuration": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^(0|([0-9]+([.][0-9]+)?(ns|us|µs|ms|s|m|h))+)$"
+        },
+        {
+          "type": "integer",
+          "enum": [0]
+        }
+      ],
+      "description": "A Go duration string. Valid units: ns, us, µs, ms, s, m, h (e.g. 15s, 5m, 2h, 1h30m). Units like d (days) or w (weeks) are NOT supported by Go's time.ParseDuration and will be dropped; use 0 to fall back to the built-in default."
+    }
+  },
+  "properties": {
+    "agentCheckinInterval": {
+      "$ref": "#/definitions/goDuration"
+    },
+    "garbageCollectionInterval": {
+      "$ref": "#/definitions/goDuration"
+    },
+    "gitClientTimeout": {
+      "$ref": "#/definitions/goDuration"
+    },
+    "clusterEnqueueDelay": {
+      "$ref": "#/definitions/goDuration"
+    },
+    "gitops": {
+      "type": "object",
+      "properties": {
+        "syncPeriod": {
+          "$ref": "#/definitions/goDuration"
+        }
+      }
+    },
+    "leaderElection": {
+      "type": "object",
+      "properties": {
+        "leaseDuration": {
+          "$ref": "#/definitions/goDuration"
+        },
+        "retryPeriod": {
+          "$ref": "#/definitions/goDuration"
+        },
+        "renewDeadline": {
+          "$ref": "#/definitions/goDuration"
+        }
+      }
+    },
+    "agent": {
+      "type": "object",
+      "properties": {
+        "leaderElection": {
+          "type": "object",
+          "properties": {
+            "leaseDuration": {
+              "$ref": "#/definitions/goDuration"
+            },
+            "retryPeriod": {
+              "$ref": "#/definitions/goDuration"
+            },
+            "renewDeadline": {
+              "$ref": "#/definitions/goDuration"
+            }
+          }
+        }
+      }
+    }
+  }
+}
