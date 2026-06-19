@@ -292,7 +292,9 @@ jobs:
           app-id: ${{ env.APP_ID }}
           private-key: ${{ env.PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
-          repositories: charts
+          repositories: |
+            charts
+            fleet-helm-charts
           permission-actions: write
 
       - name: Dispatch to rancher/charts
@@ -320,3 +322,11 @@ jobs:
             -F chart=fleet \
             -F branch="$target_branch" \
             -F multi-rc=true
+
+      - name: Dispatch to rancher/fleet-helm-charts
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          set -euo pipefail
+          gh workflow run sync-fleet-releases.yml \
+            --repo rancher/fleet-helm-charts
