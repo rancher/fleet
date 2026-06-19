@@ -16,7 +16,7 @@ env:
   RELEASE_TAG: ${{ github.ref_name }}
 
 jobs:
-  build-fleet:
+  release-fleet:
     runs-on: runs-on,runner=8cpu-linux-x64,mem=16,run-id=${{ github.run_id }}
     permissions:
       contents: write
@@ -274,7 +274,7 @@ jobs:
       id-token: write
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    needs: build-fleet
+    needs: release-fleet
     # Skip hotfix releases; they follow a separate process.
     if: github.repository == 'rancher/fleet' && !contains(github.ref, '-hotfix-')
     steps:
