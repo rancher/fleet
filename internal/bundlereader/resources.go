@@ -214,6 +214,7 @@ func mergeGenericMap(first, second *fleet.GenericMap) *fleet.GenericMap {
 // For every chart that is not on disk, create a directory struct that contains the charts URL as path.
 // This adds one directory per HelmOption.
 func addRemoteCharts(ctx context.Context, directories []directory, base string, charts []*fleet.HelmOptions, auth Auth, helmRepoURLRegex string) ([]directory, error) {
+	warnedOnce := false
 	for _, chart := range charts {
 		if _, err := os.Stat(filepath.Join(base, chart.Chart)); os.IsNotExist(err) || chart.Repo != "" {
 			shouldAddAuthToRequest, err := shouldAddAuthToRequest(helmRepoURLRegex, chart.Repo, chart.Chart)
@@ -222,6 +223,10 @@ func addRemoteCharts(ctx context.Context, directories []directory, base string, 
 			}
 			auth := auth // loop-scoped variable
 			if !shouldAddAuthToRequest {
+				if !warnedOnce && helmRepoURLRegex == "" && (auth.Username != "" || auth.Password != "" || len(auth.SSHPrivateKey) > 0) {
+					logrus.Warn("helmRepoURLRegex is empty: Helm credentials will not be forwarded to any repository; set spec.helmRepoURLRegex to enable credential forwarding")
+					warnedOnce = true
+				}
 				// Only clear credentials; preserve transport settings (BasicHTTP, CABundle, InsecureSkipVerify)
 				auth.Username = ""
 				auth.Password = ""
