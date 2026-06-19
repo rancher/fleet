@@ -379,9 +379,11 @@ func TestCloneRepo_CloneError(t *testing.T) {
 }
 
 // initTestRepoWithCommit returns a real go-git repo containing a single
-// commit, plus the commit hash. cloneRevision uses ResolveRevision and
-// Worktree on the value returned from plainClone, so the mock must hand back
-// a populated *git.Repository rather than an empty stub.
+// commit, plus the commit hash. A populated *git.Repository is required
+// because the full-clone fallback (fullCloneRevision) calls ResolveRevision
+// and Worktree on the value returned from plainClone, and because
+// TestCloneCommitShallow_Body fetches from it as a source repository; an
+// empty stub would not satisfy either.
 func initTestRepoWithCommit(t *testing.T) (*git.Repository, plumbing.Hash) {
 	t.Helper()
 	tempDir := t.TempDir()
