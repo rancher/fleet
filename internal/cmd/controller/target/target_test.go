@@ -2,6 +2,7 @@ package target
 
 import (
 	"bytes"
+	"maps"
 	"testing"
 
 	"github.com/pkg/errors"
@@ -10,6 +11,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const bundleYaml = `namespace: default
@@ -392,6 +394,127 @@ func TestProcessTemplateValues(t *testing.T) {
 
 	if twoListData["nested"] != "true" {
 		t.Fatal("twoListData item is missing")
+	}
+}
+
+func TestMergeTargetNamespaceMetadata(t *testing.T) {
+	base := v1alpha1.BundleDeploymentOptions{
+		NamespaceLabels:      map[string]string{"base": "keep"},
+		NamespaceAnnotations: map[string]string{"base-ann": "keep"},
+	}
+	target := v1alpha1.BundleTarget{
+		NamespaceLabels: map[string]string{
+			"region": "eu-west",
+			"base":   "override",
+		},
+		NamespaceAnnotations: map[string]string{
+			"team": "platform",
+		},
+	}
+
+	got := mergeTargetNamespaceMetadata(base, target)
+
+	if got.NamespaceLabels["region"] != "eu-west" {
+		t.Fatalf("expected matched namespace label to be merged, got %v", got.NamespaceLabels)
+	}
+	if got.NamespaceLabels["base"] != "override" {
+		t.Fatalf("expected matched namespace label to override base value, got %v", got.NamespaceLabels)
+	}
+	if got.NamespaceAnnotations["team"] != "platform" {
+		t.Fatalf("expected matched namespace annotation to be merged, got %v", got.NamespaceAnnotations)
+	}
+
+	// Pure function: inputs must not be modified.
+	if !maps.Equal(base.NamespaceLabels, map[string]string{"base": "keep"}) {
+		t.Fatalf("base namespace labels were modified: %v", base.NamespaceLabels)
+	}
+	if !maps.Equal(base.NamespaceAnnotations, map[string]string{"base-ann": "keep"}) {
+		t.Fatalf("base namespace annotations were modified: %v", base.NamespaceAnnotations)
+	}
+}
+
+func TestBundleDeployment_DoesNotApplyUnmatchedNamespaceMetadata(t *testing.T) {
+	target := &Target{
+		Cluster: &v1alpha1.Cluster{
+			Status: v1alpha1.ClusterStatus{
+				Namespace: "cluster-one-ns",
+			},
+		},
+		Bundle: &v1alpha1.Bundle{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "bundle",
+				Namespace: "fleet-default",
+			},
+			Spec: v1alpha1.BundleSpec{
+				Targets: []v1alpha1.BundleTarget{
+					{
+						Name: "cluster-one",
+						NamespaceLabels: map[string]string{
+							"env": "prod",
+						},
+						NamespaceAnnotations: map[string]string{
+							"team": "app",
+						},
+					},
+					{
+						Name: "cluster-two",
+						NamespaceLabels: map[string]string{
+							"env": "staging",
+						},
+						NamespaceAnnotations: map[string]string{
+							"team": "ops",
+						},
+					},
+				},
+			},
+		},
+		Deployment: &v1alpha1.BundleDeployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "bundle",
+				Namespace: "cluster-one-ns",
+			},
+			Spec: v1alpha1.BundleDeploymentSpec{
+				Options: v1alpha1.BundleDeploymentOptions{
+					NamespaceLabels: map[string]string{
+						"env": "prod",
+					},
+					NamespaceAnnotations: map[string]string{
+						"team": "app",
+					},
+				},
+				StagedOptions: v1alpha1.BundleDeploymentOptions{
+					NamespaceLabels: map[string]string{
+						"env": "prod",
+					},
+					NamespaceAnnotations: map[string]string{
+						"team": "app",
+					},
+				},
+			},
+		},
+		Options: v1alpha1.BundleDeploymentOptions{
+			NamespaceLabels: map[string]string{
+				"env": "prod",
+			},
+			NamespaceAnnotations: map[string]string{
+				"team": "app",
+			},
+		},
+	}
+
+	got := target.BundleDeployment()
+
+	if got.Spec.Options.NamespaceLabels["env"] != "prod" {
+		t.Fatalf("expected matched namespace label to be preserved, got %v", got.Spec.Options.NamespaceLabels)
+	}
+	if len(got.Spec.Options.NamespaceLabels) != 1 {
+		t.Fatalf("expected unmatched namespace labels to be excluded, got %v", got.Spec.Options.NamespaceLabels)
+	}
+	if got.Spec.Options.NamespaceAnnotations["team"] != "app" {
+		t.Fatalf("expected matched namespace annotation to be preserved, got %v", got.Spec.Options.NamespaceAnnotations)
+	}
+	if len(got.Spec.Options.NamespaceAnnotations) != 1 {
+		t.Fatalf("expected unmatched namespace annotations to be excluded, got %v", got.Spec.Options.NamespaceAnnotations)
 	}
 }
 
