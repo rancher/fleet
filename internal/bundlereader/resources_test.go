@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/sirupsen/logrus"
+
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	"github.com/stretchr/testify/assert"
@@ -205,4 +207,75 @@ func TestAddRemoteChartsStripsCredentials(t *testing.T) {
 	assert.Nil(t, got.SSHPrivateKey, "SSHPrivateKey must be stripped when helmRepoURLRegex is empty")
 	assert.True(t, got.BasicHTTP, "BasicHTTP must be preserved when stripping credentials")
 	assert.True(t, got.InsecureSkipVerify, "InsecureSkipVerify must be preserved when stripping credentials")
+}
+
+func TestAddRemoteChartsWarnsMissingRegex(t *testing.T) {
+	remoteChart := []*fleet.HelmOptions{{Chart: "/nonexistent/chart"}}
+
+	tests := []struct {
+		name        string
+		charts      []*fleet.HelmOptions
+		auth        Auth
+		regex       string
+		wantWarning bool
+	}{
+		{
+			name:        "credentials set, regex empty — warn",
+			charts:      remoteChart,
+			auth:        Auth{Username: "user", Password: "secret"},
+			regex:       "",
+			wantWarning: true,
+		},
+		{
+			name:        "SSH key set, regex empty — warn",
+			charts:      remoteChart,
+			auth:        Auth{SSHPrivateKey: []byte("key")},
+			regex:       "",
+			wantWarning: true,
+		},
+		{
+			name:        "no credentials, regex empty — no warn",
+			charts:      remoteChart,
+			auth:        Auth{BasicHTTP: true},
+			regex:       "",
+			wantWarning: false,
+		},
+		{
+			name:        "credentials set, regex provided — no warn",
+			charts:      remoteChart,
+			auth:        Auth{Username: "user", Password: "secret"},
+			regex:       "https://charts\\.example\\.com.*",
+			wantWarning: false,
+		},
+		{
+			name:        "credentials set, regex empty, no charts — no warn",
+			charts:      nil,
+			auth:        Auth{Username: "user", Password: "secret"},
+			regex:       "",
+			wantWarning: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			oldOut := logrus.StandardLogger().Out
+			oldLevel := logrus.GetLevel()
+			logrus.SetOutput(&buf)
+			logrus.SetLevel(logrus.WarnLevel)
+			t.Cleanup(func() {
+				logrus.SetOutput(oldOut)
+				logrus.SetLevel(oldLevel)
+			})
+
+			_, err := addRemoteCharts(nil, t.TempDir(), tt.charts, tt.auth, tt.regex)
+			require.NoError(t, err)
+
+			if tt.wantWarning {
+				assert.Contains(t, buf.String(), "helmRepoURLRegex")
+			} else {
+				assert.NotContains(t, buf.String(), "helmRepoURLRegex")
+			}
+		})
+	}
 }
