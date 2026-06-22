@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 
@@ -206,6 +207,7 @@ func mergeGenericMap(first, second *fleet.GenericMap) *fleet.GenericMap {
 // For every chart that is not on disk, create a directory struct that contains the charts URL as path.
 // This adds one directory per HelmOption.
 func addRemoteCharts(directories []directory, base string, charts []*fleet.HelmOptions, auth Auth, helmRepoURLRegex string) ([]directory, error) {
+	warnedOnce := false
 	for _, chart := range charts {
 		if _, err := os.Stat(filepath.Join(base, chart.Chart)); os.IsNotExist(err) || chart.Repo != "" {
 			auth := auth
@@ -214,6 +216,10 @@ func addRemoteCharts(directories []directory, base string, charts []*fleet.HelmO
 				return nil, fmt.Errorf("failed to add auth to request for %s: %w", downloadChartError(*chart), err)
 			}
 			if !shouldAddAuthToRequest {
+				if !warnedOnce && helmRepoURLRegex == "" && (auth.Username != "" || auth.Password != "" || len(auth.SSHPrivateKey) > 0) {
+					logrus.Warn("helmRepoURLRegex is empty: Helm credentials will not be forwarded to any repository; set spec.helmRepoURLRegex to enable credential forwarding")
+					warnedOnce = true
+				}
 				// Only clear credentials; preserve transport settings (BasicHTTP, CABundle, InsecureSkipVerify)
 				auth.Username = ""
 				auth.Password = ""
