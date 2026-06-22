@@ -1,9 +1,0 @@
-go 1.25.8
-
-use (
-	.
-	./integrationtests
-	./pkg/apis
-)
-
-replace github.com/imdario/mergo => dario.cat/mergo v1.0.2
