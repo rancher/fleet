@@ -803,7 +803,6 @@ func (r *BundleReconciler) cloneSecret(
 	result, err := controllerutil.CreateOrUpdate(ctx, r.Client, targetSecret, func() error {
 		targetSecret.Data = updated.Data
 		targetSecret.StringData = updated.StringData
-		targetSecret.Type = updated.Type
 
 		return nil
 	})
