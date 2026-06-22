@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/protocol/packp/capability"
 	"github.com/go-git/go-git/v5/plumbing/transport"
@@ -24,6 +25,7 @@ const defaultBranch = "master"
 
 var (
 	plainClone                                 = git.PlainClone
+	cloneCommit                                = cloneCommitShallow
 	updateSubmodules                           = submodule.UpdateSubmodules
 	readFile                                   = os.ReadFile
 	fileStat                                   = os.Stat
@@ -81,45 +83,115 @@ func (c *Cloner) CloneRepo(opts *GitCloner) error {
 }
 
 func cloneBranch(opts *GitCloner, auth transport.AuthMethod, caBundle []byte) error {
-	r, err := plainClone(opts.Path, false, &git.CloneOptions{
+	r, err := shallowCloneRef(opts, auth, caBundle, plumbing.ReferenceName(opts.Branch))
+	if err != nil {
+		return fmt.Errorf("failed to clone main repo from branch %s: %w, skipping submodule clone", repo(opts), err)
+	}
+
+	return updateSubmodulesShallow(r, auth)
+}
+
+func cloneRevision(opts *GitCloner, auth transport.AuthMethod, caBundle []byte) error {
+	// A bare 40-hex revision resolves to the commit object (git ignores any
+	// ref with that name), so skip the tag/branch attempts and fetch the exact
+	// commit shallowly. The full-clone fallback covers the rare case where the
+	// 40-hex value is actually a ref pointing at some other commit.
+	if plumbing.IsHash(opts.Revision) {
+		if err := cloneCommit(opts, auth, caBundle); err == nil {
+			return nil
+		}
+		if err := resetDir(opts.Path); err != nil {
+			return fmt.Errorf("failed to reset clone dir for %s: %w", repo(opts), err)
+		}
+		return fullCloneRevision(opts, auth, caBundle)
+	}
+
+	if r, err := shallowCloneRef(opts, auth, caBundle, plumbing.NewTagReferenceName(opts.Revision)); err == nil {
+		return updateSubmodulesShallow(r, auth)
+	}
+	if err := resetDir(opts.Path); err != nil {
+		return fmt.Errorf("failed to reset clone dir for %s: %w", repo(opts), err)
+	}
+
+	if r, err := shallowCloneRef(opts, auth, caBundle, plumbing.NewBranchReferenceName(opts.Revision)); err == nil {
+		return updateSubmodulesShallow(r, auth)
+	}
+	if err := resetDir(opts.Path); err != nil {
+		return fmt.Errorf("failed to reset clone dir for %s: %w", repo(opts), err)
+	}
+
+	return fullCloneRevision(opts, auth, caBundle)
+}
+
+// shallowCloneRef performs a depth-1, single-branch clone pinned to ref. It
+// only owns the clone and leaves submodule handling to the caller, so the
+// revision path can fall through to the next strategy on error while the
+// branch path can wrap the error and update submodules on success.
+func shallowCloneRef(opts *GitCloner, auth transport.AuthMethod, caBundle []byte, ref plumbing.ReferenceName) (*git.Repository, error) {
+	return plainClone(opts.Path, false, &git.CloneOptions{
 		URL:               opts.Repo,
 		Depth:             1,
 		Auth:              auth,
 		InsecureSkipTLS:   opts.InsecureSkipTLS,
 		CABundle:          caBundle,
 		SingleBranch:      true,
-		ReferenceName:     plumbing.ReferenceName(opts.Branch),
+		ReferenceName:     ref,
 		RecurseSubmodules: git.NoRecurseSubmodules,
 		Tags:              git.NoTags,
 	})
-
-	if err != nil {
-		return fmt.Errorf("failed to clone main repo from branch %s: %w, skipping submodule clone", repo(opts), err)
-	}
-
-	submoduleUpdateOptions := &git.SubmoduleUpdateOptions{
-		Init:              true,
-		RecurseSubmodules: git.DefaultSubmoduleRecursionDepth,
-		Depth:             1,
-		Auth:              auth,
-	}
-
-	if err := updateSubmodules(r, submoduleUpdateOptions); err != nil {
-		return err
-	}
-
-	return nil
 }
 
-func cloneRevision(opts *GitCloner, auth transport.AuthMethod, caBundle []byte) error {
+// cloneCommitShallow fetches a single commit by SHA with depth 1, avoiding the
+// full-history clone that resolving an arbitrary commit would otherwise need.
+// It only succeeds when the server allows fetching an exact SHA
+// (uploadpack.allowReachableSHA1InWant / allowAnySHA1InWant); callers must fall
+// back to a full clone on error.
+func cloneCommitShallow(opts *GitCloner, auth transport.AuthMethod, caBundle []byte) error {
+	r, err := git.PlainInit(opts.Path, false)
+	if err != nil {
+		return err
+	}
+	if _, err := r.CreateRemote(&config.RemoteConfig{
+		Name: git.DefaultRemoteName,
+		URLs: []string{opts.Repo},
+	}); err != nil {
+		return err
+	}
+	// Store the fetched commit under a normal local ref, matching the SHA-fetch
+	// strategies in submodule/strategy. The checkout below reads the object by
+	// hash, so the destination ref name itself is irrelevant.
+	refSpec := config.RefSpec(opts.Revision + ":refs/heads/temp")
+	if err := r.Fetch(&git.FetchOptions{
+		RemoteName:      git.DefaultRemoteName,
+		Depth:           1,
+		RefSpecs:        []config.RefSpec{refSpec},
+		Auth:            auth,
+		InsecureSkipTLS: opts.InsecureSkipTLS,
+		CABundle:        caBundle,
+		Tags:            git.NoTags,
+	}); err != nil {
+		return err
+	}
+	w, err := r.Worktree()
+	if err != nil {
+		return err
+	}
+	if err := w.Checkout(&git.CheckoutOptions{Hash: plumbing.NewHash(opts.Revision)}); err != nil {
+		return err
+	}
+	return updateSubmodulesShallow(r, auth)
+}
+
+// fullCloneRevision clones the whole repository (all history and tags) and
+// resolves opts.Revision locally. This is the slowest path and is only used
+// when no cheaper strategy can satisfy the revision.
+func fullCloneRevision(opts *GitCloner, auth transport.AuthMethod, caBundle []byte) error {
 	r, err := plainClone(opts.Path, false, &git.CloneOptions{
 		URL:               opts.Repo,
-		Depth:             1,
 		Auth:              auth,
 		InsecureSkipTLS:   opts.InsecureSkipTLS,
 		CABundle:          caBundle,
 		RecurseSubmodules: git.NoRecurseSubmodules,
-		Tags:              git.NoTags,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to clone repo from revision %s: %w", repo(opts), err)
@@ -136,19 +208,27 @@ func cloneRevision(opts *GitCloner, auth transport.AuthMethod, caBundle []byte) 
 	if err := w.Checkout(&git.CheckoutOptions{Hash: *h}); err != nil {
 		return fmt.Errorf("failed to checkout in worktree %s: %w", repo(opts), err)
 	}
+	return updateSubmodulesShallow(r, auth)
+}
 
-	submoduleUpdateOptions := &git.SubmoduleUpdateOptions{
+// updateSubmodulesShallow recursively initializes and shallowly updates the
+// repository's submodules. It is shared by every clone path.
+func updateSubmodulesShallow(r *git.Repository, auth transport.AuthMethod) error {
+	return updateSubmodules(r, &git.SubmoduleUpdateOptions{
 		Init:              true,
 		RecurseSubmodules: git.DefaultSubmoduleRecursionDepth,
 		Depth:             1,
 		Auth:              auth,
-	}
+	})
+}
 
-	if err := updateSubmodules(r, submoduleUpdateOptions); err != nil {
+// resetDir clears the clone destination so a subsequent clone attempt starts
+// from a clean slate. go-git refuses to clone into a non-empty directory.
+func resetDir(path string) error {
+	if err := os.RemoveAll(path); err != nil {
 		return err
 	}
-
-	return nil
+	return os.MkdirAll(path, 0750)
 }
 
 func getCABundleFromFile(path string) ([]byte, error) {
