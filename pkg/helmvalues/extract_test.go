@@ -3,8 +3,8 @@ package helmvalues_test
 import (
 	"testing"
 
-	"github.com/rancher/fleet/pkg/helmvalues"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/helmvalues"
 )
 
 func TestExtractValues(t *testing.T) {
