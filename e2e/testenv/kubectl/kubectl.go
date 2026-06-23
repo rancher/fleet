@@ -85,13 +85,12 @@ func (c Command) Run(args ...string) (string, error) {
 	}
 
 	GinkgoWriter.Printf("kubectl %s\n", strings.Join(args, " "))
-	stdout, stderr, err := c.exec("kubectl", args...)
-	result := stdout + stderr
+	combined, _, _, err := c.exec("kubectl", args...)
 	if err != nil {
-		GinkgoWriter.Printf("result:%s err:%s\n", result, err)
+		GinkgoWriter.Printf("result:%s err:%s\n", combined, err)
 	}
 
-	return result, err
+	return combined, err
 }
 
 // RunStdout behaves like Run but returns stdout and stderr separately.
@@ -105,7 +104,7 @@ func (c Command) RunStdout(args ...string) (stdout, stderr string, err error) {
 	}
 
 	GinkgoWriter.Printf("kubectl %s\n", strings.Join(args, " "))
-	stdout, stderr, err = c.exec("kubectl", args...)
+	_, stdout, stderr, err = c.exec("kubectl", args...)
 	if err != nil {
 		GinkgoWriter.Printf("stdout:%s stderr:%s err:%s\n", stdout, stderr, err)
 	}
@@ -113,22 +112,22 @@ func (c Command) RunStdout(args ...string) (stdout, stderr string, err error) {
 	return stdout, stderr, err
 }
 
-func (c Command) exec(command string, args ...string) (string, string, error) {
+func (c Command) exec(command string, args ...string) (combined, stdout, stderr string, err error) {
 	cmd := exec.CommandContext(context.Background(), command, args...)
 
-	var outBuf, errBuf bytes.Buffer
+	var combinedBuf, outBuf, errBuf bytes.Buffer
 	if c.stdout {
-		cmd.Stdout = io.MultiWriter(os.Stdout, &outBuf)
-		cmd.Stderr = io.MultiWriter(os.Stderr, &errBuf)
+		cmd.Stdout = io.MultiWriter(os.Stdout, &combinedBuf, &outBuf)
+		cmd.Stderr = io.MultiWriter(os.Stderr, &combinedBuf, &errBuf)
 	} else {
-		cmd.Stdout = &outBuf
-		cmd.Stderr = &errBuf
+		cmd.Stdout = io.MultiWriter(&combinedBuf, &outBuf)
+		cmd.Stderr = io.MultiWriter(&combinedBuf, &errBuf)
 	}
 
 	if c.dir != "" {
 		cmd.Dir = c.dir
 	}
 
-	err := cmd.Run()
-	return outBuf.String(), errBuf.String(), err
+	err = cmd.Run()
+	return combinedBuf.String(), outBuf.String(), errBuf.String(), err
 }

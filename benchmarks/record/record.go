@@ -240,14 +240,16 @@ func getMetrics(res map[string]float64, url string, controllers ...string) {
 	)
 	Eventually(func() error {
 		pod := addRandomSuffix("curl")
+		defer func() {
+			_, _ = k.Run("delete", "pod", "--namespace", "cattle-fleet-system", pod, "--ignore-not-found")
+		}()
+
 		GinkgoWriter.Print("Fetching metrics from " + url + "\n")
 
 		// Create the pod without --attach to avoid kubectl's unreliable
 		// attach mechanism, which can duplicate output on fallback to logs.
 		_, _, err := k.RunStdout("run", "--restart=Never", pod, "--image=curlimages/curl", "--namespace", "cattle-fleet-system", "--command", "--", "curl", "-sf", url)
 		if err != nil {
-			// Pod may have been created despite the error; clean up.
-			_, _ = k.Run("delete", "pod", "--namespace", "cattle-fleet-system", pod, "--ignore-not-found")
 			return fmt.Errorf("kubectl run: %w", err)
 		}
 
@@ -256,19 +258,15 @@ func getMetrics(res map[string]float64, url string, controllers ...string) {
 		// timeout on a failed curl.
 		_, _, err = k.RunStdout("wait", "--for=condition=Ready=false", "--namespace", "cattle-fleet-system", "pod/"+pod, "--timeout=30s")
 		if err != nil {
-			_, _ = k.Run("delete", "pod", "--namespace", "cattle-fleet-system", pod, "--ignore-not-found")
 			return fmt.Errorf("waiting for pod: %w", err)
 		}
 
 		phase, _, _ := k.RunStdout("get", "pod", pod, "--namespace", "cattle-fleet-system", "-o", "jsonpath={.status.phase}")
 		if strings.TrimSpace(phase) != "Succeeded" {
-			_, _ = k.Run("delete", "pod", "--namespace", "cattle-fleet-system", pod, "--ignore-not-found")
 			return fmt.Errorf("curl pod %s finished with phase %s", pod, phase)
 		}
 
 		out, _, err := k.RunStdout("logs", "--namespace", "cattle-fleet-system", pod)
-		// Always clean up the pod.
-		_, _ = k.Run("delete", "pod", "--namespace", "cattle-fleet-system", pod, "--ignore-not-found")
 		if err != nil {
 			return err
 		}
