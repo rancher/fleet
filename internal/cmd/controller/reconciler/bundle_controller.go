@@ -20,7 +20,7 @@ import (
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
 	"github.com/rancher/fleet/internal/cmd/controller/target"
 	"github.com/rancher/fleet/internal/config"
-	"github.com/rancher/fleet/internal/helmvalues"
+	"github.com/rancher/fleet/pkg/helmvalues"
 	"github.com/rancher/fleet/internal/manifest"
 	"github.com/rancher/fleet/internal/metrics"
 	"github.com/rancher/fleet/internal/ocistorage"

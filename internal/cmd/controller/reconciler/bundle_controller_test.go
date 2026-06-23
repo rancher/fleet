@@ -15,7 +15,7 @@ import (
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	"github.com/rancher/fleet/internal/cmd/controller/reconciler"
 	"github.com/rancher/fleet/internal/cmd/controller/target"
-	"github.com/rancher/fleet/internal/helmvalues"
+	"github.com/rancher/fleet/pkg/helmvalues"
 	"github.com/rancher/fleet/internal/mocks"
 	fleetv1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/sharding"
