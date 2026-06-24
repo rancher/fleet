@@ -36,7 +36,7 @@ if [ -n "$shards_json" ]; then
   done
 fi
 
-helm -n cattle-fleet-system upgrade --install --create-namespace --wait --reset-values \
+helm -n cattle-fleet-system upgrade --install --create-namespace --wait=hookOnly --reset-values \
   --set apiServerCA="$ca" \
   --set apiServerURL="$server" \
   $shards_settings \
