@@ -64,7 +64,7 @@ var _ = Describe("BD secret / ValuesHash inconsistency deadlock", func() {
 	})
 
 	// createBundleWithValues builds a bundle that targets the test cluster with the given Helm values.
-	createBundleWithValues := func(name string, values map[string]interface{}) *fleet.Bundle {
+	createBundleWithValues := func(name string, values map[string]any) *fleet.Bundle {
 		b := &fleet.Bundle{
 			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: bundleNS},
 			Spec: fleet.BundleSpec{
@@ -151,7 +151,7 @@ var _ = Describe("BD secret / ValuesHash inconsistency deadlock", func() {
 	It("self-heals after the BD secret content diverges from ValuesHash", func() {
 		By("creating a bundle with Helm values so manageOptionsSecret writes a secret")
 		bundleName := "bdl-selfheal-" + testID
-		bundle = createBundleWithValues(bundleName, map[string]interface{}{"data": 8})
+		bundle = createBundleWithValues(bundleName, map[string]any{"data": 8})
 
 		By("waiting for the BD and its options secret to be created with a consistent hash")
 		bd := waitForBD(bundleName)
@@ -198,7 +198,7 @@ var _ = Describe("BD secret / ValuesHash inconsistency deadlock", func() {
 	It("applies new bundle values after recovering from a secret/ValuesHash inconsistency", func() {
 		By("creating a bundle with initial Helm values")
 		bundleName := "bdl-newvals-" + testID
-		bundle = createBundleWithValues(bundleName, map[string]interface{}{"data": 8})
+		bundle = createBundleWithValues(bundleName, map[string]any{"data": 8})
 
 		By("waiting for the BD and its options secret to be created consistently")
 		bd := waitForBD(bundleName)
@@ -212,7 +212,7 @@ var _ = Describe("BD secret / ValuesHash inconsistency deadlock", func() {
 			latest := &fleet.Bundle{}
 			g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(bundle), latest)).To(Succeed())
 			latest.Spec.Targets[0].BundleDeploymentOptions.Helm.Values = &fleet.GenericMap{
-				Data: map[string]interface{}{"data": 25},
+				Data: map[string]any{"data": 25},
 			}
 			g.Expect(k8sClient.Update(ctx, latest)).To(Succeed())
 		}).Should(Succeed())

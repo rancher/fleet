@@ -3,7 +3,6 @@ package utils
 import (
 	cryptorand "crypto/rand"
 	"encoding/hex"
-	"fmt"
 )
 
 func NewNamespaceName() (string, error) {
@@ -12,5 +11,5 @@ func NewNamespaceName() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("test-%s", hex.EncodeToString(p))[:12], nil
+	return ("test-" + hex.EncodeToString(p))[:12], nil
 }

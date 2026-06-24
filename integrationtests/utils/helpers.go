@@ -93,7 +93,7 @@ func CreateCluster(ctx context.Context, k8sClient client.Client, name, controlle
 // ExtractResourceLogs extracts log lines related to a specific resource name
 func ExtractResourceLogs(allLogs, resourceName string) string {
 	var resourceLogs []string
-	for _, line := range strings.Split(allLogs, "\n") {
+	for line := range strings.SplitSeq(allLogs, "\n") {
 		if strings.Contains(line, resourceName) {
 			resourceLogs = append(resourceLogs, line)
 		}

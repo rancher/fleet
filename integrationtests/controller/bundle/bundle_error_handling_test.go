@@ -18,10 +18,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
-// getCondition returns the condition with the given type from the list of conditions
-func getCondition(conditions []genericcondition.GenericCondition, condType string) *genericcondition.GenericCondition {
+// getCondition returns the Ready condition from the list of conditions
+func getCondition(conditions []genericcondition.GenericCondition) *genericcondition.GenericCondition {
 	for _, c := range conditions {
-		if c.Type == condType {
+		if c.Type == "Ready" {
 			return &c
 		}
 	}
@@ -383,7 +383,7 @@ var _ = Describe("Bundle controller error handling", Ordered, func() {
 			Eventually(func(g Gomega) {
 				latestBundle := &v1alpha1.Bundle{}
 				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: bundleName, Namespace: bundleNS}, latestBundle)).To(Succeed())
-				readyCond := getCondition(latestBundle.Status.Conditions, "Ready")
+				readyCond := getCondition(latestBundle.Status.Conditions)
 				g.Expect(readyCond).NotTo(BeNil(), "Ready condition should exist")
 				g.Expect(string(readyCond.Status)).To(Equal("False"), "Ready status should be False during error")
 				g.Expect(readyCond.Reason).To(Equal("Error"), "Ready reason should be Error during error state")
@@ -426,7 +426,7 @@ var _ = Describe("Bundle controller error handling", Ordered, func() {
 				latestBundle := &v1alpha1.Bundle{}
 				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: bundleName, Namespace: bundleNS}, latestBundle)).To(Succeed())
 				g.Expect(latestBundle.Status.Summary.Ready).To(Equal(1))
-				readyCond := getCondition(latestBundle.Status.Conditions, "Ready")
+				readyCond := getCondition(latestBundle.Status.Conditions)
 				g.Expect(readyCond).NotTo(BeNil())
 				g.Expect(string(readyCond.Status)).To(Equal("True"), "Ready status should be True")
 			}).Should(Succeed())
@@ -434,7 +434,7 @@ var _ = Describe("Bundle controller error handling", Ordered, func() {
 			By("checking the Ready condition")
 			latestBundle := &v1alpha1.Bundle{}
 			Expect(k8sClient.Get(ctx, types.NamespacedName{Name: bundleName, Namespace: bundleNS}, latestBundle)).To(Succeed())
-			readyCond := getCondition(latestBundle.Status.Conditions, "Ready")
+			readyCond := getCondition(latestBundle.Status.Conditions)
 			Expect(readyCond).NotTo(BeNil(), "Ready condition should exist")
 			Expect(string(readyCond.Status)).To(Equal("True"), "Ready status should be True when bundle is ready")
 
@@ -521,7 +521,7 @@ var _ = Describe("Bundle controller error handling", Ordered, func() {
 				b := &v1alpha1.Bundle{}
 				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: bundleName, Namespace: bundleNS}, b)).To(Succeed())
 				g.Expect(b.Status.Summary.NotReady).To(Equal(1))
-				readyCond := getCondition(b.Status.Conditions, "Ready")
+				readyCond := getCondition(b.Status.Conditions)
 				g.Expect(readyCond).NotTo(BeNil())
 				g.Expect(readyCond.Message).To(ContainSubstring("unknown field"))
 			}).Should(Succeed())
@@ -546,7 +546,7 @@ var _ = Describe("Bundle controller error handling", Ordered, func() {
 				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: bundleName, Namespace: bundleNS}, b)).To(Succeed())
 				g.Expect(b.Status.Summary.WaitApplied).To(Equal(1), "expected WaitApplied while agent is offline")
 				g.Expect(b.Status.Summary.ErrApplied).To(Equal(0), "should not be ErrApplied since Deployed=True")
-				readyCond := getCondition(b.Status.Conditions, "Ready")
+				readyCond := getCondition(b.Status.Conditions)
 				g.Expect(readyCond).NotTo(BeNil())
 				g.Expect(readyCond.Message).NotTo(ContainSubstring("unknown field"),
 					"stale unknown-field error should be suppressed once spec advances past the bad commit")
