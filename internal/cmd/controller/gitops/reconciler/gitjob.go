@@ -539,8 +539,9 @@ func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.Git
 					{
 						Name:         "fleet",
 						Image:        r.Image,
-						Command:      []string{"log.sh"},
+						Command:      []string{"tini", "--"},
 						Args:         append(args, paths...),
+						TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 						WorkingDir:   "/workspace/source",
 						VolumeMounts: volumeMounts,
 						Env:          envs,
@@ -690,10 +691,11 @@ func (r *GitJobReconciler) newGitCloner(
 	}
 
 	return corev1.Container{
-		Command:      []string{"log.sh"},
+		Command:      []string{"tini", "--"},
 		Args:         args,
 		Image:        r.Image,
 		Name:         "gitcloner-initializer",
+		TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 		VolumeMounts: volumeMounts,
 		Env:          env,
 		SecurityContext: &corev1.SecurityContext{

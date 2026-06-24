@@ -22,10 +22,9 @@ RUN set -eux; \
     echo "${TINI_SUM_arm64}  /tini-arm64" | sha256sum -c -; \
     chmod 0755 /tini-amd64 /tini-arm64
 
-FROM --platform=linux/${ARCH} registry.suse.com/bci/bci-busybox:16.0 AS base
+FROM --platform=linux/${ARCH} registry.suse.com/bci/bci-nano:16.0 AS base
 ARG ARCH
 COPY --from=tini-downloader /tini-${ARCH} /usr/bin/tini
-COPY package/log.sh /usr/bin/
 
 FROM base AS copy_docker
 ONBUILD ARG ARCH
