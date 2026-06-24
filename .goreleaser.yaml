@@ -130,7 +130,6 @@ dockers_v2:
       BUILD_ENV: "goreleaser"
     flags:
     - "--pull"
-    extra_files: [ "package/log.sh" ]
     platforms:
     - linux/amd64
     - linux/arm64
@@ -184,7 +183,6 @@ dockers_v2:
     - "--sbom=true"
     - "--provenance=true"
     - "--provenance=mode=max"
-    extra_files: [ "package/log.sh" ]
     platforms:
     - linux/amd64
     - linux/arm64
