@@ -15,6 +15,7 @@ import (
 type Merged struct {
 	RequireServiceAccount  bool
 	AllowedServiceAccounts []string
+	AllowNamespaceCreation bool
 
 	// GitRepo-specific
 	GitDefaultServiceAccount    string
@@ -43,6 +44,9 @@ func Aggregate(policies []fleet.Policy) Merged {
 	for _, p := range policies {
 		if p.RequireServiceAccount {
 			m.RequireServiceAccount = true
+		}
+		if p.AllowNamespaceCreation {
+			m.AllowNamespaceCreation = true
 		}
 		m.AllowedServiceAccounts = append(m.AllowedServiceAccounts, p.AllowedServiceAccounts...)
 

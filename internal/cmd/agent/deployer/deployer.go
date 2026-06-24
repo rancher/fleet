@@ -208,6 +208,9 @@ func (d *Deployer) setNamespaceLabelsAndAnnotations(ctx context.Context, bd *fle
 	if bd.Spec.Options.NamespaceLabels == nil && bd.Spec.Options.NamespaceAnnotations == nil {
 		return nil
 	}
+	if bd.Spec.Options.CreateNamespace != nil && !*bd.Spec.Options.CreateNamespace {
+		return nil
+	}
 
 	ns, err := d.fetchNamespace(ctx, releaseID)
 	if err != nil {
