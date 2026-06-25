@@ -3,7 +3,8 @@ ARG TARGETPLATFORM
 ARG TARGETARCH
 ARG ARCH=${TARGETARCH}
 
-FROM --platform=linux/${ARCH} registry.suse.com/bci/bci-busybox:16.0 AS base
+FROM --platform=linux/${ARCH} registry.suse.com/bci/bci-nano:16.0 AS base
+ARG ARCH
 
 FROM base AS copy_docker
 ONBUILD ARG ARCH

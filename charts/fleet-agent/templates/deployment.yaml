@@ -50,6 +50,7 @@ spec:
         name: fleet-agent
         command:
         - fleetagent
+        args:
         {{- if .Values.debug }}
         - --debug
         - --debug-level
