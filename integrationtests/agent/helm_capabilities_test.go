@@ -45,7 +45,7 @@ var _ = Describe("Helm Chart uses Capabilities", Ordered, func() {
 					Helm: &v1alpha1.HelmOptions{
 						Chart: "config-chart",
 						Values: &v1alpha1.GenericMap{
-							Data: map[string]interface{}{"name": "example-value"},
+							Data: map[string]any{"name": "example-value"},
 						},
 					},
 				},

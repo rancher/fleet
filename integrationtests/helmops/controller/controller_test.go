@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"maps"
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
@@ -90,9 +91,9 @@ func randString() string {
 	return string(b)
 }
 
-func randInterfaceMap() map[string]interface{} {
+func randInterfaceMap() map[string]any {
 	nbItems := rand.Intn(maxLabelsLength)
-	items := make(map[string]interface{})
+	items := make(map[string]any)
 	for range nbItems {
 		items[randString()] = randString()
 	}
@@ -205,9 +206,7 @@ func checkBundleIsAsExpected(g Gomega, bundle fleet.Bundle, helmop fleet.HelmOp,
 	// the bundle should have the same labels as the helmop resource
 	// plus the fleet.HelmOpLabel containing the name of the helmop
 	lbls := make(map[string]string)
-	for k, v := range helmop.Spec.Labels {
-		lbls[k] = v
-	}
+	maps.Copy(lbls, helmop.Spec.Labels)
 	lbls = labels.Merge(lbls, map[string]string{
 		fleet.HelmOpLabel: helmop.Name,
 	})

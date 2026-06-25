@@ -41,7 +41,7 @@ var _ = Describe("Fleet apply online", Label("online"), func() {
 		clientMock.EXPECT().Get(
 			gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleet.Bundle{}),
 		).DoAndReturn(
-			func(_ context.Context, ns types.NamespacedName, bundle *fleet.Bundle, _ ...interface{}) error {
+			func(_ context.Context, ns types.NamespacedName, bundle *fleet.Bundle, _ ...any) error {
 				bundle.ObjectMeta = oldBundle.ObjectMeta
 				bundle.Name = ns.Name
 				bundle.Namespace = ns.Namespace
@@ -51,7 +51,7 @@ var _ = Describe("Fleet apply online", Label("online"), func() {
 		).AnyTimes()
 		// Set listedBundles to a non-empty list to test bundle pruning behaviour (pruneBundlesNotFoundInRepo)
 		clientMock.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-			func(_ context.Context, l *fleet.BundleList, _ ...interface{}) error {
+			func(_ context.Context, l *fleet.BundleList, _ ...any) error {
 				l.Items = listedBundles
 
 				return nil
@@ -114,7 +114,7 @@ data:
 		It("deletes labels present on the bundle but not in fleet.yaml", func() {
 			// Update is called with the actual output of the `apply` command here, hence we validate that its argument is what we expect.
 			clientMock.EXPECT().Update(gomock.Any(), gomock.Any()).DoAndReturn(
-				func(_ context.Context, bundle *fleet.Bundle, _ ...interface{}) error {
+				func(_ context.Context, bundle *fleet.Bundle, _ ...any) error {
 					Expect(bundle.Spec).To(Equal(newBundle.Spec))
 					Expect(bundle.Labels).To(Equal(newBundle.Labels))
 					return nil
@@ -261,7 +261,7 @@ data:
 			}
 
 			clientMock.EXPECT().Update(gomock.Any(), gomock.AssignableToTypeOf(&fleet.Bundle{}), gomock.Any()).DoAndReturn(
-				func(_ context.Context, b *fleet.Bundle, _ ...interface{}) error {
+				func(_ context.Context, b *fleet.Bundle, _ ...any) error {
 					Expect(b).NotTo(BeNil())
 					Expect(b.Spec.Overwrites).To(Equal(expectedOverwrites))
 					return nil
