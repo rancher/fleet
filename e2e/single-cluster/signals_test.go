@@ -44,10 +44,11 @@ func waitForPodReadyAndTerminate(k kubectl.Command, labels string) string {
 	}).Should(Succeed())
 
 	Eventually(func(g Gomega) {
-		name, err := k.Get("pod", "-l", labels, "-o", "jsonpath={.items[0].metadata.name}")
+		name, err := k.Get("pod", "-l", labels, "-o", `jsonpath={.items[?(@.status.phase=="Running")].metadata.name}`)
 		g.Expect(err).ToNot(HaveOccurred(), name)
-		pod = strings.TrimSpace(name)
-		g.Expect(pod).ToNot(BeEmpty())
+		runningPods := strings.Fields(name)
+		g.Expect(runningPods).ToNot(BeEmpty(), name)
+		pod = runningPods[0]
 
 		out, err := k.Run("delete", "pod", pod, "--wait=false")
 		g.Expect(err).ToNot(HaveOccurred(), out)
@@ -78,7 +79,7 @@ var _ = Describe("Shuts down gracefully", func() {
 			Eventually(func(g Gomega) {
 				out, err := k.Get("pod", pod, "-o", "jsonpath={.status.containerStatuses[0].state.terminated}")
 				if err != nil {
-					g.Expect(strings.Contains(strings.ToLower(out), "not found")).To(BeTrue(), out)
+					g.Expect(strings.Contains(strings.ToLower(out), "notfound")).To(BeTrue(), out)
 					return
 				}
 
@@ -121,7 +122,7 @@ var _ = Describe("Shuts down gracefully", func() {
 					"-o", `jsonpath={.status.containerStatuses[?(@.name=="fleet-controller")].state.terminated}`,
 				)
 				if err != nil {
-					g.Expect(strings.Contains(strings.ToLower(out), "not found")).To(BeTrue(), out)
+					g.Expect(strings.Contains(strings.ToLower(out), "notfound")).To(BeTrue(), out)
 					return
 				}
 
@@ -160,7 +161,7 @@ var _ = Describe("Shuts down gracefully", func() {
 					"-o", "jsonpath={.status.containerStatuses[0].state.terminated}",
 				)
 				if err != nil {
-					g.Expect(strings.Contains(strings.ToLower(out), "not found")).To(BeTrue(), out)
+					g.Expect(strings.Contains(strings.ToLower(out), "notfound")).To(BeTrue(), out)
 					return
 				}
 
@@ -199,7 +200,7 @@ var _ = Describe("Shuts down gracefully", func() {
 					"-o", "jsonpath={.status.containerStatuses[0].state.terminated}",
 				)
 				if err != nil {
-					g.Expect(strings.Contains(strings.ToLower(out), "not found")).To(BeTrue(), out)
+					g.Expect(strings.Contains(strings.ToLower(out), "notfound")).To(BeTrue(), out)
 					return
 				}
 
