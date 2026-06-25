@@ -48,8 +48,9 @@ spec:
         {{- end }}
         image: '{{ template "system_default_registry" . }}{{.Values.image.repository}}:{{.Values.image.tag}}'
         name: fleet-agent
-        args:
+        command:
         - fleetagent
+        args:
         {{- if .Values.debug }}
         - --debug
         - --debug-level

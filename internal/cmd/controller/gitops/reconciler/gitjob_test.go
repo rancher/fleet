@@ -608,9 +608,8 @@ func TestNewJob(t *testing.T) {
 			},
 			expectedInitContainers: []corev1.Container{
 				{
-					Command: []string{"tini", "--"},
+					Command: []string{"fleet"},
 					Args: []string{
-						"fleet",
 						"gitcloner",
 						"repo",
 						"/workspace",
@@ -680,9 +679,8 @@ func TestNewJob(t *testing.T) {
 			},
 			expectedInitContainers: []corev1.Container{
 				{
-					Command: []string{"tini", "--"},
+					Command: []string{"fleet"},
 					Args: []string{
-						"fleet",
 						"gitcloner",
 						"repo",
 						"/workspace",
@@ -752,9 +750,8 @@ func TestNewJob(t *testing.T) {
 			},
 			expectedInitContainers: []corev1.Container{
 				{
-					Command: []string{"tini", "--"},
+					Command: []string{"fleet"},
 					Args: []string{
-						"fleet",
 						"gitcloner",
 						"repo",
 						"/workspace",
@@ -824,9 +821,8 @@ func TestNewJob(t *testing.T) {
 			},
 			expectedInitContainers: []corev1.Container{
 				{
-					Command: []string{"tini", "--"},
+					Command: []string{"fleet"},
 					Args: []string{
-						"fleet",
 						"gitcloner",
 						"repo",
 						"/workspace",
@@ -923,9 +919,8 @@ func TestNewJob(t *testing.T) {
 			},
 			expectedInitContainers: []corev1.Container{
 				{
-					Command: []string{"tini", "--"},
+					Command: []string{"fleet"},
 					Args: []string{
-						"fleet",
 						"gitcloner",
 						"repo",
 						"/workspace",
@@ -1007,9 +1002,8 @@ func TestNewJob(t *testing.T) {
 			strictHostKeyChecks: true,
 			expectedInitContainers: []corev1.Container{
 				{
-					Command: []string{"tini", "--"},
+					Command: []string{"fleet"},
 					Args: []string{
-						"fleet",
 						"gitcloner",
 						"ssh://repo",
 						"/workspace",
@@ -1098,9 +1092,8 @@ func TestNewJob(t *testing.T) {
 			strictHostKeyChecks: true,
 			expectedInitContainers: []corev1.Container{
 				{
-					Command: []string{"tini", "--"},
+					Command: []string{"fleet"},
 					Args: []string{
-						"fleet",
 						"gitcloner",
 						"ssh://repo",
 						"/workspace",
@@ -1196,9 +1189,8 @@ func TestNewJob(t *testing.T) {
 			strictHostKeyChecks: true,
 			expectedInitContainers: []corev1.Container{
 				{
-					Command: []string{"tini", "--"},
+					Command: []string{"fleet"},
 					Args: []string{
-						"fleet",
 						"gitcloner",
 						"ssh://repo",
 						"/workspace",
@@ -1270,9 +1262,8 @@ func TestNewJob(t *testing.T) {
 			},
 			expectedInitContainers: []corev1.Container{
 				{
-					Command: []string{"tini", "--"},
+					Command: []string{"fleet"},
 					Args: []string{
-						"fleet",
 						"gitcloner",
 						"repo",
 						"/workspace",
@@ -1369,9 +1360,8 @@ func TestNewJob(t *testing.T) {
 			},
 			expectedInitContainers: []corev1.Container{
 				{
-					Command: []string{"tini", "--"},
+					Command: []string{"fleet"},
 					Args: []string{
-						"fleet",
 						"gitcloner",
 						"repo",
 						"/workspace",
@@ -1464,9 +1454,8 @@ func TestNewJob(t *testing.T) {
 			},
 			expectedInitContainers: []corev1.Container{
 				{
-					Command: []string{"tini", "--"},
+					Command: []string{"fleet"},
 					Args: []string{
-						"fleet",
 						"gitcloner",
 						"repo",
 						"/workspace",
@@ -1598,9 +1587,8 @@ func TestNewJob(t *testing.T) {
 			},
 			expectedInitContainers: []corev1.Container{
 				{
-					Command: []string{"tini", "--"},
+					Command: []string{"fleet"},
 					Args: []string{
-						"fleet",
 						"gitcloner",
 						"repo",
 						"/workspace",
@@ -1675,9 +1663,8 @@ func TestNewJob(t *testing.T) {
 			},
 			expectedInitContainers: []corev1.Container{
 				{
-					Command: []string{"tini", "--"},
+					Command: []string{"fleet"},
 					Args: []string{
-						"fleet",
 						"gitcloner",
 						"repo",
 						"/workspace",
@@ -2423,7 +2410,6 @@ func TestGitClonerSSH(t *testing.T) {
 			// The error does not matter, as known hosts checks should not be called for non-SSH repos
 			knownHostsErr: errors.New("something happened"),
 			expectedContainerArgs: []string{
-				"fleet",
 				"gitcloner",
 				"foo",
 				"/workspace",
@@ -2439,7 +2425,6 @@ func TestGitClonerSSH(t *testing.T) {
 				},
 			},
 			expectedContainerArgs: []string{
-				"fleet",
 				"gitcloner",
 				"ssh://foo",
 				"/workspace",
@@ -2455,7 +2440,6 @@ func TestGitClonerSSH(t *testing.T) {
 				},
 			},
 			expectedContainerArgs: []string{
-				"fleet",
 				"gitcloner",
 				"foo",
 				"/workspace",
@@ -2472,7 +2456,6 @@ func TestGitClonerSSH(t *testing.T) {
 			},
 			knownHostsData: "foo",
 			expectedContainerArgs: []string{
-				"fleet",
 				"gitcloner",
 				"ssh://foo",
 				"/workspace",

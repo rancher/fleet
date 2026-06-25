@@ -120,8 +120,9 @@ spec:
         - containerPort: 8080
           name: metrics
         {{- end }}
-        args:
+        command:
         - fleetcontroller
+        args:
         {{- if $shard.id }}
         - --shard-id
         - {{ quote $shard.id }}
@@ -172,8 +173,9 @@ spec:
         image: '{{ template "system_default_registry" $ }}{{ $.Values.image.repository }}:{{ $.Values.image.tag }}'
         name: fleet-cleanup
         imagePullPolicy: "{{ $.Values.image.imagePullPolicy }}"
-        args:
+        command:
         - fleetcontroller
+        args:
         - cleanup
         {{- if $.Values.debug }}
         - --debug
@@ -239,8 +241,9 @@ spec:
         image: '{{ template "system_default_registry" $ }}{{ $.Values.image.repository }}:{{ $.Values.image.tag }}'
         name: fleet-agentmanagement
         imagePullPolicy: "{{ $.Values.image.imagePullPolicy }}"
-        args:
+        command:
         - fleetcontroller
+        args:
         - agentmanagement
         {{- if not $.Values.bootstrap.enabled }}
         - --disable-bootstrap

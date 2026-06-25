@@ -111,7 +111,8 @@ var _ = Describe("GitJob controller", func() {
 			}).Should(Not(HaveOccurred()))
 
 			Expect(job.Spec.Template.Spec.Containers).To(HaveLen(1))
-			Expect(job.Spec.Template.Spec.Containers[0].Args).To(ContainElements("fleet", "apply"))
+			Expect(job.Spec.Template.Spec.Containers[0].Command).To(Equal([]string{"fleet"}))
+			Expect(job.Spec.Template.Spec.Containers[0].Args).To(ContainElements("apply"))
 
 			gitRepoOwnerRef := metav1.OwnerReference{
 				Kind:       "GitRepo",
