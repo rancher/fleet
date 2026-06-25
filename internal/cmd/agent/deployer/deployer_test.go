@@ -155,6 +155,48 @@ func TestSetNamespaceLabelsAndAnnotations(t *testing.T) {
 	}
 }
 
+func TestSetNamespaceLabelsAndAnnotations_CreateNamespaceFalse(t *testing.T) {
+	createNS := false
+	bd := &fleet.BundleDeployment{Spec: fleet.BundleDeploymentSpec{
+		Options: fleet.BundleDeploymentOptions{
+			CreateNamespace:      &createNS,
+			NamespaceLabels:      map[string]string{"label": "value"},
+			NamespaceAnnotations: map[string]string{"ann": "value"},
+		},
+	}}
+
+	scheme := runtime.NewScheme()
+	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+
+	getCalled := false
+	updateCalled := false
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithInterceptorFuncs(interceptor.Funcs{
+			Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+				getCalled = true
+				return c.Get(ctx, key, obj, opts...)
+			},
+			Update: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.UpdateOption) error {
+				updateCalled = true
+				return c.Update(ctx, obj, opts...)
+			},
+		}).
+		Build()
+
+	h := Deployer{client: fakeClient}
+	err := h.setNamespaceLabelsAndAnnotations(context.Background(), bd, "namespace/foo/bar")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if getCalled {
+		t.Error("namespace GET was attempted when CreateNamespace is false")
+	}
+	if updateCalled {
+		t.Error("namespace UPDATE was attempted when CreateNamespace is false")
+	}
+}
+
 func TestSetNamespaceLabelsAndAnnotationsError(t *testing.T) {
 	bd := &fleet.BundleDeployment{Spec: fleet.BundleDeploymentSpec{
 		Options: fleet.BundleDeploymentOptions{
