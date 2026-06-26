@@ -26,7 +26,7 @@ jobs:
           persist-credentials: false
 
       - name: Install Updatecli in the runner
-        uses: updatecli/updatecli-action@e71be7554f3f940bc439cf720b3e4e379823c562 # v3.2.0
+        uses: updatecli/updatecli-action@5bda7da77bf4d181bce5f807d73d832b62062acf # v3.3.0
 
       - name: Apply
         run: "updatecli apply --config ./updatecli/updatecli.d --values ./updatecli/values.d/scm.yaml"
