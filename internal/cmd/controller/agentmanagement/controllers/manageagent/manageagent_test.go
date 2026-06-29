@@ -1,10 +1,12 @@
 package manageagent
 
 import (
+	"fmt"
 	"maps"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/rancher/wrangler/v3/pkg/generic/fake"
 	"github.com/rancher/wrangler/v3/pkg/schemes"
@@ -14,13 +16,50 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
+	"github.com/rancher/fleet/internal/config"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	networkv1 "k8s.io/api/networking/v1"
 	"sigs.k8s.io/yaml"
-
-	"github.com/rancher/fleet/internal/config"
 )
+
+func TestNewAgentBundle(t *testing.T) {
+	testCases := []struct {
+		agentCheckInInterval time.Duration
+	}{
+		{
+			0 * time.Second,
+		},
+		{
+			-5 * time.Second,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("agent check-in interval of %s", tc.agentCheckInInterval), func(t *testing.T) {
+			config.Set(&config.Config{
+				AgentCheckinInterval: metav1.Duration{Duration: tc.agentCheckInInterval},
+			})
+
+			// ensure leader election env is set so NewLeaderElectionOptionsWithPrefix doesn't error
+			t.Setenv("FLEET_AGENT_ELECTION_LEASE_DURATION", "15s")
+			t.Setenv("FLEET_AGENT_ELECTION_RENEW_DEADLINE", "10s")
+			t.Setenv("FLEET_AGENT_ELECTION_RETRY_PERIOD", "2s")
+
+			h := handler{systemNamespace: "blah"}
+			obj, err := h.newAgentBundle("foo", &fleet.Cluster{Spec: fleet.ClusterSpec{AgentNamespace: "bar"}})
+
+			if obj != nil {
+				t.Fatalf("expected obj returned by newAgentBundle to be nil")
+			}
+
+			expectedStr := "interval cannot be 0 or less"
+			if err == nil || !strings.Contains(err.Error(), expectedStr) {
+				t.Fatalf("expected error %v returned by newAgentBundle to contain %q", err, expectedStr)
+			}
+		})
+	}
+}
 
 func TestOnClusterChangeAffinity(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -119,7 +158,9 @@ func TestOnClusterChangeAffinity(t *testing.T) {
 
 func TestNewAgentBundle_SortsAgentTolerations(t *testing.T) {
 	// make sure config is set for newAgentBundle
-	config.Set(config.DefaultConfig())
+	cfg := config.DefaultConfig()
+	cfg.AgentCheckinInterval = metav1.Duration{Duration: 1 * time.Second} // non-zero to prevent errors covered elsewhere.
+	config.Set(cfg)
 
 	checkRegisterAddToScheme(t, appsv1.AddToScheme)
 	checkRegisterAddToScheme(t, networkv1.AddToScheme)
@@ -269,6 +310,8 @@ func TestNewAgentBundle_PropagatesAgentImagePullSecrets(t *testing.T) {
 			if tc.configPullSecrets != nil {
 				cfg.ImagePullSecrets = *tc.configPullSecrets
 			}
+
+			cfg.AgentCheckinInterval = metav1.Duration{Duration: 1 * time.Second} // non-zero to prevent errors covered elsewhere.
 			config.Set(cfg)
 
 			checkRegisterAddToScheme(t, appsv1.AddToScheme)
