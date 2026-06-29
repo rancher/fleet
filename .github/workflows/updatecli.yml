@@ -11,8 +11,8 @@ on:
     - cron: '0 1 * * *'
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
+  pull-requests: read
 
 jobs:
   updatecli:
