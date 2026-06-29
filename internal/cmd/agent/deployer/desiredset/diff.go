@@ -150,7 +150,7 @@ func Diff(logger logr.Logger, plan Plan, bd *fleet.BundleDeployment, ns string, 
 
 			// Some normalization operations, unlike those called from Diff (vendored ArgoCD code), must only be applied
 			// to actual, in-cluster objects, not to desired ones.
-			emptied, err := normalizeActual(live, uActual, key, &patch)
+			emptied, err := normalizeActual(live, desiredObj.(*unstructured.Unstructured), uActual, key, &patch)
 			if err != nil {
 				errs = append(errs, err)
 				continue
@@ -234,14 +234,271 @@ func newNormalizers(live objectset.ObjectByGVK, bd *fleet.BundleDeployment) (dif
 }
 
 // normalizeActual encapsulates patch normalization operations which are only run against a live object (uActual),
-// possibly requiring knowledge of other live resources.
+// possibly requiring knowledge of other live resources or the desired state.
 func normalizeActual(
 	live objectset.ObjectByGVK,
+	desired *unstructured.Unstructured,
 	uActual *unstructured.Unstructured,
 	key objectset.ObjectKey,
 	patch *[]byte,
 ) (bool, error) {
+	// Normalize webhook caBundle fields
+	emptied, err := normalizeWebhookCABundlePatch(desired, uActual, patch)
+	if err != nil || emptied {
+		return emptied, err
+	}
+
 	return normalizeReplicasPatch(live, uActual, key, patch)
+}
+
+// normalizeWebhookCABundlePatch removes caBundle fields from the patch when they are not present in the desired state.
+func normalizeWebhookCABundlePatch(
+	desired *unstructured.Unstructured,
+	actual *unstructured.Unstructured,
+	patch *[]byte,
+) (bool, error) {
+	if !isWebhookConfiguration(actual.GroupVersionKind()) {
+		return false, nil
+	}
+
+	patchData, webhooksList, err := extractWebhooksPatch(patch)
+	if err != nil {
+		return false, err
+	}
+	if patchData == nil {
+		return false, nil
+	}
+
+	desiredWebhooks, err := getDesiredWebhooks(desired)
+	if err != nil {
+		return false, err
+	}
+	if desiredWebhooks == nil {
+		return false, nil
+	}
+
+	// Check if this is a nested patch or wholesale replacement
+	if !hasNestedCABundleKey(webhooksList) {
+		return handleWholesaleReplacement(actual, desiredWebhooks, patchData, patch)
+	}
+
+	// Process nested caBundle keys
+	return processNestedCABundles(webhooksList, desiredWebhooks, patchData, patch)
+}
+
+func isWebhookConfiguration(gvk schema.GroupVersionKind) bool {
+	return gvk.Group == "admissionregistration.k8s.io" &&
+		(gvk.Kind == "MutatingWebhookConfiguration" || gvk.Kind == "ValidatingWebhookConfiguration")
+}
+
+func extractWebhooksPatch(patch *[]byte) (map[string]any, []any, error) {
+	var patchData map[string]any
+	if err := json.Unmarshal(*patch, &patchData); err != nil {
+		return nil, nil, fmt.Errorf("failed to unmarshal patch: %w", err)
+	}
+
+	webhooksPatch, hasWebhooks := patchData["webhooks"]
+	if !hasWebhooks {
+		return nil, nil, nil
+	}
+
+	webhooksList, ok := webhooksPatch.([]any)
+	if !ok {
+		return nil, nil, nil
+	}
+
+	return patchData, webhooksList, nil
+}
+
+func getDesiredWebhooks(desired *unstructured.Unstructured) ([]any, error) {
+	desiredWebhooks, found, err := unstructured.NestedSlice(desired.Object, "webhooks")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get desired webhooks: %w", err)
+	}
+	if !found {
+		return nil, nil
+	}
+	return desiredWebhooks, nil
+}
+
+func hasNestedCABundleKey(webhooksList []any) bool {
+	for _, webhookPatch := range webhooksList {
+		webhookMap, ok := webhookPatch.(map[string]any)
+		if !ok {
+			continue
+		}
+		if clientConfig, ok := webhookMap["clientConfig"].(map[string]any); ok {
+			if _, hasCAbundle := clientConfig["caBundle"]; hasCAbundle {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func handleWholesaleReplacement(
+	actual *unstructured.Unstructured,
+	desiredWebhooks []any,
+	patchData map[string]any,
+	patch *[]byte,
+) (bool, error) {
+	actualWebhooks, _, _ := unstructured.NestedSlice(actual.Object, "webhooks")
+	if onlyCABundleDiffers(desiredWebhooks, actualWebhooks) {
+		delete(patchData, "webhooks")
+		*patch = []byte("{}")
+		return true, nil
+	}
+	return false, nil
+}
+
+func processNestedCABundles(
+	webhooksList []any,
+	desiredWebhooks []any,
+	patchData map[string]any,
+	patch *[]byte,
+) (bool, error) {
+	modified := normalizeCABundlesInPatch(webhooksList, desiredWebhooks)
+	if !modified {
+		return false, nil
+	}
+
+	filteredWebhooks := filterEmptyWebhooks(webhooksList)
+	updatePatchWithWebhooks(patchData, filteredWebhooks)
+
+	newPatch, err := json.Marshal(patchData)
+	if err != nil {
+		return false, fmt.Errorf("failed to marshal normalized patch: %w", err)
+	}
+
+	*patch = newPatch
+	return len(patchData) == 0 || string(newPatch) == "{}", nil
+}
+
+func normalizeCABundlesInPatch(webhooksList []any, desiredWebhooks []any) bool {
+	modified := false
+	for i, webhookPatch := range webhooksList {
+		webhookMap, ok := webhookPatch.(map[string]any)
+		if !ok || i >= len(desiredWebhooks) {
+			continue
+		}
+
+		clientConfigMap, ok := webhookMap["clientConfig"].(map[string]any)
+		if !ok {
+			continue
+		}
+
+		if _, hasCAbundle := clientConfigMap["caBundle"]; !hasCAbundle {
+			continue
+		}
+
+		desiredWebhook, ok := desiredWebhooks[i].(map[string]any)
+		if !ok {
+			continue
+		}
+
+		if shouldRemoveCABundle(desiredWebhook) {
+			delete(clientConfigMap, "caBundle")
+			modified = true
+			if len(clientConfigMap) == 0 {
+				delete(webhookMap, "clientConfig")
+			}
+		}
+	}
+	return modified
+}
+
+func shouldRemoveCABundle(desiredWebhook map[string]any) bool {
+	desiredClientConfig, hasCC := desiredWebhook["clientConfig"]
+	if !hasCC {
+		return true
+	}
+
+	desiredCC, ok := desiredClientConfig.(map[string]any)
+	if !ok {
+		return false
+	}
+
+	_, desiredHasCABundle := desiredCC["caBundle"]
+	return !desiredHasCABundle
+}
+
+func filterEmptyWebhooks(webhooksList []any) []any {
+	filteredWebhooks := make([]any, 0, len(webhooksList))
+	for _, webhook := range webhooksList {
+		webhookMap, ok := webhook.(map[string]any)
+		if !ok {
+			filteredWebhooks = append(filteredWebhooks, webhook)
+			continue
+		}
+		if len(webhookMap) > 0 {
+			filteredWebhooks = append(filteredWebhooks, webhook)
+		}
+	}
+	return filteredWebhooks
+}
+
+func updatePatchWithWebhooks(patchData map[string]any, filteredWebhooks []any) {
+	if len(filteredWebhooks) > 0 {
+		patchData["webhooks"] = filteredWebhooks
+	} else {
+		delete(patchData, "webhooks")
+	}
+}
+
+// onlyCABundleDiffers checks if the only difference between desired and actual webhooks is the caBundle field
+// in webhooks where desired doesn't specify caBundle (controller-injected).
+func onlyCABundleDiffers(desired, actual []any) bool {
+	if len(desired) != len(actual) {
+		return false
+	}
+
+	for i := range desired {
+		desiredWebhook, ok := desired[i].(map[string]any)
+		if !ok {
+			return false
+		}
+		actualWebhook, ok := actual[i].(map[string]any)
+		if !ok {
+			return false
+		}
+
+		// Check if desired has caBundle - if yes, we need to detect drift, so return false
+		if desiredCC, ok := desiredWebhook["clientConfig"].(map[string]any); ok {
+			if _, hasCABundle := desiredCC["caBundle"]; hasCABundle {
+				// User-managed caBundle, drift matters
+				return false
+			}
+		}
+
+		// Strip caBundle from actual for comparison
+		actualCopy := make(map[string]any)
+		for k, v := range actualWebhook {
+			if k == "clientConfig" {
+				if cc, ok := v.(map[string]any); ok {
+					ccCopy := make(map[string]any)
+					for cck, ccv := range cc {
+						if cck != "caBundle" {
+							ccCopy[cck] = ccv
+						}
+					}
+					if len(ccCopy) > 0 {
+						actualCopy[k] = ccCopy
+					}
+				}
+			} else {
+				actualCopy[k] = v
+			}
+		}
+
+		// Compare desired vs actual (with caBundle stripped)
+		desiredJSON, err1 := json.Marshal(desiredWebhook)
+		actualJSON, err2 := json.Marshal(actualCopy)
+		if err1 != nil || err2 != nil || string(desiredJSON) != string(actualJSON) {
+			return false
+		}
+	}
+
+	return true
 }
 
 // normalizeReplicasPatch handles removal of a diff patch's `.spec.replicas` field on a Deployment or a StatefulSet.
