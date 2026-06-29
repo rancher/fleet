@@ -148,6 +148,8 @@ type directory struct {
 	version string
 	// auth is the auth to use for the chart URL
 	auth Auth
+	// indicates auth was stripped because helmRepoURLRegex was empty
+	strippedCredentialsForEmptyHelmRepoURLRegex bool
 }
 
 func addDirectory(base, customDir, defaultDir string) ([]directory, error) {
@@ -222,8 +224,12 @@ func addRemoteCharts(ctx context.Context, directories []directory, base string, 
 				return nil, fmt.Errorf("failed to add auth to request for %s: %w", downloadChartError(*chart), err)
 			}
 			auth := auth // loop-scoped variable
+			strippedCredentialsForEmptyRegex := false
 			if !shouldAddAuthToRequest {
-				if !warnedOnce && helmRepoURLRegex == "" && (auth.Username != "" || auth.Password != "" || len(auth.SSHPrivateKey) > 0) {
+				if helmRepoURLRegex == "" && (auth.Username != "" || auth.Password != "" || len(auth.SSHPrivateKey) > 0) {
+					strippedCredentialsForEmptyRegex = true
+				}
+				if !warnedOnce && strippedCredentialsForEmptyRegex {
 					logrus.Warn("helmRepoURLRegex is empty: Helm credentials will not be forwarded to any repository; set spec.helmRepoURLRegex to enable credential forwarding")
 					warnedOnce = true
 				}
@@ -244,6 +250,7 @@ func addRemoteCharts(ctx context.Context, directories []directory, base string, 
 				source:  chartURL,
 				auth:    auth,
 				version: chart.Version,
+				strippedCredentialsForEmptyHelmRepoURLRegex: strippedCredentialsForEmptyRegex,
 			})
 		}
 	}
