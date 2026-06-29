@@ -12,10 +12,10 @@ import (
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/cleanup"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/driftdetect"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/monitor"
-	"github.com/rancher/fleet/internal/helmvalues"
 	"github.com/rancher/fleet/internal/namespaces"
 	fleetv1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/durations"
+	"github.com/rancher/fleet/pkg/helmvalues"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"

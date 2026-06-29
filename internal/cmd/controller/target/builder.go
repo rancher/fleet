@@ -19,8 +19,8 @@ import (
 	"github.com/rancher/fleet/internal/cmd/controller/labelselectors"
 	"github.com/rancher/fleet/internal/cmd/controller/options"
 	"github.com/rancher/fleet/internal/cmd/controller/target/matcher"
-	"github.com/rancher/fleet/internal/helmvalues"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/helmvalues"
 
 	"github.com/rancher/wrangler/v3/pkg/yaml"
 

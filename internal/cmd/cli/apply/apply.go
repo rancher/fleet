@@ -18,12 +18,12 @@ import (
 	"github.com/rancher/fleet/internal/bundlereader"
 	"github.com/rancher/fleet/internal/content"
 	"github.com/rancher/fleet/internal/fleetyaml"
-	"github.com/rancher/fleet/internal/helmvalues"
 	"github.com/rancher/fleet/internal/manifest"
 	"github.com/rancher/fleet/internal/names"
 	"github.com/rancher/fleet/internal/ocistorage"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleetevent "github.com/rancher/fleet/pkg/event"
+	"github.com/rancher/fleet/pkg/helmvalues"
 
 	"github.com/rancher/wrangler/v3/pkg/yaml"
 	"github.com/sirupsen/logrus"
