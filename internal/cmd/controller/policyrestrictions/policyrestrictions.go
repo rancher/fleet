@@ -45,6 +45,11 @@ func Aggregate(policies []fleet.Policy) Merged {
 		if p.RequireServiceAccount {
 			m.RequireServiceAccount = true
 		}
+		// AllowNamespaceCreation is aggregated with OR semantics, which here is
+		// least-restrictive: if any Policy in the namespace allows namespace
+		// creation, it is allowed for all deployments in that namespace.
+		// Operators relying on this to keep namespace creation disabled must
+		// ensure no Policy in the namespace sets allowNamespaceCreation: true.
 		if p.AllowNamespaceCreation {
 			m.AllowNamespaceCreation = true
 		}
