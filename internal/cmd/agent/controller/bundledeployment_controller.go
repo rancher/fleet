@@ -235,36 +235,15 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	// helm deploy the bundledeployment
 	if status, err := r.Deployer.DeployBundle(ctx, bd, forceDeploy); err != nil {
-		// A denied namespace patch leaves the deployment not-ready: the Helm
-		// release installed, but the requested namespaceLabels/
-		// namespaceAnnotations could not be applied. It is handled as a
-		// controlled requeue rather than a failed reconcile so it does not
-		// tight-loop: keep Ready/Installed=false from the returned status, mark
-		// Deployed (the release is installed), persist, and requeue so the patch
-		// converges once the missing namespace RBAC is granted (granting it does
-		// not otherwise trigger a reconcile).
-		var namespaceForbiddenError *deployer.NamespaceForbiddenError
-		if errors.As(err, &namespaceForbiddenError) {
-			bd.Status = setCondition(status, nil, monitor.Cond(fleetv1.BundleDeploymentConditionDeployed))
-			if err := r.updateStatus(ctx, orig, bd); err != nil {
-				return ctrl.Result{}, err
-			}
-			logger.V(1).Info("Namespace patch forbidden, requeuing...", "error", namespaceForbiddenError)
-			return ctrl.Result{RequeueAfter: durations.NamespacePermissionRequeueInterval}, nil
+		if handled, res, err := r.requeueIfNamespaceForbidden(ctx, orig, bd, status, err); handled {
+			return res, err
 		}
 
 		// do not use the returned status, instead set the condition and possibly a timestamp
 		bd.Status = setCondition(bd.Status, err, monitor.Cond(fleetv1.BundleDeploymentConditionDeployed))
 
-		// Not-ready dependencies should not be treated as an error.
-		// Instead, a controlled requeue should happen until the conditions are met.
-		var notReadyDependenciesError *deployer.NotReadyDependenciesError
-		if errors.As(err, &notReadyDependenciesError) {
-			if err := r.updateStatus(ctx, orig, bd); err != nil {
-				return ctrl.Result{}, err
-			}
-			logger.V(1).Info("Dependencies not ready, requeuing...", "pending", notReadyDependenciesError.Pending)
-			return ctrl.Result{RequeueAfter: durations.WaitForDependenciesReadyRequeueInterval}, nil
+		if handled, res, err := r.requeueIfDependenciesNotReady(ctx, orig, bd, err); handled {
+			return res, err
 		}
 
 		logger.V(1).Info("Failed to deploy bundle", "status", status, "error", err)
@@ -539,6 +518,47 @@ func (r *BundleDeploymentReconciler) updateStatus(ctx context.Context, orig *fle
 		return nil
 	}
 	return r.Status().Patch(ctx, obj, statusPatch)
+}
+
+// requeueIfNamespaceForbidden handles a denied namespace patch returned by
+// DeployBundle. The Helm release installed, but the requested namespaceLabels/
+// namespaceAnnotations could not be applied, so it is handled as a controlled
+// requeue rather than a failed reconcile so it does not tight-loop: keep
+// Ready/Installed=false from the returned status, mark Deployed (the release is
+// installed), persist, and requeue so the patch converges once the missing
+// namespace RBAC is granted (granting it does not otherwise trigger a
+// reconcile). Returns handled=false when err is not a NamespaceForbiddenError.
+func (r *BundleDeploymentReconciler) requeueIfNamespaceForbidden(ctx context.Context, orig, bd *fleetv1.BundleDeployment, status fleetv1.BundleDeploymentStatus, err error) (bool, ctrl.Result, error) {
+	var namespaceForbiddenError *deployer.NamespaceForbiddenError
+	if !errors.As(err, &namespaceForbiddenError) {
+		return false, ctrl.Result{}, nil
+	}
+
+	bd.Status = setCondition(status, nil, monitor.Cond(fleetv1.BundleDeploymentConditionDeployed))
+	if err := r.updateStatus(ctx, orig, bd); err != nil {
+		return true, ctrl.Result{}, err
+	}
+
+	log.FromContext(ctx).V(1).Info("Namespace patch forbidden, requeuing...", "error", namespaceForbiddenError)
+	return true, ctrl.Result{RequeueAfter: durations.NamespacePermissionRequeueInterval}, nil
+}
+
+// requeueIfDependenciesNotReady handles the case where DeployBundle reports
+// not-ready dependencies. That is not treated as an error; instead a controlled
+// requeue happens until the dependencies' conditions are met. Returns
+// handled=false when err is not a NotReadyDependenciesError.
+func (r *BundleDeploymentReconciler) requeueIfDependenciesNotReady(ctx context.Context, orig, bd *fleetv1.BundleDeployment, err error) (bool, ctrl.Result, error) {
+	var notReadyDependenciesError *deployer.NotReadyDependenciesError
+	if !errors.As(err, &notReadyDependenciesError) {
+		return false, ctrl.Result{}, nil
+	}
+
+	if err := r.updateStatus(ctx, orig, bd); err != nil {
+		return true, ctrl.Result{}, err
+	}
+
+	log.FromContext(ctx).V(1).Info("Dependencies not ready, requeuing...", "pending", notReadyDependenciesError.Pending)
+	return true, ctrl.Result{RequeueAfter: durations.WaitForDependenciesReadyRequeueInterval}, nil
 }
 
 // setCondition sets the condition and updates the timestamp, if the condition changed

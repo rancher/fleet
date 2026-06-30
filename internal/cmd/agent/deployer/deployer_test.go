@@ -235,7 +235,7 @@ func TestSetNamespaceLabelsAndAnnotations_ForbiddenSurfaces(t *testing.T) {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
 	forbidden := apierrors.NewForbidden(
-		schema.GroupResource{Resource: "namespaces"}, "namespace", fmt.Errorf("nope"))
+		schema.GroupResource{Resource: "namespaces"}, "namespace", errors.New("nope"))
 	fakeClient := fake.NewClientBuilder().
 		WithScheme(scheme).
 		WithObjects(&ns).
@@ -268,7 +268,7 @@ func TestSetNamespaceLabelsAndAnnotations_ForbiddenSurfaces(t *testing.T) {
 // error.
 func TestNamespaceForbiddenError(t *testing.T) {
 	forbidden := apierrors.NewForbidden(
-		schema.GroupResource{Resource: "namespaces"}, "namespace", fmt.Errorf("nope"))
+		schema.GroupResource{Resource: "namespaces"}, "namespace", errors.New("nope"))
 	err := error(&NamespaceForbiddenError{err: forbidden})
 
 	var nsErr *NamespaceForbiddenError
