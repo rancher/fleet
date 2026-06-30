@@ -278,12 +278,12 @@ func normalizeWebhookCABundlePatch(
 	}
 
 	// Check if this is a nested patch or wholesale replacement
-	if !hasNestedCABundleKey(webhooksList) {
-		return handleWholesaleReplacement(actual, desiredWebhooks, patchData, patch)
+	if hasNestedCABundleKey(webhooksList) {
+		// Process nested caBundle keys
+		return processNestedCABundles(webhooksList, desiredWebhooks, patchData, patch)
 	}
 
-	// Process nested caBundle keys
-	return processNestedCABundles(webhooksList, desiredWebhooks, patchData, patch)
+	return handleWholesaleReplacement(actual, desiredWebhooks, patchData, patch)
 }
 
 func isWebhookConfiguration(gvk schema.GroupVersionKind) bool {
@@ -342,7 +342,13 @@ func handleWholesaleReplacement(
 	patchData map[string]any,
 	patch *[]byte,
 ) (bool, error) {
-	actualWebhooks, _, _ := unstructured.NestedSlice(actual.Object, "webhooks")
+	actualWebhooks, found, err := unstructured.NestedSlice(actual.Object, "webhooks")
+	if err != nil {
+		return false, fmt.Errorf("failed to get actual webhooks: %w", err)
+	}
+	if !found {
+		return false, nil
+	}
 	if onlyCABundleDiffers(desiredWebhooks, actualWebhooks) {
 		delete(patchData, "webhooks")
 		*patch = []byte("{}")
@@ -427,6 +433,9 @@ func filterEmptyWebhooks(webhooksList []any) []any {
 	for _, webhook := range webhooksList {
 		webhookMap, ok := webhook.(map[string]any)
 		if !ok {
+			// Preserve non-map entries as-is to avoid data loss. The Kubernetes API expects
+			// webhook entries to be objects, but we defensively handle other types in case
+			// of malformed patches or future API changes.
 			filteredWebhooks = append(filteredWebhooks, webhook)
 			continue
 		}
