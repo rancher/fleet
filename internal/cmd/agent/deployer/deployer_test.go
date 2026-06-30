@@ -2,6 +2,7 @@ package deployer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -258,6 +259,24 @@ func TestSetNamespaceLabelsAndAnnotations_ForbiddenSurfaces(t *testing.T) {
 		t.Error("forbiddenToStatus did not record the forbidden error as a status condition")
 	} else if status.Ready {
 		t.Error("expected status.Ready to be false")
+	}
+}
+
+// TestNamespaceForbiddenError verifies that the typed error DeployBundle
+// returns for a denied namespace patch is both detectable via errors.As (so the
+// controller can do a controlled requeue) and still unwraps to a Forbidden
+// error.
+func TestNamespaceForbiddenError(t *testing.T) {
+	forbidden := apierrors.NewForbidden(
+		schema.GroupResource{Resource: "namespaces"}, "namespace", fmt.Errorf("nope"))
+	err := error(&NamespaceForbiddenError{err: forbidden})
+
+	var nsErr *NamespaceForbiddenError
+	if !errors.As(err, &nsErr) {
+		t.Errorf("expected error to be detectable as *NamespaceForbiddenError, got %v", err)
+	}
+	if !apierrors.IsForbidden(err) {
+		t.Errorf("expected error to unwrap to a Forbidden error, got %v", err)
 	}
 }
 

@@ -51,6 +51,23 @@ func (e *NotReadyDependenciesError) Error() string {
 	return fmt.Sprintf("dependent bundle(s) are not ready: %v", e.Pending)
 }
 
+// NamespaceForbiddenError indicates the deployment's service account is not
+// allowed to mutate the target namespace. The Helm release installed, but the
+// requested namespaceLabels/namespaceAnnotations could not be applied, so the
+// deployment is reported not-ready. It is handled as a controlled requeue
+// rather than a failed reconcile (to avoid tight-looping); the patch converges
+// once the missing namespace RBAC is granted. That grant is not a watched
+// resource and would never re-trigger a reconcile on its own, hence the
+// controlled requeue. It unwraps to the underlying Forbidden error, so
+// apierrors.IsForbidden still reports true.
+type NamespaceForbiddenError struct {
+	err error
+}
+
+func (e *NamespaceForbiddenError) Error() string { return e.err.Error() }
+
+func (e *NamespaceForbiddenError) Unwrap() error { return e.err }
+
 type Deployer struct {
 	client         client.Client
 	upstreamClient client.Reader
@@ -123,13 +140,14 @@ func (d *Deployer) DeployBundle(
 
 	if err := d.setNamespaceLabelsAndAnnotations(ctx, bd, releaseID); err != nil {
 		// A permission error here means the deployment's service account is
-		// not allowed to mutate the target namespace. Requeuing cannot resolve
-		// this, so record it as a status condition instead of looping, the
-		// same way deployErrToStatus handles non-recoverable Helm errors.
+		// not allowed to mutate the target namespace. Record it on the status
+		// and return a typed error so the controller does a controlled requeue
+		// (the missing namespace RBAC is not watched, so granting it would not
+		// otherwise re-trigger a reconcile) rather than tight-looping.
 		if do, newStatus := forbiddenToStatus(err, status); do {
 			newStatus.Release = releaseID
 			newStatus.AppliedDeploymentID = bd.Spec.DeploymentID
-			return newStatus, nil
+			return newStatus, &NamespaceForbiddenError{err: err}
 		}
 		return fleet.BundleDeploymentStatus{}, err
 	}

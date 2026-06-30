@@ -235,6 +235,24 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	// helm deploy the bundledeployment
 	if status, err := r.Deployer.DeployBundle(ctx, bd, forceDeploy); err != nil {
+		// A denied namespace patch leaves the deployment not-ready: the Helm
+		// release installed, but the requested namespaceLabels/
+		// namespaceAnnotations could not be applied. It is handled as a
+		// controlled requeue rather than a failed reconcile so it does not
+		// tight-loop: keep Ready/Installed=false from the returned status, mark
+		// Deployed (the release is installed), persist, and requeue so the patch
+		// converges once the missing namespace RBAC is granted (granting it does
+		// not otherwise trigger a reconcile).
+		var namespaceForbiddenError *deployer.NamespaceForbiddenError
+		if errors.As(err, &namespaceForbiddenError) {
+			bd.Status = setCondition(status, nil, monitor.Cond(fleetv1.BundleDeploymentConditionDeployed))
+			if err := r.updateStatus(ctx, orig, bd); err != nil {
+				return ctrl.Result{}, err
+			}
+			logger.V(1).Info("Namespace patch forbidden, requeuing...", "error", namespaceForbiddenError)
+			return ctrl.Result{RequeueAfter: durations.NamespacePermissionRequeueInterval}, nil
+		}
+
 		// do not use the returned status, instead set the condition and possibly a timestamp
 		bd.Status = setCondition(bd.Status, err, monitor.Cond(fleetv1.BundleDeploymentConditionDeployed))
 
