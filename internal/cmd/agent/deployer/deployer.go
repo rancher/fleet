@@ -421,8 +421,11 @@ func deployErrToStatus(err error, status fleet.BundleDeploymentStatus) (bool, fl
 
 // forbiddenToStatus records a namespace permission error as a status condition,
 // mirroring deployErrToStatus. Such errors occur when the deployment's service
-// account is not allowed to mutate the target namespace; requeuing cannot fix
-// them, so they are surfaced on the bundle deployment instead of looping.
+// account is not allowed to mutate the target namespace. The condition surfaces
+// the missing RBAC on the bundle deployment; the caller wraps the error in a
+// NamespaceForbiddenError so the controller does a controlled requeue (at
+// NamespacePermissionRequeueInterval) rather than tight-looping, letting the
+// patch converge once the permission is granted.
 func forbiddenToStatus(err error, status fleet.BundleDeploymentStatus) (bool, fleet.BundleDeploymentStatus) {
 	if !apierrors.IsForbidden(err) {
 		return false, status
