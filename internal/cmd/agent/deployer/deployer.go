@@ -300,7 +300,7 @@ func updateNamespace(ctx context.Context, c client.Client, ns *corev1.Namespace)
 	if err := c.Update(ctx, ns); err != nil {
 		if apierrors.IsForbidden(err) {
 			return fmt.Errorf("the deployment's service account is not allowed to update namespace %q; "+
-				"grant it 'update' on this namespace (scopeable via resourceNames) or remove "+
+				"grant it 'update' on this namespace (scoped via resourceNames) or remove "+
 				"namespaceLabels/namespaceAnnotations: %w", ns.Name, err)
 		}
 		return err
@@ -317,7 +317,7 @@ func fetchNamespace(ctx context.Context, c client.Client, releaseID string) (*co
 	if err := c.Get(ctx, types.NamespacedName{Name: namespace}, ns); err != nil {
 		if apierrors.IsForbidden(err) {
 			return nil, fmt.Errorf("the deployment's service account is not allowed to get namespace %q; "+
-				"grant it 'get' on this namespace (scopeable via resourceNames) or remove "+
+				"grant it 'get' on this namespace (scoped via resourceNames) or remove "+
 				"namespaceLabels/namespaceAnnotations: %w", namespace, err)
 		}
 		return nil, err
