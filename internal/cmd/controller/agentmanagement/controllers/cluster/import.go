@@ -166,7 +166,7 @@ func (i *importHandler) onConfig(cfg *config.Config) error {
 // teardown (or redeploy) of its agent through importCluster. The config is
 // the single source of truth; see manageagent.LocalAgentDisabled.
 func (i *importHandler) enqueueLocalClusterOnConfig(cfg *config.Config) error {
-	if cfg == nil {
+	if cfg == nil || cfg.Bootstrap.Namespace == "" || cfg.Bootstrap.Namespace == "-" {
 		return nil
 	}
 	i.clusters.Enqueue(cfg.Bootstrap.Namespace, fleet.LocalClusterName)
