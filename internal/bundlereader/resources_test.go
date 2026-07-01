@@ -200,6 +200,7 @@ func TestAddRemoteChartsStripsCredentials(t *testing.T) {
 	dirs, err := addRemoteCharts(nil, t.TempDir(), charts, auth, "")
 	require.NoError(t, err)
 	require.Len(t, dirs, 1)
+	require.True(t, dirs[0].strippedCreds)
 
 	got := dirs[0].auth
 	assert.Empty(t, got.Username, "Username must be stripped when helmRepoURLRegex is empty")
