@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io/fs"
 	"net/http"
@@ -24,6 +25,8 @@ import (
 	helmgetter "helm.sh/helm/v3/pkg/getter"
 	"helm.sh/helm/v3/pkg/registry"
 )
+
+const helmRepoURLRegexUIHint = "helmRepoURLRegex is empty, so Helm credentials were not forwarded; set spec.helmRepoURLRegex to allow credential forwarding"
 
 var (
 	gitHTTPSCloneMutex sync.Mutex
@@ -179,7 +182,7 @@ func loadDirectory(ctx context.Context, opts loadOpts, dir directory) ([]fleet.B
 
 	files, err := GetContent(ctx, dir.base, dir.source, dir.version, dir.auth, opts.disableDepsUpdate, opts.ignoreApplyConfigs)
 	if err != nil {
-		return nil, err
+		return nil, maybeAddHelmRepoURLRegexHint(err, dir)
 	}
 
 	for name, data := range files {
@@ -201,6 +204,19 @@ func loadDirectory(ctx context.Context, opts loadOpts, dir directory) ([]fleet.B
 	}
 
 	return resources, nil
+}
+
+func maybeAddHelmRepoURLRegexHint(err error, dir directory) error {
+	if err == nil {
+		return nil
+	}
+	if !dir.strippedCreds {
+		return err
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return err
+	}
+	return fmt.Errorf("%w: %s", err, helmRepoURLRegexUIHint)
 }
 
 // GetContent uses go-getter (and Helm for OCI) to read the files from directories and servers.
