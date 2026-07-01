@@ -208,7 +208,7 @@ func TestAddRemoteChartsStripsCredentials(t *testing.T) {
 	assert.Nil(t, got.SSHPrivateKey, "SSHPrivateKey must be stripped when helmRepoURLRegex is empty")
 	assert.True(t, got.BasicHTTP, "BasicHTTP must be preserved when stripping credentials")
 	assert.True(t, got.InsecureSkipVerify, "InsecureSkipVerify must be preserved when stripping credentials")
-	assert.True(t, dirs[0].strippedCredentialsForEmptyHelmRepoURLRegex, "directory should be marked when credentials are stripped due to empty helmRepoURLRegex")
+	assert.True(t, dirs[0].strippedCreds, "directory should be marked when credentials are stripped due to empty helmRepoURLRegex")
 }
 
 func TestAddRemoteChartsWarnsMissingRegex(t *testing.T) {

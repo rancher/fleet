@@ -149,7 +149,7 @@ type directory struct {
 	// auth is the auth to use for the chart URL
 	auth Auth
 	// indicates auth was stripped because helmRepoURLRegex was empty
-	strippedCredentialsForEmptyHelmRepoURLRegex bool
+	strippedCreds bool
 }
 
 func addDirectory(base, customDir, defaultDir string) ([]directory, error) {
@@ -245,12 +245,12 @@ func addRemoteCharts(ctx context.Context, directories []directory, base string, 
 			}
 
 			directories = append(directories, directory{
-				prefix:  checksum(chart),
-				base:    base,
-				source:  chartURL,
-				auth:    auth,
-				version: chart.Version,
-				strippedCredentialsForEmptyHelmRepoURLRegex: strippedCredentialsForEmptyRegex,
+				prefix:        checksum(chart),
+				base:          base,
+				source:        chartURL,
+				auth:          auth,
+				version:       chart.Version,
+				strippedCreds: strippedCredentialsForEmptyRegex,
 			})
 		}
 	}

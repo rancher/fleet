@@ -197,7 +197,7 @@ func maybeAddHelmRepoURLRegexHint(err error, dir directory) error {
 	if err == nil {
 		return nil
 	}
-	if !dir.strippedCredentialsForEmptyHelmRepoURLRegex {
+	if !dir.strippedCreds {
 		return err
 	}
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
