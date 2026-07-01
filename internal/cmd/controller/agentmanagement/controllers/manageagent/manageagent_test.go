@@ -777,3 +777,101 @@ func checkRegisterAddToScheme(t *testing.T, f func(*runtime.Scheme) error) {
 		t.Fatalf("failed to add to scheme: %v", err)
 	}
 }
+
+func TestIsLocalCluster(t *testing.T) {
+	const bootstrapNS = "fleet-local"
+	config.Set(&config.Config{Bootstrap: config.Bootstrap{Namespace: bootstrapNS}})
+
+	for _, tt := range []struct {
+		name    string
+		cluster *fleet.Cluster
+		want    bool
+	}{
+		{
+			name:    "correct name and namespace",
+			cluster: &fleet.Cluster{ObjectMeta: metav1.ObjectMeta{Name: fleet.LocalClusterName, Namespace: bootstrapNS}},
+			want:    true,
+		},
+		{
+			name:    "correct name, wrong namespace",
+			cluster: &fleet.Cluster{ObjectMeta: metav1.ObjectMeta{Name: fleet.LocalClusterName, Namespace: "other"}},
+			want:    false,
+		},
+		{
+			name:    "wrong name, correct namespace",
+			cluster: &fleet.Cluster{ObjectMeta: metav1.ObjectMeta{Name: "downstream", Namespace: bootstrapNS}},
+			want:    false,
+		},
+		{
+			name:    "empty cluster",
+			cluster: &fleet.Cluster{},
+			want:    false,
+		},
+		{
+			name:    "nil cluster",
+			cluster: nil,
+			want:    false,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IsLocalCluster(tt.cluster); got != tt.want {
+				t.Errorf("IsLocalCluster = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestLocalAgentDisabled(t *testing.T) {
+	const bootstrapNS = "fleet-local"
+	localCluster := &fleet.Cluster{ObjectMeta: metav1.ObjectMeta{Name: fleet.LocalClusterName, Namespace: bootstrapNS}}
+
+	for _, tt := range []struct {
+		name     string
+		disabled bool
+		cluster  *fleet.Cluster
+		want     bool
+	}{
+		{
+			// The core of the fix: the local cluster's agent is reported disabled
+			// straight from config, with no label on the Cluster object. This is
+			// what makes it work under --disable-bootstrap (Rancher).
+			name:     "local cluster, config disabled",
+			disabled: true,
+			cluster:  localCluster,
+			want:     true,
+		},
+		{
+			name:     "local cluster, config enabled",
+			disabled: false,
+			cluster:  localCluster,
+			want:     false,
+		},
+		{
+			// The disable behavior must never leak to a downstream cluster, even
+			// while the global flag is set.
+			name:     "downstream cluster, wrong namespace",
+			disabled: true,
+			cluster:  &fleet.Cluster{ObjectMeta: metav1.ObjectMeta{Name: fleet.LocalClusterName, Namespace: "downstream-ns"}},
+			want:     false,
+		},
+		{
+			name:     "downstream cluster, wrong name",
+			disabled: true,
+			cluster:  &fleet.Cluster{ObjectMeta: metav1.ObjectMeta{Name: "downstream", Namespace: bootstrapNS}},
+			want:     false,
+		},
+		{
+			name:     "nil cluster",
+			disabled: true,
+			cluster:  nil,
+			want:     false,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			config.Set(&config.Config{Bootstrap: config.Bootstrap{Namespace: bootstrapNS, LocalAgentDisabled: tt.disabled}})
+			if got := LocalAgentDisabled(tt.cluster); got != tt.want {
+				t.Errorf("LocalAgentDisabled = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

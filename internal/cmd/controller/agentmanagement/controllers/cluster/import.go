@@ -89,6 +89,7 @@ func RegisterImport(
 	clusters.OnChange(ctx, "import-cluster", h.OnChange)
 	fleetcontrollers.RegisterClusterStatusHandler(ctx, clusters, "Imported", "import-cluster", h.importCluster)
 	config.OnChange(ctx, h.onConfig)
+	config.OnChange(ctx, h.enqueueLocalClusterOnConfig)
 
 	clustersCache := clusters.Cache()
 	clustersCache.AddIndexer(clusterForKubeconfigSecretIndexer, func(cluster *fleet.Cluster) ([]string, error) {
@@ -160,6 +161,18 @@ func (i *importHandler) onConfig(cfg *config.Config) error {
 	return nil
 }
 
+// enqueueLocalClusterOnConfig re-evaluates the local cluster whenever the global
+// config changes, so that flipping Bootstrap.LocalAgentDisabled triggers
+// teardown (or redeploy) of its agent through importCluster. The config is
+// the single source of truth; see manageagent.LocalAgentDisabled.
+func (i *importHandler) enqueueLocalClusterOnConfig(cfg *config.Config) error {
+	if cfg == nil {
+		return nil
+	}
+	i.clusters.Enqueue(cfg.Bootstrap.Namespace, fleet.LocalClusterName)
+	return nil
+}
+
 // hasAPIServerConfigChanged checks for changes in API server URL or CA configuration, comparing the current state of
 // the cluster with cfg. However, if the cluster references a secret through its `KubeConfigSecret` field, then API
 // server URL and CA are understood to be sourced from there, hence config changes for those fields will be skipped.
@@ -196,20 +209,11 @@ func hashStatusField(field any) string {
 }
 
 // localAgentDisabled reports whether the agent must not be deployed for this
-// cluster. It only ever applies to the management (local) cluster: the
-// disabling label is honored exclusively there, so that labeling a downstream
-// cluster cannot prevent its agent from being deployed or tear it down.
+// cluster. It only ever applies to the management (local) cluster and is driven
+// by the global config, so it is honored even when the bootstrap controller is
+// disabled (e.g. under Rancher). See manageagent.LocalAgentDisabled.
 func localAgentDisabled(cluster *fleet.Cluster) bool {
-	return isLocalCluster(cluster) && cluster.Labels[fleet.LocalAgentDisabledLabel] == "true"
-}
-
-// isLocalCluster is a fast, metadata-only check that a Cluster object is the
-// management (local) cluster: it must carry the well-known name in the
-// configured bootstrap namespace, matching what the bootstrap controller
-// creates.
-func isLocalCluster(cluster *fleet.Cluster) bool {
-	return cluster.Name == fleet.LocalClusterName &&
-		cluster.Namespace == config.Get().Bootstrap.Namespace
+	return manageagent.LocalAgentDisabled(cluster)
 }
 
 // isManagementCluster confirms, with certainty, that the cluster reachable
@@ -568,17 +572,17 @@ func (i *importHandler) teardownLocalAgent(cluster *fleet.Cluster) error {
 	}
 
 	// Before deleting anything, make absolutely sure the kubeconfig points at
-	// the management cluster itself. isLocalCluster already gated us here based
-	// on metadata, but tearing down an agent is destructive, so we confirm
-	// cluster identity for real.
+	// the management cluster itself. manageagent.IsLocalCluster already gated us
+	// here based on metadata, but tearing down an agent is destructive, so we
+	// confirm cluster identity for real.
 	isLocal, err := i.isManagementCluster(kc)
 	if err != nil {
 		return err
 	}
 	if !isLocal {
 		logrus.Warnf(
-			"Cluster import for '%s/%s'. Refusing to remove agent: label %s=true is set but the cluster reached through its kubeconfig is not the management cluster",
-			cluster.Namespace, cluster.Name, fleet.LocalAgentDisabledLabel,
+			"Cluster import for '%s/%s'. Refusing to remove agent: localAgentDisabled is set but the cluster reached through its kubeconfig is not the management cluster",
+			cluster.Namespace, cluster.Name,
 		)
 		return nil
 	}
@@ -606,7 +610,7 @@ func (i *importHandler) teardownLocalAgent(cluster *fleet.Cluster) error {
 		return err
 	}
 
-	logrus.Infof("Cluster import for '%s/%s'. Removed local agent (%s=true)", cluster.Namespace, cluster.Name, fleet.LocalAgentDisabledLabel)
+	logrus.Infof("Cluster import for '%s/%s'. Removed local agent (localAgentDisabled=true)", cluster.Namespace, cluster.Name)
 	return nil
 }
 
