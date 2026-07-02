@@ -334,7 +334,8 @@ jobs:
             --ref "$target_branch" \
             -F chart=fleet \
             -F branch="$target_branch" \
-            -F multi-rc=true
+            -F multi-rc=true \
+            -F auto-merge=true
 
       - name: Dispatch to rancher/fleet-helm-charts
         env:
