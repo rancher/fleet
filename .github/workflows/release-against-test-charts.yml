@@ -44,7 +44,7 @@ env:
   GOARCH: amd64
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   push-test-rancher-charts:
