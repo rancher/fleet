@@ -318,6 +318,27 @@ spec:
                             in the helm history.
                           type: boolean
                       type: object
+                    createNamespace:
+                      description: 'CreateNamespace controls whether Fleet creates
+                        the target namespace on
+
+                        downstream clusters during Helm installs. When nil, the default
+                        behavior
+
+                        is to create the namespace (backward-compatible). Set to false
+                        by the
+
+                        controller when Policy requires a ServiceAccount and does
+                        not explicitly
+
+                        allow namespace creation. This does not affect namespaceLabels/
+
+                        namespaceAnnotations patching, which is always attempted (when
+                        set) as
+
+                        the deployment''s ServiceAccount and gated by downstream RBAC.'
+                      nullable: true
+                      type: boolean
                     defaultNamespace:
                       description: 'DefaultNamespace is the namespace to use for resources
                         that do not
@@ -784,6 +805,27 @@ spec:
                             in the helm history.
                           type: boolean
                       type: object
+                    createNamespace:
+                      description: 'CreateNamespace controls whether Fleet creates
+                        the target namespace on
+
+                        downstream clusters during Helm installs. When nil, the default
+                        behavior
+
+                        is to create the namespace (backward-compatible). Set to false
+                        by the
+
+                        controller when Policy requires a ServiceAccount and does
+                        not explicitly
+
+                        allow namespace creation. This does not affect namespaceLabels/
+
+                        namespaceAnnotations patching, which is always attempted (when
+                        set) as
+
+                        the deployment''s ServiceAccount and gated by downstream RBAC.'
+                      nullable: true
+                      type: boolean
                     defaultNamespace:
                       description: 'DefaultNamespace is the namespace to use for resources
                         that do not
@@ -1736,6 +1778,27 @@ spec:
                         in the helm history.
                       type: boolean
                   type: object
+                createNamespace:
+                  description: 'CreateNamespace controls whether Fleet creates the
+                    target namespace on
+
+                    downstream clusters during Helm installs. When nil, the default
+                    behavior
+
+                    is to create the namespace (backward-compatible). Set to false
+                    by the
+
+                    controller when Policy requires a ServiceAccount and does not
+                    explicitly
+
+                    allow namespace creation. This does not affect namespaceLabels/
+
+                    namespaceAnnotations patching, which is always attempted (when
+                    set) as
+
+                    the deployment''s ServiceAccount and gated by downstream RBAC.'
+                  nullable: true
+                  type: boolean
                 defaultNamespace:
                   description: 'DefaultNamespace is the namespace to use for resources
                     that do not
@@ -2856,6 +2919,28 @@ spec:
                               in the helm history.
                             type: boolean
                         type: object
+                      createNamespace:
+                        description: 'CreateNamespace controls whether Fleet creates
+                          the target namespace on
+
+                          downstream clusters during Helm installs. When nil, the
+                          default behavior
+
+                          is to create the namespace (backward-compatible). Set to
+                          false by the
+
+                          controller when Policy requires a ServiceAccount and does
+                          not explicitly
+
+                          allow namespace creation. This does not affect namespaceLabels/
+
+                          namespaceAnnotations patching, which is always attempted
+                          (when set) as
+
+                          the deployment''s ServiceAccount and gated by downstream
+                          RBAC.'
+                        nullable: true
+                        type: boolean
                       defaultNamespace:
                         description: 'DefaultNamespace is the namespace to use for
                           resources that do not
@@ -8034,6 +8119,27 @@ spec:
                         in the helm history.
                       type: boolean
                   type: object
+                createNamespace:
+                  description: 'CreateNamespace controls whether Fleet creates the
+                    target namespace on
+
+                    downstream clusters during Helm installs. When nil, the default
+                    behavior
+
+                    is to create the namespace (backward-compatible). Set to false
+                    by the
+
+                    controller when Policy requires a ServiceAccount and does not
+                    explicitly
+
+                    allow namespace creation. This does not affect namespaceLabels/
+
+                    namespaceAnnotations patching, which is always attempted (when
+                    set) as
+
+                    the deployment''s ServiceAccount and gated by downstream RBAC.'
+                  nullable: true
+                  type: boolean
                 defaultNamespace:
                   description: 'DefaultNamespace is the namespace to use for resources
                     that do not
@@ -9186,6 +9292,28 @@ spec:
                               in the helm history.
                             type: boolean
                         type: object
+                      createNamespace:
+                        description: 'CreateNamespace controls whether Fleet creates
+                          the target namespace on
+
+                          downstream clusters during Helm installs. When nil, the
+                          default behavior
+
+                          is to create the namespace (backward-compatible). Set to
+                          false by the
+
+                          controller when Policy requires a ServiceAccount and does
+                          not explicitly
+
+                          allow namespace creation. This does not affect namespaceLabels/
+
+                          namespaceAnnotations patching, which is always attempted
+                          (when set) as
+
+                          the deployment''s ServiceAccount and gated by downstream
+                          RBAC.'
+                        nullable: true
+                        type: boolean
                       defaultNamespace:
                         description: 'DefaultNamespace is the namespace to use for
                           resources that do not
@@ -10319,6 +10447,22 @@ spec:
             \ in the same namespace are aggregated with OR/union\nsemantics, sorted\
             \ by name for determinism."
           properties:
+            allowNamespaceCreation:
+              description: 'AllowNamespaceCreation, when true, allows Fleet to create
+                namespaces on
+
+                downstream clusters during Helm installs. By default (false), when
+
+                RequireServiceAccount is true, namespace creation is disabled so that
+
+                tenant ServiceAccounts are not forced to hold the cluster-scoped
+
+                namespaces.create verb. Operators who have secured namespace creation
+
+                through other means (ValidatingAdmissionPolicy, Kyverno, etc.) can
+
+                set this to true.'
+              type: boolean
             allowedServiceAccounts:
               description: 'AllowedServiceAccounts lists service accounts that may
                 be used.
