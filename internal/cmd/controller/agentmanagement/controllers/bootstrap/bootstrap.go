@@ -77,10 +77,6 @@ func (h *handler) OnConfig(config *fleetconfig.Config) error {
 		maps.Copy(localClusterLabels, config.Bootstrap.ClusterLabels)
 	}
 
-	if config.Bootstrap.LocalAgentDisabled {
-		localClusterLabels[fleet.LocalAgentDisabledLabel] = "true"
-	}
-
 	if config.Bootstrap.Namespace == "" || config.Bootstrap.Namespace == "-" {
 		return nil
 	}

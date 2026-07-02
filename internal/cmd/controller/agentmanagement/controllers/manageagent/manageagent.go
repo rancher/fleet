@@ -120,7 +120,7 @@ func Register(ctx context.Context,
 }
 
 func (h *handler) onClusterStatusChange(cluster *fleet.Cluster, status fleet.ClusterStatus) (fleet.ClusterStatus, error) {
-	if SkipCluster(cluster) || cluster.Labels[fleet.LocalAgentDisabledLabel] == "true" {
+	if SkipCluster(cluster) || LocalAgentDisabled(cluster) {
 		return status, nil
 	}
 
@@ -298,7 +298,7 @@ func (h *handler) OnNamespace(key string, namespace *corev1.Namespace) (*corev1.
 	var objs []runtime.Object
 
 	for _, cluster := range clusters {
-		if SkipCluster(cluster) || cluster.Labels[fleet.LocalAgentDisabledLabel] == "true" {
+		if SkipCluster(cluster) || LocalAgentDisabled(cluster) {
 			continue
 		}
 		logrus.Infof("Update agent bundle for cluster %s/%s", cluster.Namespace, cluster.Name)
@@ -460,4 +460,22 @@ func SkipCluster(cluster *fleet.Cluster) bool {
 		return true
 	}
 	return false
+}
+
+// LocalAgentDisabled reports whether the fleet-agent must NOT be deployed to
+// this cluster. It only ever applies to the management (local) cluster and is
+// driven by the global config value Bootstrap.LocalAgentDisabled.
+func LocalAgentDisabled(cluster *fleet.Cluster) bool {
+	return IsLocalCluster(cluster) && config.Get().Bootstrap.LocalAgentDisabled
+}
+
+// IsLocalCluster is a fast, metadata-only check that a Cluster object is the
+// management (local) cluster: the well-known name in the configured bootstrap
+// namespace, matching what the bootstrap controller creates. Restricting the
+// disable behavior to this cluster ensures a downstream cluster can never have
+// its agent skipped or torn down.
+func IsLocalCluster(cluster *fleet.Cluster) bool {
+	return cluster != nil &&
+		cluster.Name == fleet.LocalClusterName &&
+		cluster.Namespace == config.Get().Bootstrap.Namespace
 }
