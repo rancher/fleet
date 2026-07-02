@@ -331,3 +331,73 @@ func TestNormalizeWebhookCABundlePatch_NestedPatch(t *testing.T) {
 		t.Errorf("Expected nested patch to be emptied, but got: %s", string(patch))
 	}
 }
+
+func TestNormalizeWebhookCABundlePatch_NonWebhookResource(t *testing.T) {
+	// Patch for a hypothetical CustomResourceDefinition with a caBundle field
+	originalPatch := []byte(`{"spec":{"conversion":{"webhook":{"clientConfig":{"caBundle":"U09NRV9DQV9CVU5ETEU=","service":{"name":"webhook-service","namespace":"default"}}}}}}`)
+
+	desired := &unstructured.Unstructured{
+		Object: map[string]any{
+			"apiVersion": "apiextensions.k8s.io/v1",
+			"kind":       "CustomResourceDefinition",
+			"metadata": map[string]any{
+				"name": "myresources.example.com",
+			},
+			"spec": map[string]any{
+				"conversion": map[string]any{
+					"webhook": map[string]any{
+						"clientConfig": map[string]any{
+							"service": map[string]any{
+								"name":      "webhook-service",
+								"namespace": "default",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	actual := &unstructured.Unstructured{
+		Object: map[string]any{
+			"apiVersion": "apiextensions.k8s.io/v1",
+			"kind":       "CustomResourceDefinition",
+			"metadata": map[string]any{
+				"name": "myresources.example.com",
+			},
+			"spec": map[string]any{
+				"conversion": map[string]any{
+					"webhook": map[string]any{
+						"clientConfig": map[string]any{
+							"service": map[string]any{
+								"name":      "webhook-service",
+								"namespace": "default",
+							},
+							"caBundle": "U09NRV9DQV9CVU5ETEU=",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	patch := originalPatch
+	emptied, err := normalizeWebhookCABundlePatch(desired, actual, &patch)
+	if err != nil {
+		t.Fatalf("normalizeWebhookCABundlePatch failed: %v", err)
+	}
+
+	// The patch should be UNCHANGED - this function only handles webhook configurations
+	if emptied {
+		t.Error("Expected non-webhook resource to be unaffected, but patch was emptied")
+	}
+
+	if string(patch) != string(originalPatch) {
+		t.Errorf("Expected patch to remain unchanged for non-webhook resource, but it was modified.\nOriginal: %s\nModified: %s", string(originalPatch), string(patch))
+	}
+
+	// Verify caBundle is still present
+	if !strings.Contains(string(patch), "caBundle") {
+		t.Error("Expected caBundle to remain in patch for non-webhook resource, but it was removed")
+	}
+}
