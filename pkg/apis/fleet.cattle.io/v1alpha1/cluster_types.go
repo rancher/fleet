@@ -19,6 +19,14 @@ var (
 	// ClusterConditionProcessed indicates that the status fields have been
 	// processed.
 	ClusterConditionProcessed = "Processed"
+	// ClusterConditionAgentVersionUpToDate indicates whether the downstream
+	// agent runs the same version as the fleet-controller. The controller and
+	// agent are built and released together, so the controller compares its
+	// own binary version against the version reported by the running agent
+	// binary (independent of the configured agent image, which may be a moving
+	// tag or a custom image). It is Unknown when either side does not report a
+	// comparable version, e.g. for unstamped "dev" builds.
+	ClusterConditionAgentVersionUpToDate = "AgentVersionUpToDate"
 	// ClusterNamespaceAnnotation used on a cluster namespace to refer to
 	// the cluster registration namespace, which contains the cluster
 	// resource.
@@ -306,4 +314,8 @@ type AgentStatus struct {
 	// +nullable
 	// +optional
 	Namespace string `json:"namespace"`
+	// Version is the agent's version as reported by the running agent binary.
+	// +nullable
+	// +optional
+	Version string `json:"version,omitempty"`
 }
