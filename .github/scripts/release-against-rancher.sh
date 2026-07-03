@@ -7,8 +7,9 @@ set -euo pipefail
 NEW_FLEET_VERSION="$1"    # e.g. 0.15.1
 NEW_CHART_VERSION="$2"    # e.g. 110.0.1
 
-bump_fleet_api() {
-    go get -u "github.com/rancher/fleet/pkg/apis@v${NEW_FLEET_VERSION}"
+bump_fleet_module() {
+    # $1: fleet submodule path, e.g. pkg/apis or pkg/helmvalues
+    go get -u "github.com/rancher/fleet/$1@v${NEW_FLEET_VERSION}"
     go mod tidy
 }
 
@@ -68,13 +69,20 @@ git add build.yaml pkg/buildconfig/constants.go
 
 # Bump the Fleet API when a pkg/apis tag for this exact version exists in the fleet repo.
 if git -C ../fleet tag -l "pkg/apis/v${NEW_FLEET_VERSION}" | grep -q .; then
-    bump_fleet_api
+    bump_fleet_module pkg/apis
 
     pushd pkg/apis > /dev/null
-    bump_fleet_api
+    bump_fleet_module pkg/apis
     popd > /dev/null
 
     git add go.mod go.sum pkg/apis/go.mod pkg/apis/go.sum
+fi
+
+# Bump the Fleet helmvalues module when a pkg/helmvalues tag for this exact version
+# exists in the fleet repo.
+if git -C ../fleet tag -l "pkg/helmvalues/v${NEW_FLEET_VERSION}" | grep -q .; then
+    bump_fleet_module pkg/helmvalues
+    git add go.mod go.sum
 fi
 
 git commit -m "Updating to Fleet v${NEW_FLEET_VERSION}"

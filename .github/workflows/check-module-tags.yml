@@ -1,0 +1,48 @@
+name: Check module tags
+
+# Verifies that the pkg/apis and pkg/helmvalues modules are released in lockstep:
+# the two tags share the same version and commit, and pkg/helmvalues/go.mod
+# requires pkg/apis at that same version.
+#
+# Runs when a pkg/helmvalues tag is pushed (the dependent module, tagged last),
+# and can be triggered manually for any version.
+
+on:
+  push:
+    tags:
+      - 'pkg/helmvalues/v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to verify, e.g. v0.16.0-beta.1 (empty = latest pkg/helmvalues tag)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  check-module-tags:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify pkg/apis and pkg/helmvalues tags are in sync
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if [ -n "${INPUT_VERSION}" ]; then
+            version="${INPUT_VERSION}"
+          elif [ "${EVENT_NAME}" = "push" ]; then
+            # REF_NAME is e.g. pkg/helmvalues/v0.16.0-beta.1
+            version="${REF_NAME#pkg/helmvalues/}"
+          else
+            version=""
+          fi
+          ./.github/scripts/check-module-tag-sync.sh "${version}"

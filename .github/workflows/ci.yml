@@ -45,6 +45,10 @@ jobs:
       -
         name: unit-test
         run: go test -shuffle=on $(go list ./... | grep -v -e /e2e -e /integrationtests -e /benchmarks)
+      -
+        name: unit-test-helmvalues
+        working-directory: pkg/helmvalues
+        run: go test -shuffle=on ./...
 
   integration-tests-group1:
     runs-on: ubuntu-latest
