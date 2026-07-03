@@ -7,11 +7,74 @@ import (
 	. "github.com/onsi/gomega"
 
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/rancher/fleet/internal/config"
+	"github.com/rancher/fleet/pkg/version"
 )
 
 var _ = Describe("Config", func() {
+	When("the configmap on startup has no version annotation", func() {
+		It("loads config anyway", func() {
+			cfg, err := config.ReadConfig(&v1.ConfigMap{
+				Data: map[string]string{"config": `{"gitClientTimeout": "20s"}`},
+			})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cfg.GitClientTimeout.Duration).To(Equal(20 * time.Second))
+		})
+	})
+
+	When("the fleet-controller starts up for the first time", func() {
+		It("ignores the version and loads config nevertheless", func() {
+			cfg, err := config.ReadConfig(&v1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{config.VersionAnnotation: "v9.9.9"},
+				},
+				Data: map[string]string{"config": `{"gitClientTimeout": "20s"}`},
+			})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cfg.GitClientTimeout.Duration).To(Equal(20 * time.Second))
+		})
+	})
+
+	When("a configmap is already loaded and a different-version configmap arrives", func() {
+		AfterEach(func() {
+			config.Set(nil)
+		})
+
+		It("keeps the running config and does not reload on mismatched version", func() {
+			running := config.DefaultConfig()
+			running.GitClientTimeout = metav1.Duration{Duration: 20 * time.Second}
+			config.Set(running)
+
+			cfg, err := config.ReadConfig(&v1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{config.VersionAnnotation: "v9.9.9"},
+				},
+				Data: map[string]string{"config": `{"gitClientTimeout": "999s"}`},
+			})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cfg).To(BeIdenticalTo(running))
+			Expect(cfg.GitClientTimeout.Duration).To(Equal(20 * time.Second))
+		})
+
+		It("loads new config on matched version", func() {
+			running := config.DefaultConfig()
+			running.GitClientTimeout = metav1.Duration{Duration: 20 * time.Second}
+			config.Set(running)
+
+			cfg, err := config.ReadConfig(&v1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{config.VersionAnnotation: version.Version},
+				},
+				Data: map[string]string{"config": `{"gitClientTimeout": "999s"}`},
+			})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cfg).ToNot(BeIdenticalTo(running))
+			Expect(cfg.GitClientTimeout.Duration).To(Equal(999 * time.Second))
+		})
+	})
+
 	When("not having set a value for gitClientTimeout", func() {
 		It("should return the default value", func() {
 			cfg, err := config.ReadConfig(&v1.ConfigMap{Data: map[string]string{}})
@@ -23,12 +86,18 @@ var _ = Describe("Config", func() {
 		It("should return the set value", func() {
 			jsonConfig := `{"gitClientTimeout": "20s"}`
 			cfg, err := config.ReadConfig(&v1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						config.VersionAnnotation: version.Version,
+					},
+				},
 				Data: map[string]string{
 					"config": jsonConfig,
 				},
 			})
 			Expect(err).ToNot(HaveOccurred())
 			Expect(cfg.GitClientTimeout.Duration).To(Equal(20 * time.Second))
+			Expect(cfg).ToNot(Equal(config.DefaultConfig()))
 		})
 	})
 
@@ -51,9 +120,16 @@ var _ = Describe("Config", func() {
 		})
 
 		It("keeps valid keys and only defaults the invalid one", func() {
-			cfg, err := config.ReadConfig(&v1.ConfigMap{Data: map[string]string{
-				"config": `{"gitClientTimeout": "20s", "garbageCollectionInterval": "1d"}`,
-			}})
+			cfg, err := config.ReadConfig(&v1.ConfigMap{
+				Data: map[string]string{
+					"config": `{"gitClientTimeout": "20s", "garbageCollectionInterval": "1d"}`,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						config.VersionAnnotation: version.Version,
+					},
+				},
+			})
 			Expect(err).ToNot(HaveOccurred())
 			Expect(cfg.GitClientTimeout.Duration).To(Equal(20 * time.Second))
 			Expect(cfg.GarbageCollectionInterval.Duration).To(Equal(time.Duration(0)))
@@ -68,7 +144,14 @@ var _ = Describe("Config", func() {
 					"agentCheckinInterval": "bad",
 					"gitClientTimeout": "45s"
 				}`,
-			}})
+			},
+
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						config.VersionAnnotation: version.Version,
+					},
+				},
+			})
 			Expect(err).ToNot(HaveOccurred())
 			Expect(cfg.AgentImage).To(Equal("my-registry/fleet-agent:v1.2.3"))
 			Expect(cfg.APIServerURL).To(Equal("https://kube.example.com:6443"))
@@ -100,7 +183,13 @@ var _ = Describe("Config", func() {
 		It("still surfaces the unmarshal error", func() {
 			cfg, err := config.ReadConfig(&v1.ConfigMap{Data: map[string]string{
 				"config": "- a\n- b\n",
-			}})
+			},
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						config.VersionAnnotation: version.Version,
+					},
+				},
+			})
 			Expect(err).To(HaveOccurred())
 			Expect(cfg).To(Equal(config.DefaultConfig()))
 		})
