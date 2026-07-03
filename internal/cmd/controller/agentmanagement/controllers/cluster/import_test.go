@@ -38,11 +38,15 @@ import (
 // isLocalCluster to recognize them.
 const localBootstrapNamespace = "fleet-local"
 
-// setLocalBootstrapConfig points config.Get().Bootstrap.Namespace at
-// localBootstrapNamespace so isLocalCluster can resolve the local cluster.
-func setLocalBootstrapConfig(t *testing.T) {
+// setLocalAgentDisabledConfig sets the bootstrap namespace and the
+// LocalAgentDisabled flag, so manageagent.LocalAgentDisabled reports the local
+// cluster's agent as disabled without relying on any label.
+func setLocalAgentDisabledConfig(t *testing.T, disabled bool) {
 	t.Helper()
-	config.Set(&config.Config{Bootstrap: config.Bootstrap{Namespace: localBootstrapNamespace}})
+	config.Set(&config.Config{Bootstrap: config.Bootstrap{
+		Namespace:          localBootstrapNamespace,
+		LocalAgentDisabled: disabled,
+	}})
 }
 
 // agentResourceObjects returns one object of every kind that the deploy path
@@ -664,140 +668,6 @@ func TestAllowedKubeConfigSecretNamespace(t *testing.T) {
 	}
 }
 
-// localCluster returns a Cluster object recognized as the management (local)
-// cluster by isLocalCluster, carrying the given labels.
-func localCluster(labels map[string]string) *fleet.Cluster {
-	return &fleet.Cluster{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      fleet.LocalClusterName,
-			Namespace: localBootstrapNamespace,
-			Labels:    labels,
-		},
-	}
-}
-
-func TestLocalAgentDisabled(t *testing.T) {
-	setLocalBootstrapConfig(t)
-
-	cases := []struct {
-		name    string
-		cluster *fleet.Cluster
-		want    bool
-	}{
-		{
-			name:    "nil labels",
-			cluster: localCluster(nil),
-			want:    false,
-		},
-		{
-			name:    "label absent",
-			cluster: localCluster(map[string]string{"name": "local"}),
-			want:    false,
-		},
-		{
-			name: "label set to true on the local cluster",
-			cluster: localCluster(map[string]string{
-				"name":                        "local",
-				fleet.LocalAgentDisabledLabel: "true",
-			}),
-			want: true,
-		},
-		{
-			// The label must only ever take effect on the management cluster:
-			// a downstream cluster carrying it (wrong namespace) must not be
-			// treated as disabled, otherwise its agent would be torn down.
-			name: "label set to true on a non-local cluster (wrong namespace)",
-			cluster: &fleet.Cluster{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      fleet.LocalClusterName,
-					Namespace: "some-downstream-ns",
-					Labels: map[string]string{
-						fleet.LocalAgentDisabledLabel: "true",
-					},
-				},
-			},
-			want: false,
-		},
-		{
-			name: "label set to true on a non-local cluster (wrong name)",
-			cluster: &fleet.Cluster{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "downstream",
-					Namespace: localBootstrapNamespace,
-					Labels: map[string]string{
-						fleet.LocalAgentDisabledLabel: "true",
-					},
-				},
-			},
-			want: false,
-		},
-		{
-			// Only the literal string "true" enables it: anything else (false,
-			// empty, "1", "yes") is treated as not-disabled so users can't
-			// accidentally disable the agent by toggling the label.
-			name:    "label set to a non-true value is treated as not disabled",
-			cluster: localCluster(map[string]string{fleet.LocalAgentDisabledLabel: "1"}),
-			want:    false,
-		},
-		{
-			name:    "label set to false",
-			cluster: localCluster(map[string]string{fleet.LocalAgentDisabledLabel: "false"}),
-			want:    false,
-		},
-	}
-
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			if got := localAgentDisabled(c.cluster); got != c.want {
-				t.Errorf("localAgentDisabled = %v, want %v", got, c.want)
-			}
-		})
-	}
-}
-
-func TestIsLocalCluster(t *testing.T) {
-	setLocalBootstrapConfig(t)
-
-	cases := []struct {
-		name    string
-		cluster *fleet.Cluster
-		want    bool
-	}{
-		{
-			name:    "correct name and namespace",
-			cluster: localCluster(nil),
-			want:    true,
-		},
-		{
-			name: "correct name, wrong namespace",
-			cluster: &fleet.Cluster{
-				ObjectMeta: metav1.ObjectMeta{Name: fleet.LocalClusterName, Namespace: "other"},
-			},
-			want: false,
-		},
-		{
-			name: "wrong name, correct namespace",
-			cluster: &fleet.Cluster{
-				ObjectMeta: metav1.ObjectMeta{Name: "downstream", Namespace: localBootstrapNamespace},
-			},
-			want: false,
-		},
-		{
-			name:    "empty cluster",
-			cluster: &fleet.Cluster{},
-			want:    false,
-		},
-	}
-
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			if got := isLocalCluster(c.cluster); got != c.want {
-				t.Errorf("isLocalCluster = %v, want %v", got, c.want)
-			}
-		})
-	}
-}
-
 func TestIsManagementCluster(t *testing.T) {
 	const kubeSystem = "kube-system"
 
@@ -867,20 +737,19 @@ func TestIsManagementCluster(t *testing.T) {
 }
 
 func TestOnChange_LocalAgentDisabledShortCircuits(t *testing.T) {
-	// A cluster carrying the local-agent-disabled label must short-circuit
-	// out of OnChange before it touches any of the controllers/caches —
-	// no ClientID generation, no clusters.Update, nothing.
+	// The local cluster, when disabled via config, must short-circuit out of
+	// OnChange before it touches any of the controllers/caches — no ClientID
+	// generation, no clusters.Update, nothing.
 	//
 	// We assert this by leaving every field of importHandler nil; reaching
 	// any of them would panic.
-	setLocalBootstrapConfig(t)
+	setLocalAgentDisabledConfig(t, true)
 	cluster := &fleet.Cluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      fleet.LocalClusterName,
 			Namespace: localBootstrapNamespace,
 			Labels: map[string]string{
-				"name":                        "local",
-				fleet.LocalAgentDisabledLabel: "true",
+				"name": "local",
 			},
 		},
 		Spec: fleet.ClusterSpec{
@@ -899,7 +768,9 @@ func TestOnChange_LocalAgentDisabledShortCircuits(t *testing.T) {
 }
 
 func TestImportCluster_LocalAgentDisabled(t *testing.T) {
-	setLocalBootstrapConfig(t)
+	// The agent-disabled intent comes from config (Bootstrap.LocalAgentDisabled),
+	// not from a label on the Cluster, so it works even with --disable-bootstrap.
+	setLocalAgentDisabledConfig(t, true)
 
 	cases := map[string]struct {
 		cluster    *fleet.Cluster
@@ -914,13 +785,10 @@ func TestImportCluster_LocalAgentDisabled(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      fleet.LocalClusterName,
 					Namespace: localBootstrapNamespace,
-					Labels: map[string]string{
-						fleet.LocalAgentDisabledLabel: "true",
-					},
 				},
 				Spec: fleet.ClusterSpec{
 					// non-empty would normally drive the deploy path,
-					// but the label must skip past it.
+					// but the disabled config must skip past it.
 					KubeConfigSecret: "local-cluster",
 				},
 			},
@@ -935,9 +803,6 @@ func TestImportCluster_LocalAgentDisabled(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      fleet.LocalClusterName,
 					Namespace: localBootstrapNamespace,
-					Labels: map[string]string{
-						fleet.LocalAgentDisabledLabel: "true",
-					},
 				},
 				Spec: fleet.ClusterSpec{
 					KubeConfigSecret: "", // skips teardownLocalAgent
@@ -956,18 +821,16 @@ func TestImportCluster_LocalAgentDisabled(t *testing.T) {
 				AgentConfigChanged:      false,
 			},
 		},
-		"non-local cluster carrying the label is not disabled: status preserved, no teardown": {
-			// The disabling label only applies to the management cluster. A
-			// downstream cluster (wrong namespace) carrying it must not take the
-			// teardown/clear path: with an empty ClientID importCluster returns
-			// the status untouched, leaving the agent in place.
+		"non-local cluster is not disabled: status preserved, no teardown": {
+			// The disable behavior only applies to the management cluster. A
+			// downstream cluster (wrong namespace) must not take the
+			// teardown/clear path even while LocalAgentDisabled is set: with an
+			// empty ClientID importCluster returns the status untouched, leaving
+			// the agent in place.
 			cluster: &fleet.Cluster{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      fleet.LocalClusterName,
 					Namespace: "some-downstream-ns",
-					Labels: map[string]string{
-						fleet.LocalAgentDisabledLabel: "true",
-					},
 				},
 				Spec: fleet.ClusterSpec{
 					KubeConfigSecret: "downstream-kubeconfig",
@@ -999,5 +862,31 @@ func TestImportCluster_LocalAgentDisabled(t *testing.T) {
 				t.Errorf("status mismatch.\nwant: %#v\ngot:  %#v", c.wantStatus, gotStatus)
 			}
 		})
+	}
+}
+
+func TestEnqueueLocalClusterOnConfig(t *testing.T) {
+	// A config change must enqueue the local cluster (by the configured bootstrap
+	// namespace and well-known name) so importCluster re-evaluates the
+	// agent-disabled state. This is what makes the feature work without the
+	// bootstrap controller relabeling the Cluster.
+	ctrl := gomock.NewController(t)
+	clustersController := fake.NewMockControllerInterface[*fleet.Cluster, *fleet.ClusterList](ctrl)
+	clustersController.EXPECT().Enqueue(localBootstrapNamespace, fleet.LocalClusterName)
+
+	ih := importHandler{clusters: clustersController}
+	if err := ih.enqueueLocalClusterOnConfig(&config.Config{
+		Bootstrap: config.Bootstrap{Namespace: localBootstrapNamespace},
+	}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestEnqueueLocalClusterOnConfig_NilConfig(t *testing.T) {
+	// A nil config must be a no-op: importHandler.clusters is left nil so any
+	// access would panic.
+	ih := importHandler{}
+	if err := ih.enqueueLocalClusterOnConfig(nil); err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
