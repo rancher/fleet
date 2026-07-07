@@ -7,8 +7,11 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"maps"
 	"math/rand/v2"
+	"net/http"
+	"os/exec"
 	"runtime"
 	"slices"
 	"strings"
@@ -208,9 +211,9 @@ func Header(s string) string {
 func Metrics(experiment *gm.Experiment, suffix string) {
 	res := map[string]float64{}
 
-	getMetrics(res, "monitoring-fleet-controller.cattle-fleet-system.svc.cluster.local:8080/metrics", "bundle", "bundledeployment", "cluster", "clustergroup", "imagescan")
+	getMetrics(res, "monitoring-fleet-controller", "cattle-fleet-system", 8080, "bundle", "bundledeployment", "cluster", "clustergroup", "imagescan")
 
-	getMetrics(res, "monitoring-gitjob.cattle-fleet-system.svc.cluster.local:8081/metrics", "GitRepoStatus", "gitrepo")
+	getMetrics(res, "monitoring-gitjob", "cattle-fleet-system", 8081, "GitRepoStatus", "gitrepo")
 
 	for k, v := range res {
 		n := k + suffix
@@ -251,45 +254,52 @@ var requiredMetricFamilies = []string{
 	"process_network_transmit_bytes_total",
 }
 
-func getMetrics(res map[string]float64, url string, controllers ...string) {
+func getMetrics(res map[string]float64, name, namespace string, port int, controllers ...string) {
 	var (
 		mfs    map[string]*dto.MetricFamily
 		parser = expfmt.NewTextParser(model.LegacyValidation)
 	)
-	Eventually(func() error {
-		pod := addRandomSuffix("curl")
-		defer func() {
-			_, _ = k.Run("delete", "pod", "--namespace", "cattle-fleet-system", pod, "--ignore-not-found")
-		}()
 
+	var hostPort int
+
+	ctx, cancel := context.WithCancel(context.Background())
+	Eventually(func(g Gomega) {
+		// Note on the `nolint: gosec` comment below: We are looking for an available port number; this can afford to be
+		// fairly predictable.
+		hostPort = port + rand.IntN(57535) // Highest possible port: 65534
+
+		cmd := exec.CommandContext(ctx, "kubectl", "-n", namespace, "port-forward", "service/"+name, fmt.Sprintf("%d:%d", hostPort, port))
+
+		err := cmd.Start()
+		if err != nil {
+			cancel()
+		}
+
+		g.Expect(err).ToNot(HaveOccurred())
+	}).Should(Succeed())
+
+	Eventually(func() error {
+		url := fmt.Sprintf("http://127.0.0.1:%d/metrics", hostPort)
 		GinkgoWriter.Print("Fetching metrics from " + url + "\n")
 
-		// Create the pod without --attach to avoid kubectl's unreliable
-		// attach mechanism, which can duplicate output on fallback to logs.
-		_, _, err := k.RunStdout("run", "--restart=Never", pod, "--image=curlimages/curl", "--namespace", "cattle-fleet-system", "--command", "--", "curl", "-sf", url)
-		if err != nil {
-			return fmt.Errorf("kubectl run: %w", err)
-		}
-
-		// Wait for the pod to terminate. Use condition=Ready=false to
-		// detect both Succeeded and Failed without blocking for the full
-		// timeout on a failed curl.
-		_, _, err = k.RunStdout("wait", "--for=condition=Ready=false", "--namespace", "cattle-fleet-system", "pod/"+pod, "--timeout=30s")
-		if err != nil {
-			return fmt.Errorf("waiting for pod: %w", err)
-		}
-
-		phase, _, _ := k.RunStdout("get", "pod", pod, "--namespace", "cattle-fleet-system", "-o", "jsonpath={.status.phase}")
-		if strings.TrimSpace(phase) != "Succeeded" {
-			return fmt.Errorf("curl pod %s finished with phase %s", pod, phase)
-		}
-
-		out, _, err := k.RunStdout("logs", "--namespace", "cattle-fleet-system", pod)
+		resp, err := http.Get(url)
 		if err != nil {
 			return err
 		}
 
-		mfs, err = parser.TextToMetricFamilies(bytes.NewBufferString(out))
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+
+		resp.Body.Close()
+		defer cancel()
+
+		if resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("fetching metrics failed with status code %d", resp.StatusCode)
+		}
+
+		mfs, err = parser.TextToMetricFamilies(bytes.NewBuffer(body))
 		if err != nil {
 			return err
 		}
