@@ -97,14 +97,17 @@ jobs:
           fi
 
           # Same guard for the pkg/helmvalues module. Rancher may reference it from a different
-          # go.mod than pkg/apis, so scan all of rancher's module files for a require line.
+          # go.mod than pkg/apis, and potentially from more than one, so scan all of rancher's
+          # module files and consider every match (not just the first) to avoid missing a
+          # pre-release reference in a later file.
           # -o restricts the match to "<module> <version>" so a trailing " // indirect" is
           # excluded; otherwise awk would read "indirect" as the version and drop the match.
           if ! git -C fleet tag -l "pkg/helmvalues/v${NEW_FLEET}" | grep -q .; then
-            RANCHER_FLEET_HELMVALUES_VERSION=$(grep -rhsoE 'github.com/rancher/fleet/pkg/helmvalues[[:space:]]+v[0-9][^[:space:]]*' rancher --include=go.mod | awk '{print $NF}' | grep -- - | head -n1 || true)
-            if [[ "${RANCHER_FLEET_HELMVALUES_VERSION:-}" =~ - ]]; then
+            RANCHER_FLEET_HELMVALUES_PRERELEASES=$(grep -rhsoE 'github.com/rancher/fleet/pkg/helmvalues[[:space:]]+v[0-9][^[:space:]]*' rancher --include=go.mod | awk '{print $NF}' | grep -- - | sort -u || true)
+            if [ -n "${RANCHER_FLEET_HELMVALUES_PRERELEASES}" ]; then
               {
-                printf 'ERROR: rancher/rancher uses pre-release Fleet helmvalues %s, but pkg/helmvalues/v%s tag not found\n' "${RANCHER_FLEET_HELMVALUES_VERSION}" "${NEW_FLEET}"
+                printf 'ERROR: rancher/rancher uses pre-release Fleet helmvalues, but pkg/helmvalues/v%s tag not found\n' "${NEW_FLEET}"
+                printf 'Referenced pre-release version(s): %s\n' "$(echo "${RANCHER_FLEET_HELMVALUES_PRERELEASES}" | tr '\n' ' ')"
                 printf 'Please create the tag: git tag pkg/helmvalues/v%s\n' "${NEW_FLEET}"
               } >&2
               exit 1
