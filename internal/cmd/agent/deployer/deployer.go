@@ -283,6 +283,9 @@ func (d *Deployer) setNamespaceLabelsAndAnnotations(ctx context.Context, bd *fle
 // than the agent's cluster-admin credentials. Otherwise it returns the agent
 // client, preserving the previous behaviour.
 func (d *Deployer) namespaceClient(ctx context.Context, bd *fleet.BundleDeployment) (client.Client, error) {
+	if bd == nil {
+		return nil, errors.New("bundledeployment is nil")
+	}
 	if d.helm != nil {
 		c, err := d.helm.ImpersonatedClient(ctx, bd.Spec.Options.ServiceAccount)
 		if err != nil {
