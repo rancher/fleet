@@ -3,8 +3,6 @@ package record
 import (
 	"bytes"
 	"context"
-	"encoding/binary"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -37,7 +35,6 @@ import (
 )
 
 var (
-	k         kubectl.Command
 	k8sClient client.Client
 	workspace string
 )
@@ -45,7 +42,6 @@ var (
 func Setup(w string, k8s client.Client, kcmd kubectl.Command) {
 	workspace = w
 	k8sClient = k8s
-	k = kcmd
 }
 
 func MemoryUsage(experiment *gm.Experiment, name string) {
@@ -271,9 +267,6 @@ func getMetrics(res map[string]float64, name, namespace string, port int, contro
 		cmd := exec.CommandContext(ctx, "kubectl", "-n", namespace, "port-forward", "service/"+name, fmt.Sprintf("%d:%d", hostPort, port))
 
 		err := cmd.Start()
-		if err != nil {
-			cancel()
-		}
 
 		g.Expect(err).ToNot(HaveOccurred())
 	}).Should(Succeed())
@@ -282,17 +275,24 @@ func getMetrics(res map[string]float64, name, namespace string, port int, contro
 		url := fmt.Sprintf("http://127.0.0.1:%d/metrics", hostPort)
 		GinkgoWriter.Print("Fetching metrics from " + url + "\n")
 
-		resp, err := http.Get(url)
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
 		if err != nil {
 			return err
 		}
+
+		cli := &http.Client{}
+		resp, err := cli.Do(req)
+		if err != nil {
+			return err
+		}
+
+		defer resp.Body.Close()
 
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return err
 		}
 
-		resp.Body.Close()
 		defer cancel()
 
 		if resp.StatusCode != http.StatusOK {
@@ -314,14 +314,6 @@ func getMetrics(res map[string]float64, name, namespace string, port int, contro
 	}).Should(Succeed())
 
 	extractFromMetricFamilies(res, controllers, mfs)
-}
-
-// addRandomSuffix adds a random suffix to a given name.
-func addRandomSuffix(name string) string {
-	p := make([]byte, 4)
-	binary.LittleEndian.PutUint32(p, rand.Uint32())
-
-	return fmt.Sprintf("%s-%s", name, hex.EncodeToString(p))
 }
 
 func extractFromMetricFamilies(res map[string]float64, controllers []string, mfs map[string]*dto.MetricFamily) {
