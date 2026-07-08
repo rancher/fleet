@@ -86,6 +86,17 @@ type BundleDeploymentOptions struct {
 	// +nullable
 	ServiceAccount string `json:"serviceAccount,omitempty"`
 
+	// CreateNamespace controls whether Fleet creates the target namespace on
+	// downstream clusters during Helm installs. When nil, the default behavior
+	// is to create the namespace (backward-compatible). Set to false by the
+	// controller when Policy requires a ServiceAccount and does not explicitly
+	// allow namespace creation. This does not affect namespaceLabels/
+	// namespaceAnnotations patching, which is always attempted (when set) as
+	// the deployment's ServiceAccount and gated by downstream RBAC.
+	// +optional
+	// +nullable
+	CreateNamespace *bool `json:"createNamespace,omitempty"`
+
 	// ForceSyncGeneration is used to force a redeployment
 	ForceSyncGeneration int64 `json:"forceSyncGeneration,omitempty"`
 
