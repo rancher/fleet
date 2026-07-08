@@ -40,6 +40,12 @@ const (
 	HelmOpStatusDelay = time.Second * 5
 	// WaitForDependenciesReadyRequeueInterval is the wait time after the Fleet agent finds a BundleDeployment has non-ready dependencies
 	WaitForDependenciesReadyRequeueInterval = time.Second * 15
+	// NamespacePermissionRequeueInterval is the wait time after the Fleet
+	// agent is denied permission to patch a target namespace's
+	// labels/annotations. Granting the missing namespace RBAC does not trigger
+	// a reconcile on its own, so the agent requeues at this interval to
+	// converge once the permission is added.
+	NamespacePermissionRequeueInterval = time.Minute * 2
 )
 
 // Equal reports whether the duration t is equal to u.
