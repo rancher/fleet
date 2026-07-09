@@ -85,7 +85,7 @@ require (
 	go.uber.org/zap v1.28.0
 	golang.org/x/crypto v0.53.0
 	golang.org/x/net v0.56.0
-	golang.org/x/sync v0.21.0
+	golang.org/x/sync v0.22.0
 	gonum.org/v1/gonum v0.17.0
 	gotest.tools v2.2.0+incompatible
 	helm.sh/helm/v4 v4.2.2
