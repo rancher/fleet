@@ -74,7 +74,7 @@ func AuthorizeAndAssignDefaults(ctx context.Context, c client.Client, gitrepo *f
 		return fmt.Errorf("disallowed serviceAccount %s: %w", serviceAccount, err)
 	}
 
-	if _, err := isAllowedByRepo(gitrepo.Spec.Repo, grr.AllowedRepoPatterns, pol.GitAllowedRepoPatterns); err != nil {
+	if err := isAllowedByRepo(gitrepo.Spec.Repo, grr.AllowedRepoPatterns, pol.GitAllowedRepoPatterns); err != nil {
 		return fmt.Errorf("disallowed repo %s: %w", gitrepo.Spec.Repo, err)
 	}
 
@@ -164,27 +164,27 @@ func isAllowedByRegex(currentValue, defaultValue string, patterns []string) (str
 // compatible). Policy patterns are evaluated anchored via policyrestrictions.IsAllowedByRegex.
 // An empty combined allow-list means no restriction. The repo passes if either non-empty
 // list accepts it.
-func isAllowedByRepo(repo string, grrPatterns, policyPatterns []string) (string, error) {
+func isAllowedByRepo(repo string, grrPatterns, policyPatterns []string) error {
 	if len(grrPatterns) == 0 && len(policyPatterns) == 0 {
-		return repo, nil
+		return nil
 	}
 	var grrErr, polErr error
 	if len(grrPatterns) > 0 {
 		_, grrErr = isAllowedByRegex(repo, "", grrPatterns)
 		if grrErr == nil {
-			return repo, nil
+			return nil
 		}
 	}
 	if len(policyPatterns) > 0 {
 		_, polErr = policyrestrictions.IsAllowedByRegex(repo, "", policyPatterns)
 		if polErr == nil {
-			return repo, nil
+			return nil
 		}
 	}
 	// Both lists were non-empty and both rejected — report the Policy error if
 	// only Policy patterns were present, otherwise report the GRR error.
 	if grrErr != nil {
-		return repo, grrErr
+		return grrErr
 	}
-	return repo, polErr
+	return polErr
 }

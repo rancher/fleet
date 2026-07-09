@@ -262,6 +262,56 @@ func TestAuthorizeAndAssignDefaults(t *testing.T) {
 			expectedErr: "disallowed clientSecretName.*",
 		},
 		{
+			// Same rule via a Policy rather than a GitRepoRestriction. This is a
+			// standalone case (not relying on the GRR cases above) so the Policy
+			// path stays covered once GitRepoRestriction is eventually removed.
+			name: "deny Policy defaultServiceAccount that is not in allowedServiceAccounts",
+			inputGr: fleet.GitRepo{
+				Spec: fleet.GitRepoSpec{
+					Repo: "http://foo.bar/baz",
+				},
+			},
+			restrictions: &fleet.GitRepoRestrictionList{},
+			policies: &fleet.PolicyList{Items: []fleet.Policy{
+				{
+					AllowedServiceAccounts: []string{"sacc"},
+					GitRepo: &fleet.GitRepoPolicySpec{
+						DefaultServiceAccount: "dsacc",
+					},
+				},
+			}},
+			expectedGr: fleet.GitRepo{
+				Spec: fleet.GitRepoSpec{
+					Repo: "http://foo.bar/baz",
+				},
+			},
+			expectedErr: "disallowed serviceAccount.*",
+		},
+		{
+			// Same for a Policy defaultClientSecretName outside the allow-list.
+			name: "deny Policy defaultClientSecretName that is not in allowedClientSecretNames",
+			inputGr: fleet.GitRepo{
+				Spec: fleet.GitRepoSpec{
+					Repo: "http://foo.bar/baz",
+				},
+			},
+			restrictions: &fleet.GitRepoRestrictionList{},
+			policies: &fleet.PolicyList{Items: []fleet.Policy{
+				{
+					GitRepo: &fleet.GitRepoPolicySpec{
+						AllowedClientSecretNames: []string{"csn"},
+						DefaultClientSecretName:  "dcsn",
+					},
+				},
+			}},
+			expectedGr: fleet.GitRepo{
+				Spec: fleet.GitRepoSpec{
+					Repo: "http://foo.bar/baz",
+				},
+			},
+			expectedErr: "disallowed clientSecretName.*",
+		},
+		{
 			// Policy patterns are anchored: a pattern without .* must match the full URL.
 			name: "Policy repo pattern: reject URL that matches only as substring",
 			inputGr: fleet.GitRepo{
