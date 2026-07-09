@@ -69,16 +69,18 @@ jobs:
             exit 0
           fi
 
-          # For a new final minor version, pkg/apis must be tagged in the fleet repo.
+          # For a new final minor version, pkg/apis and pkg/helmvalues must be tagged in the fleet repo.
           if [[ "${NEW_FLEET}" =~ \.0$ ]]; then
-            if ! git -C fleet tag -l "pkg/apis/v${NEW_FLEET}" | grep -q .; then
-              {
-                printf 'ERROR: pkg/apis/v%s tag not found in the fleet repo!\n' "${NEW_FLEET}"
-                printf 'For a new final minor version, pkg/apis must be bumped first.\n'
-                printf 'Please create the tag: git tag pkg/apis/v%s\n' "${NEW_FLEET}"
-              } >&2
-              exit 1
-            fi
+            for mod in pkg/apis pkg/helmvalues; do
+              if ! git -C fleet tag -l "${mod}/v${NEW_FLEET}" | grep -q .; then
+                {
+                  printf 'ERROR: %s/v%s tag not found in the fleet repo!\n' "${mod}" "${NEW_FLEET}"
+                  printf 'For a new final minor version, %s must be bumped first.\n' "${mod}"
+                  printf 'Please create the tag: git tag %s/v%s\n' "${mod}" "${NEW_FLEET}"
+                } >&2
+                exit 1
+              fi
+            done
           fi
 
           # For any final version, rancher/rancher must not reference a pre-release Fleet API
@@ -90,6 +92,24 @@ jobs:
               {
                 printf 'ERROR: rancher/rancher uses pre-release Fleet API %s, but pkg/apis/v%s tag not found\n' "${RANCHER_FLEET_API_VERSION}" "${NEW_FLEET}"
                 printf 'Please create the tag: git tag pkg/apis/v%s\n' "${NEW_FLEET}"
+              } >&2
+              exit 1
+            fi
+          fi
+
+          # Same guard for the pkg/helmvalues module. Rancher may reference it from a different
+          # go.mod than pkg/apis, and potentially from more than one, so scan all of rancher's
+          # module files and consider every match (not just the first) to avoid missing a
+          # pre-release reference in a later file.
+          # -o restricts the match to "<module> <version>" so a trailing " // indirect" is
+          # excluded; otherwise awk would read "indirect" as the version and drop the match.
+          if ! git -C fleet tag -l "pkg/helmvalues/v${NEW_FLEET}" | grep -q .; then
+            RANCHER_FLEET_HELMVALUES_PRERELEASES=$(grep -rhsoE 'github.com/rancher/fleet/pkg/helmvalues[[:space:]]+v[0-9][^[:space:]]*' rancher --include=go.mod | awk '{print $NF}' | grep -- - | sort -u || true)
+            if [ -n "${RANCHER_FLEET_HELMVALUES_PRERELEASES}" ]; then
+              {
+                printf 'ERROR: rancher/rancher uses pre-release Fleet helmvalues, but pkg/helmvalues/v%s tag not found\n' "${NEW_FLEET}"
+                printf 'Referenced pre-release version(s): %s\n' "$(echo "${RANCHER_FLEET_HELMVALUES_PRERELEASES}" | tr '\n' ' ')"
+                printf 'Please create the tag: git tag pkg/helmvalues/v%s\n' "${NEW_FLEET}"
               } >&2
               exit 1
             fi

@@ -7,6 +7,7 @@ toolchain go1.26.4
 replace (
 	github.com/imdario/mergo => github.com/imdario/mergo v1.0.2
 	github.com/rancher/fleet/pkg/apis => ./pkg/apis
+	github.com/rancher/fleet/pkg/helmvalues => ./pkg/helmvalues
 	gopkg.in/go-playground/webhooks.v6 => github.com/go-playground/webhooks/v6 v6.4.0
 	k8s.io/api => k8s.io/api v0.36.2
 	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.36.2
@@ -71,6 +72,7 @@ require (
 	github.com/prometheus/client_model v0.6.2
 	github.com/prometheus/common v0.69.0
 	github.com/rancher/fleet/pkg/apis v0.15.4
+	github.com/rancher/fleet/pkg/helmvalues v0.0.0-00010101000000-000000000000
 	github.com/rancher/lasso v0.2.9
 	github.com/rancher/wrangler/v3 v3.7.0
 	github.com/reugn/go-quartz v0.15.2
