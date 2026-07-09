@@ -262,7 +262,7 @@ func getMetrics(res map[string]float64, name, namespace string, port int, contro
 	Eventually(func(g Gomega) {
 		// Note on the `nolint: gosec` comment below: We are looking for an available port number; this can afford to be
 		// fairly predictable.
-		hostPort = port + rand.IntN(57535) // Highest possible port: 65534
+		hostPort = port + rand.IntN(65535-port) // TCP port range: 0-65535
 
 		cmd := exec.CommandContext(ctx, "kubectl", "-n", namespace, "port-forward", "service/"+name, fmt.Sprintf("%d:%d", hostPort, port))
 
