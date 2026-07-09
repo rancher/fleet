@@ -18,6 +18,7 @@ on:
         #   (currently: Fleet minor - 1 = Rancher minor)
         options:
           - main
+          - release/v0.16
           - release/v0.15
           - release/v0.14
           - release/v0.13
