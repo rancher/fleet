@@ -1,0 +1,62 @@
+name: Dependency Bot Auto-Merge
+
+on:
+  pull_request:
+    types: [opened]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-approve-and-merge:
+    name: Approve and Auto-Merge
+    if: >-
+      github.event.pull_request.state == 'open' &&
+      github.event.pull_request.user.type == 'Bot' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      (
+        (github.event.pull_request.user.login == 'renovate-rancher[bot]' &&
+         startsWith(github.event.pull_request.head.ref, 'renovate/')) ||
+        (github.event.pull_request.user.login == 'dependabot[bot]' &&
+         startsWith(github.event.pull_request.head.ref, 'dependabot/'))
+      )
+    runs-on: ubuntu-latest
+    steps:
+      - name: Approve PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          review_state=$(gh api "repos/$REPO/pulls/$PR_NUMBER/reviews" \
+            --jq '[.[] | select(.user.login == "github-actions[bot]")] | last | .state // ""')
+
+          if [[ "$review_state" == "APPROVED" ]]; then
+            echo "PR is already approved by github-actions[bot]."
+            exit 0
+          fi
+
+          gh pr review "$PR_NUMBER" \
+            --repo "$REPO" \
+            --approve \
+            --body "Auto-approving dependency bot PR."
+
+      - name: Enable auto-merge
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          auto_merge_enabled=$(gh pr view "$PR_NUMBER" --repo "$REPO" \
+            --json autoMergeRequest --jq '.autoMergeRequest != null')
+
+          if [[ "$auto_merge_enabled" == "true" ]]; then
+            echo "Auto-merge is already enabled."
+            exit 0
+          fi
+
+          gh pr merge "$PR_NUMBER" \
+            --repo "$REPO" \
+            --auto \
+            --squash
