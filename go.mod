@@ -99,7 +99,7 @@ require (
 	k8s.io/kubectl v0.36.2
 	k8s.io/kubernetes v1.36.2
 	k8s.io/streaming v0.36.2
-	oras.land/oras-go/v2 v2.6.1
+	oras.land/oras-go/v2 v2.6.2
 	sigs.k8s.io/cli-utils v0.37.2
 	sigs.k8s.io/controller-runtime v0.24.1
 	sigs.k8s.io/controller-tools v0.21.0
