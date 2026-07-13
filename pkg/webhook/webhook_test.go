@@ -835,6 +835,27 @@ func TestGitRepoURLMatch(t *testing.T) {
 			repository:      `{"html_url":"https://github.example.com/example/repo","ssh_url":"git@github-ssh.example.com:example/repo.git"}`,
 			matchedRepoName: "intended-gitrepo",
 		},
+		// Same host for web and SSH (e.g. github.com): the two URLs must be
+		// deduplicated so the matching GitRepo is patched once, not twice.
+		"web and SSH URLs on the same host match once": {
+			gitRepos: []v1alpha1.GitRepo{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "intended-gitrepo",
+						Namespace: "my-namespace",
+					},
+					Spec: v1alpha1.GitRepoSpec{
+						Repo: "https://github.com/example/repo",
+					},
+					Status: v1alpha1.GitRepoStatus{
+						WebhookCommit: "12345abcdef",
+					},
+				},
+				ignoredGitRepo,
+			},
+			repository:      `{"html_url":"https://github.com/example/repo","ssh_url":"git@github.com:example/repo.git"}`,
+			matchedRepoName: "intended-gitrepo",
+		},
 	}
 
 	for name, tc := range cases {
@@ -921,6 +942,7 @@ func TestSSHURLToParsable(t *testing.T) {
 		"already ssh scheme":    {in: "ssh://git@bitbucket.example.com:7999/proj/repo.git", expected: "ssh://git@bitbucket.example.com:7999/proj/repo.git"},
 		"without user":          {in: "github-ssh.example.com:owner/repo.git", expected: ""},
 		"without colon":         {in: "git@github-ssh.example.com", expected: ""},
+		"empty path":            {in: "git@github-ssh.example.com:", expected: ""},
 	}
 
 	for name, tc := range cases {

@@ -99,12 +99,23 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// A payload can yield several URLs (e.g. a web URL and an SSH URL) that
+	// resolve to the same host and path, most commonly when the SSH host equals
+	// the web host (github.com). Track those with `seen` so a matching GitRepo is
+	// processed once per request instead of letting it be processed repeatedly.
+	seen := make(map[string]struct{}, len(repoURLs))
 	for _, repo := range repoURLs {
 		u, err := url.Parse(repo)
 		if err != nil {
 			w.logAndReturn(rw, err)
 			return
 		}
+		key := u.Hostname() + "\x00" + u.EscapedPath()
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+
 		path := strings.Replace(regexp.QuoteMeta(u.EscapedPath()[1:]), `/_git/`, `(/_git)?/`, 1)
 		regexpStr := `(?i)(http://|https://|\w+@|ssh://(\w+@)?|git@(ssh\.)?)` + regexp.QuoteMeta(u.Hostname()) +
 			"(:[0-9]+|)[:/](v\\d/)?" + path + "(\\.git)?$"
@@ -294,6 +305,10 @@ func sshURLToParsable(raw string) string {
 	// Drop a trailing ".git" so the "(\.git)?$" in the match regexp stays
 	// optional and matches GitRepos configured with or without the suffix.
 	path = strings.TrimSuffix(path, ".git")
+	if path == "" {
+		// skip if git URL has no path
+		return ""
+	}
 	return fmt.Sprintf("ssh://%s@%s/%s", user, host, path)
 }
 
