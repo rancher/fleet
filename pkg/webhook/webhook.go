@@ -272,6 +272,31 @@ func getBranchTagFromRef(ref string) (string, string) {
 	return "", ""
 }
 
+// sshURLToParsable converts an scp-style git remote such as
+// "git@github-ssh.example.com:owner/repo.git" into an "ssh://" URL that
+// net/url can parse, so the webhook matching loop can extract its hostname and
+// path.
+func sshURLToParsable(raw string) string {
+	if raw == "" {
+		return ""
+	}
+	if strings.Contains(raw, "://") {
+		return raw
+	}
+	user, rest, ok := strings.Cut(raw, "@")
+	if !ok {
+		return ""
+	}
+	host, path, ok := strings.Cut(rest, ":")
+	if !ok {
+		return ""
+	}
+	// Drop a trailing ".git" so the "(\.git)?$" in the match regexp stays
+	// optional and matches GitRepos configured with or without the suffix.
+	path = strings.TrimSuffix(path, ".git")
+	return fmt.Sprintf("ssh://%s@%s/%s", user, host, path)
+}
+
 // parsePayload extracts git information from a request payload, depending on its type.
 // Returns a revision, branch, tag and a slice of repo URLs.
 func parsePayload(payload any) (revision, branch, tag string, repoURLs []string) {
@@ -281,14 +306,23 @@ func parsePayload(payload any) (revision, branch, tag string, repoURLs []string)
 		branch, tag = getBranchTagFromRef(t.Ref)
 		revision = t.After
 		repoURLs = append(repoURLs, t.Repository.HTMLURL)
+		if sshURL := sshURLToParsable(t.Repository.SSHURL); sshURL != "" {
+			repoURLs = append(repoURLs, sshURL)
+		}
 	case gitlab.PushEventPayload:
 		branch, tag = getBranchTagFromRef(t.Ref)
 		revision = t.CheckoutSHA
 		repoURLs = append(repoURLs, t.Project.WebURL)
+		if sshURL := sshURLToParsable(t.Project.GitSSHURL); sshURL != "" {
+			repoURLs = append(repoURLs, sshURL)
+		}
 	case gitlab.TagEventPayload:
 		branch, tag = getBranchTagFromRef(t.Ref)
 		revision = t.CheckoutSHA
 		repoURLs = append(repoURLs, t.Project.WebURL)
+		if sshURL := sshURLToParsable(t.Project.GitSSHURL); sshURL != "" {
+			repoURLs = append(repoURLs, sshURL)
+		}
 	// https://support.atlassian.com/bitbucket-cloud/docs/event-payloads/#Push
 	case bitbucket.RepoPushPayload:
 		repoURLs = append(repoURLs, t.Repository.Links.HTML.Href)
@@ -321,6 +355,9 @@ func parsePayload(payload any) (revision, branch, tag string, repoURLs []string)
 		}
 	case gogsclient.PushPayload:
 		repoURLs = append(repoURLs, t.Repo.HTMLURL)
+		if sshURL := sshURLToParsable(t.Repo.SSHURL); sshURL != "" {
+			repoURLs = append(repoURLs, sshURL)
+		}
 		branch, tag = getBranchTagFromRef(t.Ref)
 		revision = t.After
 	case azuredevops.GitPushEvent:
