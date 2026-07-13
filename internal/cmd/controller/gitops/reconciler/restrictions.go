@@ -15,6 +15,7 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 // AuthorizeAndAssignDefaults applies restrictions from both GitRepoRestriction and
@@ -35,6 +36,12 @@ func AuthorizeAndAssignDefaults(ctx context.Context, c client.Client, gitrepo *f
 
 	if len(restrictions.Items) == 0 && len(policies.Items) == 0 {
 		return nil
+	}
+
+	if len(restrictions.Items) > 0 {
+		log.FromContext(ctx).Info(
+			"GitRepoRestriction will be removed in a future minor release (Fleet v0.18.0 / Rancher v2.17.0); All restrictions must migrate to Policy. " +
+				"See https://fleet.rancher.io/next/how-tos-for-operators/tenant-setup#_migration_from_gitreporestriction")
 	}
 
 	grr := aggregate(restrictions.Items)
