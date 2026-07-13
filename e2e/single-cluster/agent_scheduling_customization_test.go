@@ -18,20 +18,6 @@ func ptr[T any](v T) *T {
 }
 
 var _ = Describe("Agent Scheduling Customization", func() {
-	var (
-		cluster *fleet.Cluster
-	)
-
-	BeforeEach(func() {
-		var err error
-		cluster = &fleet.Cluster{}
-		err = clientUpstream.Get(context.TODO(), client.ObjectKey{
-			Namespace: env.Namespace,
-			Name:      "local",
-		}, cluster)
-		Expect(err).ToNot(HaveOccurred())
-	})
-
 	When("agentSchedulingCustomization.PriorityClass is configured on the cluster resource", func() {
 		BeforeEach(func() {
 			// Update the cluster with agentSchedulingCustomization
@@ -68,6 +54,13 @@ var _ = Describe("Agent Scheduling Customization", func() {
 				g.Expect(err).ToNot(HaveOccurred())
 
 				latestCluster.Spec.AgentSchedulingCustomization = nil
+				// Bump RedeployAgentGeneration to force a prompt agent re-import.
+				// Removing the customization clears the status hash quickly, but the
+				// re-import that prunes fleet-agent-priority-class is otherwise only
+				// triggered on the controller's periodic resync (~5m). That cadence
+				// races this AfterEach's PriorityClass-deletion wait and makes the
+				// spec flaky, so we force the redeploy here to prune it immediately.
+				latestCluster.Spec.RedeployAgentGeneration++
 				err = clientUpstream.Update(context.TODO(), latestCluster)
 				g.Expect(err).ToNot(HaveOccurred())
 			}).Should(Succeed(), "Should be able to update cluster to remove agentSchedulingCustomization")
@@ -79,7 +72,7 @@ var _ = Describe("Agent Scheduling Customization", func() {
 					Name:      "local",
 				}, latestCluster)
 				g.Expect(err).ToNot(HaveOccurred())
-				g.Expect(cluster.Status.AgentSchedulingCustomizationHash).To(Equal(""))
+				g.Expect(latestCluster.Status.AgentSchedulingCustomizationHash).To(Equal(""))
 			}).Should(Succeed(), "Should have cleared the AgentSchedulingCustomizationHash")
 
 			// Wait for PriorityClass to be deleted
@@ -166,6 +159,9 @@ var _ = Describe("Agent Scheduling Customization", func() {
 				g.Expect(err).ToNot(HaveOccurred())
 
 				latestCluster.Spec.AgentSchedulingCustomization = nil
+				// Force a prompt agent re-import so cleanup does not ride the
+				// controller's periodic resync (~5m). See the PriorityClass block.
+				latestCluster.Spec.RedeployAgentGeneration++
 				err = clientUpstream.Update(context.TODO(), latestCluster)
 				g.Expect(err).ToNot(HaveOccurred())
 			}).Should(Succeed(), "Should be able to update cluster to remove agentSchedulingCustomization")
@@ -177,7 +173,7 @@ var _ = Describe("Agent Scheduling Customization", func() {
 					Name:      "local",
 				}, latestCluster)
 				g.Expect(err).ToNot(HaveOccurred())
-				g.Expect(cluster.Status.AgentSchedulingCustomizationHash).To(Equal(""))
+				g.Expect(latestCluster.Status.AgentSchedulingCustomizationHash).To(Equal(""))
 			}).Should(Succeed(), "Should have cleared the AgentSchedulingCustomizationHash")
 		})
 
@@ -239,9 +235,32 @@ var _ = Describe("Agent Scheduling Customization", func() {
 				g.Expect(err).ToNot(HaveOccurred())
 
 				latestCluster.Spec.AgentSchedulingCustomization = nil
+				// Force a prompt agent re-import so cleanup does not ride the
+				// controller's periodic resync (~5m). See the PriorityClass block.
+				latestCluster.Spec.RedeployAgentGeneration++
 				err = clientUpstream.Update(context.TODO(), latestCluster)
 				g.Expect(err).ToNot(HaveOccurred())
 			}).Should(Succeed(), "Should be able to update cluster to remove agentSchedulingCustomization")
+
+			// Wait for cleanup to complete so this block does not leak the
+			// customization (PriorityClass/PDB) into any spec that runs after it.
+			Eventually(func(g Gomega) {
+				latestCluster := &fleet.Cluster{}
+				err := clientUpstream.Get(context.TODO(), client.ObjectKey{
+					Namespace: env.Namespace,
+					Name:      "local",
+				}, latestCluster)
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(latestCluster.Status.AgentSchedulingCustomizationHash).To(Equal(""))
+			}).Should(Succeed(), "Should have cleared the AgentSchedulingCustomizationHash")
+
+			Eventually(func() bool {
+				pc := &schedulingv1.PriorityClass{}
+				err := clientUpstream.Get(context.TODO(), client.ObjectKey{
+					Name: "fleet-agent-priority-class",
+				}, pc)
+				return errors.IsNotFound(err)
+			}).Should(BeTrue(), "PriorityClass should be deleted")
 		})
 
 		It("should create both PriorityClass and PodDisruptionBudget", func() {
