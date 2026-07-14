@@ -311,6 +311,13 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	forceDeploy, err := r.copyResourcesFromUpstream(ctx, bd, logger)
 	if err != nil {
+		// A Forbidden here means the deployment's service account is not allowed to
+		// create the target namespace or write the copied resources. Record it as a
+		// controlled requeue (the missing RBAC is not watched, so granting it would
+		// not otherwise re-trigger a reconcile) rather than tight-looping.
+		if handled, res, rerr := r.requeueIfCopyForbidden(ctx, orig, bd, err); handled {
+			return res, rerr
+		}
 		return ctrl.Result{}, err
 	}
 
@@ -451,9 +458,20 @@ func (r *BundleDeploymentReconciler) copyResourcesFromUpstream(
 
 	destNS := namespaces.GetDeploymentNS(r.DefaultNamespace, bd.Spec.Options)
 
+	// Downstream writes (namespace creation and the copied objects) run as the
+	// deployment's service account so they are gated by the tenant's downstream
+	// RBAC, mirroring the rest of the deploy path. When no service account
+	// resolves, this falls back to the agent client, preserving prior behaviour.
+	// The source reads (in copySecret/copyConfigMap) stay on r.Reader: they read
+	// from the management cluster, where the downstream SA is not a valid identity.
+	dsClient, err := r.Deployer.ImpersonatingClient(ctx, bd)
+	if err != nil {
+		return false, err
+	}
+
 	ns := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: destNS}}
-	if err := r.LocalClient.Get(ctx, types.NamespacedName{Name: ns.Name}, &ns); apierrors.IsNotFound(err) {
-		if err := r.LocalClient.Create(ctx, &ns); err != nil {
+	if err := dsClient.Get(ctx, types.NamespacedName{Name: ns.Name}, &ns); apierrors.IsNotFound(err) {
+		if err := dsClient.Create(ctx, &ns); err != nil {
 			logger.Info(err.Error())
 			return false, err
 		}
@@ -469,9 +487,9 @@ func (r *BundleDeploymentReconciler) copyResourcesFromUpstream(
 
 		switch strings.ToLower(rsc.Kind) {
 		case "secret":
-			updated, err = r.copySecret(ctx, bd, rsc.Name, destNS)
+			updated, err = r.copySecret(ctx, bd, rsc.Name, destNS, dsClient)
 		case "configmap":
-			updated, err = r.copyConfigMap(ctx, bd, rsc.Name, destNS)
+			updated, err = r.copyConfigMap(ctx, bd, rsc.Name, destNS, dsClient)
 		default:
 			return false, fmt.Errorf("unknown resource type for copy to downstream cluster: %q", rsc.Kind)
 		}
@@ -491,12 +509,15 @@ func (r *BundleDeploymentReconciler) copyResourcesFromUpstream(
 	return requiresBDUpdate, nil
 }
 
-// copySecret copies a secret from the bundle deployment's namespace to the destination namespace
+// copySecret copies a secret from the bundle deployment's namespace to the destination
+// namespace. The source is read from the management cluster via r.Reader; the downstream
+// write uses dsClient (the deployment's service account, or the agent client as fallback).
 func (r *BundleDeploymentReconciler) copySecret(
 	ctx context.Context,
 	bd *fleetv1.BundleDeployment,
 	name string,
 	destNS string,
+	dsClient client.Client,
 ) (bool, error) {
 	var source corev1.Secret
 	if err := r.Reader.Get(ctx, client.ObjectKey{Namespace: bd.Namespace, Name: name}, &source); err != nil {
@@ -522,7 +543,7 @@ func (r *BundleDeploymentReconciler) copySecret(
 		},
 	}
 
-	op, err := controllerutil.CreateOrUpdate(ctx, r.LocalClient, &s, func() error {
+	op, err := controllerutil.CreateOrUpdate(ctx, dsClient, &s, func() error {
 		s.Type = source.Type // important for e.g. image pull secrets
 		s.Labels = source.Labels
 		s.Annotations = source.Annotations
@@ -543,12 +564,16 @@ func (r *BundleDeploymentReconciler) copySecret(
 	return op == controllerutil.OperationResultUpdated, nil
 }
 
-// copyConfigMap copies a configmap from the bundle deployment's namespace to the destination namespace
+// copyConfigMap copies a configmap from the bundle deployment's namespace to the
+// destination namespace. The source is read from the management cluster via r.Reader;
+// the downstream write uses dsClient (the deployment's service account, or the agent
+// client as fallback).
 func (r *BundleDeploymentReconciler) copyConfigMap(
 	ctx context.Context,
 	bd *fleetv1.BundleDeployment,
 	name string,
 	destNS string,
+	dsClient client.Client,
 ) (bool, error) {
 	var source corev1.ConfigMap
 	if err := r.Reader.Get(ctx, client.ObjectKey{Namespace: bd.Namespace, Name: name}, &source); err != nil {
@@ -574,7 +599,7 @@ func (r *BundleDeploymentReconciler) copyConfigMap(
 		},
 	}
 
-	op, err := controllerutil.CreateOrUpdate(ctx, r.LocalClient, &cm, func() error {
+	op, err := controllerutil.CreateOrUpdate(ctx, dsClient, &cm, func() error {
 		cm.Labels = source.Labels
 		cm.Annotations = source.Annotations
 		cm.Data = source.Data
@@ -623,6 +648,30 @@ func (r *BundleDeploymentReconciler) requeueIfNamespaceForbidden(ctx context.Con
 	}
 
 	log.FromContext(ctx).V(1).Info("Namespace patch forbidden, requeuing...", "error", namespaceForbiddenError)
+	return true, ctrl.Result{RequeueAfter: durations.NamespacePermissionRequeueInterval}, nil
+}
+
+// requeueIfCopyForbidden handles a denied DownstreamResources copy: the deployment's
+// service account is not allowed to create the target namespace or write the copied
+// Secret/ConfigMap. Nothing has been deployed yet (the copy runs before DeployBundle),
+// so it records not-ready (Ready/Installed=false, without a Deployed condition) and does
+// a controlled requeue rather than a failed reconcile, so it does not tight-loop: the
+// copy converges once the missing namespace/resource RBAC is granted (granting it does
+// not otherwise trigger a reconcile). Returns handled=false when err is not a Forbidden.
+func (r *BundleDeploymentReconciler) requeueIfCopyForbidden(ctx context.Context, orig, bd *fleetv1.BundleDeployment, err error) (bool, ctrl.Result, error) {
+	if !apierrors.IsForbidden(err) {
+		return false, ctrl.Result{}, nil
+	}
+
+	bd.Status.Ready = false
+	bd.Status.NonModified = true
+	monitor.Cond(fleetv1.BundleDeploymentConditionReady).SetError(&bd.Status, "", fmt.Errorf("not ready: %w", err))
+	monitor.Cond(fleetv1.BundleDeploymentConditionInstalled).SetError(&bd.Status, "", fmt.Errorf("not installed: %w", err))
+	if err := r.updateStatus(ctx, orig, bd); err != nil {
+		return true, ctrl.Result{}, err
+	}
+
+	log.FromContext(ctx).V(1).Info("Copying downstream resources forbidden, requeuing...", "error", err)
 	return true, ctrl.Result{RequeueAfter: durations.NamespacePermissionRequeueInterval}, nil
 }
 

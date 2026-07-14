@@ -1,0 +1,26 @@
+apiVersion: fleet.cattle.io/v1alpha1
+kind: HelmOp
+metadata:
+  name: {{.Name}}
+  namespace: {{.Namespace}}
+spec:
+  serviceAccount: {{.ServiceAccount}}
+  helm:
+    releaseName: {{.Name}}
+    chart: {{.Chart}}
+    valuesFrom:
+    {{- range $vf := .ValuesFrom}}
+      {{- if $vf.SecretKeyRef }}
+      - secretKeyRef:
+          namespace: {{$vf.SecretKeyRef.Namespace}}
+          name: {{$vf.SecretKeyRef.Name}}
+          key: {{$vf.SecretKeyRef.Key}}
+      {{- end }}
+    {{- end}}
+  downstreamResources:
+    {{- range $dr := .DownstreamResources}}
+    - kind: {{$dr.Kind}}
+      name: {{$dr.Name}}
+    {{- end}}
+  keepResources: false
+  namespace: {{.DeployNamespace}}
