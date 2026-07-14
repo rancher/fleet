@@ -112,25 +112,25 @@ dockers_v2:
   -
     id: fleet-public
     disable: "{{ .Env.IS_HOTFIX }}"
-    ids:
+    ids: &fleet_controller_ids
     - fleet-controller
     - fleet-cli
     images:
     - "docker.io/rancher/fleet"
-    tags:
+    tags: &docker_tags
     - "{{ .Tag }}"
     dockerfile: package/Dockerfile
-    labels:
+    labels: &docker_labels
       "org.opencontainers.image.created": "{{.Date}}"
       "org.opencontainers.image.title": "{{.ProjectName}}"
       "org.opencontainers.image.revision": "{{.FullCommit}}"
       "org.opencontainers.image.version": "{{.Version}}"
       "org.opencontainers.image.source": "https://github.com/rancher/fleet"
-    build_args:
+    build_args: &docker_build_args
       BUILD_ENV: "goreleaser"
-    flags:
+    flags: &public_docker_flags
     - "--pull"
-    platforms:
+    platforms: &docker_platforms
     - linux/amd64
     - linux/arm64
 
@@ -138,81 +138,46 @@ dockers_v2:
   -
     id: fleet-agent-public
     disable: "{{ .Env.IS_HOTFIX }}"
-    ids:
+    ids: &fleet_agent_ids
     - fleet-agent
     images:
     - "docker.io/rancher/fleet-agent"
-    tags:
-    - "{{ .Tag }}"
+    tags: *docker_tags
     dockerfile: package/Dockerfile.agent
-    labels:
-      "org.opencontainers.image.created": "{{.Date}}"
-      "org.opencontainers.image.title": "{{.ProjectName}}"
-      "org.opencontainers.image.revision": "{{.FullCommit}}"
-      "org.opencontainers.image.version": "{{.Version}}"
-      "org.opencontainers.image.source": "https://github.com/rancher/fleet"
-    build_args:
-      BUILD_ENV: "goreleaser"
-    flags:
-    - "--pull"
-    platforms:
-    - linux/amd64
-    - linux/arm64
+    labels: *docker_labels
+    build_args: *docker_build_args
+    flags: *public_docker_flags
+    platforms: *docker_platforms
 
   # Staging fleet-controller images with provenance
   -
     id: fleet-private
-    ids:
-    - fleet-controller
-    - fleet-cli
+    ids: *fleet_controller_ids
     images:
     - "{{ .Env.STAGE_REGISTRY }}/rancher/fleet"
-    tags:
-    - "{{ .Tag }}"
+    tags: *docker_tags
     dockerfile: package/Dockerfile
-    labels:
-      "org.opencontainers.image.created": "{{.Date}}"
-      "org.opencontainers.image.title": "{{.ProjectName}}"
-      "org.opencontainers.image.revision": "{{.FullCommit}}"
-      "org.opencontainers.image.version": "{{.Version}}"
-      "org.opencontainers.image.source": "https://github.com/rancher/fleet"
-    build_args:
-      BUILD_ENV: "goreleaser"
-    flags:
+    labels: *docker_labels
+    build_args: *docker_build_args
+    flags: &private_docker_flags
     - "--pull"
     - "--sbom=true"
     - "--provenance=true"
     - "--provenance=mode=max"
-    platforms:
-    - linux/amd64
-    - linux/arm64
+    platforms: *docker_platforms
 
   # Staging fleet-agent images with provenance
   -
     id: fleet-agent-private
-    ids:
-    - fleet-agent
+    ids: *fleet_agent_ids
     images:
     - "{{ .Env.STAGE_REGISTRY }}/rancher/fleet-agent"
-    tags:
-    - "{{ .Tag }}"
+    tags: *docker_tags
     dockerfile: package/Dockerfile.agent
-    labels:
-      "org.opencontainers.image.created": "{{.Date}}"
-      "org.opencontainers.image.title": "{{.ProjectName}}"
-      "org.opencontainers.image.revision": "{{.FullCommit}}"
-      "org.opencontainers.image.version": "{{.Version}}"
-      "org.opencontainers.image.source": "https://github.com/rancher/fleet"
-    build_args:
-      BUILD_ENV: "goreleaser"
-    flags:
-    - "--pull"
-    - "--sbom=true"
-    - "--provenance=true"
-    - "--provenance=mode=max"
-    platforms:
-    - linux/amd64
-    - linux/arm64
+    labels: *docker_labels
+    build_args: *docker_build_args
+    flags: *private_docker_flags
+    platforms: *docker_platforms
 
 docker_digest:
   name_template: "digests.txt"
