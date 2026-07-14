@@ -16,18 +16,8 @@ import (
 
 var _ = Describe("Fleet CLI jobs cleanup", Ordered, func() {
 	var (
-		jobs    []batchv1.Job
-		otherns string
+		jobs []batchv1.Job
 	)
-
-	BeforeEach(func() {
-		otherns = namespace + "-other"
-		Expect(k8sClient.Create(ctx, &corev1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: otherns,
-			},
-		})).ToNot(HaveOccurred())
-	})
 
 	JustBeforeEach(func() {
 		for _, c := range jobs {
@@ -41,12 +31,21 @@ var _ = Describe("Fleet CLI jobs cleanup", Ordered, func() {
 		}
 	})
 
-	act := func() error {
-		return cleanup.GitJobs(ctx, k8sClient, 1)
+	act := func(retention time.Duration) error {
+		return cleanup.GitJobs(ctx, k8sClient, 1, retention)
 	}
 
 	When("cleaning up", func() {
+		var otherns string
+
 		BeforeEach(func() {
+			otherns = namespace + "-other"
+			Expect(k8sClient.Create(ctx, &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: otherns,
+				},
+			})).ToNot(HaveOccurred())
+
 			owner1 := metav1.OwnerReference{
 				APIVersion: "fleet.cattle.io/v1alpha1",
 				Kind:       "GitRepo",
@@ -196,8 +195,18 @@ var _ = Describe("Fleet CLI jobs cleanup", Ordered, func() {
 			}
 		})
 
+		AfterEach(func() {
+			// Clean up the other namespace
+			ns := &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: otherns,
+				},
+			}
+			_ = k8sClient.Delete(ctx, ns)
+		})
+
 		It("deletes all resources that have the right owner and succeeded", func() {
-			Expect(act()).NotTo(HaveOccurred())
+			Expect(act(0)).NotTo(HaveOccurred())
 
 			Eventually(func(g Gomega) {
 				list := &batchv1.JobList{}
@@ -211,6 +220,182 @@ var _ = Describe("Fleet CLI jobs cleanup", Ordered, func() {
 				g.Expect(names).To(ConsistOf(
 					namespace+"/job-running",
 					namespace+"/some-other-job",
+				))
+			}, 20*time.Second, 1*time.Second).Should(Succeed())
+		})
+	})
+
+	When("cleaning up with retention for failed jobs", func() {
+		BeforeEach(func() {
+			owner := metav1.OwnerReference{
+				APIVersion: "fleet.cattle.io/v1alpha1",
+				Kind:       "GitRepo",
+				Name:       "test-gitrepo",
+				UID:        "test-uid",
+			}
+
+			spec := batchv1.JobSpec{
+				Template: corev1.PodTemplateSpec{
+					Spec: corev1.PodSpec{
+						RestartPolicy: corev1.RestartPolicyNever,
+						Containers: []corev1.Container{
+							{
+								Name:  "busybox",
+								Image: "pause",
+							},
+						},
+					},
+				},
+			}
+
+			failed := func(t time.Time) batchv1.JobStatus {
+				s := t.Add(-1 * time.Second)
+				return batchv1.JobStatus{
+					StartTime:      &metav1.Time{Time: s},
+					CompletionTime: &metav1.Time{Time: t},
+					Failed:         1,
+					Conditions: []batchv1.JobCondition{
+						{
+							Type:   batchv1.JobFailed,
+							Status: corev1.ConditionTrue,
+						},
+					},
+				}
+			}
+
+			succeeded := func(t time.Time) batchv1.JobStatus {
+				s := t.Add(-1 * time.Second)
+				return batchv1.JobStatus{
+					StartTime:      &metav1.Time{Time: s},
+					CompletionTime: &metav1.Time{Time: t},
+					Succeeded:      1,
+					Conditions: []batchv1.JobCondition{
+						{
+							Type:   batchv1.JobComplete,
+							Status: corev1.ConditionTrue,
+						},
+					},
+				}
+			}
+
+			jobs = []batchv1.Job{
+				// Running job - should never be deleted
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:            "retention-job-running",
+						Namespace:       namespace,
+						OwnerReferences: []metav1.OwnerReference{owner},
+					},
+					Spec: spec,
+				},
+				// Successful job - should always be deleted
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:            "retention-job-succeeded",
+						Namespace:       namespace,
+						OwnerReferences: []metav1.OwnerReference{owner},
+					},
+					Spec:   spec,
+					Status: succeeded(time.Now().Add(-1 * time.Hour)),
+				},
+				// Failed job, old (2 hours) - should be deleted with 1h retention
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:            "retention-job-failed-old",
+						Namespace:       namespace,
+						OwnerReferences: []metav1.OwnerReference{owner},
+					},
+					Spec:   spec,
+					Status: failed(time.Now().Add(-2 * time.Hour)),
+				},
+				// Failed job, recent (30 min) - should NOT be deleted with 1h retention
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:            "retention-job-failed-recent",
+						Namespace:       namespace,
+						OwnerReferences: []metav1.OwnerReference{owner},
+					},
+					Spec:   spec,
+					Status: failed(time.Now().Add(-30 * time.Minute)),
+				},
+				// Failed job without completion time - should never be deleted
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:            "retention-job-failed-no-completion",
+						Namespace:       namespace,
+						OwnerReferences: []metav1.OwnerReference{owner},
+					},
+					Spec: spec,
+					Status: batchv1.JobStatus{
+						StartTime: &metav1.Time{Time: time.Now().Add(-3 * time.Hour)},
+						Failed:    1,
+					},
+				},
+			}
+		})
+
+		It("deletes failed jobs older than retention period", func() {
+			Expect(act(1 * time.Hour)).NotTo(HaveOccurred())
+
+			Eventually(func(g Gomega) {
+				list := &batchv1.JobList{}
+				err := k8sClient.List(ctx, list)
+				g.Expect(err).NotTo(HaveOccurred())
+
+				names := []string{}
+				for _, cr := range list.Items {
+					names = append(names, cr.Name)
+				}
+				// Should keep: running, recent failed, failed without completion
+				// Should delete: succeeded (always), old failed (> retention)
+				g.Expect(names).To(ConsistOf(
+					"retention-job-running",
+					"retention-job-failed-recent",
+					"retention-job-failed-no-completion",
+				))
+			}, 20*time.Second, 1*time.Second).Should(Succeed())
+		})
+
+		It("keeps all failed jobs when retention is zero", func() {
+			Expect(act(0)).NotTo(HaveOccurred())
+
+			Eventually(func(g Gomega) {
+				list := &batchv1.JobList{}
+				err := k8sClient.List(ctx, list)
+				g.Expect(err).NotTo(HaveOccurred())
+
+				names := []string{}
+				for _, cr := range list.Items {
+					names = append(names, cr.Name)
+				}
+				// Should keep: running, all failed jobs
+				// Should delete: succeeded only
+				g.Expect(names).To(ConsistOf(
+					"retention-job-running",
+					"retention-job-failed-old",
+					"retention-job-failed-recent",
+					"retention-job-failed-no-completion",
+				))
+			}, 20*time.Second, 1*time.Second).Should(Succeed())
+		})
+
+		It("deletes all failed jobs when retention is very short", func() {
+			Expect(act(1 * time.Second)).NotTo(HaveOccurred())
+
+			Eventually(func(g Gomega) {
+				list := &batchv1.JobList{}
+				err := k8sClient.List(ctx, list)
+				g.Expect(err).NotTo(HaveOccurred())
+
+				names := []string{}
+				for _, cr := range list.Items {
+					names = append(names, cr.Name)
+				}
+				// Should keep: running, failed without completion
+				// Should delete: succeeded, all completed failed jobs
+				g.Expect(names).To(ConsistOf(
+					"retention-job-running",
+					"retention-job-failed-no-completion",
 				))
 			}, 20*time.Second, 1*time.Second).Should(Succeed())
 		})
