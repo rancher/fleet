@@ -87,7 +87,37 @@ func (m *Manager) getBundlesInScopeForCluster(ctx context.Context, cluster *flee
 }
 
 func (m *Manager) clusterGroupsForCluster(ctx context.Context, cluster *fleet.Cluster) (result []*fleet.ClusterGroup, _ error) {
-	return ClusterGroupsForCluster(ctx, m.client, cluster)
+	cgs := &fleet.ClusterGroupList{}
+	err := m.client.List(ctx, cgs, client.InNamespace(cluster.Namespace))
+	if err != nil {
+		return nil, err
+	}
+
+	logger := log.FromContext(ctx).WithName("target")
+	for _, cg := range cgs.Items {
+		if cg.Spec.Selector == nil {
+			continue
+		}
+		// Cache key includes ResourceVersion so the selector is recompiled when the ClusterGroup changes.
+		cacheKey := cg.Namespace + "/" + cg.Name + "@" + cg.ResourceVersion
+		var sel labels.Selector
+		if cached, ok := m.selectorCache.Load(cacheKey); ok {
+			sel = cached.(labels.Selector)
+		} else {
+			sel, err = metav1.LabelSelectorAsSelector(cg.Spec.Selector)
+			if err != nil {
+				logger.Error(err, "invalid selector on clusterGroup", "namespace", cg.Namespace, "name", cg.Name,
+					"selector", cg.Spec.Selector)
+				continue
+			}
+			m.selectorCache.Store(cacheKey, sel)
+		}
+		if sel.Matches(labels.Set(cluster.Labels)) {
+			result = append(result, &cg)
+		}
+	}
+
+	return result, nil
 }
 
 // ClusterGroupsForCluster returns all cluster groups that match the given cluster.
