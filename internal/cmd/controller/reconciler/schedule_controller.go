@@ -39,6 +39,7 @@ type ScheduleReconciler struct {
 	ShardID   string
 	Workers   int
 	Scheduler quartz.Scheduler
+	jobs      jobRegistry
 }
 
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=schedules,verbs=get;list;watch;create;update;patch;delete
@@ -103,40 +104,33 @@ func (r *ScheduleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 
 func (r *ScheduleReconciler) handleSchedule(ctx context.Context, s *fleet.Schedule) error {
 	k := scheduleKey(s)
-	schedJob, err := r.Scheduler.GetScheduledJob(k)
-	if err != nil && !errors.Is(err, quartz.ErrJobNotFound) {
-		return fmt.Errorf("an unknown error occurred when looking for a schedule job: %w", err)
+
+	job, found := r.jobs.get(k)
+	if !found {
+		return r.scheduleNewCronDurationJob(ctx, s)
 	}
 
-	if errors.Is(err, quartz.ErrJobNotFound) {
-		return scheduleNewCronDurationJob(ctx, s, r.Scheduler, r.Client)
-	}
+	// The job exists: hold its lock for the whole update
+	job.mu.Lock()
+	defer job.mu.Unlock()
 
-	// the job already exists, check if an update is needed
 	newJob, err := newCronDurationJob(ctx, s, r.Scheduler, r.Client)
 	if err != nil {
 		return err
 	}
-	existingJob := schedJob.JobDetail().Job()
-	existingCronJob, ok := existingJob.(*CronDurationJob)
-	if !ok {
-		return fmt.Errorf("unexpected job found for key: %s", k.String())
+
+	if !jobNeedsUpdate(newJob, job) {
+		return nil
 	}
 
-	if jobNeedsUpdate(newJob, existingCronJob) {
-		if err := newJob.updateJob(ctx); err != nil {
-			return err
-		}
-		return updateScheduledClusters(
-			ctx,
-			r.Scheduler,
-			r.Client,
-			newJob.MatchingClusters,
-			existingCronJob.MatchingClusters,
-			s.Namespace,
-		)
+	if err := newJob.updateJob(ctx); err != nil {
+		return err
 	}
-	return nil
+
+	job.stale = true
+	r.jobs.store(k, newJob)
+
+	return r.updateScheduledClusters(ctx, newJob.MatchingClusters, job.MatchingClusters, s.Namespace)
 }
 
 func (r *ScheduleReconciler) handleDelete(ctx context.Context, schedule *fleet.Schedule) (ctrl.Result, error) {
@@ -144,7 +138,7 @@ func (r *ScheduleReconciler) handleDelete(ctx context.Context, schedule *fleet.S
 		return ctrl.Result{}, nil
 	}
 
-	if err := deleteSchedule(ctx, schedule, r.Scheduler); err != nil {
+	if err := r.deleteSchedule(ctx, schedule); err != nil {
 		return ctrl.Result{}, err
 	}
 
@@ -165,7 +159,7 @@ func (r *ScheduleReconciler) mapClustersToSchedules(ctx context.Context, a clien
 	cluster := a.(*fleet.Cluster)
 
 	// check if the cluster is scheduled
-	schedules, err := getClusterSchedules(ctx, r.Client, r.Scheduler, cluster, r.ShardID)
+	schedules, err := r.getClusterSchedules(ctx, cluster)
 	if err != nil {
 		logger.Error(err, "Failed to get cluster schedules")
 		return nil
@@ -193,46 +187,48 @@ func jobNeedsUpdate(newJob, existingJob *CronDurationJob) bool {
 		!slices.Equal(newJob.MatchingClusters, existingJob.MatchingClusters)
 }
 
-func scheduleNewCronDurationJob(ctx context.Context, s *fleet.Schedule, scheduler quartz.Scheduler, c client.Client) error {
-	job, err := newCronDurationJob(ctx, s, scheduler, c)
+func (r *ScheduleReconciler) scheduleNewCronDurationJob(ctx context.Context, s *fleet.Schedule) error {
+	job, err := newCronDurationJob(ctx, s, r.Scheduler, r.Client)
 	if err != nil {
 		return err
 	}
 
+	k := scheduleKey(s)
+	// Register the job before arming it, so that it is never running while unknown to the registry.
+	r.jobs.store(k, job)
+
 	if err := job.scheduleJob(ctx); err != nil {
+		r.jobs.delete(k)
 		return err
 	}
 
-	return setClustersScheduled(ctx, c, job.MatchingClusters, s.Namespace, true)
+	return setClustersScheduled(ctx, r.Client, job.MatchingClusters, s.Namespace, true)
 }
 
-func deleteSchedule(ctx context.Context, s *fleet.Schedule, scheduler quartz.Scheduler) error {
+func (r *ScheduleReconciler) deleteSchedule(ctx context.Context, s *fleet.Schedule) error {
 	k := scheduleKey(s)
-	schedJob, err := scheduler.GetScheduledJob(k)
-	if err != nil && !errors.Is(err, quartz.ErrJobNotFound) {
-		return fmt.Errorf("an unknown error occurred when trying to delete a schedule job: %w", err)
-	}
-	if errors.Is(err, quartz.ErrJobNotFound) {
+	job, found := r.jobs.get(k)
+	if !found {
 		return nil
 	}
 
-	cronDurationJob, ok := schedJob.JobDetail().Job().(*CronDurationJob)
-	if !ok {
-		return fmt.Errorf("found an unexpected job type for key: %s", k.String())
-	}
+	job.mu.Lock()
+	job.stale = true
+	clusters := slices.Clone(job.MatchingClusters)
+	job.mu.Unlock()
 
-	if err := scheduler.DeleteJob(k); err != nil {
-		return err
+	// A job which quartz has popped for execution is not in the scheduler's queue, so there may be
+	// nothing to delete there. Marking it stale above is what stops it in that case.
+	if err := r.Scheduler.DeleteJob(k); err != nil && !errors.Is(err, quartz.ErrJobNotFound) {
+		return fmt.Errorf("an unknown error occurred when trying to delete a schedule job: %w", err)
 	}
+	r.jobs.delete(k)
 
 	// get the list of clusters that are no longer in any schedule
-	noLongerScheduled, err := getClustersNotScheduled(scheduler, cronDurationJob.MatchingClusters, s.Namespace)
-	if err != nil {
-		return err
-	}
+	noLongerScheduled := r.jobs.clustersNotScheduled(clusters, s.Namespace)
 
 	// set the Scheduled property of those not scheduled to false
-	return setClustersScheduled(ctx, cronDurationJob.client, noLongerScheduled, s.Namespace, false)
+	return setClustersScheduled(ctx, r.Client, noLongerScheduled, s.Namespace, false)
 }
 
 func setClusterActiveSchedule(ctx context.Context, c client.Client, name, namespace string, active bool) error {
@@ -347,60 +343,32 @@ func updateScheduleStatus(ctx context.Context, c client.Client, old *fleet.Sched
 	})
 }
 
-// isClusterScheduled returns true if the given cluster is part of
-// any scheduled job as a matching cluster.
-func isClusterScheduled(scheduler quartz.Scheduler, cluster, namespace string) (bool, error) {
-	keys, err := getClusterScheduleKeys(scheduler, cluster, namespace)
-	if err != nil {
-		return false, err
-	}
-
-	return len(keys) != 0, nil
-}
-
 // getClusterSchedules returns all the fleet Schedules with a matching shardID, in which the given cluster is found as a
 // matching target. To this end, it looks at two sources of data:
-// * keys of already scheduled jobs
+// * jobs which already target the cluster
 // * schedules which targets match the cluster, to include schedules for which no job may have been scheduled yet.
-func getClusterSchedules(
+func (r *ScheduleReconciler) getClusterSchedules(
 	ctx context.Context,
-	c client.Client,
-	scheduler quartz.Scheduler,
 	cluster *fleet.Cluster,
-	shardID string,
 ) ([]*fleet.Schedule, error) {
-	keys, err := getClusterScheduleKeys(scheduler, cluster.Name, cluster.Namespace)
-	if err != nil {
-		return nil, err
-	}
-
 	schedules := []*fleet.Schedule{}
 	scheduleNames := map[string]struct{}{}
-	for _, key := range keys {
-		job, err := scheduler.GetScheduledJob(key)
-		if err != nil {
-			return nil, err
-		}
-		cronDurationJob, ok := job.JobDetail().Job().(*CronDurationJob)
-		if !ok {
-			return nil, fmt.Errorf("unexpected job type for key: %s", key.String())
-		}
-
-		if !sharding.ShouldProcess(cronDurationJob.Schedule, shardID) {
+	for _, job := range r.jobs.jobsForCluster(cluster.Name, cluster.Namespace) {
+		if !sharding.ShouldProcess(job.Schedule, r.ShardID) {
 			continue
 		}
 
-		schedules = append(schedules, cronDurationJob.Schedule)
-		scheduleNames[cronDurationJob.Schedule.Name] = struct{}{}
+		schedules = append(schedules, job.Schedule)
+		scheduleNames[job.Schedule.Name] = struct{}{}
 	}
 
 	// Consider schedules which may exist but for which no job may have been created yet.
 	allSchedules := &fleet.ScheduleList{}
-	if err := c.List(ctx, allSchedules, client.InNamespace(cluster.Namespace)); err != nil {
+	if err := r.List(ctx, allSchedules, client.InNamespace(cluster.Namespace)); err != nil {
 		return nil, fmt.Errorf("%w, listing schedules: %w", fleetutil.ErrRetryable, err)
 	}
 
-	groups, err := target.ClusterGroupsForCluster(ctx, c, cluster)
+	groups, err := target.ClusterGroupsForCluster(ctx, r.Client, cluster)
 	if err != nil {
 		return nil, fmt.Errorf("%w, getting cluster groups from clusters: %w", fleetutil.ErrRetryable, err)
 	}
@@ -408,7 +376,7 @@ func getClusterSchedules(
 	cgs := target.ClusterGroupsToLabelMap(groups)
 
 	for i, s := range allSchedules.Items {
-		if !sharding.ShouldProcess(&s, shardID) {
+		if !sharding.ShouldProcess(&s, r.ShardID) {
 			continue
 		}
 
@@ -430,23 +398,6 @@ func getClusterSchedules(
 	return schedules, nil
 }
 
-// getClustersNotScheduled returns the list of the given clusters
-// that are not part of any scheduled job.
-func getClustersNotScheduled(scheduler quartz.Scheduler, clusters []string, namespace string) ([]string, error) {
-	notScheduled := []string{}
-	for _, cluster := range clusters {
-		scheduled, err := isClusterScheduled(scheduler, cluster, namespace)
-		if err != nil {
-			return nil, err
-		}
-		if !scheduled {
-			notScheduled = append(notScheduled, cluster)
-		}
-	}
-
-	return notScheduled, nil
-}
-
 func setClustersScheduled(ctx context.Context, c client.Client, clusters []string, namespace string, scheduled bool) error {
 	for _, cluster := range clusters {
 		if err := setClusterScheduled(ctx, c, cluster, namespace, scheduled); err != nil {
@@ -457,9 +408,9 @@ func setClustersScheduled(ctx context.Context, c client.Client, clusters []strin
 	return nil
 }
 
-func updateScheduledClusters(ctx context.Context, scheduler quartz.Scheduler, c client.Client, clustersNew []string, clustersOld []string, namespace string) error {
+func (r *ScheduleReconciler) updateScheduledClusters(ctx context.Context, clustersNew []string, clustersOld []string, namespace string) error {
 	for _, cluster := range clustersNew {
-		if err := setClusterScheduled(ctx, c, cluster, namespace, true); err != nil {
+		if err := setClusterScheduled(ctx, r.Client, cluster, namespace, true); err != nil {
 			return err
 		}
 	}
@@ -467,16 +418,14 @@ func updateScheduledClusters(ctx context.Context, scheduler quartz.Scheduler, c 
 	// now check for clusters that are flagged as scheduled and should no longer be flagged because
 	// they are no longer targeted by any schedule
 	for _, cluster := range clustersOld {
-		if !slices.Contains(clustersNew, cluster) {
-			targeted, err := isClusterScheduled(scheduler, cluster, namespace)
-			if err != nil {
-				return err
-			}
-			if !targeted {
-				if err := setClusterScheduled(ctx, c, cluster, namespace, false); err != nil {
-					return err
-				}
-			}
+		if slices.Contains(clustersNew, cluster) {
+			continue
+		}
+		if r.jobs.isClusterScheduled(cluster, namespace) {
+			continue
+		}
+		if err := setClusterScheduled(ctx, r.Client, cluster, namespace, false); err != nil {
+			return err
 		}
 	}
 	return nil
