@@ -113,7 +113,8 @@ func (m *Manager) clusterGroupsForCluster(ctx context.Context, cluster *fleet.Cl
 			m.selectorCache.Store(cacheKey, sel)
 		}
 		if sel.Matches(labels.Set(cluster.Labels)) {
-			result = append(result, &cg)
+			cgCopy := cg
+			result = append(result, &cgCopy)
 		}
 	}
 
