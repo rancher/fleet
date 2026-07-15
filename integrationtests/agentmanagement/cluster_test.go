@@ -112,16 +112,28 @@ var _ = Describe("cluster namespace lifecycle", func() {
 	})
 
 	Describe("bundledeployment changes", func() {
-		It("does not error or create any namespace when a BundleDeployment changes in a namespace without cluster annotations", func() {
+		It("does not re-create a deleted cluster namespace when a BundleDeployment changes in a namespace without cluster annotations", func() {
+			clusterName := "bd-no-requeue-cluster"
+			expectedNS := clusterNamespaceName(regNamespace, clusterName)
+
+			// Stand up a cluster and let its generated namespace appear, so
+			// that a spurious enqueue of the cluster would have an observable
+			// effect: the namespace coming back.
+			cluster := newCluster(regNamespace, clusterName)
+			Expect(k8sClient.Create(ctx, cluster)).To(Succeed())
+			namespaceExists(expectedNS).Should(Succeed())
+
+			// Drop the generated namespace, so that only a further reconcile of
+			// the cluster can bring it back. Deleting it does not enqueue the
+			// cluster.
+			deleteNamespace(expectedNS)
+			namespaceIsGone(expectedNS).Should(Succeed())
+
+			// The BundleDeployment lives in a namespace without cluster
+			// annotations. The watch still fires, but the resolver must map it
+			// to no cluster, so the deleted namespace stays gone.
 			plainNS := newGeneratedNamespace("no-cluster-annotations-")
 			Expect(k8sClient.Create(ctx, plainNS)).To(Succeed())
-
-			existingNamespaces := &corev1.NamespaceList{}
-			Expect(k8sClient.List(ctx, existingNamespaces)).To(Succeed())
-			existingNames := make(map[string]bool, len(existingNamespaces.Items))
-			for _, ns := range existingNamespaces.Items {
-				existingNames[ns.Name] = true
-			}
 
 			bd := newBundleDeployment(plainNS.Name, "orphan-bd")
 			Expect(k8sClient.Create(ctx, bd)).To(Succeed())
@@ -131,11 +143,8 @@ var _ = Describe("cluster namespace lifecycle", func() {
 					types.NamespacedName{Namespace: plainNS.Name, Name: "orphan-bd"},
 					&fleet.BundleDeployment{})).To(Succeed())
 
-				currentNamespaces := &corev1.NamespaceList{}
-				g.Expect(k8sClient.List(ctx, currentNamespaces)).To(Succeed())
-				for _, ns := range currentNamespaces.Items {
-					g.Expect(existingNames).To(HaveKey(ns.Name), "unexpected namespace created: %s", ns.Name)
-				}
+				err := k8sClient.Get(ctx, types.NamespacedName{Name: expectedNS}, &corev1.Namespace{})
+				g.Expect(apierrors.IsNotFound(err)).To(BeTrue())
 			}).Should(Succeed())
 		})
 
