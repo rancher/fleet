@@ -274,6 +274,10 @@ var _ = Describe("Fleet CLI jobs cleanup", Ordered, func() {
 							Type:   batchv1.JobComplete,
 							Status: corev1.ConditionTrue,
 						},
+						{
+							Type:   batchv1.JobSuccessCriteriaMet,
+							Status: corev1.ConditionTrue,
+						},
 					},
 				}
 			}
