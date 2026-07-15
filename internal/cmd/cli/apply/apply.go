@@ -233,7 +233,7 @@ func CreateBundles(pctx context.Context, client client.Client, r record.EventRec
 		gitRepoBundlesMap[b.bundle.Name] = b.bundle
 		bundlesToWrite = append(bundlesToWrite, b)
 	}
-	_ = eg.Wait()
+	readErrors.Add(eg.Wait())
 	readErr := readErrors.Err()
 
 	var pruneErr error
@@ -332,7 +332,7 @@ func CreateBundlesDriven(pctx context.Context, client client.Client, r record.Ev
 		gitRepoBundlesMap[b.bundle.Name] = b.bundle
 		bundlesToWrite = append(bundlesToWrite, b)
 	}
-	_ = eg.Wait()
+	readErrors.Add(eg.Wait())
 	readErr := readErrors.Err()
 
 	var pruneErr error
