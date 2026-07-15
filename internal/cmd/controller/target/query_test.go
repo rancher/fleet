@@ -184,3 +184,41 @@ func TestClusterGroupsForCluster_InvalidSelectorNotCached(t *testing.T) {
 	_, cached := manager.selectorCache.Load(ns + "/bad-cg@1")
 	assert.False(t, cached, "invalid selector must not be stored in selectorCache")
 }
+
+func TestClusterGroupsForCluster_NewResourceVersionCreatesNewCacheEntry(t *testing.T) {
+	// When a ClusterGroup is updated (ResourceVersion bumped), a new cache entry
+	// must be created so the updated selector is compiled rather than served stale.
+	const ns = "fleet-default"
+
+	cg := makeCGForQuery("prod-cg", ns, "1", &metav1.LabelSelector{
+		MatchLabels: map[string]string{"env": "prod"},
+	})
+
+	cluster := &fleet.Cluster{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "my-cluster",
+			Namespace: ns,
+			Labels:    map[string]string{"env": "prod"},
+		},
+	}
+
+	fakeClient := fake.NewClientBuilder().WithScheme(newScheme()).WithRuntimeObjects(cg).Build()
+	manager := New(fakeClient, fakeClient)
+
+	// First call — populates cache with rv=1 entry.
+	_, err := manager.clusterGroupsForCluster(context.Background(), cluster)
+	assert.NoError(t, err)
+	_, v1Cached := manager.selectorCache.Load(ns + "/prod-cg@1")
+	assert.True(t, v1Cached, "entry for rv=1 should be cached after first call")
+
+	// Simulate a ClusterGroup update by bumping the ResourceVersion.
+	cg.ResourceVersion = "2"
+	err = fakeClient.Update(context.Background(), cg)
+	assert.NoError(t, err)
+
+	// Second call — must create a new cache entry for rv=2.
+	_, err = manager.clusterGroupsForCluster(context.Background(), cluster)
+	assert.NoError(t, err)
+	_, v2Cached := manager.selectorCache.Load(ns + "/prod-cg@2")
+	assert.True(t, v2Cached, "entry for rv=2 should be cached after update")
+}
