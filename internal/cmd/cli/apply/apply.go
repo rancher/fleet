@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/rancher/fleet/internal/bundlereader"
 	"github.com/rancher/fleet/internal/content"
@@ -102,6 +103,26 @@ type bundleWithOpts struct {
 	opts   *Options
 }
 
+type errorCollector struct {
+	mu   sync.Mutex
+	errs []error
+}
+
+func (c *errorCollector) Add(err error) {
+	if err == nil {
+		return
+	}
+	c.mu.Lock()
+	c.errs = append(c.errs, err)
+	c.mu.Unlock()
+}
+
+func (c *errorCollector) Err() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return errors.Join(c.errs...)
+}
+
 func globDirs(baseDir string) (result []string, err error) {
 	for strings.HasPrefix(baseDir, "/") {
 		baseDir = baseDir[1:]
@@ -141,25 +162,29 @@ func CreateBundles(pctx context.Context, client client.Client, r record.EventRec
 	// 3. We use another goroutine to wait for all goroutines to finish, then close `bundlesChan`, finally unblocking the main function.
 
 	bundlesChan := make(chan *bundleWithOpts)
-	eg, ctx := errgroup.WithContext(pctx)
+	var eg errgroup.Group
+	var readErrors errorCollector
 	eg.SetLimit(maxConcurrency + 1) // extra goroutine for WalkDir loop
 	eg.Go(func() error {
 		for _, baseDir := range baseDirs {
 			matches, err := globDirs(baseDir)
 			if err != nil {
-				return fmt.Errorf("invalid path glob %s: %w", baseDir, err)
+				readErrors.Add(fmt.Errorf("invalid path glob %s: %w", baseDir, err))
+				continue
 			}
 			for _, baseDir := range matches {
 				if err := filepath.WalkDir(baseDir, func(path string, entry fs.DirEntry, err error) error {
 					if err != nil {
-						return fmt.Errorf("failed walking path %q: %w", path, err)
+						readErrors.Add(fmt.Errorf("failed walking path %q: %w", path, err))
+						return nil
 					}
 					if entry.IsDir() && entry.Name() == ".git" {
 						return filepath.SkipDir
 					}
 					createBundle, e := shouldCreateBundleForThisPath(baseDir, path, entry)
 					if e != nil {
-						return fmt.Errorf("checking for bundle in path %q: %w", path, err)
+						readErrors.Add(fmt.Errorf("checking for bundle in path %q: %w", path, e))
+						return nil
 					}
 					if !createBundle {
 						return nil
@@ -169,20 +194,22 @@ func CreateBundles(pctx context.Context, client client.Client, r record.EventRec
 					opts := opts
 					eg.Go(func() error {
 						if err := setAuthByPath(&opts, path); err != nil {
-							return err
+							readErrors.Add(err)
+							return nil
 						}
 
-						bundle, scans, err := bundleFromDir(ctx, repoName, path, opts)
+						bundle, scans, err := bundleFromDir(pctx, repoName, path, opts)
 						if err != nil {
 							if errors.Is(err, ErrNoResources) {
 								logrus.Warnf("%s: %v", path, err)
 								return nil
 							}
-							return err
+							readErrors.Add(err)
+							return nil
 						}
 						select {
-						case <-ctx.Done():
-							return ctx.Err()
+						case <-pctx.Done():
+							return pctx.Err()
 						case bundlesChan <- &bundleWithOpts{bundle: bundle, scans: scans, opts: &opts}:
 						}
 						return nil
@@ -206,32 +233,33 @@ func CreateBundles(pctx context.Context, client client.Client, r record.EventRec
 		gitRepoBundlesMap[b.bundle.Name] = b.bundle
 		bundlesToWrite = append(bundlesToWrite, b)
 	}
-	// Recovers any error that could happen in the errgroup, won't actually wait
-	if err := eg.Wait(); err != nil {
-		return err
-	}
-	ctx = pctx // context from ErrorGroup is canceled after the first Wait() returns
+	_ = eg.Wait()
+	readErr := readErrors.Err()
 
-	if opts.Output == nil {
-		err := pruneBundlesNotFoundInRepo(ctx, client, repoName, opts.Namespace, gitRepoBundlesMap)
-		if err != nil {
-			return err
-		}
+	var pruneErr error
+	if opts.Output == nil && readErr == nil {
+		pruneErr = pruneBundlesNotFoundInRepo(pctx, client, repoName, opts.Namespace, gitRepoBundlesMap)
 	}
 
 	if len(gitRepoBundlesMap) == 0 {
+		if readErr != nil {
+			return readErr
+		}
 		return fmt.Errorf("no resource found at the following paths to deploy: %v", baseDirs)
 	}
 
-	egWrite, ctx := errgroup.WithContext(pctx)
+	var egWrite errgroup.Group
+	var writeErrors errorCollector
 	egWrite.SetLimit(maxConcurrency)
 	for _, b := range bundlesToWrite {
 		egWrite.Go(func() error {
-			return writeBundle(ctx, client, r, b.bundle, b.scans, *b.opts)
+			writeErrors.Add(writeBundle(pctx, client, r, b.bundle, b.scans, *b.opts))
+			return nil
 		})
 	}
 
-	return egWrite.Wait()
+	_ = egWrite.Wait()
+	return errors.Join(readErr, pruneErr, writeErrors.Err())
 }
 
 // CreateBundlesDriven creates bundles from the given baseDirs. Those bundles' names will be prefixed with
@@ -255,7 +283,8 @@ func CreateBundlesDriven(pctx context.Context, client client.Client, r record.Ev
 	// 2. The main function will read from `bundlesChan`, hence unblocking the goroutines. This will continue to read from `bundlesChan` until it is closed.
 	// 3. We use another goroutine to wait for all goroutines to finish, then close `bundlesChan`, finally unblocking the main function.
 	bundlesChan := make(chan *bundleWithOpts)
-	eg, ctx := errgroup.WithContext(pctx)
+	var eg errgroup.Group
+	var readErrors errorCollector
 	eg.SetLimit(maxConcurrency + 1) // extra goroutine for scanning loop
 	eg.Go(func() error {
 		for _, baseDir := range baseDirs {
@@ -264,24 +293,27 @@ func CreateBundlesDriven(pctx context.Context, client client.Client, r record.Ev
 				var err error
 				baseDir, opts.BundleFile, err = getPathAndFleetYaml(baseDir, opts.DrivenScanSeparator)
 				if err != nil {
-					return err
+					readErrors.Add(err)
+					return nil
 				}
 
 				if err := setAuthByPath(&opts, baseDir); err != nil {
-					return err
+					readErrors.Add(err)
+					return nil
 				}
 
-				bundle, scans, err := bundleFromDir(ctx, repoName, baseDir, opts)
+				bundle, scans, err := bundleFromDir(pctx, repoName, baseDir, opts)
 				if err != nil {
 					if errors.Is(err, ErrNoResources) {
 						logrus.Warnf("%s: %v", baseDir, err)
 						return nil
 					}
-					return err
+					readErrors.Add(err)
+					return nil
 				}
 				select {
-				case <-ctx.Done():
-					return ctx.Err()
+				case <-pctx.Done():
+					return pctx.Err()
 				case bundlesChan <- &bundleWithOpts{bundle: bundle, scans: scans, opts: &opts}:
 				}
 				return nil
@@ -300,32 +332,33 @@ func CreateBundlesDriven(pctx context.Context, client client.Client, r record.Ev
 		gitRepoBundlesMap[b.bundle.Name] = b.bundle
 		bundlesToWrite = append(bundlesToWrite, b)
 	}
-	// Recovers any error that could happen in the errgroup, won't actually wait
-	if err := eg.Wait(); err != nil {
-		return err
-	}
-	ctx = pctx // context from ErrorGroup is canceled after the first Wait() returns
+	_ = eg.Wait()
+	readErr := readErrors.Err()
 
-	if opts.Output == nil {
-		err := pruneBundlesNotFoundInRepo(ctx, client, repoName, opts.Namespace, gitRepoBundlesMap)
-		if err != nil {
-			return err
-		}
+	var pruneErr error
+	if opts.Output == nil && readErr == nil {
+		pruneErr = pruneBundlesNotFoundInRepo(pctx, client, repoName, opts.Namespace, gitRepoBundlesMap)
 	}
 
 	if len(gitRepoBundlesMap) == 0 {
+		if readErr != nil {
+			return readErr
+		}
 		return fmt.Errorf("no resource found at the following paths to deploy: %v", baseDirs)
 	}
 
-	egWrite, ctx := errgroup.WithContext(pctx)
+	var egWrite errgroup.Group
+	var writeErrors errorCollector
 	egWrite.SetLimit(maxConcurrency)
 	for _, b := range bundlesToWrite {
 		egWrite.Go(func() error {
-			return writeBundle(ctx, client, r, b.bundle, b.scans, *b.opts)
+			writeErrors.Add(writeBundle(pctx, client, r, b.bundle, b.scans, *b.opts))
+			return nil
 		})
 	}
 
-	return egWrite.Wait()
+	_ = egWrite.Wait()
+	return errors.Join(readErr, pruneErr, writeErrors.Err())
 }
 
 // getPathAndFleetYaml returns the path and options file from a given path.

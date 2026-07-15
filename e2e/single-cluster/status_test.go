@@ -262,6 +262,74 @@ var _ = Describe("Checks that template errors are shown in bundles and gitrepos"
 	})
 })
 
+var _ = Describe("GitRepo bundle read errors", Ordered, Label("infra-setup"), func() {
+	var (
+		tmpDir          string
+		k               kubectl.Command
+		gh              *githelper.Git
+		gitrepoName     string
+		targetNamespace string
+		r               = rand.New(rand.NewSource(GinkgoRandomSeed()))
+	)
+
+	BeforeEach(func() {
+		k = env.Kubectl.Namespace(env.Namespace)
+		gitrepoName = testenv.RandomFilename("partial-bundle-failure", r)
+		targetNamespace = testenv.NewNamespaceName("partial-bundle-failure", r)
+	})
+
+	JustBeforeEach(func() {
+		host := githelper.BuildGitHostname()
+		addr, err := githelper.GetExternalRepoAddr(env, port, "repo")
+		Expect(err).ToNot(HaveOccurred())
+		gh = githelper.NewHTTP(addr)
+
+		tmpDir, err = os.MkdirTemp("", "fleet-")
+		Expect(err).ToNot(HaveOccurred())
+		_, err = gh.Create(path.Join(tmpDir, "repo"), testenv.AssetPath("status/partial-bundle-failure"), "examples")
+		Expect(err).ToNot(HaveOccurred())
+
+		err = testenv.ApplyTemplate(k, testenv.AssetPath("status/partial-bundle-failure-gitrepo.yaml"), struct {
+			Name            string
+			Repo            string
+			Branch          string
+			TargetNamespace string
+		}{
+			Name:            gitrepoName,
+			Repo:            gh.GetInClusterURL(host, port, "repo"),
+			Branch:          gh.Branch,
+			TargetNamespace: targetNamespace,
+		})
+		Expect(err).ToNot(HaveOccurred())
+	})
+
+	AfterEach(func() {
+		_ = os.RemoveAll(tmpDir)
+		_, _ = k.Delete("gitrepo", gitrepoName)
+		_, _ = k.Delete("ns", targetNamespace, "--wait=false")
+	})
+
+	It("deploys valid bundles after another bundle fails to read", func() {
+		Eventually(func(g Gomega) {
+			out, err := k.Get("bundle", gitrepoName+"-examples-first", "-o", "jsonpath='{.status.summary.ready}'")
+			g.Expect(err).ToNot(HaveOccurred(), out)
+			g.Expect(out).To(Equal("'1'"))
+
+			out, err = k.Get("bundle", gitrepoName+"-examples-last", "-o", "jsonpath='{.status.summary.ready}'")
+			g.Expect(err).ToNot(HaveOccurred(), out)
+			g.Expect(out).To(Equal("'1'"))
+		}).Should(Succeed())
+
+		Eventually(func() string {
+			out, _ := k.Namespace(targetNamespace).Get("configmaps")
+			return out
+		}).Should(SatisfyAll(
+			ContainSubstring("partial-bundle-first"),
+			ContainSubstring("partial-bundle-last"),
+		))
+	})
+})
+
 // Checks that once a cluster goes offline after a failed deployment, the bundle
 // status does not permanently show the stale error after a fix commit is applied
 // (issue https://github.com/rancher/fleet/issues/594).
