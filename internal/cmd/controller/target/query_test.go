@@ -2,6 +2,7 @@ package target
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -185,15 +186,104 @@ func TestClusterGroupsForCluster_InvalidSelectorNotCached(t *testing.T) {
 	assert.False(t, cached, "invalid selector must not be stored in selectorCache")
 }
 
-func TestClusterGroupsForCluster_NewResourceVersionCreatesNewCacheEntry(t *testing.T) {
-	// When a ClusterGroup is updated (ResourceVersion bumped), a new cache entry
-	// must be created so the updated selector is compiled rather than served stale.
+func TestBundlesForCluster_RefreshAndCleanup(t *testing.T) {
+	const ns = "fleet-default"
+
+	cg := makeCGForQuery("prod-cg", ns, "1", &metav1.LabelSelector{
+		MatchLabels: map[string]string{"env": "prod"},
+	})
+	matchingBundle := &fleet.Bundle{
+		ObjectMeta: metav1.ObjectMeta{Name: "prod-bundle", Namespace: ns},
+		Spec: fleet.BundleSpec{
+			Targets: []fleet.BundleTarget{
+				{Name: "prod-target", ClusterSelector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{"env": "prod"},
+				}},
+			},
+		},
+	}
+	nonMatchingBundle := &fleet.Bundle{
+		ObjectMeta: metav1.ObjectMeta{Name: "staging-bundle", Namespace: ns},
+		Spec: fleet.BundleSpec{
+			Targets: []fleet.BundleTarget{
+				{Name: "staging-target", ClusterSelector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{"env": "staging"},
+				}},
+			},
+		},
+	}
+
+	fakeClient := fake.NewClientBuilder().WithScheme(newScheme()).
+		WithRuntimeObjects(cg, matchingBundle, nonMatchingBundle).Build()
+	manager := New(fakeClient, fakeClient)
+
+	cluster := &fleet.Cluster{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-cluster", Namespace: ns,
+			Labels: map[string]string{"env": "prod"},
+		},
+	}
+
+	refresh, cleanup, err := manager.BundlesForCluster(context.Background(), cluster)
+	assert.NoError(t, err)
+
+	refreshNames := make([]string, len(refresh))
+	for i, b := range refresh {
+		refreshNames[i] = b.Name
+	}
+	cleanupNames := make([]string, len(cleanup))
+	for i, b := range cleanup {
+		cleanupNames[i] = b.Name
+	}
+	assert.ElementsMatch(t, []string{"prod-bundle"}, refreshNames)
+	assert.ElementsMatch(t, []string{"staging-bundle"}, cleanupNames)
+}
+
+func TestBundlesForCluster_MultipleBundlesUseSameHoistedCGS(t *testing.T) {
+	// clusterGroupsForCluster is hoisted out of the per-bundle loop in BundlesForCluster.
+	// Verify that all bundles are evaluated correctly when CGs are computed once per cluster.
 	const ns = "fleet-default"
 
 	cg := makeCGForQuery("prod-cg", ns, "1", &metav1.LabelSelector{
 		MatchLabels: map[string]string{"env": "prod"},
 	})
 
+	objects := []runtime.Object{cg}
+	for i := range 5 {
+		objects = append(objects, &fleet.Bundle{
+			ObjectMeta: metav1.ObjectMeta{Name: fmt.Sprintf("bundle-%d", i), Namespace: ns},
+			Spec: fleet.BundleSpec{
+				Targets: []fleet.BundleTarget{
+					{Name: "prod-target", ClusterSelector: &metav1.LabelSelector{
+						MatchLabels: map[string]string{"env": "prod"},
+					}},
+				},
+			},
+		})
+	}
+
+	fakeClient := fake.NewClientBuilder().WithScheme(newScheme()).WithRuntimeObjects(objects...).Build()
+	manager := New(fakeClient, fakeClient)
+
+	cluster := &fleet.Cluster{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-cluster", Namespace: ns,
+			Labels: map[string]string{"env": "prod"},
+		},
+	}
+
+	refresh, cleanup, err := manager.BundlesForCluster(context.Background(), cluster)
+	assert.NoError(t, err)
+	assert.Len(t, refresh, 5)
+	assert.Empty(t, cleanup)
+}
+
+func TestClusterGroupsForCluster_NewResourceVersionCreatesNewCacheEntry(t *testing.T) {
+	// When a ClusterGroup is updated (ResourceVersion bumped), a new cache entry
+	// must be created so the updated selector is compiled rather than served stale.
+	const ns = "fleet-default"
+
+	selector := &metav1.LabelSelector{MatchLabels: map[string]string{"env": "prod"}}
 	cluster := &fleet.Cluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "my-cluster",
@@ -202,21 +292,21 @@ func TestClusterGroupsForCluster_NewResourceVersionCreatesNewCacheEntry(t *testi
 		},
 	}
 
-	fakeClient := fake.NewClientBuilder().WithScheme(newScheme()).WithRuntimeObjects(cg).Build()
-	manager := New(fakeClient, fakeClient)
+	// First client returns CG at rv=1.
+	client1 := fake.NewClientBuilder().WithScheme(newScheme()).
+		WithRuntimeObjects(makeCGForQuery("prod-cg", ns, "1", selector)).Build()
+	manager := New(client1, client1)
 
-	// First call — populates cache with rv=1 entry.
 	_, err := manager.clusterGroupsForCluster(context.Background(), cluster)
 	assert.NoError(t, err)
 	_, v1Cached := manager.selectorCache.Load(ns + "/prod-cg@1")
 	assert.True(t, v1Cached, "entry for rv=1 should be cached after first call")
 
-	// Simulate a ClusterGroup update by bumping the ResourceVersion.
-	cg.ResourceVersion = "2"
-	err = fakeClient.Update(context.Background(), cg)
-	assert.NoError(t, err)
+	// Swap to a client that returns the same CG at rv=2 (simulates an update).
+	client2 := fake.NewClientBuilder().WithScheme(newScheme()).
+		WithRuntimeObjects(makeCGForQuery("prod-cg", ns, "2", selector)).Build()
+	manager.client = client2
 
-	// Second call — must create a new cache entry for rv=2.
 	_, err = manager.clusterGroupsForCluster(context.Background(), cluster)
 	assert.NoError(t, err)
 	_, v2Cached := manager.selectorCache.Load(ns + "/prod-cg@2")

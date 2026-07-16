@@ -19,17 +19,17 @@ func (m *Manager) BundlesForCluster(ctx context.Context, cluster *fleet.Cluster)
 		return nil, nil, err
 	}
 
+	cgs, err := m.clusterGroupsForCluster(ctx, cluster)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	logger := log.FromContext(ctx).WithName("target")
 	for _, bundle := range bundles {
 		bm, err := matcher.New(bundle)
 		if err != nil {
 			logger.Error(err, "ignore bad app bundle", "namespace", bundle.Namespace, "name", bundle.Name)
 			continue
-		}
-
-		cgs, err := m.clusterGroupsForCluster(ctx, cluster)
-		if err != nil {
-			return nil, nil, err
 		}
 
 		match := bm.Match(cluster.Name, ClusterGroupsToLabelMap(cgs), cluster.Labels)
