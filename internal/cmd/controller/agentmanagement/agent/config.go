@@ -29,7 +29,7 @@ func agentConfig(ctx context.Context, agentNamespace, controllerNamespace string
 	}
 
 	// sanity test the controllerNamespace is correct
-	_, err = config.Lookup(ctx, controllerNamespace, config.ManagerConfigName, client.Core.ConfigMap())
+	_, _, err = config.Lookup(ctx, controllerNamespace, config.ManagerConfigName, client.Core.ConfigMap())
 	if err != nil {
 		return nil, err
 	}

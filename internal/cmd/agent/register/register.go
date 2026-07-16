@@ -136,7 +136,7 @@ func runRegistration(ctx context.Context, k8s coreInterface, namespace string) (
 		return nil, fmt.Errorf("looking up secret %s/%s: %w", namespace, config.AgentBootstrapConfigName, err)
 	}
 
-	cfg, err := config.Lookup(ctx, secret.Namespace, config.AgentConfigName, k8s.ConfigMap())
+	cfg, _, err := config.Lookup(ctx, secret.Namespace, config.AgentConfigName, k8s.ConfigMap())
 	if err != nil {
 		return nil, fmt.Errorf("failed to look up client config %s/%s: %w", secret.Namespace, config.AgentConfigName, err)
 	}

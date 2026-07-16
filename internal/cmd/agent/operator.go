@@ -342,7 +342,7 @@ func getAgentConfig(ctx context.Context, namespace string, cfg *rest.Config) (ag
 		return nil, fmt.Errorf("failed to look up client config %s/%s: %w", namespace, config.AgentConfigName, err)
 	}
 
-	agentConfig, err = config.ReadConfig(configMap)
+	agentConfig, _, err = config.ReadConfig(configMap)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse config from ConfigMap: %w", err)
 	}
