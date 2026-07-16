@@ -260,6 +260,8 @@ func getMetrics(res map[string]float64, name, namespace string, port int, contro
 	var hostPort int
 
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	Eventually(func(g Gomega) {
 		// Note on the `nolint: gosec` comment below: We are looking for an available port number; this can afford to be
 		// fairly predictable.
@@ -295,8 +297,6 @@ func getMetrics(res map[string]float64, name, namespace string, port int, contro
 		if err != nil {
 			return err
 		}
-
-		defer cancel()
 
 		if resp.StatusCode != http.StatusOK {
 			return fmt.Errorf("fetching metrics failed with status code %d", resp.StatusCode)
