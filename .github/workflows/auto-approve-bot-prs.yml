@@ -50,11 +50,11 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
         run: |
-          review_state=$(gh api "repos/$REPO/pulls/$PR_NUMBER/reviews" \
-            --jq '[.[] | select(.state == "APPROVED")] | length')
+          review_decision=$(gh pr view "$PR_NUMBER" --repo "$REPO" \
+            --json reviewDecision --jq '.reviewDecision')
 
-          if [[ "$review_state" -gt 0 ]]; then
-            echo "PR already has an approval review."
+          if [[ "$review_decision" == "APPROVED" ]]; then
+            echo "PR is currently approved."
             exit 0
           fi
 
