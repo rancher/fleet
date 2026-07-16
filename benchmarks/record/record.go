@@ -8,10 +8,12 @@ import (
 	"io"
 	"maps"
 	"math/rand/v2"
+	"net"
 	"net/http"
 	"os/exec"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -267,12 +269,17 @@ func getMetrics(res map[string]float64, name, namespace string, port int, contro
 		// fairly predictable.
 		hostPort = port + rand.IntN(65535-port) // TCP port range: 0-65535
 
-		cmd := exec.CommandContext(ctx, "kubectl", "-n", namespace, "port-forward", "service/"+name, fmt.Sprintf("%d:%d", hostPort, port))
+		// Create a listener on the port, just to check if it is open.
+		lc := net.ListenConfig{}
+		ln, err := lc.Listen(context.Background(), "tcp", ":"+strconv.Itoa(hostPort))
+		g.Expect(err).ToNot(HaveOccurred(), fmt.Sprintf("port %d seems busy (%v); retrying...", hostPort, err))
 
-		err := cmd.Start()
-
-		g.Expect(err).ToNot(HaveOccurred())
+		defer ln.Close()
 	}).Should(Succeed())
+
+	cmd := exec.CommandContext(ctx, "kubectl", "-n", namespace, "port-forward", "service/"+name, fmt.Sprintf("%d:%d", hostPort, port))
+
+	Expect(cmd.Start()).ToNot(HaveOccurred())
 
 	Eventually(func() error {
 		url := fmt.Sprintf("http://127.0.0.1:%d/metrics", hostPort)
