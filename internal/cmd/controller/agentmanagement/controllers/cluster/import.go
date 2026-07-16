@@ -495,6 +495,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 				AgentResources:       cluster.Spec.AgentResources,
 				HostNetwork:          *cmp.Or(cluster.Spec.HostNetwork, new(false)),
 				AgentReplicas:        agentReplicas,
+				CheckinInterval:      cfg.AgentCheckinInterval.Duration.String(),
 				PriorityClassName:    priorityClassName,
 				ImagePullSecrets:     pullSecrets,
 				PropagatePullSecrets: propagate,
