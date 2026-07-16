@@ -13,6 +13,7 @@ jobs:
   auto-approve-and-merge:
     name: Approve and Auto-Merge
     if: >-
+      github.repository == 'rancher/fleet' &&
       github.event.pull_request.state == 'open' &&
       github.event.pull_request.user.type == 'Bot' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
