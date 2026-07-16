@@ -21,7 +21,7 @@ func Register(ctx context.Context,
 		return reloadConfig(namespace, configMap)
 	})
 
-	cfg, err := config.Lookup(ctx, namespace, config.ManagerConfigName, cm)
+	cfg, _, err := config.Lookup(ctx, namespace, config.ManagerConfigName, cm)
 	if err != nil {
 		return err
 	}
@@ -40,9 +40,14 @@ func reloadConfig(namespace string, configMap *v1.ConfigMap) (*v1.ConfigMap, err
 		return configMap, nil
 	}
 
-	cfg, err := config.ReadConfig(configMap)
+	cfg, updated, err := config.ReadConfig(configMap)
 	if err != nil {
 		return configMap, err
+	}
+	if !updated {
+		// ConfigMap is annotated for a different Fleet version; keep the running
+		// config and do not re-trigger config-change callbacks.
+		return configMap, nil
 	}
 
 	return configMap, config.SetAndTrigger(cfg)

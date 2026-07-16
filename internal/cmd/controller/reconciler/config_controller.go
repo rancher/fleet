@@ -6,6 +6,7 @@ import (
 
 	"github.com/rancher/fleet/internal/config"
 	"github.com/rancher/fleet/pkg/sharding"
+	"github.com/rancher/fleet/pkg/version"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -35,7 +36,7 @@ func Load(ctx context.Context, c client.Reader, namespace string) error {
 		return err
 	}
 
-	cfg, err := config.ReadConfig(cm)
+	cfg, _, err := config.ReadConfig(cm)
 	if err != nil {
 		return err
 	}
@@ -82,9 +83,16 @@ func (r *ConfigReconciler) Reconcile(ctx context.Context, _ ctrl.Request) (ctrl.
 	}
 	logger.V(1).Info("Reconciling config configmap, loading config")
 
-	cfg, err := config.ReadConfig(cm)
+	cfg, updated, err := config.ReadConfig(cm)
 	if err != nil {
 		return ctrl.Result{}, err
+	}
+	if !updated {
+		logger.V(1).Info("ignoring config configmap annotated for a different Fleet version, keeping current config",
+			"configmap", cm.Name,
+			"configmapVersion", cm.Annotations[config.VersionAnnotation],
+			"controllerVersion", version.Version)
+		return ctrl.Result{}, nil
 	}
 
 	config.Set(cfg)
