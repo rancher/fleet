@@ -40,7 +40,7 @@ var (
 	workspace string
 )
 
-func Setup(w string, k8s client.Client, kcmd kubectl.Command) {
+func Setup(w string, k8s client.Client, _ kubectl.Command) {
 	workspace = w
 	k8sClient = k8s
 }
