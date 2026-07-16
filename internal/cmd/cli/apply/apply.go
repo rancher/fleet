@@ -28,6 +28,7 @@ import (
 
 	"github.com/rancher/wrangler/v3/pkg/yaml"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sync/semaphore"
 	k8syaml "sigs.k8s.io/yaml"
 
 	batchv1 "k8s.io/api/batch/v1"
@@ -152,7 +153,7 @@ func CreateBundles(ctx context.Context, client client.Client, r record.EventReco
 	bundlesChan := make(chan *bundleWithOpts)
 	readErrorChan := make(chan error)
 	readErrorsDone := collectErrors(readErrorChan)
-	semaphore := make(chan struct{}, maxConcurrency)
+	readSemaphore := semaphore.NewWeighted(int64(maxConcurrency))
 	var readWg sync.WaitGroup
 	readWg.Go(func() {
 		for _, baseDir := range baseDirs {
@@ -164,8 +165,7 @@ func CreateBundles(ctx context.Context, client client.Client, r record.EventReco
 			for _, baseDir := range matches {
 				if err := filepath.WalkDir(baseDir, func(path string, entry fs.DirEntry, err error) error {
 					if err != nil {
-						readErrorChan <- fmt.Errorf("failed walking path %q: %w", path, err)
-						return nil
+						return err
 					}
 					if entry.IsDir() && entry.Name() == ".git" {
 						return filepath.SkipDir
@@ -181,9 +181,11 @@ func CreateBundles(ctx context.Context, client client.Client, r record.EventReco
 
 					// needed as opts are mutated in this loop
 					opts := opts
-					semaphore <- struct{}{}
+					if err := readSemaphore.Acquire(ctx, 1); err != nil {
+						return err
+					}
 					readWg.Go(func() {
-						defer func() { <-semaphore }()
+						defer readSemaphore.Release(1)
 						if err := setAuthByPath(&opts, path); err != nil {
 							readErrorChan <- err
 							return
@@ -218,10 +220,20 @@ func CreateBundles(ctx context.Context, client client.Client, r record.EventReco
 	}()
 
 	gitRepoBundlesMap := make(map[string]*fleet.Bundle)
-	var bundlesToWrite []*bundleWithOpts
+	writeErrorChan := make(chan error)
+	writeErrorsDone := collectErrors(writeErrorChan)
+	writeSemaphore := semaphore.NewWeighted(int64(maxConcurrency))
+	var writeWg sync.WaitGroup
 	for b := range bundlesChan {
 		gitRepoBundlesMap[b.bundle.Name] = b.bundle
-		bundlesToWrite = append(bundlesToWrite, b)
+		if err := writeSemaphore.Acquire(ctx, 1); err != nil {
+			writeErrorChan <- err
+			continue
+		}
+		writeWg.Go(func() {
+			defer writeSemaphore.Release(1)
+			writeErrorChan <- writeBundle(ctx, client, r, b.bundle, b.scans, *b.opts)
+		})
 	}
 	readErr := <-readErrorsDone
 
@@ -231,21 +243,11 @@ func CreateBundles(ctx context.Context, client client.Client, r record.EventReco
 	}
 
 	if len(gitRepoBundlesMap) == 0 {
+		close(writeErrorChan)
 		if readErr != nil {
 			return readErr
 		}
 		return fmt.Errorf("no resource found at the following paths to deploy: %v", baseDirs)
-	}
-
-	writeErrorChan := make(chan error)
-	writeErrorsDone := collectErrors(writeErrorChan)
-	var writeWg sync.WaitGroup
-	for _, b := range bundlesToWrite {
-		semaphore <- struct{}{}
-		writeWg.Go(func() {
-			defer func() { <-semaphore }()
-			writeErrorChan <- writeBundle(ctx, client, r, b.bundle, b.scans, *b.opts)
-		})
 	}
 
 	writeWg.Wait()
@@ -272,15 +274,18 @@ func CreateBundlesDriven(ctx context.Context, client client.Client, r record.Eve
 	bundlesChan := make(chan *bundleWithOpts)
 	readErrorChan := make(chan error)
 	readErrorsDone := collectErrors(readErrorChan)
-	semaphore := make(chan struct{}, maxConcurrency)
+	readSemaphore := semaphore.NewWeighted(int64(maxConcurrency))
 	var readWg sync.WaitGroup
 	readWg.Go(func() {
 		for _, baseDir := range baseDirs {
 			opts := opts
 
-			semaphore <- struct{}{}
+			if err := readSemaphore.Acquire(ctx, 1); err != nil {
+				readErrorChan <- err
+				continue
+			}
 			readWg.Go(func() {
-				defer func() { <-semaphore }()
+				defer readSemaphore.Release(1)
 				var err error
 				baseDir, opts.BundleFile, err = getPathAndFleetYaml(baseDir, opts.DrivenScanSeparator)
 				if err != nil {
@@ -317,10 +322,20 @@ func CreateBundlesDriven(ctx context.Context, client client.Client, r record.Eve
 	}()
 
 	gitRepoBundlesMap := make(map[string]*fleet.Bundle)
-	var bundlesToWrite []*bundleWithOpts
+	writeErrorChan := make(chan error)
+	writeErrorsDone := collectErrors(writeErrorChan)
+	writeSemaphore := semaphore.NewWeighted(int64(maxConcurrency))
+	var writeWg sync.WaitGroup
 	for b := range bundlesChan {
 		gitRepoBundlesMap[b.bundle.Name] = b.bundle
-		bundlesToWrite = append(bundlesToWrite, b)
+		if err := writeSemaphore.Acquire(ctx, 1); err != nil {
+			writeErrorChan <- err
+			continue
+		}
+		writeWg.Go(func() {
+			defer writeSemaphore.Release(1)
+			writeErrorChan <- writeBundle(ctx, client, r, b.bundle, b.scans, *b.opts)
+		})
 	}
 	readErr := <-readErrorsDone
 
@@ -330,21 +345,11 @@ func CreateBundlesDriven(ctx context.Context, client client.Client, r record.Eve
 	}
 
 	if len(gitRepoBundlesMap) == 0 {
+		close(writeErrorChan)
 		if readErr != nil {
 			return readErr
 		}
 		return fmt.Errorf("no resource found at the following paths to deploy: %v", baseDirs)
-	}
-
-	writeErrorChan := make(chan error)
-	writeErrorsDone := collectErrors(writeErrorChan)
-	var writeWg sync.WaitGroup
-	for _, b := range bundlesToWrite {
-		semaphore <- struct{}{}
-		writeWg.Go(func() {
-			defer func() { <-semaphore }()
-			writeErrorChan <- writeBundle(ctx, client, r, b.bundle, b.scans, *b.opts)
-		})
 	}
 
 	writeWg.Wait()
