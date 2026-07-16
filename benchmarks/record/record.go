@@ -13,6 +13,7 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -280,7 +281,9 @@ func getMetrics(res map[string]float64, name, namespace string, port int, contro
 			return err
 		}
 
-		cli := &http.Client{}
+		cli := &http.Client{
+			Timeout: 5 * time.Second,
+		}
 		resp, err := cli.Do(req)
 		if err != nil {
 			return err
