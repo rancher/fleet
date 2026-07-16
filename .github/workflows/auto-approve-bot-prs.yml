@@ -6,8 +6,8 @@ on:
 
 permissions:
   id-token: write
-  contents: write
-  pull-requests: write
+  contents: read
+  pull-requests: read
 
 jobs:
   auto-approve-and-merge:
