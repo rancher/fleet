@@ -5,6 +5,7 @@
   ],
   "baseBranchPatterns": [
     "main",
+    "release/v0.16",
     "release/v0.15",
     "release/v0.14",
     "release/v0.13",
@@ -14,6 +15,14 @@
     "**/assets/**"
   ],
   "packageRules": [
+    {
+      "matchBaseBranches": [
+        "release/v0.16"
+      ],
+      "extends": [
+        "github>rancher/renovate-config//rancher-2.15#release"
+      ]
+    },
     {
       "matchBaseBranches": [
         "release/v0.15"
