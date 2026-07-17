@@ -44,7 +44,7 @@ jobs:
           go-version-file: 'go.mod'
       -
         name: unit-test
-        run: go test -shuffle=on $(go list ./... | grep -v -e /e2e -e /integrationtests -e /benchmarks)
+        run: go test -shuffle=on "$(go list ./... | grep -v -e /e2e -e /integrationtests -e /benchmarks)"
       -
         name: unit-test-helmvalues
         working-directory: pkg/helmvalues

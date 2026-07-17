@@ -159,7 +159,7 @@ jobs:
           { grep -q -m 1 "1/1"; kill $!; } < <(kubectl get cluster -n fleet-default -w)
 
           echo "waiting for cluster to report being ready..."
-          while [ $(kubectl -n fleet-default get cluster -o jsonpath='{.items[0].status.summary.ready}') -ne 1 ]; do
+          while [[ "$(kubectl -n fleet-default get cluster -o jsonpath='{.items[0].status.summary.ready}')" -ne 1 ]]; do
             sleep 1
           done
 
@@ -224,7 +224,8 @@ jobs:
           FLEET_E2E_NS_DOWNSTREAM: fleet-default
         run: |
           # Force use of non-managed downstream cluster for portability
-          export CI_REGISTERED_CLUSTER=$(kubectl get clusters.fleet.cattle.io -n $FLEET_E2E_NS_DOWNSTREAM -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}' | grep -v second)
+          CI_REGISTERED_CLUSTER=$(kubectl get clusters.fleet.cattle.io -n "$FLEET_E2E_NS_DOWNSTREAM" -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}' | grep -v second)
+          export CI_REGISTERED_CLUSTER
 
           kubectl config use-context k3d-upstream
           ginkgo --github-output --trace e2e/multi-cluster
