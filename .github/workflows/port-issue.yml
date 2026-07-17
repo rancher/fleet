@@ -18,12 +18,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.ADD_TO_PROJECT_PAT }}
         run: |
-          if gh api "orgs/${GITHUB_REPOSITORY_OWNER}/members" --paginate | jq -e --arg GITHUB_ACTOR "$GITHUB_ACTOR" '.[] | select(.login == $GITHUB_ACTOR)' > /dev/null; then
-              echo "${GITHUB_ACTOR} is a member"
-              echo "is_member=true" >> "$GITHUB_ENV"
+          if gh api "orgs/${GITHUB_REPOSITORY_OWNER}/members" --paginate | jq -e --arg ASSIGNEE "$ASSIGNEE" '.[] | select(.login == $ASSIGNEE)' > /dev/null; then
+            echo "${GITHUB_ACTOR} is a member"
+            echo "is_member=true" >> "$GITHUB_ENV"
           else
-              echo "${GITHUB_ACTOR} is not a member of ${GITHUB_REPOSITORY_OWNER}" >> "$GITHUB_STEP_SUMMARY"
-              echo "is_member=false" >> "$GITHUB_ENV"
+            echo "${GITHUB_ACTOR} is not a member of ${GITHUB_REPOSITORY_OWNER}" >> "$GITHUB_STEP_SUMMARY"
+            echo "is_member=false" >> "$GITHUB_ENV"
           fi
       - name: Check milestone
         if: env.is_member == 'true'
@@ -36,13 +36,13 @@ jobs:
           # Sanitize input
           MILESTONE=${BODY_MILESTONE//[^a-zA-Z0-9\-\.]/}
           if gh api "repos/${GITHUB_REPOSITORY}/milestones" --paginate | jq -e --arg MILESTONE "$MILESTONE" '.[] | select(.title == $MILESTONE)' > /dev/null; then
-              echo "Milestone exists"
-              echo "milestone_exists=true" >> "$GITHUB_ENV"
-           else
-              echo "Milestone ${MILESTONE} does not exist" >> "$GITHUB_STEP_SUMMARY"
-              gh issue comment -R "${GITHUB_REPOSITORY}" "${ORIGINAL_ISSUE_NUMBER}" --body "Not creating port issue, milestone ${MILESTONE} does not exist or is not an open milestone"
-              echo "milestone_exists=false" >> "$GITHUB_ENV"
-           fi
+            echo "Milestone exists"
+            echo "milestone_exists=true" >> "$GITHUB_ENV"
+          else
+            echo "Milestone ${MILESTONE} does not exist" >> "$GITHUB_STEP_SUMMARY"
+            gh issue comment -R "${GITHUB_REPOSITORY}" "${ORIGINAL_ISSUE_NUMBER}" --body "Not creating port issue, milestone ${MILESTONE} does not exist or is not an open milestone"
+            echo "milestone_exists=false" >> "$GITHUB_ENV"
+          fi
       - name: Port issue
         if: |
           env.is_member == 'true' &&
