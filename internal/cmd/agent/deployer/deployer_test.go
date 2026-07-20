@@ -76,26 +76,26 @@ func TestSetNamespaceLabelsAndAnnotations(t *testing.T) {
 			},
 		},
 
-		"NamespaceLabels and NamespaceAnnotations removes entries that are not in the options, except the name label": {
+		"foreign labels and annotations not in the options are preserved (issue #4564)": {
 			bd: &fleet.BundleDeployment{Spec: fleet.BundleDeploymentSpec{
 				Options: fleet.BundleDeploymentOptions{
 					NamespaceLabels:      map[string]string{"optLabel": "optValue"},
-					NamespaceAnnotations: map[string]string{},
+					NamespaceAnnotations: map[string]string{"optAnn": "optValue"},
 				},
 			}},
 			ns: corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:        "namespace",
 					Labels:      map[string]string{"nsLabel": "nsValue", "kubernetes.io/metadata.name": "namespace"},
-					Annotations: map[string]string{"nsAnn": "nsValue"},
+					Annotations: map[string]string{"field.cattle.io/projectId": "p-abc123"},
 				},
 			},
 			release: "namespace/foo/bar",
 			expectedNs: corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:        "namespace",
-					Labels:      map[string]string{"optLabel": "optValue", "kubernetes.io/metadata.name": "namespace"},
-					Annotations: map[string]string{},
+					Labels:      map[string]string{"optLabel": "optValue", "nsLabel": "nsValue", "kubernetes.io/metadata.name": "namespace"},
+					Annotations: map[string]string{"optAnn": "optValue", "field.cattle.io/projectId": "p-abc123"},
 				},
 			},
 		},
@@ -181,14 +181,14 @@ func TestSetNamespaceLabelsAndAnnotations_CreateNamespaceFalse(t *testing.T) {
 	scheme := runtime.NewScheme()
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
-	updateCalled := false
+	applyCalled := false
 	fakeClient := fake.NewClientBuilder().
 		WithScheme(scheme).
 		WithObjects(&ns).
 		WithInterceptorFuncs(interceptor.Funcs{
-			Update: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.UpdateOption) error {
-				updateCalled = true
-				return c.Update(ctx, obj, opts...)
+			Apply: func(ctx context.Context, c client.WithWatch, obj runtime.ApplyConfiguration, opts ...client.ApplyOption) error {
+				applyCalled = true
+				return c.Apply(ctx, obj, opts...)
 			},
 		}).
 		Build()
@@ -198,8 +198,8 @@ func TestSetNamespaceLabelsAndAnnotations_CreateNamespaceFalse(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !updateCalled {
-		t.Error("namespace UPDATE was not attempted when CreateNamespace is false; mutation must not be gated by CreateNamespace")
+	if !applyCalled {
+		t.Error("namespace APPLY was not attempted when CreateNamespace is false; mutation must not be gated by CreateNamespace")
 	}
 
 	result := &corev1.Namespace{}
@@ -240,7 +240,7 @@ func TestSetNamespaceLabelsAndAnnotations_ForbiddenSurfaces(t *testing.T) {
 		WithScheme(scheme).
 		WithObjects(&ns).
 		WithInterceptorFuncs(interceptor.Funcs{
-			Update: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.UpdateOption) error {
+			Apply: func(ctx context.Context, c client.WithWatch, obj runtime.ApplyConfiguration, opts ...client.ApplyOption) error {
 				return forbidden
 			},
 		}).
@@ -303,12 +303,13 @@ func TestSetNamespaceLabelsAndAnnotationsError(t *testing.T) {
 	}
 }
 
-// TestSetNamespaceLabelsAndAnnotations_NoUpdateWhenAlreadyCorrect verifies that
-// updateNamespace is not called when the namespace already reflects the desired state.
-// This guards against the broken reflect.DeepEqual check that compared raw option
-// labels to ns.Labels; ns.Labels always includes kubernetes.io/metadata.name and
-// may include preserved pod-security labels, so a direct equality check never holds.
-func TestSetNamespaceLabelsAndAnnotations_NoUpdateWhenAlreadyCorrect(t *testing.T) {
+// TestSetNamespaceLabelsAndAnnotations_Idempotent verifies that applying the
+// same options twice is safe: it does not error and leaves both Fleet's keys and
+// a foreign annotation intact. The server-side apply is intentionally issued on
+// every reconcile (there is no skip-if-unchanged shortcut, since a correct one
+// would require knowing which keys Fleet previously owned), so it must be
+// idempotent.
+func TestSetNamespaceLabelsAndAnnotations_Idempotent(t *testing.T) {
 	bd := &fleet.BundleDeployment{Spec: fleet.BundleDeploymentSpec{
 		Options: fleet.BundleDeploymentOptions{
 			NamespaceLabels:      map[string]string{"optLabel": "optValue"},
@@ -318,109 +319,85 @@ func TestSetNamespaceLabelsAndAnnotations_NoUpdateWhenAlreadyCorrect(t *testing.
 	ns := corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        "namespace",
-			Labels:      map[string]string{"kubernetes.io/metadata.name": "namespace", "optLabel": "optValue"},
-			Annotations: map[string]string{"optAnn": "optValue"},
+			Labels:      map[string]string{"kubernetes.io/metadata.name": "namespace"},
+			Annotations: map[string]string{"field.cattle.io/projectId": "p-abc123"},
 		},
 	}
 
 	scheme := runtime.NewScheme()
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-
-	updateCalled := false
-	fakeClient := fake.NewClientBuilder().
-		WithScheme(scheme).
-		WithObjects(&ns).
-		WithInterceptorFuncs(interceptor.Funcs{
-			Update: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.UpdateOption) error {
-				updateCalled = true
-				return c.Update(ctx, obj, opts...)
-			},
-		}).
-		Build()
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(&ns).Build()
 
 	h := Deployer{client: fakeClient}
-	err := h.setNamespaceLabelsAndAnnotations(context.Background(), bd, "namespace/foo/bar")
-	if err != nil {
+	for i := range 2 {
+		if err := h.setNamespaceLabelsAndAnnotations(context.Background(), bd, "namespace/foo/bar"); err != nil {
+			t.Fatalf("apply %d: unexpected error: %v", i, err)
+		}
+	}
+
+	result := &corev1.Namespace{}
+	if err := fakeClient.Get(context.Background(), types.NamespacedName{Name: "namespace"}, result); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if updateCalled {
-		t.Error("updateNamespace was called when namespace was already in the desired state")
+	if result.Labels["optLabel"] != "optValue" {
+		t.Errorf("optLabel: got %q, want %q", result.Labels["optLabel"], "optValue")
+	}
+	if result.Annotations["optAnn"] != "optValue" {
+		t.Errorf("optAnn: got %q, want %q", result.Annotations["optAnn"], "optValue")
+	}
+	if result.Annotations["field.cattle.io/projectId"] != "p-abc123" {
+		t.Errorf("foreign projectId annotation was not preserved: got %q", result.Annotations["field.cattle.io/projectId"])
 	}
 }
 
-func TestAddLabelsFromOptions_PodSecurityLabelsFiltered(t *testing.T) {
+func TestFilterPodSecurityLabels(t *testing.T) {
 	tests := map[string]struct {
-		nsLabels       map[string]string
-		optLabels      map[string]string
-		expectedLabels map[string]string
+		optLabels map[string]string
+		expected  map[string]string
 	}{
-		"pod-security.kubernetes.io labels in optLabels are not applied to namespace": {
-			nsLabels: map[string]string{"kubernetes.io/metadata.name": "ns"},
+		"pod-security.kubernetes.io labels are removed from the options": {
 			optLabels: map[string]string{
 				"pod-security.kubernetes.io/enforce": "privileged",
 				"pod-security.kubernetes.io/audit":   "privileged",
 				"pod-security.kubernetes.io/warn":    "privileged",
 				"safe-label":                         "value",
 			},
-			expectedLabels: map[string]string{
-				"kubernetes.io/metadata.name": "ns",
-				"safe-label":                  "value",
+			expected: map[string]string{
+				"safe-label": "value",
 			},
 		},
-		"existing pod-security.kubernetes.io labels on namespace are preserved": {
-			nsLabels: map[string]string{
-				"kubernetes.io/metadata.name":        "ns",
-				"pod-security.kubernetes.io/enforce": "baseline",
-				"pod-security.kubernetes.io/audit":   "baseline",
-			},
-			optLabels: map[string]string{
-				"pod-security.kubernetes.io/enforce": "privileged",
-				"app-label":                          "value",
-			},
-			expectedLabels: map[string]string{
-				"kubernetes.io/metadata.name":        "ns",
-				"pod-security.kubernetes.io/enforce": "baseline",
-				"pod-security.kubernetes.io/audit":   "baseline",
-				"app-label":                          "value",
-			},
-		},
-		"non-security labels work normally": {
-			nsLabels: map[string]string{
-				"kubernetes.io/metadata.name": "ns",
-				"old-label":                   "old-value",
-			},
+		"non-security labels pass through unchanged": {
 			optLabels: map[string]string{
 				"new-label": "new-value",
+				"app-label": "value",
 			},
-			expectedLabels: map[string]string{
-				"kubernetes.io/metadata.name": "ns",
-				"new-label":                   "new-value",
+			expected: map[string]string{
+				"new-label": "new-value",
+				"app-label": "value",
 			},
 		},
 		"pod-security.kubernetes.io labels with custom suffixes are also filtered": {
-			nsLabels: map[string]string{"kubernetes.io/metadata.name": "ns"},
 			optLabels: map[string]string{
 				"pod-security.kubernetes.io/enforce-version": "v1.25",
 				"pod-security.kubernetes.io/audit-version":   "v1.25",
 				"safe-label": "value",
 			},
-			expectedLabels: map[string]string{
-				"kubernetes.io/metadata.name": "ns",
-				"safe-label":                  "value",
+			expected: map[string]string{
+				"safe-label": "value",
 			},
 		},
 	}
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			addLabelsFromOptions(logr.Discard(), test.nsLabels, test.optLabels)
+			got := filterPodSecurityLabels(logr.Discard(), test.optLabels)
 
-			if len(test.nsLabels) != len(test.expectedLabels) {
-				t.Errorf("expected %d labels, got %d: %v", len(test.expectedLabels), len(test.nsLabels), test.nsLabels)
+			if len(got) != len(test.expected) {
+				t.Errorf("expected %d labels, got %d: %v", len(test.expected), len(got), got)
 			}
-			for k, v := range test.expectedLabels {
-				if test.nsLabels[k] != v {
-					t.Errorf("expected label %s=%s, got %s", k, v, test.nsLabels[k])
+			for k, v := range test.expected {
+				if got[k] != v {
+					t.Errorf("expected label %s=%s, got %s", k, v, got[k])
 				}
 			}
 		})
