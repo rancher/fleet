@@ -361,6 +361,10 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 		apiServerCA  = secret.Data[config.APIServerCAKey]
 	)
 
+	if cfg.AgentCheckinInterval.Seconds() <= 0 {
+		return status, errors.New("agent check-in interval cannot be 0 or less")
+	}
+
 	if apiServerURL == "" {
 		if len(cfg.APIServerURL) == 0 {
 			// Current config cannot be deployed, so remove the "config changed" mark
@@ -491,6 +495,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 				AgentResources:       cluster.Spec.AgentResources,
 				HostNetwork:          *cmp.Or(cluster.Spec.HostNetwork, new(false)),
 				AgentReplicas:        agentReplicas,
+				CheckinInterval:      cfg.AgentCheckinInterval.Duration.String(),
 				PriorityClassName:    priorityClassName,
 				ImagePullSecrets:     pullSecrets,
 				PropagatePullSecrets: propagate,
