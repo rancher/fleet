@@ -794,7 +794,9 @@ func TestGitRepoURLMatch(t *testing.T) {
 
 	cases := map[string]struct {
 		gitRepos        []v1alpha1.GitRepo
-		repository      string
+		eventHeader     string
+		eventValue      string
+		body            string
 		matchedRepoName string
 	}{
 		"web URL matches https repo": {
@@ -813,10 +815,12 @@ func TestGitRepoURLMatch(t *testing.T) {
 				},
 				ignoredGitRepo,
 			},
-			repository:      `{"html_url":"https://github.com/example/repo"}`,
+			eventHeader:     "X-Github-Event",
+			eventValue:      "push",
+			body:            `{"ref":"refs/heads/main","after":"` + expectedCommit + `","repository":{"html_url":"https://github.com/example/repo"}}`,
 			matchedRepoName: "intended-gitrepo",
 		},
-		"ssh URL matches scp-style repo on a different host": {
+		"ssh URL matches scp-style repo on a different github host": {
 			gitRepos: []v1alpha1.GitRepo{
 				{
 					ObjectMeta: metav1.ObjectMeta{
@@ -832,7 +836,9 @@ func TestGitRepoURLMatch(t *testing.T) {
 				},
 				ignoredGitRepo,
 			},
-			repository:      `{"html_url":"https://github.example.com/example/repo","ssh_url":"git@github-ssh.example.com:example/repo.git"}`,
+			eventHeader:     "X-Github-Event",
+			eventValue:      "push",
+			body:            `{"ref":"refs/heads/main","after":"` + expectedCommit + `","repository":{"html_url":"https://github.example.com/example/repo","ssh_url":"git@github-ssh.example.com:example/repo.git"}}`,
 			matchedRepoName: "intended-gitrepo",
 		},
 		// Same host for web and SSH (e.g. github.com): the two URLs must be
@@ -853,7 +859,72 @@ func TestGitRepoURLMatch(t *testing.T) {
 				},
 				ignoredGitRepo,
 			},
-			repository:      `{"html_url":"https://github.com/example/repo","ssh_url":"git@github.com:example/repo.git"}`,
+			eventHeader:     "X-Github-Event",
+			eventValue:      "push",
+			body:            `{"ref":"refs/heads/main","after":"` + expectedCommit + `","repository":{"html_url":"https://github.com/example/repo","ssh_url":"git@github.com:example/repo.git"}}`,
+			matchedRepoName: "intended-gitrepo",
+		},
+		"ssh URL matches scp-style repo on a different gitlab host": {
+			gitRepos: []v1alpha1.GitRepo{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "intended-gitrepo",
+						Namespace: "my-namespace",
+					},
+					Spec: v1alpha1.GitRepoSpec{
+						Repo: "git@gitlab-ssh.example.com:example/repo.git",
+					},
+					Status: v1alpha1.GitRepoStatus{
+						WebhookCommit: "12345abcdef",
+					},
+				},
+				ignoredGitRepo,
+			},
+			eventHeader:     "X-Gitlab-Event",
+			eventValue:      "Push Hook",
+			body:            `{"ref":"refs/heads/main","checkout_sha":"` + expectedCommit + `","project":{"web_url":"https://gitlab.example.com/example/repo","git_ssh_url":"git@gitlab-ssh.example.com:example/repo.git"}}`,
+			matchedRepoName: "intended-gitrepo",
+		},
+		"ssh URL matches scp-style repo on a gitlab tag push": {
+			gitRepos: []v1alpha1.GitRepo{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "intended-gitrepo",
+						Namespace: "my-namespace",
+					},
+					Spec: v1alpha1.GitRepoSpec{
+						Repo: "git@gitlab-ssh.example.com:example/repo.git",
+					},
+					Status: v1alpha1.GitRepoStatus{
+						WebhookCommit: "12345abcdef",
+					},
+				},
+				ignoredGitRepo,
+			},
+			eventHeader:     "X-Gitlab-Event",
+			eventValue:      "Tag Push Hook",
+			body:            `{"ref":"refs/tags/v1.0.0","checkout_sha":"` + expectedCommit + `","project":{"web_url":"https://gitlab.example.com/example/repo","git_ssh_url":"git@gitlab-ssh.example.com:example/repo.git"}}`,
+			matchedRepoName: "intended-gitrepo",
+		},
+		"ssh URL matches scp-style repo on a different gogs host": {
+			gitRepos: []v1alpha1.GitRepo{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "intended-gitrepo",
+						Namespace: "my-namespace",
+					},
+					Spec: v1alpha1.GitRepoSpec{
+						Repo: "git@gogs-ssh.example.com:example/repo.git",
+					},
+					Status: v1alpha1.GitRepoStatus{
+						WebhookCommit: "12345abcdef",
+					},
+				},
+				ignoredGitRepo,
+			},
+			eventHeader:     "X-Gogs-Event",
+			eventValue:      "push",
+			body:            `{"ref":"refs/heads/main","after":"` + expectedCommit + `","repository":{"html_url":"https://gogs.example.com/example/repo","ssh_url":"git@gogs-ssh.example.com:example/repo.git"}}`,
 			matchedRepoName: "intended-gitrepo",
 		},
 	}
@@ -907,14 +978,11 @@ func TestGitRepoURLMatch(t *testing.T) {
 				},
 			).Times(1)
 
-			// we set only the values that we're going to use in the push event to make things simple
-			jsonBody := fmt.Appendf(nil, `{"ref":"refs/heads/main","after":"%s","repository":%s}`, expectedCommit, tc.repository)
-
-			req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "/", bytes.NewReader(jsonBody))
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "/", bytes.NewReader([]byte(tc.body)))
 			if err != nil {
 				t.Fatalf("Failed to create HTTP request: %v", err)
 			}
-			req.Header.Set("X-Github-Event", "push")
+			req.Header.Set(tc.eventHeader, tc.eventValue)
 
 			rr := httptest.NewRecorder()
 			w := &Webhook{
