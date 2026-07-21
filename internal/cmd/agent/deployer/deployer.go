@@ -266,7 +266,18 @@ func (d *Deployer) setNamespaceLabelsAndAnnotations(ctx context.Context, bd *fle
 	// Helm's responsibility (see CreateNamespace). Verify the namespace exists,
 	// and surface a clear RBAC error if the deployment's service account cannot
 	// see it, before attempting the apply.
-	if err := ensureNamespaceExists(ctx, c, name); err != nil {
+	ns, err := fetchExistingNamespace(ctx, c, name)
+	if err != nil {
+		return err
+	}
+
+	// One-time (self-healing, idempotent) migration for namespaces that
+	// predate the switch to server-side apply: absorb ownership of the
+	// labels/annotations keys the old read-modify-write update still holds,
+	// so this apply can actually prune them. No-op once migrated. See
+	// migrateLegacyNamespaceManagedFields for why this is scoped rather than
+	// using k8s.io/client-go/util/csaupgrade directly.
+	if err := migrateLegacyNamespaceManagedFields(ctx, c, ns); err != nil {
 		return err
 	}
 
@@ -335,21 +346,21 @@ func applyNamespaceMetadata(ctx context.Context, c client.Client, name string, l
 	return nil
 }
 
-// ensureNamespaceExists returns nil if the namespace exists, a NotFound error if
-// it does not, or a wrapped Forbidden error if the deployment's service account
-// is not allowed to see it.
-func ensureNamespaceExists(ctx context.Context, c client.Client, name string) error {
+// fetchExistingNamespace returns the namespace if it exists, a NotFound error
+// if it does not, or a wrapped Forbidden error if the deployment's service
+// account is not allowed to see it.
+func fetchExistingNamespace(ctx context.Context, c client.Client, name string) (*corev1.Namespace, error) {
 	ns := &corev1.Namespace{}
 	if err := c.Get(ctx, types.NamespacedName{Name: name}, ns); err != nil {
 		if apierrors.IsForbidden(err) {
-			return fmt.Errorf("the deployment's service account is not allowed to get namespace %q; "+
+			return nil, fmt.Errorf("the deployment's service account is not allowed to get namespace %q; "+
 				"grant it 'get' on this namespace (scoped via resourceNames) or remove "+
 				"namespaceLabels/namespaceAnnotations: %w", name, err)
 		}
-		return err
+		return nil, err
 	}
 
-	return nil
+	return ns, nil
 }
 
 const podSecurityLabelPrefix = "pod-security.kubernetes.io/"

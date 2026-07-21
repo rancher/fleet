@@ -109,6 +109,77 @@ func TestSetNamespaceLabelsAndAnnotations_ServerSideApply(t *testing.T) {
 		}
 	})
 
+	// Reproduces the in-place-upgrade scenario: a namespace whose Fleet
+	// annotations were written by the old read-modify-write Update (recorded
+	// under the "fleetagent" manager), before Fleet switched to SSA.
+	// ForceOwnership on the first apply gives the SSA manager co-ownership but
+	// does not, by itself, remove the stale Update entry. Without the scoped
+	// managed-fields migration, a key later dropped from the bundle would stay
+	// on the namespace forever, because the stale entry still owns it.
+	t.Run("legacy update-owned annotation is migrated so it can later be pruned", func(t *testing.T) {
+		ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "legacy-migration"}}
+		if err := c.Create(ctx, ns, client.FieldOwner("cluster-admin")); err != nil {
+			t.Fatalf("create namespace: %v", err)
+		}
+
+		// Simulate the pre-SSA agent: a plain Update (PUT), recorded under the
+		// "fleetagent" manager, exactly like the old read-modify-write path.
+		got := get("legacy-migration")
+		got.Annotations = map[string]string{"fleet-a": "1", "fleet-b": "2"}
+		got.Labels = map[string]string{"team": "blue"}
+		if err := c.Update(ctx, got, client.FieldOwner(legacyNamespaceFieldManager)); err != nil {
+			t.Fatalf("legacy update: %v", err)
+		}
+
+		got = get("legacy-migration")
+		foundLegacy := false
+		for _, mf := range got.ManagedFields {
+			if mf.Manager == legacyNamespaceFieldManager && mf.Operation == metav1.ManagedFieldsOperationUpdate {
+				foundLegacy = true
+			}
+		}
+		if !foundLegacy {
+			t.Fatalf("test setup did not produce a legacy fleetagent Update entry: %v", got.ManagedFields)
+		}
+
+		d := Deployer{client: c}
+		bd := &fleet.BundleDeployment{Spec: fleet.BundleDeploymentSpec{
+			Options: fleet.BundleDeploymentOptions{
+				NamespaceLabels:      map[string]string{"team": "blue"},
+				NamespaceAnnotations: map[string]string{"fleet-a": "1", "fleet-b": "2"},
+			},
+		}}
+		// First sync after the (simulated) upgrade: migrates the stale entry.
+		if err := d.setNamespaceLabelsAndAnnotations(ctx, bd, "legacy-migration/rel/1"); err != nil {
+			t.Fatalf("first sync: %v", err)
+		}
+
+		got = get("legacy-migration")
+		for _, mf := range got.ManagedFields {
+			if mf.Manager == legacyNamespaceFieldManager && mf.Operation == metav1.ManagedFieldsOperationUpdate {
+				t.Errorf("legacy fleetagent Update entry was not migrated away: %v", got.ManagedFields)
+			}
+		}
+
+		// Now drop fleet-b: without the migration this would stay behind
+		// forever, because the stale entry still owned it.
+		bd.Spec.Options.NamespaceAnnotations = map[string]string{"fleet-a": "1"}
+		if err := d.setNamespaceLabelsAndAnnotations(ctx, bd, "legacy-migration/rel/1"); err != nil {
+			t.Fatalf("second sync: %v", err)
+		}
+
+		got = get("legacy-migration")
+		if _, ok := got.Annotations["fleet-b"]; ok {
+			t.Errorf("dropped annotation fleet-b was not pruned after migration: %v", got.Annotations)
+		}
+		if got.Annotations["fleet-a"] != "1" {
+			t.Errorf("still-declared annotation fleet-a missing: %v", got.Annotations)
+		}
+		if got.Labels["team"] != "blue" {
+			t.Errorf("still-declared label team missing: %v", got.Labels)
+		}
+	})
+
 	t.Run("pod-security labels are neither applied nor overwritten", func(t *testing.T) {
 		ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{
 			Name:   "podsec",
