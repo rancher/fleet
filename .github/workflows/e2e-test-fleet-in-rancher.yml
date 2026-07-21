@@ -234,7 +234,7 @@ jobs:
             --create-namespace \
             --namespace cattle-system \
             --set replicas=1 \
-            --set hostname=$ip.sslip.io \
+            --set "hostname=${ip}.sslip.io" \
             --set bootstrapPassword=admin \
             --set agentTLSMode=system-store \
             --set "extraEnv[0].name=CATTLE_CHART_DEFAULT_URL" \
@@ -309,7 +309,8 @@ jobs:
           cd fleet
           ginkgo --github-output --trace e2e/acceptance/single-cluster-examples
 
-          export CI_REGISTERED_CLUSTER=$(kubectl get clusters.fleet.cattle.io -n $FLEET_E2E_NS_DOWNSTREAM -o jsonpath='{..name}')
+          CI_REGISTERED_CLUSTER=$(kubectl get clusters.fleet.cattle.io -n "$FLEET_E2E_NS_DOWNSTREAM" -o jsonpath='{..name}')
+          export CI_REGISTERED_CLUSTER
 
           ginkgo --github-output --trace e2e/multi-cluster
 

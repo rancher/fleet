@@ -4,12 +4,12 @@ on:
     inputs:
       charts_base_branch:
         description: "Use the following rancher/charts branch as a base (e.g. dev-v2.7)"
-        required: true
+        required: false
         default: "dev-v2.14"
         type: string
       charts_repo:
         description: "Push to the following Rancher charts repo (which must exist)"
-        required: true
+        required: false
         default: "fleetrepoci/charts"
         type: string
       charts_target_branch:
@@ -20,12 +20,12 @@ on:
     inputs:
       charts_base_branch:
         description: "Use the following rancher/charts branch as a base (e.g. dev-v2.7)"
-        required: true
+        required: false
         default: "dev-v2.14"
         type: string
       charts_repo:
         description: "Push to the following Rancher charts repo (which must exist)"
-        required: true
+        required: false
         default: "fleetrepoci/charts"
         type: string
       charts_target_branch:
@@ -84,7 +84,7 @@ jobs:
 
       - name: Get UUID
         id: uuid
-        run: echo "uuid=$(uuidgen)" >> $GITHUB_OUTPUT
+        run: echo "uuid=$(uuidgen)" >> "$GITHUB_OUTPUT"
 
       - name: Extract metadata for Fleet controller image
         id: meta-fleet
@@ -188,7 +188,7 @@ jobs:
         run: |
           fleet_test_version=9.9.9
 
-          latest_fleet_rancher_version=$(ls ./charts/charts/fleet/ | tail -1)
+          latest_fleet_rancher_version=$(find ./charts/charts/fleet/ -mindepth 1 -maxdepth 1 -printf '%f\n' | sort -V | tail -1)
           latest_chart="${latest_fleet_rancher_version%%+*}"
           latest_fleet="${latest_fleet_rancher_version#*+up}"
 

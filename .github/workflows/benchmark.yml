@@ -116,7 +116,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          file=$(ls -1t b-*.json | head -n1)
+          file=$(find . -maxdepth 1 -name 'b-*.json' -printf '%T@ %p\n' | sort -nr | head -n1 | cut -d' ' -f2-)
           # Replace characters that cause issues in artifact uploads (e.g., ':')
           safe_file="${file//:/-}"
           if [ "$file" != "$safe_file" ]; then
