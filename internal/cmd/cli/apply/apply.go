@@ -220,12 +220,23 @@ func CreateBundles(ctx context.Context, client client.Client, r record.EventReco
 	}()
 
 	gitRepoBundlesMap := make(map[string]*fleet.Bundle)
+	var bundlesToWrite []*bundleWithOpts
+	for b := range bundlesChan {
+		gitRepoBundlesMap[b.bundle.Name] = b.bundle
+		bundlesToWrite = append(bundlesToWrite, b)
+	}
+	readErr := <-readErrorsDone
+
+	var pruneErr error
+	if opts.Output == nil && readErr == nil {
+		pruneErr = pruneBundlesNotFoundInRepo(ctx, client, repoName, opts.Namespace, gitRepoBundlesMap)
+	}
+
 	writeErrorChan := make(chan error)
 	writeErrorsDone := collectErrors(writeErrorChan)
 	writeSemaphore := semaphore.NewWeighted(int64(maxConcurrency))
 	var writeWg sync.WaitGroup
-	for b := range bundlesChan {
-		gitRepoBundlesMap[b.bundle.Name] = b.bundle
+	for _, b := range bundlesToWrite {
 		if err := writeSemaphore.Acquire(ctx, 1); err != nil {
 			writeErrorChan <- err
 			continue
@@ -234,12 +245,6 @@ func CreateBundles(ctx context.Context, client client.Client, r record.EventReco
 			defer writeSemaphore.Release(1)
 			writeErrorChan <- writeBundle(ctx, client, r, b.bundle, b.scans, *b.opts)
 		})
-	}
-	readErr := <-readErrorsDone
-
-	var pruneErr error
-	if opts.Output == nil && readErr == nil {
-		pruneErr = pruneBundlesNotFoundInRepo(ctx, client, repoName, opts.Namespace, gitRepoBundlesMap)
 	}
 
 	if len(gitRepoBundlesMap) == 0 {
@@ -322,12 +327,23 @@ func CreateBundlesDriven(ctx context.Context, client client.Client, r record.Eve
 	}()
 
 	gitRepoBundlesMap := make(map[string]*fleet.Bundle)
+	var bundlesToWrite []*bundleWithOpts
+	for b := range bundlesChan {
+		gitRepoBundlesMap[b.bundle.Name] = b.bundle
+		bundlesToWrite = append(bundlesToWrite, b)
+	}
+	readErr := <-readErrorsDone
+
+	var pruneErr error
+	if opts.Output == nil && readErr == nil {
+		pruneErr = pruneBundlesNotFoundInRepo(ctx, client, repoName, opts.Namespace, gitRepoBundlesMap)
+	}
+
 	writeErrorChan := make(chan error)
 	writeErrorsDone := collectErrors(writeErrorChan)
 	writeSemaphore := semaphore.NewWeighted(int64(maxConcurrency))
 	var writeWg sync.WaitGroup
-	for b := range bundlesChan {
-		gitRepoBundlesMap[b.bundle.Name] = b.bundle
+	for _, b := range bundlesToWrite {
 		if err := writeSemaphore.Acquire(ctx, 1); err != nil {
 			writeErrorChan <- err
 			continue
@@ -336,12 +352,6 @@ func CreateBundlesDriven(ctx context.Context, client client.Client, r record.Eve
 			defer writeSemaphore.Release(1)
 			writeErrorChan <- writeBundle(ctx, client, r, b.bundle, b.scans, *b.opts)
 		})
-	}
-	readErr := <-readErrorsDone
-
-	var pruneErr error
-	if opts.Output == nil && readErr == nil {
-		pruneErr = pruneBundlesNotFoundInRepo(ctx, client, repoName, opts.Namespace, gitRepoBundlesMap)
 	}
 
 	if len(gitRepoBundlesMap) == 0 {
