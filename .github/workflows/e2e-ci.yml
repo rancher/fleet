@@ -191,7 +191,8 @@ jobs:
           GIT_HTTP_USER: "fleet-ci"
           GIT_HTTP_PASSWORD: "foo"
         run: |
-          export CI_OCI_CERTS_DIR="$(git rev-parse --show-toplevel)/FleetCI-RootCA"
+          CI_OCI_CERTS_DIR="$(git rev-parse --show-toplevel)/FleetCI-RootCA"
+          export CI_OCI_CERTS_DIR
 
           # Run tests requiring only the git server
           e2e/testenv/infra/infra setup --git-server=true
@@ -207,7 +208,8 @@ jobs:
           GIT_HTTP_USER: "fleet-ci"
           GIT_HTTP_PASSWORD: "foo"
         run: |
-          export CI_OCI_CERTS_DIR="$(git rev-parse --show-toplevel)/FleetCI-RootCA"
+          CI_OCI_CERTS_DIR="$(git rev-parse --show-toplevel)/FleetCI-RootCA"
+          export CI_OCI_CERTS_DIR
 
           # Run tests requiring a Helm registry (and a git server)
           e2e/testenv/infra/infra setup --git-server=true
@@ -231,7 +233,8 @@ jobs:
           CI_OCI_NO_DELETER_USERNAME: "fleet-ci-no-deleter"
           CI_OCI_NO_DELETER_PASSWORD: "foo-no-deleter"
         run: |
-          export CI_OCI_CERTS_DIR="$(git rev-parse --show-toplevel)/FleetCI-RootCA"
+          CI_OCI_CERTS_DIR="$(git rev-parse --show-toplevel)/FleetCI-RootCA"
+          export CI_OCI_CERTS_DIR
 
           e2e/testenv/infra/infra setup --git-server=true
           e2e/testenv/infra/infra setup --helm-registry=true

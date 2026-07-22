@@ -121,13 +121,22 @@ var _ = Describe("cluster namespace lifecycle", func() {
 			// effect: the namespace coming back.
 			cluster := newCluster(regNamespace, clusterName)
 			Expect(k8sClient.Create(ctx, cluster)).To(Succeed())
+
+			Eventually(func(g Gomega) {
+				c := &fleet.Cluster{}
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: regNamespace, Name: clusterName}, c)).To(Succeed())
+				g.Expect(c.Status.Namespace).To(
+					Equal(expectedNS),
+					"cluster status namespace does not match expected namespace",
+				)
+			}).Should(Succeed())
+
 			namespaceExists(expectedNS).Should(Succeed())
 
 			// Drop the generated namespace, so that only a further reconcile of
 			// the cluster can bring it back. Deleting it does not enqueue the
 			// cluster.
-			deleteNamespace(expectedNS)
-			namespaceIsGone(expectedNS).Should(Succeed())
+			deleteNamespace(expectedNS) // includes waiting for the namespace to be deleted.
 
 			// The BundleDeployment lives in a namespace without cluster
 			// annotations. The watch still fires, but the resolver must map it
@@ -144,7 +153,7 @@ var _ = Describe("cluster namespace lifecycle", func() {
 					&fleet.BundleDeployment{})).To(Succeed())
 
 				err := k8sClient.Get(ctx, types.NamespacedName{Name: expectedNS}, &corev1.Namespace{})
-				g.Expect(apierrors.IsNotFound(err)).To(BeTrue())
+				g.Expect(apierrors.IsNotFound(err)).To(BeTrue(), "cluster namespace should be deleted and not re-created")
 			}).Should(Succeed())
 		})
 
@@ -164,14 +173,24 @@ var _ = Describe("cluster namespace lifecycle", func() {
 
 			cluster := newCluster(regNamespace, clusterName)
 			Expect(k8sClient.Create(ctx, cluster)).To(Succeed())
+
+			Eventually(func(g Gomega) {
+				c := &fleet.Cluster{}
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: regNamespace, Name: clusterName}, c)).To(Succeed())
+				g.Expect(c.Status.Namespace).To(
+					Equal(expectedNS),
+					"cluster status namespace does not match expected namespace",
+				)
+			}).Should(Succeed())
+
 			namespaceExists(expectedNS).Should(Succeed())
 
 			// Drop the generated namespace, so that only a further reconcile of the
 			// cluster can bring it back. Deleting it does not enqueue the cluster.
-			deleteNamespace(expectedNS)
+			deleteNamespace(expectedNS) // includes waiting for the namespace to be deleted.
 			Consistently(func(g Gomega) {
 				err := k8sClient.Get(ctx, types.NamespacedName{Name: expectedNS}, &corev1.Namespace{})
-				g.Expect(apierrors.IsNotFound(err)).To(BeTrue())
+				g.Expect(apierrors.IsNotFound(err)).To(BeTrue(), "cluster namespace should be deleted and not re-created")
 			}).Should(Succeed())
 
 			bd := newBundleDeployment(annotatedNS.Name, "requeue-bd")
@@ -192,6 +211,16 @@ var _ = Describe("cluster namespace lifecycle", func() {
 			Expect(k8sClient.Create(ctx, cluster)).To(Succeed())
 
 			expectedNS := clusterNamespaceName(regNamespace, clusterName)
+
+			Eventually(func(g Gomega) {
+				c := &fleet.Cluster{}
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: regNamespace, Name: clusterName}, c)).To(Succeed())
+				g.Expect(c.Status.Namespace).To(
+					Equal(expectedNS),
+					"cluster status namespace does not match expected namespace before agent BD creation",
+				)
+			}).Should(Succeed())
+
 			namespaceExists(expectedNS).Should(Succeed())
 
 			bd := newBundleDeployment(expectedNS, "agent-bd")
@@ -200,7 +229,10 @@ var _ = Describe("cluster namespace lifecycle", func() {
 			Consistently(func(g Gomega) {
 				c := &fleet.Cluster{}
 				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: regNamespace, Name: clusterName}, c)).To(Succeed())
-				g.Expect(c.Status.Namespace).To(Equal(expectedNS))
+				g.Expect(c.Status.Namespace).To(
+					Equal(expectedNS),
+					"cluster status namespace does not match expected namespace after agent BD creation",
+				)
 
 				ns := &corev1.Namespace{}
 				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: expectedNS}, ns)).To(Succeed())

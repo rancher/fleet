@@ -102,7 +102,7 @@ jobs:
             sudo apt install -y uuid-runtime # should provide uuidgen
           fi
 
-          echo "uuid=$(uuidgen)" >> $GITHUB_OUTPUT
+          echo "uuid=$(uuidgen)" >> "$GITHUB_OUTPUT"
       -
         id: meta-fleet
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
@@ -235,7 +235,8 @@ jobs:
           FLEET_E2E_NS_DOWNSTREAM: fleet-default
         run: |
           kubectl config use-context k3d-upstream
-          export CI_REGISTERED_CLUSTER=$(kubectl get clusters.fleet.cattle.io -n $FLEET_E2E_NS_DOWNSTREAM -o jsonpath='{..name}')
+          CI_REGISTERED_CLUSTER=$(kubectl get clusters.fleet.cattle.io -n "$FLEET_E2E_NS_DOWNSTREAM" -o jsonpath='{..name}')
+          export CI_REGISTERED_CLUSTER
           ginkgo --github-output --trace e2e/multi-cluster
       -
         name: Dump Failed Downstream Environment
