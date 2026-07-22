@@ -165,7 +165,7 @@ func CreateBundles(ctx context.Context, client client.Client, r record.EventReco
 			for _, baseDir := range matches {
 				if err := filepath.WalkDir(baseDir, func(path string, entry fs.DirEntry, err error) error {
 					if err != nil {
-						return err
+						return fmt.Errorf("failed walking path %q: %w", path, err)
 					}
 					if entry.IsDir() && entry.Name() == ".git" {
 						return filepath.SkipDir
@@ -442,7 +442,7 @@ func populateOverwrites(bundlesToDelete []fleet.Bundle, gitRepoBundlesMap map[st
 					}
 					ow2, err := getKindNS(inClusterRsc, bundle.Name)
 					if err != nil {
-						logrus.Debugf("for in-cluster bundle, failed to get kind and namespace for resource %v", grRsc)
+						logrus.Debugf("for in-cluster bundle, failed to get kind and namespace for resource %v", inClusterRsc)
 						continue
 					}
 					if ow2.Kind == "" {
