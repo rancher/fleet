@@ -15,6 +15,7 @@ bump_fleet_module() {
     # module and its nested pkg/apis module), so update every go.mod that
     # requires the module, not just the root one.
     local module="github.com/rancher/fleet/$1"
+    local escaped_module="${module//./\\.}"
     local tag="$1/v${NEW_FLEET_VERSION}"
 
     # Guard against a tag that predates the module being split out of the main
@@ -27,7 +28,7 @@ bump_fleet_module() {
     fi
 
     local modfiles
-    modfiles=$(grep -rlE "${module}[[:space:]]" --include=go.mod . || true)
+    modfiles=$(grep -rlE "^[[:space:]]*require[[:space:]]+${escaped_module}[[:space:]]|^[[:space:]]+${escaped_module}[[:space:]]" --include=go.mod . || true)
     if [ -z "${modfiles}" ]; then
         printf 'ERROR: no go.mod in rancher/rancher requires %s\n' "${module}" >&2
         exit 1
