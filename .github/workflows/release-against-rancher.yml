@@ -69,14 +69,33 @@ jobs:
             exit 0
           fi
 
-          # For a new final minor version, pkg/apis and pkg/helmvalues must be tagged in the fleet repo.
+          # For a new final minor version, every Fleet submodule that has already been split
+          # out on this branch (i.e. <mod>/go.mod exists in the fleet checkout) must be tagged,
+          # and the tag must point at a commit that actually contains <mod>/go.mod. A submodule
+          # not yet split out on this branch (e.g. pkg/helmvalues before it is backported) is not
+          # required, since rancher/rancher cannot consume it yet either way.
           if [[ "${NEW_FLEET}" =~ \.0$ ]]; then
             for mod in pkg/apis pkg/helmvalues; do
-              if ! git -C fleet tag -l "${mod}/v${NEW_FLEET}" | grep -q .; then
+              if [ ! -f "fleet/${mod}/go.mod" ]; then
+                printf 'INFO: %s/go.mod not present on this branch; skipping %s tag requirement\n' "${mod}" "${mod}"
+                continue
+              fi
+
+              tag="${mod}/v${NEW_FLEET}"
+              if ! git -C fleet tag -l "${tag}" | grep -q .; then
                 {
-                  printf 'ERROR: %s/v%s tag not found in the fleet repo!\n' "${mod}" "${NEW_FLEET}"
+                  printf 'ERROR: %s tag not found in the fleet repo!\n' "${tag}"
                   printf 'For a new final minor version, %s must be bumped first.\n' "${mod}"
-                  printf 'Please create the tag: git tag %s/v%s\n' "${mod}" "${NEW_FLEET}"
+                  printf 'Please create the tag: git tag %s\n' "${tag}"
+                } >&2
+                exit 1
+              fi
+
+              if ! git -C fleet cat-file -e "${tag}:${mod}/go.mod" 2>/dev/null; then
+                {
+                  printf 'ERROR: %s exists but %s/go.mod is missing at that commit!\n' "${tag}" "${mod}"
+                  printf 'The tag likely predates %s being split into its own Go module.\n' "${mod}"
+                  printf 'Delete and recreate the tag from a commit where %s/go.mod exists.\n' "${mod}"
                 } >&2
                 exit 1
               fi

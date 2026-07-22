@@ -15,6 +15,17 @@ bump_fleet_module() {
     # module and its nested pkg/apis module), so update every go.mod that
     # requires the module, not just the root one.
     local module="github.com/rancher/fleet/$1"
+    local tag="$1/v${NEW_FLEET_VERSION}"
+
+    # Guard against a tag that predates the module being split out of the main
+    # Fleet module: without its own go.mod, `go get` silently falls back to
+    # resolving the root `github.com/rancher/fleet` module instead.
+    if ! git -C ../fleet cat-file -e "${tag}:$1/go.mod" 2>/dev/null; then
+        printf 'ERROR: %s does not contain %s/go.mod\n' "${tag}" "$1" >&2
+        printf 'The tag does not point at a standalone Go module; refusing to bump.\n' >&2
+        exit 1
+    fi
+
     local modfiles
     modfiles=$(grep -rlE "${module}[[:space:]]" --include=go.mod . || true)
     if [ -z "${modfiles}" ]; then
