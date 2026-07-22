@@ -372,7 +372,7 @@ func getPathAndFleetYaml(path, separator string) (string, string, error) {
 	return path, "", nil
 }
 
-// pruneBundlesNotFoundInRepo lists all bundles for this gitrepo and prunes those not found in the repo
+// pruneBundlesNotFoundInRepo removes bundles that are not present in the repo.
 func pruneBundlesNotFoundInRepo(
 	ctx context.Context,
 	c client.Client,
@@ -380,63 +380,79 @@ func pruneBundlesNotFoundInRepo(
 	ns string,
 	gitRepoBundlesMap map[string]*fleet.Bundle,
 ) error {
-	filter := labels.SelectorFromSet(labels.Set{fleet.RepoLabel: repoName})
-	bundleList := &fleet.BundleList{}
-	if err := c.List(ctx, bundleList, &client.ListOptions{LabelSelector: filter, Namespace: ns}); err != nil {
+	bundlesToDelete, err := bundlesNotFoundInRepo(ctx, c, repoName, ns, gitRepoBundlesMap)
+	if err != nil {
 		return err
 	}
 
+	populateOverwrites(bundlesToDelete, gitRepoBundlesMap)
+	return deleteBundles(ctx, c, bundlesToDelete)
+}
+
+func bundlesNotFoundInRepo(
+	ctx context.Context,
+	c client.Client,
+	repoName,
+	ns string,
+	gitRepoBundlesMap map[string]*fleet.Bundle,
+) ([]fleet.Bundle, error) {
+	filter := labels.SelectorFromSet(labels.Set{fleet.RepoLabel: repoName})
+	bundleList := &fleet.BundleList{}
+	if err := c.List(ctx, bundleList, &client.ListOptions{LabelSelector: filter, Namespace: ns}); err != nil {
+		return nil, err
+	}
+
+	var bundlesToDelete []fleet.Bundle
 	for _, bundle := range bundleList.Items {
 		if _, ok := gitRepoBundlesMap[bundle.Name]; !ok {
-			logrus.Debugf("Bundle to be deleted since it is not found in gitrepo %v anymore %v %v", repoName, bundle.Namespace, bundle.Name)
+			bundlesToDelete = append(bundlesToDelete, bundle)
+		}
+	}
+	return bundlesToDelete, nil
+}
 
-			// Populate new bundles' `Overwrites` field with possible overlaps between the in-cluster bundle, to be deleted,
-			// and bundles which will be created in the cluster.
-			// Knowing about these overlaps, if any, the Fleet agent will then be able to:
-			// 1. match them against possible missing resources in a bundle deployment's status
-			// 2. trigger a new deployment, re-creating missing resources if those are overwritten by the
-			// bundle deployment
-			// See fleet#3770 for more context.
-			for _, inClusterRsc := range bundle.Spec.Resources {
-				for _, grb := range gitRepoBundlesMap {
-					logrus.Debugf("gitRepo bundle: %v", grb)
-					for _, grRsc := range grb.Spec.Resources {
-						if inClusterRsc.Name != grRsc.Name {
-							continue
-						}
+// populateOverwrites records resource overlaps with bundles that will be deleted.
+func populateOverwrites(bundlesToDelete []fleet.Bundle, gitRepoBundlesMap map[string]*fleet.Bundle) {
+	for _, bundle := range bundlesToDelete {
+		for _, inClusterRsc := range bundle.Spec.Resources {
+			for _, grb := range gitRepoBundlesMap {
+				logrus.Debugf("gitRepo bundle: %v", grb)
+				for _, grRsc := range grb.Spec.Resources {
+					if inClusterRsc.Name != grRsc.Name {
+						continue
+					}
 
-						logrus.Debugf("resources: [in cluster] %v\n, [in gitrepo] %v", inClusterRsc, grRsc)
+					ow1, err := getKindNS(grRsc, grb.Name)
+					if err != nil {
+						logrus.Debugf("for bundle from git repo, failed to get kind and namespace for resource %v", grRsc)
+						continue
+					}
+					if ow1.Kind == "" {
+						continue
+					}
+					ow2, err := getKindNS(inClusterRsc, bundle.Name)
+					if err != nil {
+						logrus.Debugf("for in-cluster bundle, failed to get kind and namespace for resource %v", grRsc)
+						continue
+					}
+					if ow2.Kind == "" {
+						continue
+					}
 
-						ow1, err := getKindNS(grRsc, grb.Name)
-						if err != nil {
-							logrus.Debugf("for bundle from git repo, failed to get kind and namespace for resource %v", grRsc)
-							continue
-						}
-						if ow1.Kind == "" {
-							// Skipping non-manifest resources, e.g. Chart.yaml and values
-							// files.
-							continue
-						}
-
-						ow2, err := getKindNS(inClusterRsc, bundle.Name)
-						if err != nil {
-							logrus.Debugf("for in-cluster bundle, failed to get kind and namespace for resource %v", grRsc)
-							continue
-						}
-						if ow2.Kind == "" {
-							continue
-						}
-
-						if ow1.Kind == ow2.Kind && ow1.Name == ow2.Name && ow1.Namespace == ow2.Namespace {
-							// Warning: this will not work with bundlenamespacemappings
-							grb.Spec.Overwrites = append(grb.Spec.Overwrites, ow1)
-						}
+					if ow1.Kind == ow2.Kind && ow1.Name == ow2.Name && ow1.Namespace == ow2.Namespace {
+						grb.Spec.Overwrites = append(grb.Spec.Overwrites, ow1)
 					}
 				}
 			}
-			if err := c.Delete(ctx, &bundle); err != nil {
-				return err
-			}
+		}
+	}
+}
+
+func deleteBundles(ctx context.Context, c client.Client, bundles []fleet.Bundle) error {
+	for _, bundle := range bundles {
+		logrus.Debugf("Bundle to be deleted since it is not found in gitrepo anymore %v %v", bundle.Namespace, bundle.Name)
+		if err := c.Delete(ctx, &bundle); err != nil {
+			return err
 		}
 	}
 	return nil
