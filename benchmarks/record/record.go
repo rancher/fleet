@@ -3,15 +3,19 @@ package record
 import (
 	"bytes"
 	"context"
-	"encoding/binary"
-	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"maps"
 	"math/rand/v2"
+	"net"
+	"net/http"
+	"os/exec"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -34,15 +38,13 @@ import (
 )
 
 var (
-	k         kubectl.Command
 	k8sClient client.Client
 	workspace string
 )
 
-func Setup(w string, k8s client.Client, kcmd kubectl.Command) {
+func Setup(w string, k8s client.Client, _ kubectl.Command) {
 	workspace = w
 	k8sClient = k8s
-	k = kcmd
 }
 
 func MemoryUsage(experiment *gm.Experiment, name string) {
@@ -208,9 +210,9 @@ func Header(s string) string {
 func Metrics(experiment *gm.Experiment, suffix string) {
 	res := map[string]float64{}
 
-	getMetrics(res, "monitoring-fleet-controller.cattle-fleet-system.svc.cluster.local:8080/metrics", "bundle", "bundledeployment", "cluster", "clustergroup", "imagescan")
+	getMetrics(res, "monitoring-fleet-controller", "cattle-fleet-system", 8080, "bundle", "bundledeployment", "cluster", "clustergroup", "imagescan")
 
-	getMetrics(res, "monitoring-gitjob.cattle-fleet-system.svc.cluster.local:8081/metrics", "GitRepoStatus", "gitrepo")
+	getMetrics(res, "monitoring-gitjob", "cattle-fleet-system", 8081, "GitRepoStatus", "gitrepo")
 
 	for k, v := range res {
 		n := k + suffix
@@ -251,45 +253,63 @@ var requiredMetricFamilies = []string{
 	"process_network_transmit_bytes_total",
 }
 
-func getMetrics(res map[string]float64, url string, controllers ...string) {
+func getMetrics(res map[string]float64, name, namespace string, port int, controllers ...string) {
 	var (
 		mfs    map[string]*dto.MetricFamily
 		parser = expfmt.NewTextParser(model.LegacyValidation)
 	)
-	Eventually(func() error {
-		pod := addRandomSuffix("curl")
-		defer func() {
-			_, _ = k.Run("delete", "pod", "--namespace", "cattle-fleet-system", pod, "--ignore-not-found")
-		}()
 
+	var hostPort int
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	Eventually(func(g Gomega) {
+		// Note on the `nolint: gosec` comment below: We are looking for an available port number; this can afford to be
+		// fairly predictable.
+		hostPort = port + rand.IntN(65535-port) // TCP port range: 0-65535
+
+		// Create a listener on the port, just to check if it is open.
+		lc := net.ListenConfig{}
+		ln, err := lc.Listen(context.Background(), "tcp", ":"+strconv.Itoa(hostPort))
+		g.Expect(err).ToNot(HaveOccurred(), fmt.Sprintf("port %d seems busy (%v); retrying...", hostPort, err))
+
+		defer ln.Close()
+	}).Should(Succeed())
+
+	cmd := exec.CommandContext(ctx, "kubectl", "-n", namespace, "port-forward", "service/"+name, fmt.Sprintf("%d:%d", hostPort, port))
+
+	Expect(cmd.Start()).ToNot(HaveOccurred())
+
+	Eventually(func() error {
+		url := fmt.Sprintf("http://127.0.0.1:%d/metrics", hostPort)
 		GinkgoWriter.Print("Fetching metrics from " + url + "\n")
 
-		// Create the pod without --attach to avoid kubectl's unreliable
-		// attach mechanism, which can duplicate output on fallback to logs.
-		_, _, err := k.RunStdout("run", "--restart=Never", pod, "--image=curlimages/curl", "--namespace", "cattle-fleet-system", "--command", "--", "curl", "-sf", url)
-		if err != nil {
-			return fmt.Errorf("kubectl run: %w", err)
-		}
-
-		// Wait for the pod to terminate. Use condition=Ready=false to
-		// detect both Succeeded and Failed without blocking for the full
-		// timeout on a failed curl.
-		_, _, err = k.RunStdout("wait", "--for=condition=Ready=false", "--namespace", "cattle-fleet-system", "pod/"+pod, "--timeout=30s")
-		if err != nil {
-			return fmt.Errorf("waiting for pod: %w", err)
-		}
-
-		phase, _, _ := k.RunStdout("get", "pod", pod, "--namespace", "cattle-fleet-system", "-o", "jsonpath={.status.phase}")
-		if strings.TrimSpace(phase) != "Succeeded" {
-			return fmt.Errorf("curl pod %s finished with phase %s", pod, phase)
-		}
-
-		out, _, err := k.RunStdout("logs", "--namespace", "cattle-fleet-system", pod)
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
 		if err != nil {
 			return err
 		}
 
-		mfs, err = parser.TextToMetricFamilies(bytes.NewBufferString(out))
+		cli := &http.Client{
+			Timeout: 5 * time.Second,
+		}
+		resp, err := cli.Do(req)
+		if err != nil {
+			return err
+		}
+
+		defer resp.Body.Close()
+
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("fetching metrics failed with status code %d", resp.StatusCode)
+		}
+
+		mfs, err = parser.TextToMetricFamilies(bytes.NewBuffer(body))
 		if err != nil {
 			return err
 		}
@@ -304,14 +324,6 @@ func getMetrics(res map[string]float64, url string, controllers ...string) {
 	}).Should(Succeed())
 
 	extractFromMetricFamilies(res, controllers, mfs)
-}
-
-// addRandomSuffix adds a random suffix to a given name.
-func addRandomSuffix(name string) string {
-	p := make([]byte, 4)
-	binary.LittleEndian.PutUint32(p, rand.Uint32())
-
-	return fmt.Sprintf("%s-%s", name, hex.EncodeToString(p))
 }
 
 func extractFromMetricFamilies(res map[string]float64, controllers []string, mfs map[string]*dto.MetricFamily) {

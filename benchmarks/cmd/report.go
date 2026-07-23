@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -50,6 +51,10 @@ var reportCmd = &cobra.Command{
 			fmt.Println(prettyPrint(sample))
 			fmt.Println("```")
 			fmt.Println()
+		}
+
+		if sample == nil {
+			return errors.New("empty sample; no measurements can be made")
 		}
 
 		if sample.Description != "" {
