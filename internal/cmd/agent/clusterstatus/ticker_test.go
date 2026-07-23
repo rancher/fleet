@@ -3,6 +3,8 @@ package clusterstatus
 import (
 	"context"
 	"encoding/json"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -83,7 +85,7 @@ var _ = Describe("ClusterStatus Ticker", func() {
 				},
 			},
 		}
-		clt = clientBuilder.
+		clt = fake.NewClientBuilder().
 			WithScheme(scheme).
 			WithObjects(cluster).
 			WithStatusSubresource(cluster).
@@ -97,5 +99,108 @@ var _ = Describe("ClusterStatus Ticker", func() {
 	It("should patch the cluster status after checkinInterval", func() {
 		Ticker(ctx, clt, agentNamespace, clusterNamespace, clusterName, checkinInterval)
 		<-ctx.Done()
+	})
+
+	It("should stop periodic patches when context is cancelled", func() {
+		// Ensures the periodic ticker loop stops when ctx is cancelled,
+		// so the agent doesn't keep patching after shutdown.
+		checkinInterval = time.Millisecond * 50
+
+		var patchCount atomic.Int32
+		interceptorFuncs := interceptor.Funcs{
+			SubResourcePatch: func(ctx context.Context, client client.Client, subResourceName string, obj client.Object, patch client.Patch, opts ...client.SubResourcePatchOption) error {
+				patchCount.Add(1)
+				return nil
+			},
+		}
+		clt = fake.NewClientBuilder().
+			WithScheme(scheme).
+			WithObjects(&fleet.Cluster{
+				TypeMeta:   metav1.TypeMeta{Kind: "Cluster", APIVersion: "fleet.cattle.io/v1alpha1"},
+				ObjectMeta: metav1.ObjectMeta{Name: clusterName, Namespace: clusterNamespace},
+			}).
+			WithStatusSubresource(&fleet.Cluster{}).
+			WithInterceptorFuncs(interceptorFuncs).
+			Build()
+
+		Ticker(ctx, clt, agentNamespace, clusterNamespace, clusterName, checkinInterval)
+
+		// Wait for at least one periodic patch to confirm the ticker is running.
+		Eventually(func() int32 { return patchCount.Load() }, time.Second).
+			Should(BeNumerically(">=", 1))
+
+		cancel()
+		countAtCancel := patchCount.Load()
+
+		// After cancellation the goroutine must exit; no additional patches.
+		Consistently(func() int32 { return patchCount.Load() }, checkinInterval*3, checkinInterval).
+			Should(Equal(countAtCancel))
+	})
+
+	It("should spread first periodic patch across the interval to avoid thundering herd", func() {
+		// Start several concurrent agents and collect the timestamp of each
+		// agent's first periodic patch. Jitter must distribute them across the
+		// checkinInterval window rather than bunching them all at t=0.
+		const agentCount = 5
+		checkinInterval = time.Millisecond * 200
+
+		var mu sync.Mutex
+		firstPatchTimes := make(map[string]time.Time, agentCount)
+		allDone := make(chan struct{})
+
+		buildClient := func(name string) client.Client {
+			interceptorFuncs := interceptor.Funcs{
+				SubResourcePatch: func(ctx context.Context, c client.Client, subResourceName string, obj client.Object, patch client.Patch, opts ...client.SubResourcePatchOption) error {
+					mu.Lock()
+					defer mu.Unlock()
+					if _, seen := firstPatchTimes[name]; !seen {
+						firstPatchTimes[name] = time.Now()
+						if len(firstPatchTimes) == agentCount {
+							close(allDone)
+						}
+					}
+					return nil
+				},
+			}
+			return fake.NewClientBuilder().
+				WithScheme(scheme).
+				WithObjects(&fleet.Cluster{
+					TypeMeta:   metav1.TypeMeta{Kind: "Cluster", APIVersion: "fleet.cattle.io/v1alpha1"},
+					ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: clusterNamespace},
+				}).
+				WithStatusSubresource(&fleet.Cluster{}).
+				WithInterceptorFuncs(interceptorFuncs).
+				Build()
+		}
+
+		for i := range agentCount {
+			name := clusterName + "-" + string(rune('a'+i))
+			Ticker(ctx, buildClient(name), agentNamespace, clusterNamespace, name, checkinInterval)
+		}
+
+		select {
+		case <-allDone:
+		case <-time.After(checkinInterval * time.Duration(agentCount) * 3):
+			Fail("timed out waiting for all agents to check in")
+		}
+		cancel()
+
+		mu.Lock()
+		defer mu.Unlock()
+
+		// All agents started at the same moment; with jitter their first periodic
+		// patches must be spread across the checkinInterval window, not bunched at t=0.
+		var earliest, latest time.Time
+		for _, t := range firstPatchTimes {
+			if earliest.IsZero() || t.Before(earliest) {
+				earliest = t
+			}
+			if t.After(latest) {
+				latest = t
+			}
+		}
+		spread := latest.Sub(earliest)
+		Expect(spread).To(BeNumerically(">", checkinInterval/10),
+			"jitter should spread %d agents' first check-in across time, not bunch them at t=0", agentCount)
 	})
 })
