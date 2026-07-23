@@ -99,22 +99,17 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// A payload can yield several URLs (e.g. a web URL and an SSH URL) that
-	// resolve to the same host and path, most commonly when the SSH host equals
-	// the web host (github.com). Track those with `seen` so a matching GitRepo is
-	// processed once per request instead of letting it be processed repeatedly.
-	seen := make(map[string]struct{}, len(repoURLs))
+	// A payload can yield several URLs (e.g. a web URL and an SSH URL), and more
+	// than one can match the same GitRepo (most commonly when the SSH host equals
+	// the web host, github.com). Track the GitRepos already updated in `seen` so
+	// each is processed once per request, no matter how many URLs resolve to it.
+	seen := make(map[types.NamespacedName]struct{})
 	for _, repo := range repoURLs {
 		u, err := url.Parse(repo)
 		if err != nil {
 			w.logAndReturn(rw, err)
 			return
 		}
-		key := u.Hostname() + "\x00" + u.EscapedPath()
-		if _, ok := seen[key]; ok {
-			continue
-		}
-		seen[key] = struct{}{}
 
 		if u.EscapedPath() == "" {
 			continue
@@ -128,6 +123,10 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		for _, gitrepo := range gitRepoList.Items {
+			gitrepoResource := types.NamespacedName{Namespace: gitrepo.Namespace, Name: gitrepo.Name}
+			if _, ok := seen[gitrepoResource]; ok {
+				continue
+			}
 			if gitrepo.Spec.Revision != "" {
 				continue
 			}
@@ -199,6 +198,7 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 					}
 				}
 			}
+			seen[gitrepoResource] = struct{}{}
 		}
 	}
 	rw.WriteHeader(http.StatusOK)
