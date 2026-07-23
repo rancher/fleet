@@ -367,56 +367,45 @@ var _ = Describe("CronDurationJob", func() {
 		})
 	})
 
-	Context("ClusterScheduledMatcher", func() {
-		It("should match a job if the cluster is in MatchingClusters", func() {
-			job, err := newCronDurationJob(ctx, schedule, scheduler, k8sclient)
-			Expect(err).NotTo(HaveOccurred())
-			err = job.scheduleJob(ctx)
-			Expect(err).NotTo(HaveOccurred())
+	Context("targets", func() {
+		var job *CronDurationJob
 
-			matcher := NewClusterScheduledMatcher("default", "test-cluster")
-			keys, err := scheduler.GetJobKeys(matcher)
+		JustBeforeEach(func() {
+			var err error
+			job, err = newCronDurationJob(ctx, schedule, scheduler, k8sclient)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(keys).To(HaveLen(1))
-			Expect(keys[0].String()).To(Equal(job.key.String()))
+			Expect(job.MatchingClusters).To(ConsistOf("test-cluster"))
 		})
 
-		It("should not match a job if the cluster is not in MatchingClusters", func() {
-			job, err := newCronDurationJob(ctx, schedule, scheduler, k8sclient)
-			Expect(err).NotTo(HaveOccurred())
-			err = job.scheduleJob(ctx)
-			Expect(err).NotTo(HaveOccurred())
-
-			matcher := NewClusterScheduledMatcher("default", "another-cluster")
-			keys, err := scheduler.GetJobKeys(matcher)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(keys).To(BeEmpty())
+		It("should target a cluster in MatchingClusters", func() {
+			Expect(job.targets("test-cluster", "default")).To(BeTrue())
 		})
 
-		It("should not match a job if the namespace is different", func() {
-			job, err := newCronDurationJob(ctx, schedule, scheduler, k8sclient)
-			Expect(err).NotTo(HaveOccurred())
-			err = job.scheduleJob(ctx)
-			Expect(err).NotTo(HaveOccurred())
+		It("should not target a cluster which is not in MatchingClusters", func() {
+			Expect(job.targets("another-cluster", "default")).To(BeFalse())
+		})
 
-			matcher := NewClusterScheduledMatcher("other-ns", "test-cluster")
-			keys, err := scheduler.GetJobKeys(matcher)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(keys).To(BeEmpty())
+		It("should not target a cluster in another namespace", func() {
+			Expect(job.targets("test-cluster", "other-ns")).To(BeFalse())
 		})
 	})
 
-	Context("getClusterScheduleKeys", func() {
-		It("should return keys for scheduled jobs matching a cluster", func() {
+	Context("Execute", func() {
+		It("should do nothing when the job is stale", func() {
 			job, err := newCronDurationJob(ctx, schedule, scheduler, k8sclient)
 			Expect(err).NotTo(HaveOccurred())
-			err = job.scheduleJob(ctx)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(job.scheduleJob(ctx)).To(Succeed())
 
-			keys, err := getClusterScheduleKeys(scheduler, "test-cluster", "default")
-			Expect(err).NotTo(HaveOccurred())
-			Expect(keys).To(HaveLen(1))
-			Expect(keys[0].String()).To(Equal(job.key.String()))
+			job.stale = true
+
+			Expect(job.Execute(ctx)).To(Succeed())
+
+			Expect(job.Started).To(BeFalse())
+
+			updatedCluster := &fleet.Cluster{}
+			key := types.NamespacedName{Name: "test-cluster", Namespace: "default"}
+			Expect(k8sclient.Get(ctx, key, updatedCluster)).To(Succeed())
+			Expect(updatedCluster.Status.ActiveSchedule).To(BeFalse())
 		})
 	})
 

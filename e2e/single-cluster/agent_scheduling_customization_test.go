@@ -8,30 +8,77 @@ import (
 	. "github.com/onsi/gomega"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
+	policyv1 "k8s.io/api/policy/v1"
 	schedulingv1 "k8s.io/api/scheduling/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+)
+
+const (
+	localAgentNamespace   = "cattle-fleet-local-system"
+	agentPriorityClass    = "fleet-agent-priority-class"
+	agentDisruptionBudget = "fleet-agent-pod-disruption-budget"
 )
 
 func ptr[T any](v T) *T {
 	return new(v)
 }
 
-var _ = Describe("Agent Scheduling Customization", func() {
-	var (
-		cluster *fleet.Cluster
-	)
-
-	BeforeEach(func() {
-		var err error
-		cluster = &fleet.Cluster{}
-		err = clientUpstream.Get(context.TODO(), client.ObjectKey{
+// removeAgentSchedulingCustomization clears the customization from the local cluster and
+// waits until the controller has fully reconciled the removal: the status hash is empty
+// and both resources the customization owns are gone. Every spec here shares the same
+// local cluster, so returning before the cleanup lands would leak a PriorityClass or a
+// PDB into whichever spec runs next and make the suite order-dependent.
+func removeAgentSchedulingCustomization() {
+	Eventually(func(g Gomega) {
+		latestCluster := &fleet.Cluster{}
+		err := clientUpstream.Get(context.TODO(), client.ObjectKey{
 			Namespace: env.Namespace,
 			Name:      "local",
-		}, cluster)
-		Expect(err).ToNot(HaveOccurred())
-	})
+		}, latestCluster)
+		g.Expect(err).ToNot(HaveOccurred())
 
+		latestCluster.Spec.AgentSchedulingCustomization = nil
+		// Bump RedeployAgentGeneration to force a prompt agent re-import.
+		// Removing the customization clears the status hash quickly, but the
+		// re-import that prunes the PriorityClass and the PDB is otherwise only
+		// triggered on the controller's periodic resync (~5m). That cadence races
+		// the deletion waits below and makes the specs flaky, so we force the
+		// redeploy here to prune both immediately.
+		latestCluster.Spec.RedeployAgentGeneration++
+		err = clientUpstream.Update(context.TODO(), latestCluster)
+		g.Expect(err).ToNot(HaveOccurred())
+	}).Should(Succeed(), "Should be able to update cluster to remove agentSchedulingCustomization")
+
+	Eventually(func(g Gomega) {
+		latestCluster := &fleet.Cluster{}
+		err := clientUpstream.Get(context.TODO(), client.ObjectKey{
+			Namespace: env.Namespace,
+			Name:      "local",
+		}, latestCluster)
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(latestCluster.Status.AgentSchedulingCustomizationHash).To(Equal(""))
+	}).Should(Succeed(), "Should have cleared the AgentSchedulingCustomizationHash")
+
+	Eventually(func(g Gomega) {
+		pc := &schedulingv1.PriorityClass{}
+		err := clientUpstream.Get(context.TODO(), client.ObjectKey{
+			Name: agentPriorityClass,
+		}, pc)
+		g.Expect(errors.IsNotFound(err)).To(BeTrue())
+	}).Should(Succeed(), "PriorityClass should be deleted")
+
+	Eventually(func(g Gomega) {
+		pdb := &policyv1.PodDisruptionBudget{}
+		err := clientUpstream.Get(context.TODO(), client.ObjectKey{
+			Namespace: localAgentNamespace,
+			Name:      agentDisruptionBudget,
+		}, pdb)
+		g.Expect(errors.IsNotFound(err)).To(BeTrue())
+	}).Should(Succeed(), "PodDisruptionBudget should be deleted")
+}
+
+var _ = Describe("Agent Scheduling Customization", func() {
 	When("agentSchedulingCustomization.PriorityClass is configured on the cluster resource", func() {
 		BeforeEach(func() {
 			// Update the cluster with agentSchedulingCustomization
@@ -56,48 +103,14 @@ var _ = Describe("Agent Scheduling Customization", func() {
 			}).Should(Succeed(), "Should be able to update cluster with agentSchedulingCustomization")
 		})
 
-		AfterEach(func() {
-			// Clean up by removing the agentSchedulingCustomization
-			Eventually(func(g Gomega) {
-				// Re-fetch the cluster to get the latest version
-				latestCluster := &fleet.Cluster{}
-				err := clientUpstream.Get(context.TODO(), client.ObjectKey{
-					Namespace: env.Namespace,
-					Name:      "local",
-				}, latestCluster)
-				g.Expect(err).ToNot(HaveOccurred())
-
-				latestCluster.Spec.AgentSchedulingCustomization = nil
-				err = clientUpstream.Update(context.TODO(), latestCluster)
-				g.Expect(err).ToNot(HaveOccurred())
-			}).Should(Succeed(), "Should be able to update cluster to remove agentSchedulingCustomization")
-
-			Eventually(func(g Gomega) {
-				latestCluster := &fleet.Cluster{}
-				err := clientUpstream.Get(context.TODO(), client.ObjectKey{
-					Namespace: env.Namespace,
-					Name:      "local",
-				}, latestCluster)
-				g.Expect(err).ToNot(HaveOccurred())
-				g.Expect(cluster.Status.AgentSchedulingCustomizationHash).To(Equal(""))
-			}).Should(Succeed(), "Should have cleared the AgentSchedulingCustomizationHash")
-
-			// Wait for PriorityClass to be deleted
-			Eventually(func() bool {
-				pc := &schedulingv1.PriorityClass{}
-				err := clientUpstream.Get(context.TODO(), client.ObjectKey{
-					Name: "fleet-agent-priority-class",
-				}, pc)
-				return errors.IsNotFound(err)
-			}).Should(BeTrue(), "PriorityClass should be deleted")
-		})
+		AfterEach(removeAgentSchedulingCustomization)
 
 		It("should create a PriorityClass on the cluster", func() {
 			By("waiting for the PriorityClass to be created")
 			Eventually(func(g Gomega) {
 				pc := &schedulingv1.PriorityClass{}
 				err := clientUpstream.Get(context.TODO(), client.ObjectKey{
-					Name: "fleet-agent-priority-class",
+					Name: agentPriorityClass,
 				}, pc)
 				g.Expect(err).ToNot(HaveOccurred(), "PriorityClass should be created")
 
@@ -108,12 +121,12 @@ var _ = Describe("Agent Scheduling Customization", func() {
 			}).Should(Succeed())
 
 			By("checking that the agent deployment uses the priority class")
-			k := env.Kubectl.Namespace("cattle-fleet-local-system")
+			k := env.Kubectl.Namespace(localAgentNamespace)
 			Eventually(func(g Gomega) {
 				out, err := k.Get("deployment", "fleet-agent", "-o", "jsonpath={.spec.template.spec.priorityClassName}")
 				g.Expect(err).ToNot(HaveOccurred())
 				priorityClassName := strings.TrimSpace(out)
-				g.Expect(priorityClassName).To(Equal("fleet-agent-priority-class"))
+				g.Expect(priorityClassName).To(Equal(agentPriorityClass))
 			}).Should(Succeed())
 		})
 
@@ -154,38 +167,13 @@ var _ = Describe("Agent Scheduling Customization", func() {
 			}).Should(Succeed(), "Should be able to update cluster with agentSchedulingCustomization")
 		})
 
-		AfterEach(func() {
-			// Clean up by removing the agentSchedulingCustomization
-			Eventually(func(g Gomega) {
-				// Re-fetch the cluster to get the latest version
-				latestCluster := &fleet.Cluster{}
-				err := clientUpstream.Get(context.TODO(), client.ObjectKey{
-					Namespace: env.Namespace,
-					Name:      "local",
-				}, latestCluster)
-				g.Expect(err).ToNot(HaveOccurred())
-
-				latestCluster.Spec.AgentSchedulingCustomization = nil
-				err = clientUpstream.Update(context.TODO(), latestCluster)
-				g.Expect(err).ToNot(HaveOccurred())
-			}).Should(Succeed(), "Should be able to update cluster to remove agentSchedulingCustomization")
-
-			Eventually(func(g Gomega) {
-				latestCluster := &fleet.Cluster{}
-				err := clientUpstream.Get(context.TODO(), client.ObjectKey{
-					Namespace: env.Namespace,
-					Name:      "local",
-				}, latestCluster)
-				g.Expect(err).ToNot(HaveOccurred())
-				g.Expect(cluster.Status.AgentSchedulingCustomizationHash).To(Equal(""))
-			}).Should(Succeed(), "Should have cleared the AgentSchedulingCustomizationHash")
-		})
+		AfterEach(removeAgentSchedulingCustomization)
 
 		It("should create a PodDisruptionBudget on the cluster", func() {
 			By("waiting for the PodDisruptionBudget to be created")
-			k := env.Kubectl.Namespace("cattle-fleet-local-system")
+			k := env.Kubectl.Namespace(localAgentNamespace)
 			Eventually(func(g Gomega) {
-				out, err := k.Get("pdb", "fleet-agent-pod-disruption-budget", "-o", "jsonpath={.spec.maxUnavailable}")
+				out, err := k.Get("pdb", agentDisruptionBudget, "-o", "jsonpath={.spec.maxUnavailable}")
 				g.Expect(err).ToNot(HaveOccurred(), "PodDisruptionBudget should be created")
 				maxUnavailable := strings.TrimSpace(out)
 				g.Expect(maxUnavailable).To(Equal("1"), "PodDisruptionBudget should have correct maxUnavailable")
@@ -193,7 +181,7 @@ var _ = Describe("Agent Scheduling Customization", func() {
 
 			By("checking that the PDB has correct selector")
 			Eventually(func(g Gomega) {
-				out, err := k.Get("pdb", "fleet-agent-pod-disruption-budget", "-o", "jsonpath={.spec.selector.matchLabels.app}")
+				out, err := k.Get("pdb", agentDisruptionBudget, "-o", "jsonpath={.spec.selector.matchLabels.app}")
 				g.Expect(err).ToNot(HaveOccurred())
 				app := strings.TrimSpace(out)
 				g.Expect(app).To(Equal("fleet-agent"))
@@ -227,38 +215,23 @@ var _ = Describe("Agent Scheduling Customization", func() {
 			}).Should(Succeed(), "Should be able to update cluster with agentSchedulingCustomization")
 		})
 
-		AfterEach(func() {
-			// Clean up by removing the agentSchedulingCustomization
-			Eventually(func(g Gomega) {
-				// Re-fetch the cluster to get the latest version
-				latestCluster := &fleet.Cluster{}
-				err := clientUpstream.Get(context.TODO(), client.ObjectKey{
-					Namespace: env.Namespace,
-					Name:      "local",
-				}, latestCluster)
-				g.Expect(err).ToNot(HaveOccurred())
-
-				latestCluster.Spec.AgentSchedulingCustomization = nil
-				err = clientUpstream.Update(context.TODO(), latestCluster)
-				g.Expect(err).ToNot(HaveOccurred())
-			}).Should(Succeed(), "Should be able to update cluster to remove agentSchedulingCustomization")
-		})
+		AfterEach(removeAgentSchedulingCustomization)
 
 		It("should create both PriorityClass and PodDisruptionBudget", func() {
 			By("checking PriorityClass is created")
 			Eventually(func(g Gomega) {
 				pc := &schedulingv1.PriorityClass{}
 				err := clientUpstream.Get(context.TODO(), client.ObjectKey{
-					Name: "fleet-agent-priority-class",
+					Name: agentPriorityClass,
 				}, pc)
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(pc.Value).To(Equal(int32(500)))
 			}).Should(Succeed())
 
 			By("checking PodDisruptionBudget is created")
-			k := env.Kubectl.Namespace("cattle-fleet-local-system")
+			k := env.Kubectl.Namespace(localAgentNamespace)
 			Eventually(func(g Gomega) {
-				out, err := k.Get("pdb", "fleet-agent-pod-disruption-budget", "-o", "jsonpath={.spec.minAvailable}")
+				out, err := k.Get("pdb", agentDisruptionBudget, "-o", "jsonpath={.spec.minAvailable}")
 				g.Expect(err).ToNot(HaveOccurred())
 				minAvailable := strings.TrimSpace(out)
 				g.Expect(minAvailable).To(Equal("1"))

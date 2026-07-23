@@ -28,6 +28,7 @@ var (
 	k8sClient  client.Client
 	testenv    *envtest.Environment
 	logsBuffer bytes.Buffer
+	scheduler  quartz.Scheduler
 
 	namespace string
 )
@@ -69,14 +70,20 @@ var _ = BeforeSuite(func() {
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred(), "failed to set up manager")
 
+	// As the operator does: without a running scheduler, schedules never start nor stop.
+	sched.Start(ctx)
+
 	go func() {
 		defer GinkgoRecover()
 		err = mgr.Start(ctx)
 		Expect(err).ToNot(HaveOccurred(), "failed to run manager")
 	}()
+
+	scheduler = sched
 })
 
 var _ = AfterSuite(func() {
+	scheduler.Stop()
 	cancel()
 	Expect(testenv.Stop()).ToNot(HaveOccurred())
 })

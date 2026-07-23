@@ -1,6 +1,7 @@
 package schedule
 
 import (
+	"fmt"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -90,6 +91,65 @@ var _ = Describe("Schedule updates triggered by cluster updates", func() {
 				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(cluster.Status.Scheduled).To(BeTrue())
 			}).Should(Succeed())
+		})
+	})
+
+	When("a schedule becomes active", func() {
+		// Starting the schedule flags the cluster as active, and that cluster update triggers a
+		// reconcile of the schedule itself. That reconcile must not mistake the running job for a
+		// missing one and recreate it, as recreating it un-flags the cluster and the active window
+		// is lost.
+		It("keeps the cluster active for the schedule's duration, on every cycle", func() {
+			By("creating the cluster and a schedule which starts every 5 seconds for 2 seconds")
+			cluster, err := utils.CreateCluster(ctx, k8sClient, "cluster", namespace, nil, namespace)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(cluster).To(Not(BeNil()))
+
+			schedule := v1alpha1.Schedule{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "my-schedule",
+					Namespace: namespace,
+				},
+				Spec: v1alpha1.ScheduleSpec{
+					Schedule: "*/5 * * * * *",
+					Duration: metav1.Duration{Duration: 2 * time.Second},
+					Targets: v1alpha1.ScheduleTargets{
+						Clusters: []v1alpha1.ScheduleTarget{
+							{
+								ClusterSelector: &metav1.LabelSelector{},
+							},
+						},
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, &schedule)).NotTo(HaveOccurred())
+
+			DeferCleanup(func() {
+				Expect(k8sClient.Delete(ctx, &v1alpha1.Schedule{ObjectMeta: metav1.ObjectMeta{
+					Name:      "my-schedule",
+					Namespace: namespace,
+				}})).NotTo(HaveOccurred())
+			})
+
+			activeSchedule := func(g Gomega) bool {
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "cluster"}, cluster)).
+					NotTo(HaveOccurred())
+				return cluster.Status.ActiveSchedule
+			}
+
+			// Each cycle is observed on its own, so that a cycle whose window is cancelled fails
+			// the test instead of being skipped over by a longer timeout.
+			for cycle := range 2 {
+				By(fmt.Sprintf("waiting for cycle %d to start", cycle))
+				Eventually(func(g Gomega) bool {
+					return activeSchedule(g)
+				}).WithTimeout(6 * time.Second).WithPolling(100 * time.Millisecond).Should(BeTrue())
+
+				By(fmt.Sprintf("waiting for cycle %d to end", cycle))
+				Eventually(func(g Gomega) bool {
+					return activeSchedule(g)
+				}).WithTimeout(4 * time.Second).WithPolling(100 * time.Millisecond).Should(BeFalse())
+			}
 		})
 	})
 
