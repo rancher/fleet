@@ -71,7 +71,7 @@ require (
 	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/client_model v0.6.2
 	github.com/prometheus/common v0.70.0
-	github.com/rancher/fleet/pkg/apis v0.15.4
+	github.com/rancher/fleet/pkg/apis v0.16.0
 	github.com/rancher/fleet/pkg/helmvalues v0.0.0-00010101000000-000000000000
 	github.com/rancher/lasso v0.2.9
 	github.com/rancher/wrangler/v3 v3.7.0
