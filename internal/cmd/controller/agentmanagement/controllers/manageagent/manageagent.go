@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/Masterminds/semver/v3"
 	"github.com/sirupsen/logrus"
 
 	"github.com/rancher/fleet/internal/cmd"
@@ -24,8 +25,10 @@ import (
 	"github.com/rancher/fleet/internal/names"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/version"
 
 	"github.com/rancher/wrangler/v3/pkg/apply"
+	"github.com/rancher/wrangler/v3/pkg/condition"
 	corecontrollers "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/v3/pkg/relatedresource"
 	"github.com/rancher/wrangler/v3/pkg/yaml"
@@ -143,7 +146,58 @@ func (h *handler) onClusterStatusChange(cluster *fleet.Cluster, status fleet.Clu
 		h.namespaces.Enqueue(cluster.Namespace)
 	}
 
+	setAgentVersionCondition(&status, version.Version)
+
 	return status, nil
+}
+
+// setAgentVersionCondition sets the AgentVersionUpToDate condition by
+// comparing the version reported by the running agent binary against
+// controllerVersion, the version of the running fleet-controller binary.
+// The controller and agent are built and released together, so the
+// controller's own version is the version agents are expected to run,
+// independent of the configured agent image (which may be a moving tag, a
+// custom image, or otherwise not reflect the actual released version).
+//
+// The condition is informational only: it is legitimately False for a short
+// window during a rolling upgrade while downstream agents catch up to the
+// controller. It must not be fed into cluster readiness (Ready is derived
+// solely from the bundle summary, see summary.SetReadyConditions) and its
+// Reason is deliberately left unset: a Reason of "Error" would make Rancher's
+// generic condition summarizer surface routine version skew as a cluster
+// error.
+func setAgentVersionCondition(status *fleet.ClusterStatus, controllerVersion string) {
+	cond := condition.Cond(fleet.ClusterConditionAgentVersionUpToDate)
+	agentVersion := status.Agent.Version
+
+	if agentVersion == "" {
+		// Either the agent has not checked in yet, or it predates version
+		// reporting. We can't compare versions, and this handler only runs on
+		// cluster writes (no timer), so we can't reliably tell "hasn't reported
+		// yet" from "stopped reporting" either. Detecting a silent agent is the
+		// job of the WaitCheckIn state in the cluster reconciler.
+		cond.Unknown(status)
+		cond.Message(status, "agent has not reported a version")
+		return
+	}
+
+	desired, errDesired := semver.NewVersion(controllerVersion)
+	reported, errReported := semver.NewVersion(agentVersion)
+	if errDesired != nil || errReported != nil {
+		// Unstamped builds report "dev"; neither side can be compared then.
+		cond.Unknown(status)
+		cond.Message(status, fmt.Sprintf("cannot compare agent version %q to controller version %q", agentVersion, controllerVersion))
+		return
+	}
+
+	if reported.Equal(desired) {
+		cond.True(status)
+		cond.Message(status, "")
+		return
+	}
+
+	cond.False(status)
+	cond.Message(status, fmt.Sprintf("agent version %s does not match controller version %s", agentVersion, controllerVersion))
 }
 
 func hashStatusField(field any) (string, error) {

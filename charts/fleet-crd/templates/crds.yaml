@@ -6425,6 +6425,11 @@ spec:
                         e.g. "cattle-fleet-system".
                       nullable: true
                       type: string
+                    version:
+                      description: Version is the agent's version as reported by the
+                        running agent binary.
+                      nullable: true
+                      type: string
                   type: object
                 agentAffinityHash:
                   description: 'AgentAffinityHash is a hash of the agent''s affinity

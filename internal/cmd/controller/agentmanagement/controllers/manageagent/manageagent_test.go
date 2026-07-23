@@ -2,10 +2,12 @@ package manageagent
 
 import (
 	"maps"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/rancher/wrangler/v3/pkg/condition"
 	"github.com/rancher/wrangler/v3/pkg/generic/fake"
 	"github.com/rancher/wrangler/v3/pkg/schemes"
 	"go.uber.org/mock/gomock"
@@ -21,6 +23,13 @@ import (
 
 	"github.com/rancher/fleet/internal/config"
 )
+
+func TestMain(m *testing.M) {
+	// onClusterStatusChange reads the config (via reconcileAgentEnvVars and
+	// updateClusterStatus), which panics if it has not been set.
+	config.Set(config.DefaultConfig())
+	os.Exit(m.Run())
+}
 
 func TestOnClusterChangeAffinity(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -765,6 +774,74 @@ func TestSkipCluster(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := SkipCluster(tt.cluster); got != tt.want {
 				t.Fatalf("SkipCluster() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSetAgentVersionCondition(t *testing.T) {
+	for _, tt := range []struct {
+		name              string
+		agentVersion      string
+		controllerVersion string
+		expectedStatus    corev1.ConditionStatus
+		expectedMessage   string
+	}{
+		{
+			name:              "matching versions",
+			agentVersion:      "v0.14.0",
+			controllerVersion: "v0.14.0",
+			expectedStatus:    corev1.ConditionTrue,
+		},
+		{
+			name:              "matching versions without v prefix on one side",
+			agentVersion:      "0.14.0",
+			controllerVersion: "v0.14.0",
+			expectedStatus:    corev1.ConditionTrue,
+		},
+		{
+			name:              "outdated agent",
+			agentVersion:      "v0.13.2",
+			controllerVersion: "v0.14.0",
+			expectedStatus:    corev1.ConditionFalse,
+			expectedMessage:   "agent version v0.13.2 does not match controller version v0.14.0",
+		},
+		{
+			name:              "no version reported",
+			controllerVersion: "v0.14.0",
+			expectedStatus:    corev1.ConditionUnknown,
+			expectedMessage:   "agent has not reported a version",
+		},
+		{
+			name:              "unstamped agent build",
+			agentVersion:      "dev",
+			controllerVersion: "v0.14.0",
+			expectedStatus:    corev1.ConditionUnknown,
+			expectedMessage:   `cannot compare agent version "dev" to controller version "v0.14.0"`,
+		},
+		{
+			name:              "unstamped controller build",
+			agentVersion:      "v0.14.0",
+			controllerVersion: "dev",
+			expectedStatus:    corev1.ConditionUnknown,
+			expectedMessage:   `cannot compare agent version "v0.14.0" to controller version "dev"`,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			status := fleet.ClusterStatus{
+				Agent: fleet.AgentStatus{
+					Version: tt.agentVersion,
+				},
+			}
+
+			setAgentVersionCondition(&status, tt.controllerVersion)
+
+			cond := condition.Cond(fleet.ClusterConditionAgentVersionUpToDate)
+			if got := cond.GetStatus(&status); got != string(tt.expectedStatus) {
+				t.Errorf("condition status = %q, want %q", got, tt.expectedStatus)
+			}
+			if got := cond.GetMessage(&status); got != tt.expectedMessage {
+				t.Errorf("condition message = %q, want %q", got, tt.expectedMessage)
 			}
 		})
 	}
