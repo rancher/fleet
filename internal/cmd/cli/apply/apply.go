@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/rancher/fleet/internal/bundlereader"
 	"github.com/rancher/fleet/internal/content"
@@ -27,7 +28,7 @@ import (
 
 	"github.com/rancher/wrangler/v3/pkg/yaml"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/semaphore"
 	k8syaml "sigs.k8s.io/yaml"
 
 	batchv1 "k8s.io/api/batch/v1"
@@ -102,6 +103,20 @@ type bundleWithOpts struct {
 	opts   *Options
 }
 
+func collectErrors(errorChan <-chan error) <-chan error {
+	done := make(chan error, 1)
+	go func() {
+		var errs []error
+		for err := range errorChan {
+			if err != nil {
+				errs = append(errs, err)
+			}
+		}
+		done <- errors.Join(errs...)
+	}()
+	return done
+}
+
 func globDirs(baseDir string) (result []string, err error) {
 	for strings.HasPrefix(baseDir, "/") {
 		baseDir = baseDir[1:]
@@ -128,26 +143,24 @@ func getEffectiveMaxConcurrency(configured int) int {
 // CreateBundles creates bundles from the baseDirs, their names are prefixed with
 // repoName. Depending on opts.Output the bundles are created in the cluster or
 // printed to stdout, ...
-func CreateBundles(pctx context.Context, client client.Client, r record.EventRecorder, repoName string, baseDirs []string, opts Options) error {
+func CreateBundles(ctx context.Context, client client.Client, r record.EventRecorder, repoName string, baseDirs []string, opts Options) error {
 	if len(baseDirs) == 0 {
 		baseDirs = []string{"."}
 	}
 
 	maxConcurrency := getEffectiveMaxConcurrency(opts.BundleCreationMaxConcurrency)
 
-	// Using an errgroup to manage concurrency
-	// 1. Goroutines will be launched, honouring the concurrency limit, and eventually block trying to write to `bundlesChan`.
-	// 2. The main function will read from `bundlesChan`, hence unblocking the goroutines. This will continue to read from `bundlesChan` until it is closed.
-	// 3. We use another goroutine to wait for all goroutines to finish, then close `bundlesChan`, finally unblocking the main function.
-
 	bundlesChan := make(chan *bundleWithOpts)
-	eg, ctx := errgroup.WithContext(pctx)
-	eg.SetLimit(maxConcurrency + 1) // extra goroutine for WalkDir loop
-	eg.Go(func() error {
+	readErrorChan := make(chan error)
+	readErrorsDone := collectErrors(readErrorChan)
+	readSemaphore := semaphore.NewWeighted(int64(maxConcurrency))
+	var readWg sync.WaitGroup
+	readWg.Go(func() {
 		for _, baseDir := range baseDirs {
 			matches, err := globDirs(baseDir)
 			if err != nil {
-				return fmt.Errorf("invalid path glob %s: %w", baseDir, err)
+				readErrorChan <- fmt.Errorf("invalid path glob %s: %w", baseDir, err)
+				continue
 			}
 			for _, baseDir := range matches {
 				if err := filepath.WalkDir(baseDir, func(path string, entry fs.DirEntry, err error) error {
@@ -159,7 +172,8 @@ func CreateBundles(pctx context.Context, client client.Client, r record.EventRec
 					}
 					createBundle, e := shouldCreateBundleForThisPath(baseDir, path, entry)
 					if e != nil {
-						return fmt.Errorf("checking for bundle in path %q: %w", path, err)
+						readErrorChan <- fmt.Errorf("checking for bundle in path %q: %w", path, e)
+						return nil
 					}
 					if !createBundle {
 						return nil
@@ -167,37 +181,42 @@ func CreateBundles(pctx context.Context, client client.Client, r record.EventRec
 
 					// needed as opts are mutated in this loop
 					opts := opts
-					eg.Go(func() error {
+					if err := readSemaphore.Acquire(ctx, 1); err != nil {
+						return err
+					}
+					readWg.Go(func() {
+						defer readSemaphore.Release(1)
 						if err := setAuthByPath(&opts, path); err != nil {
-							return err
+							readErrorChan <- err
+							return
 						}
 
 						bundle, scans, err := bundleFromDir(ctx, repoName, path, opts)
 						if err != nil {
 							if errors.Is(err, ErrNoResources) {
 								logrus.Warnf("%s: %v", path, err)
-								return nil
+								return
 							}
-							return err
+							readErrorChan <- err
+							return
 						}
 						select {
 						case <-ctx.Done():
-							return ctx.Err()
+							readErrorChan <- ctx.Err()
 						case bundlesChan <- &bundleWithOpts{bundle: bundle, scans: scans, opts: &opts}:
 						}
-						return nil
 					})
 					return nil
 				}); err != nil {
-					return err
+					readErrorChan <- err
 				}
 			}
 		}
-		return nil
 	})
 	go func() {
-		_ = eg.Wait()
+		readWg.Wait()
 		close(bundlesChan)
+		close(readErrorChan)
 	}()
 
 	gitRepoBundlesMap := make(map[string]*fleet.Bundle)
@@ -206,32 +225,39 @@ func CreateBundles(pctx context.Context, client client.Client, r record.EventRec
 		gitRepoBundlesMap[b.bundle.Name] = b.bundle
 		bundlesToWrite = append(bundlesToWrite, b)
 	}
-	// Recovers any error that could happen in the errgroup, won't actually wait
-	if err := eg.Wait(); err != nil {
-		return err
-	}
-	ctx = pctx // context from ErrorGroup is canceled after the first Wait() returns
+	readErr := <-readErrorsDone
 
-	if opts.Output == nil {
-		err := pruneBundlesNotFoundInRepo(ctx, client, repoName, opts.Namespace, gitRepoBundlesMap)
-		if err != nil {
-			return err
-		}
+	var pruneErr error
+	if opts.Output == nil && readErr == nil {
+		pruneErr = pruneBundlesNotFoundInRepo(ctx, client, repoName, opts.Namespace, gitRepoBundlesMap)
 	}
 
-	if len(gitRepoBundlesMap) == 0 {
-		return fmt.Errorf("no resource found at the following paths to deploy: %v", baseDirs)
-	}
-
-	egWrite, ctx := errgroup.WithContext(pctx)
-	egWrite.SetLimit(maxConcurrency)
+	writeErrorChan := make(chan error)
+	writeErrorsDone := collectErrors(writeErrorChan)
+	writeSemaphore := semaphore.NewWeighted(int64(maxConcurrency))
+	var writeWg sync.WaitGroup
 	for _, b := range bundlesToWrite {
-		egWrite.Go(func() error {
-			return writeBundle(ctx, client, r, b.bundle, b.scans, *b.opts)
+		if err := writeSemaphore.Acquire(ctx, 1); err != nil {
+			writeErrorChan <- err
+			continue
+		}
+		writeWg.Go(func() {
+			defer writeSemaphore.Release(1)
+			writeErrorChan <- writeBundle(ctx, client, r, b.bundle, b.scans, *b.opts)
 		})
 	}
 
-	return egWrite.Wait()
+	if len(gitRepoBundlesMap) == 0 {
+		close(writeErrorChan)
+		if readErr != nil {
+			return readErr
+		}
+		return fmt.Errorf("no resource found at the following paths to deploy: %v", baseDirs)
+	}
+
+	writeWg.Wait()
+	close(writeErrorChan)
+	return errors.Join(readErr, pruneErr, <-writeErrorsDone)
 }
 
 // CreateBundlesDriven creates bundles from the given baseDirs. Those bundles' names will be prefixed with
@@ -243,55 +269,61 @@ func CreateBundles(pctx context.Context, client client.Client, r record.EventRec
 // separated by a character set in opts.
 // If no fleet file is provided it tries to load a fleet.yaml in the root of the dir, or will consider
 // the directory as a raw content folder.
-func CreateBundlesDriven(pctx context.Context, client client.Client, r record.EventRecorder, repoName string, baseDirs []string, opts Options) error {
+func CreateBundlesDriven(ctx context.Context, client client.Client, r record.EventRecorder, repoName string, baseDirs []string, opts Options) error {
 	if len(baseDirs) == 0 {
 		baseDirs = []string{"."}
 	}
 
 	maxConcurrency := getEffectiveMaxConcurrency(opts.BundleCreationMaxConcurrency)
 
-	// Using an errgroup to manage concurrency
-	// 1. Goroutines will be launched, honouring the concurrency limit, and eventually block trying to write to `bundlesChan`.
-	// 2. The main function will read from `bundlesChan`, hence unblocking the goroutines. This will continue to read from `bundlesChan` until it is closed.
-	// 3. We use another goroutine to wait for all goroutines to finish, then close `bundlesChan`, finally unblocking the main function.
 	bundlesChan := make(chan *bundleWithOpts)
-	eg, ctx := errgroup.WithContext(pctx)
-	eg.SetLimit(maxConcurrency + 1) // extra goroutine for scanning loop
-	eg.Go(func() error {
+	readErrorChan := make(chan error)
+	readErrorsDone := collectErrors(readErrorChan)
+	readSemaphore := semaphore.NewWeighted(int64(maxConcurrency))
+	var readWg sync.WaitGroup
+	readWg.Go(func() {
 		for _, baseDir := range baseDirs {
 			opts := opts
-			eg.Go(func() error {
+
+			if err := readSemaphore.Acquire(ctx, 1); err != nil {
+				readErrorChan <- err
+				continue
+			}
+			readWg.Go(func() {
+				defer readSemaphore.Release(1)
 				var err error
 				baseDir, opts.BundleFile, err = getPathAndFleetYaml(baseDir, opts.DrivenScanSeparator)
 				if err != nil {
-					return err
+					readErrorChan <- err
+					return
 				}
 
 				if err := setAuthByPath(&opts, baseDir); err != nil {
-					return err
+					readErrorChan <- err
+					return
 				}
 
 				bundle, scans, err := bundleFromDir(ctx, repoName, baseDir, opts)
 				if err != nil {
 					if errors.Is(err, ErrNoResources) {
 						logrus.Warnf("%s: %v", baseDir, err)
-						return nil
+						return
 					}
-					return err
+					readErrorChan <- err
+					return
 				}
 				select {
 				case <-ctx.Done():
-					return ctx.Err()
+					readErrorChan <- ctx.Err()
 				case bundlesChan <- &bundleWithOpts{bundle: bundle, scans: scans, opts: &opts}:
 				}
-				return nil
 			})
 		}
-		return nil
 	})
 	go func() {
-		_ = eg.Wait()
+		readWg.Wait()
 		close(bundlesChan)
+		close(readErrorChan)
 	}()
 
 	gitRepoBundlesMap := make(map[string]*fleet.Bundle)
@@ -300,32 +332,39 @@ func CreateBundlesDriven(pctx context.Context, client client.Client, r record.Ev
 		gitRepoBundlesMap[b.bundle.Name] = b.bundle
 		bundlesToWrite = append(bundlesToWrite, b)
 	}
-	// Recovers any error that could happen in the errgroup, won't actually wait
-	if err := eg.Wait(); err != nil {
-		return err
-	}
-	ctx = pctx // context from ErrorGroup is canceled after the first Wait() returns
+	readErr := <-readErrorsDone
 
-	if opts.Output == nil {
-		err := pruneBundlesNotFoundInRepo(ctx, client, repoName, opts.Namespace, gitRepoBundlesMap)
-		if err != nil {
-			return err
-		}
+	var pruneErr error
+	if opts.Output == nil && readErr == nil {
+		pruneErr = pruneBundlesNotFoundInRepo(ctx, client, repoName, opts.Namespace, gitRepoBundlesMap)
 	}
 
-	if len(gitRepoBundlesMap) == 0 {
-		return fmt.Errorf("no resource found at the following paths to deploy: %v", baseDirs)
-	}
-
-	egWrite, ctx := errgroup.WithContext(pctx)
-	egWrite.SetLimit(maxConcurrency)
+	writeErrorChan := make(chan error)
+	writeErrorsDone := collectErrors(writeErrorChan)
+	writeSemaphore := semaphore.NewWeighted(int64(maxConcurrency))
+	var writeWg sync.WaitGroup
 	for _, b := range bundlesToWrite {
-		egWrite.Go(func() error {
-			return writeBundle(ctx, client, r, b.bundle, b.scans, *b.opts)
+		if err := writeSemaphore.Acquire(ctx, 1); err != nil {
+			writeErrorChan <- err
+			continue
+		}
+		writeWg.Go(func() {
+			defer writeSemaphore.Release(1)
+			writeErrorChan <- writeBundle(ctx, client, r, b.bundle, b.scans, *b.opts)
 		})
 	}
 
-	return egWrite.Wait()
+	if len(gitRepoBundlesMap) == 0 {
+		close(writeErrorChan)
+		if readErr != nil {
+			return readErr
+		}
+		return fmt.Errorf("no resource found at the following paths to deploy: %v", baseDirs)
+	}
+
+	writeWg.Wait()
+	close(writeErrorChan)
+	return errors.Join(readErr, pruneErr, <-writeErrorsDone)
 }
 
 // getPathAndFleetYaml returns the path and options file from a given path.
@@ -343,7 +382,7 @@ func getPathAndFleetYaml(path, separator string) (string, string, error) {
 	return path, "", nil
 }
 
-// pruneBundlesNotFoundInRepo lists all bundles for this gitrepo and prunes those not found in the repo
+// pruneBundlesNotFoundInRepo removes bundles that are not present in the repo.
 func pruneBundlesNotFoundInRepo(
 	ctx context.Context,
 	c client.Client,
@@ -351,63 +390,79 @@ func pruneBundlesNotFoundInRepo(
 	ns string,
 	gitRepoBundlesMap map[string]*fleet.Bundle,
 ) error {
-	filter := labels.SelectorFromSet(labels.Set{fleet.RepoLabel: repoName})
-	bundleList := &fleet.BundleList{}
-	if err := c.List(ctx, bundleList, &client.ListOptions{LabelSelector: filter, Namespace: ns}); err != nil {
+	bundlesToDelete, err := bundlesNotFoundInRepo(ctx, c, repoName, ns, gitRepoBundlesMap)
+	if err != nil {
 		return err
 	}
 
+	populateOverwrites(bundlesToDelete, gitRepoBundlesMap)
+	return deleteBundles(ctx, c, bundlesToDelete)
+}
+
+func bundlesNotFoundInRepo(
+	ctx context.Context,
+	c client.Client,
+	repoName,
+	ns string,
+	gitRepoBundlesMap map[string]*fleet.Bundle,
+) ([]fleet.Bundle, error) {
+	filter := labels.SelectorFromSet(labels.Set{fleet.RepoLabel: repoName})
+	bundleList := &fleet.BundleList{}
+	if err := c.List(ctx, bundleList, &client.ListOptions{LabelSelector: filter, Namespace: ns}); err != nil {
+		return nil, err
+	}
+
+	var bundlesToDelete []fleet.Bundle
 	for _, bundle := range bundleList.Items {
 		if _, ok := gitRepoBundlesMap[bundle.Name]; !ok {
-			logrus.Debugf("Bundle to be deleted since it is not found in gitrepo %v anymore %v %v", repoName, bundle.Namespace, bundle.Name)
+			bundlesToDelete = append(bundlesToDelete, bundle)
+		}
+	}
+	return bundlesToDelete, nil
+}
 
-			// Populate new bundles' `Overwrites` field with possible overlaps between the in-cluster bundle, to be deleted,
-			// and bundles which will be created in the cluster.
-			// Knowing about these overlaps, if any, the Fleet agent will then be able to:
-			// 1. match them against possible missing resources in a bundle deployment's status
-			// 2. trigger a new deployment, re-creating missing resources if those are overwritten by the
-			// bundle deployment
-			// See fleet#3770 for more context.
-			for _, inClusterRsc := range bundle.Spec.Resources {
-				for _, grb := range gitRepoBundlesMap {
-					logrus.Debugf("gitRepo bundle: %v", grb)
-					for _, grRsc := range grb.Spec.Resources {
-						if inClusterRsc.Name != grRsc.Name {
-							continue
-						}
+// populateOverwrites records resource overlaps with bundles that will be deleted.
+func populateOverwrites(bundlesToDelete []fleet.Bundle, gitRepoBundlesMap map[string]*fleet.Bundle) {
+	for _, bundle := range bundlesToDelete {
+		for _, inClusterRsc := range bundle.Spec.Resources {
+			for _, grb := range gitRepoBundlesMap {
+				logrus.Debugf("gitRepo bundle: %v", grb)
+				for _, grRsc := range grb.Spec.Resources {
+					if inClusterRsc.Name != grRsc.Name {
+						continue
+					}
 
-						logrus.Debugf("resources: [in cluster] %v\n, [in gitrepo] %v", inClusterRsc, grRsc)
+					ow1, err := getKindNS(grRsc, grb.Name)
+					if err != nil {
+						logrus.Debugf("for bundle from git repo, failed to get kind and namespace for resource %v", grRsc)
+						continue
+					}
+					if ow1.Kind == "" {
+						continue
+					}
+					ow2, err := getKindNS(inClusterRsc, bundle.Name)
+					if err != nil {
+						logrus.Debugf("for in-cluster bundle, failed to get kind and namespace for resource %v", inClusterRsc)
+						continue
+					}
+					if ow2.Kind == "" {
+						continue
+					}
 
-						ow1, err := getKindNS(grRsc, grb.Name)
-						if err != nil {
-							logrus.Debugf("for bundle from git repo, failed to get kind and namespace for resource %v", grRsc)
-							continue
-						}
-						if ow1.Kind == "" {
-							// Skipping non-manifest resources, e.g. Chart.yaml and values
-							// files.
-							continue
-						}
-
-						ow2, err := getKindNS(inClusterRsc, bundle.Name)
-						if err != nil {
-							logrus.Debugf("for in-cluster bundle, failed to get kind and namespace for resource %v", grRsc)
-							continue
-						}
-						if ow2.Kind == "" {
-							continue
-						}
-
-						if ow1.Kind == ow2.Kind && ow1.Name == ow2.Name && ow1.Namespace == ow2.Namespace {
-							// Warning: this will not work with bundlenamespacemappings
-							grb.Spec.Overwrites = append(grb.Spec.Overwrites, ow1)
-						}
+					if ow1.Kind == ow2.Kind && ow1.Name == ow2.Name && ow1.Namespace == ow2.Namespace {
+						grb.Spec.Overwrites = append(grb.Spec.Overwrites, ow1)
 					}
 				}
 			}
-			if err := c.Delete(ctx, &bundle); err != nil {
-				return err
-			}
+		}
+	}
+}
+
+func deleteBundles(ctx context.Context, c client.Client, bundles []fleet.Bundle) error {
+	for _, bundle := range bundles {
+		logrus.Debugf("Bundle to be deleted since it is not found in gitrepo anymore %v %v", bundle.Namespace, bundle.Name)
+		if err := c.Delete(ctx, &bundle); err != nil {
+			return err
 		}
 	}
 	return nil
