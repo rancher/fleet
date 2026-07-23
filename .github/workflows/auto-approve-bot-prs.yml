@@ -1,8 +1,8 @@
-name: Dependency Bot Auto-Merge
+name: Renovate Bot Auto-Approve
 
 on:
   pull_request:
-    types: [opened]
+    types: [auto_merge_enabled]
 
 permissions:
   id-token: write
@@ -10,27 +10,22 @@ permissions:
   pull-requests: read
 
 jobs:
-  auto-approve-and-merge:
-    name: Approve and Auto-Merge
+  auto-approve:
+    name: Approve Renovate PR
     if: >-
-      github.repository == 'rancher/fleet' &&
       github.event.pull_request.state == 'open' &&
-      github.event.pull_request.user.type == 'Bot' &&
+      github.event.pull_request.auto_merge != null &&
       github.event.pull_request.head.repo.full_name == github.repository &&
-      (
-        (github.event.pull_request.user.login == 'renovate-rancher[bot]' &&
-         startsWith(github.event.pull_request.head.ref, 'renovate/')) ||
-        (github.event.pull_request.user.login == 'dependabot[bot]' &&
-         startsWith(github.event.pull_request.head.ref, 'dependabot/'))
-      )
+      github.event.pull_request.user.login == (vars.RENOVATE_BOT_USERNAME || 'renovate-rancher[bot]') &&
+      startsWith(github.event.pull_request.head.ref, 'renovate/')
     runs-on: ubuntu-latest
     steps:
       - name: Read App Secrets
         uses: rancher-eio/read-vault-secrets@0da85151ad1f19ed7986c41587e45aac1ace74b6 # v3
         with:
           secrets: |
-            secret/data/github/repo/${{ github.repository }}/github/workflow-dispatcher/app-credentials appId | APP_ID ;
-            secret/data/github/repo/${{ github.repository }}/github/workflow-dispatcher/app-credentials privateKey | PRIVATE_KEY
+            secret/data/github/repo/${{ github.repository }}/github/auto-approve/app-credentials appId | APP_ID ;
+            secret/data/github/repo/${{ github.repository }}/github/auto-approve/app-credentials privateKey | PRIVATE_KEY
 
       - name: Create App Token
         id: app-token
@@ -40,8 +35,7 @@ jobs:
           private-key: ${{ env.PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: |
-            fleet
-          permission-contents: write
+            ${{ github.event.repository.name }}
           permission-pull-requests: write
 
       - name: Approve PR
@@ -61,23 +55,4 @@ jobs:
           gh pr review "$PR_NUMBER" \
             --repo "$REPO" \
             --approve \
-            --body "Auto-approving dependency bot PR."
-
-      - name: Enable auto-merge
-        env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          REPO: ${{ github.repository }}
-        run: |
-          auto_merge_enabled=$(gh pr view "$PR_NUMBER" --repo "$REPO" \
-            --json autoMergeRequest --jq '.autoMergeRequest != null')
-
-          if [[ "$auto_merge_enabled" == "true" ]]; then
-            echo "Auto-merge is already enabled."
-            exit 0
-          fi
-
-          gh pr merge "$PR_NUMBER" \
-            --repo "$REPO" \
-            --auto \
-            --squash
+            --body "Auto-approving Renovate PR with auto-merge enabled."
