@@ -777,112 +777,247 @@ func TestGitHubSecretAndCommitUpdated(t *testing.T) {
 }
 
 func TestGitRepoURLMatch(t *testing.T) {
-	ctlr := gomock.NewController(t)
-	mockClient := mocks.NewMockK8sClient(ctlr)
-
 	expectedCommit := "af69d162de5a276abc86e0686b2b44033cd3f442"
 
-	gitRepos := []v1alpha1.GitRepo{
-		{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "intended-gitrepo",
-				Namespace: "my-namespace",
-			},
-			Spec: v1alpha1.GitRepoSpec{
-				Repo: "https://github.com/example/repo",
-			},
-			Status: v1alpha1.GitRepoStatus{
-				WebhookCommit: "12345abcdef", // different from expectedCommit
-			},
+	ignoredGitRepo := v1alpha1.GitRepo{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "gitrepo-which-should-be-ignored",
+			Namespace: "my-namespace",
 		},
-		{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "gitrepo-which-should-be-ignored",
-				Namespace: "my-namespace",
-			},
-			Spec: v1alpha1.GitRepoSpec{
-				Repo: "https://github.com/example/repo-with-suffix",
-			},
-			Status: v1alpha1.GitRepoStatus{
-				WebhookCommit: "12345abcdef", // different from expectedCommit
-			},
+		Spec: v1alpha1.GitRepoSpec{
+			Repo: "https://github.com/example/repo-with-suffix",
+		},
+		Status: v1alpha1.GitRepoStatus{
+			WebhookCommit: "12345abcdef", // different from expectedCommit
 		},
 	}
 
-	// List GitRepos mock call
-	mockClient.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(
-		func(ctx context.Context, list *v1alpha1.GitRepoList, opts ...client.ListOption) error {
-			list.Items = append(list.Items, gitRepos...)
-
-			return nil
+	cases := map[string]struct {
+		gitRepos        []v1alpha1.GitRepo
+		eventHeader     string
+		eventValue      string
+		body            string
+		matchedRepoName string
+	}{
+		"web URL matches https repo": {
+			gitRepos: []v1alpha1.GitRepo{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "intended-gitrepo",
+						Namespace: "my-namespace",
+					},
+					Spec: v1alpha1.GitRepoSpec{
+						Repo: "https://github.com/example/repo",
+					},
+					Status: v1alpha1.GitRepoStatus{
+						WebhookCommit: "12345abcdef",
+					},
+				},
+				ignoredGitRepo,
+			},
+			eventHeader:     "X-Github-Event",
+			eventValue:      "push",
+			body:            `{"ref":"refs/heads/main","after":"` + expectedCommit + `","repository":{"html_url":"https://github.com/example/repo"}}`,
+			matchedRepoName: "intended-gitrepo",
 		},
-	)
-
-	nn := types.NamespacedName{Name: webhookSecretName, Namespace: "my-namespace"}
-	// The following calls should happen only _once_, for the GitRepo with the exact URL match, hence the explicit
-	// `.Times(1)` calls.
-	mockClient.EXPECT().Get(gomock.Any(), nn, gomock.Any()).Return(apierrors.NewNotFound(schema.GroupResource{}, "")).Times(1)
-
-	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-		func(ctx context.Context, name types.NamespacedName, gitrepo *v1alpha1.GitRepo, _ ...any) error {
-			// check that the GitRepo is the expected one
-			if name.Name != "intended-gitrepo" {
-				t.Errorf("wrong gitrepo matched: expected 'intended-gitrepo', got %s", name.Name)
-			}
-
-			return nil
+		"ssh URL matches scp-style repo on a different github host": {
+			gitRepos: []v1alpha1.GitRepo{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "intended-gitrepo",
+						Namespace: "my-namespace",
+					},
+					Spec: v1alpha1.GitRepoSpec{
+						Repo: "git@github-ssh.example.com:example/repo.git",
+					},
+					Status: v1alpha1.GitRepoStatus{
+						WebhookCommit: "12345abcdef",
+					},
+				},
+				ignoredGitRepo,
+			},
+			eventHeader:     "X-Github-Event",
+			eventValue:      "push",
+			body:            `{"ref":"refs/heads/main","after":"` + expectedCommit + `","repository":{"html_url":"https://github.example.com/example/repo","ssh_url":"git@github-ssh.example.com:example/repo.git"}}`,
+			matchedRepoName: "intended-gitrepo",
 		},
-	).Times(1)
-	statusClient := mocks.NewMockStatusWriter(ctlr)
-	mockClient.EXPECT().Status().Return(statusClient).Times(1)
-	statusClient.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any()).Do(
-		func(ctx context.Context, repo *v1alpha1.GitRepo, _ client.Patch, opts ...any) {
-			// check that the commit is the expected one
-			if repo.Status.WebhookCommit != expectedCommit {
-				t.Errorf("expecting gitrepo webhook commit %s, got %s", expectedCommit, repo.Status.WebhookCommit)
-			}
-			// PollingInterval must NOT be set via Status().Patch(); it uses a separate spec patch
-			if repo.Spec.PollingInterval != nil {
-				t.Errorf("PollingInterval must not appear in the status patch, got %s", repo.Spec.PollingInterval.Duration)
-			}
+		// Same host for web and SSH (e.g. github.com): the two URLs must be
+		// deduplicated so the matching GitRepo is patched once, not twice.
+		"web and SSH URLs on the same host match once": {
+			gitRepos: []v1alpha1.GitRepo{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "intended-gitrepo",
+						Namespace: "my-namespace",
+					},
+					Spec: v1alpha1.GitRepoSpec{
+						Repo: "https://github.com/example/repo",
+					},
+					Status: v1alpha1.GitRepoStatus{
+						WebhookCommit: "12345abcdef",
+					},
+				},
+				ignoredGitRepo,
+			},
+			eventHeader:     "X-Github-Event",
+			eventValue:      "push",
+			body:            `{"ref":"refs/heads/main","after":"` + expectedCommit + `","repository":{"html_url":"https://github.com/example/repo","ssh_url":"git@github.com:example/repo.git"}}`,
+			matchedRepoName: "intended-gitrepo",
 		},
-	).Times(1)
-	// PollingInterval is nil on both GitRepo fixtures, so a spec Patch() must follow for the matching one
-	mockClient.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any()).Do(
-		func(ctx context.Context, repo *v1alpha1.GitRepo, _ client.Patch, opts ...any) {
-			if repo.Spec.PollingInterval == nil || repo.Spec.PollingInterval.Duration != time.Hour {
-				t.Errorf("expecting polling interval 1h in spec patch, got %v", repo.Spec.PollingInterval)
-			}
+		"ssh URL matches scp-style repo on a different gitlab host": {
+			gitRepos: []v1alpha1.GitRepo{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "intended-gitrepo",
+						Namespace: "my-namespace",
+					},
+					Spec: v1alpha1.GitRepoSpec{
+						Repo: "git@gitlab-ssh.example.com:example/repo.git",
+					},
+					Status: v1alpha1.GitRepoStatus{
+						WebhookCommit: "12345abcdef",
+					},
+				},
+				ignoredGitRepo,
+			},
+			eventHeader:     "X-Gitlab-Event",
+			eventValue:      "Push Hook",
+			body:            `{"ref":"refs/heads/main","checkout_sha":"` + expectedCommit + `","project":{"web_url":"https://gitlab.example.com/example/repo","git_ssh_url":"git@gitlab-ssh.example.com:example/repo.git"}}`,
+			matchedRepoName: "intended-gitrepo",
 		},
-	).Times(1)
-
-	// we set only the values that we're going to use in the push event to make things simple
-	jsonBody := fmt.Appendf(nil, `
-		{
-		  "ref":"refs/heads/main",
-		  "after":"%s",
-		  "repository":{
-			"html_url":"https://github.com/example/repo"
-		  }
-		}`, expectedCommit)
-
-	// Request creation
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "/", bytes.NewReader(jsonBody))
-	if err != nil {
-		t.Fatalf("Failed to create HTTP request: %v", err)
+		"ssh URL matches scp-style repo on a gitlab tag push": {
+			gitRepos: []v1alpha1.GitRepo{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "intended-gitrepo",
+						Namespace: "my-namespace",
+					},
+					Spec: v1alpha1.GitRepoSpec{
+						Repo: "git@gitlab-ssh.example.com:example/repo.git",
+					},
+					Status: v1alpha1.GitRepoStatus{
+						WebhookCommit: "12345abcdef",
+					},
+				},
+				ignoredGitRepo,
+			},
+			eventHeader:     "X-Gitlab-Event",
+			eventValue:      "Tag Push Hook",
+			body:            `{"ref":"refs/tags/v1.0.0","checkout_sha":"` + expectedCommit + `","project":{"web_url":"https://gitlab.example.com/example/repo","git_ssh_url":"git@gitlab-ssh.example.com:example/repo.git"}}`,
+			matchedRepoName: "intended-gitrepo",
+		},
+		"ssh URL matches scp-style repo on a different gogs host": {
+			gitRepos: []v1alpha1.GitRepo{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "intended-gitrepo",
+						Namespace: "my-namespace",
+					},
+					Spec: v1alpha1.GitRepoSpec{
+						Repo: "git@gogs-ssh.example.com:example/repo.git",
+					},
+					Status: v1alpha1.GitRepoStatus{
+						WebhookCommit: "12345abcdef",
+					},
+				},
+				ignoredGitRepo,
+			},
+			eventHeader:     "X-Gogs-Event",
+			eventValue:      "push",
+			body:            `{"ref":"refs/heads/main","after":"` + expectedCommit + `","repository":{"html_url":"https://gogs.example.com/example/repo","ssh_url":"git@gogs-ssh.example.com:example/repo.git"}}`,
+			matchedRepoName: "intended-gitrepo",
+		},
 	}
-	req.Header.Set("X-Github-Event", "push")
 
-	rr := httptest.NewRecorder()
-	w := &Webhook{
-		client:    mockClient,
-		namespace: "my-namespace",
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			ctlr := gomock.NewController(t)
+			mockClient := mocks.NewMockK8sClient(ctlr)
+
+			gitRepos := tc.gitRepos
+			mockClient.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(
+				func(ctx context.Context, list *v1alpha1.GitRepoList, opts ...client.ListOption) error {
+					list.Items = append(list.Items, gitRepos...)
+					return nil
+				},
+			)
+
+			nn := types.NamespacedName{Name: webhookSecretName, Namespace: "my-namespace"}
+			// The following calls should happen only _once_, for the GitRepo with the exact URL match, hence the explicit
+			// `.Times(1)` calls.
+			mockClient.EXPECT().Get(gomock.Any(), nn, gomock.Any()).Return(apierrors.NewNotFound(schema.GroupResource{}, "")).Times(1)
+
+			mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+				func(ctx context.Context, name types.NamespacedName, gitrepo *v1alpha1.GitRepo, _ ...any) error {
+					if name.Name != tc.matchedRepoName {
+						t.Errorf("wrong gitrepo matched: expected %q, got %s", tc.matchedRepoName, name.Name)
+					}
+					return nil
+				},
+			).Times(1)
+
+			statusClient := mocks.NewMockStatusWriter(ctlr)
+			mockClient.EXPECT().Status().Return(statusClient).Times(1)
+			statusClient.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any()).Do(
+				func(ctx context.Context, repo *v1alpha1.GitRepo, _ client.Patch, opts ...any) {
+					if repo.Status.WebhookCommit != expectedCommit {
+						t.Errorf("expecting gitrepo webhook commit %s, got %s", expectedCommit, repo.Status.WebhookCommit)
+					}
+					// PollingInterval must NOT be set via Status().Patch(); it uses a separate spec patch
+					if repo.Spec.PollingInterval != nil {
+						t.Errorf("PollingInterval must not appear in the status patch, got %s", repo.Spec.PollingInterval.Duration)
+					}
+				},
+			).Times(1)
+			// PollingInterval is nil on the fixtures, so a spec Patch() must follow for the matching one
+			mockClient.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any()).Do(
+				func(ctx context.Context, repo *v1alpha1.GitRepo, _ client.Patch, opts ...any) {
+					if repo.Spec.PollingInterval == nil || repo.Spec.PollingInterval.Duration != time.Hour {
+						t.Errorf("expecting polling interval 1h in spec patch, got %v", repo.Spec.PollingInterval)
+					}
+				},
+			).Times(1)
+
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "/", bytes.NewReader([]byte(tc.body)))
+			if err != nil {
+				t.Fatalf("Failed to create HTTP request: %v", err)
+			}
+			req.Header.Set(tc.eventHeader, tc.eventValue)
+
+			rr := httptest.NewRecorder()
+			w := &Webhook{
+				client:    mockClient,
+				namespace: "my-namespace",
+			}
+			w.ServeHTTP(rr, req)
+
+			if status := rr.Code; status != http.StatusOK {
+				t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
+			}
+		})
 	}
-	w.ServeHTTP(rr, req)
+}
 
-	// Verify the response status code is correct
-	if status := rr.Code; status != http.StatusOK {
-		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
+func TestSSHURLToParsable(t *testing.T) {
+	cases := map[string]struct {
+		in       string
+		expected string
+	}{
+		"empty":                 {in: "", expected: ""},
+		"already https scheme":  {in: "https://github.com/owner/repo", expected: "https://github.com/owner/repo"},
+		"scp-style with .git":   {in: "git@github-ssh.example.com:owner/repo.git", expected: "ssh://git@github-ssh.example.com/owner/repo"},
+		"scp-style without git": {in: "git@github-ssh.example.com:owner/repo", expected: "ssh://git@github-ssh.example.com/owner/repo"},
+		"already ssh scheme":    {in: "ssh://git@bitbucket.example.com:7999/proj/repo.git", expected: "ssh://git@bitbucket.example.com:7999/proj/repo.git"},
+		"without user":          {in: "github-ssh.example.com:owner/repo.git", expected: ""},
+		"without colon":         {in: "git@github-ssh.example.com", expected: ""},
+		"empty path":            {in: "git@github-ssh.example.com:", expected: ""},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			got := sshURLToParsable(tc.in)
+			assert.Equal(t, tc.expected, got)
+		})
 	}
 }
 
