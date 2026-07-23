@@ -8,6 +8,7 @@ import (
 	"maps"
 	"sort"
 	"strings"
+	"sync"
 	"text/template"
 
 	"github.com/Masterminds/sprig/v3"
@@ -34,8 +35,9 @@ import (
 )
 
 type Manager struct {
-	client client.Client
-	reader client.Reader
+	client        client.Client
+	reader        client.Reader
+	selectorCache sync.Map
 }
 
 func New(client client.Client, reader client.Reader) *Manager {
