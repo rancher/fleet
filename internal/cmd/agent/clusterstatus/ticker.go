@@ -44,14 +44,18 @@ func Ticker(ctx context.Context, client client.Client, agentNamespace string, cl
 		}
 	}()
 	go func() {
-		if checkinInterval == 0 {
+		if checkinInterval <= 0 {
 			checkinInterval = durations.DefaultClusterCheckInterval
 		}
 		// Spread agent check-ins across the interval window to prevent a thundering
 		// herd on the fleet-controller when many agents start at the same time.
+		timer := time.NewTimer(rand.N(checkinInterval))
 		select {
-		case <-time.After(rand.N(checkinInterval)):
+		case <-timer.C:
 		case <-ctx.Done():
+			if !timer.Stop() {
+				<-timer.C
+			}
 			return
 		}
 		for range ticker.Context(ctx, checkinInterval) {
