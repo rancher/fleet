@@ -100,7 +100,6 @@ func (m *Manager) Targets(ctx context.Context, bundle *fleet.Bundle, manifestID 
 			}
 			// check if there is any matching targetCustomization that should be applied
 			targetOpts := target.BundleDeploymentOptions
-			targetOpts = mergeTargetNamespaceMetadata(targetOpts, *target)
 			if bundle.Spec.TargetCustomizationMode == fleet.TargetCustomizationModeAllMatches {
 				// AllMatches mode: merge all matching customizations
 				// Check if any matching customization has doNotDeploy=true (OR logic)
@@ -117,7 +116,6 @@ func (m *Manager) Targets(ctx context.Context, bundle *fleet.Bundle, manifestID 
 						continue clusterLoop
 					}
 					targetOpts = options.Merge(targetOpts, tc.BundleDeploymentOptions)
-					targetOpts = mergeTargetNamespaceMetadata(targetOpts, *tc)
 				}
 			} else {
 				// FirstMatch mode: apply only the first matching customization
@@ -134,7 +132,6 @@ func (m *Manager) Targets(ctx context.Context, bundle *fleet.Bundle, manifestID 
 						continue
 					}
 					targetOpts = targetCustomized.BundleDeploymentOptions
-					targetOpts = mergeTargetNamespaceMetadata(targetOpts, *targetCustomized)
 				}
 			}
 
@@ -222,26 +219,6 @@ func (m *Manager) Targets(ctx context.Context, bundle *fleet.Bundle, manifestID 
 	}
 
 	return targets, secretsMissing, nil
-}
-
-func mergeTargetNamespaceMetadata(opts fleet.BundleDeploymentOptions, target fleet.BundleTarget) fleet.BundleDeploymentOptions {
-	if len(target.NamespaceLabels) > 0 {
-		opts.NamespaceLabels = maps.Clone(opts.NamespaceLabels)
-		if opts.NamespaceLabels == nil {
-			opts.NamespaceLabels = map[string]string{}
-		}
-		maps.Copy(opts.NamespaceLabels, target.NamespaceLabels)
-	}
-
-	if len(target.NamespaceAnnotations) > 0 {
-		opts.NamespaceAnnotations = maps.Clone(opts.NamespaceAnnotations)
-		if opts.NamespaceAnnotations == nil {
-			opts.NamespaceAnnotations = map[string]string{}
-		}
-		maps.Copy(opts.NamespaceAnnotations, target.NamespaceAnnotations)
-	}
-
-	return opts
 }
 
 // getNamespacesForBundle returns the namespaces that bundledeployments could

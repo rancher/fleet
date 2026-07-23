@@ -142,6 +142,20 @@ func Merge(base, custom fleet.BundleDeploymentOptions) fleet.BundleDeploymentOpt
 	if len(custom.DownstreamResources) > 0 {
 		result.DownstreamResources = mergeUnique(result.DownstreamResources, custom.DownstreamResources, downstreamResourceKey)
 	}
+	// result is a deep copy of base, so writing into these maps does not mutate
+	// the caller's inputs. Custom keys override base keys for the same name.
+	if len(custom.NamespaceLabels) > 0 {
+		if result.NamespaceLabels == nil {
+			result.NamespaceLabels = map[string]string{}
+		}
+		maps.Copy(result.NamespaceLabels, custom.NamespaceLabels)
+	}
+	if len(custom.NamespaceAnnotations) > 0 {
+		if result.NamespaceAnnotations == nil {
+			result.NamespaceAnnotations = map[string]string{}
+		}
+		maps.Copy(result.NamespaceAnnotations, custom.NamespaceAnnotations)
+	}
 
 	return result
 }

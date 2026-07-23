@@ -98,6 +98,58 @@ func TestMerge_DownstreamResources_EmptyBase(t *testing.T) {
 	a.Equal(custom.DownstreamResources, result.DownstreamResources)
 }
 
+// ---------- Namespace metadata ----------
+
+func TestMerge_NamespaceMetadata_MergesAndOverrides(t *testing.T) {
+	a := assert.New(t)
+
+	base := fleet.BundleDeploymentOptions{
+		NamespaceLabels:      map[string]string{"base": "keep"},
+		NamespaceAnnotations: map[string]string{"base-ann": "keep"},
+	}
+	custom := fleet.BundleDeploymentOptions{
+		NamespaceLabels:      map[string]string{"region": "eu-west", "base": "override"},
+		NamespaceAnnotations: map[string]string{"team": "platform"},
+	}
+
+	result := options.Merge(base, custom)
+
+	a.Equal(map[string]string{"base": "override", "region": "eu-west"}, result.NamespaceLabels)
+	a.Equal(map[string]string{"base-ann": "keep", "team": "platform"}, result.NamespaceAnnotations)
+
+	// Pure function: inputs must not be modified.
+	a.Equal(map[string]string{"base": "keep"}, base.NamespaceLabels)
+	a.Equal(map[string]string{"base-ann": "keep"}, base.NamespaceAnnotations)
+}
+
+func TestMerge_NamespaceMetadata_EmptyBase(t *testing.T) {
+	a := assert.New(t)
+
+	custom := fleet.BundleDeploymentOptions{
+		NamespaceLabels:      map[string]string{"region": "eu-west"},
+		NamespaceAnnotations: map[string]string{"team": "platform"},
+	}
+
+	result := options.Merge(fleet.BundleDeploymentOptions{}, custom)
+
+	a.Equal(custom.NamespaceLabels, result.NamespaceLabels)
+	a.Equal(custom.NamespaceAnnotations, result.NamespaceAnnotations)
+}
+
+func TestMerge_NamespaceMetadata_EmptyCustom(t *testing.T) {
+	a := assert.New(t)
+
+	base := fleet.BundleDeploymentOptions{
+		NamespaceLabels:      map[string]string{"base": "keep"},
+		NamespaceAnnotations: map[string]string{"base-ann": "keep"},
+	}
+
+	result := options.Merge(base, fleet.BundleDeploymentOptions{})
+
+	a.Equal(base.NamespaceLabels, result.NamespaceLabels)
+	a.Equal(base.NamespaceAnnotations, result.NamespaceAnnotations)
+}
+
 // ---------- ValuesFrom ----------
 
 func TestMerge_ValuesFrom_Appends(t *testing.T) {

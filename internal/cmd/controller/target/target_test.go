@@ -2,7 +2,6 @@ package target
 
 import (
 	"bytes"
-	"maps"
 	"testing"
 
 	"github.com/pkg/errors"
@@ -397,42 +396,6 @@ func TestProcessTemplateValues(t *testing.T) {
 	}
 }
 
-func TestMergeTargetNamespaceMetadata(t *testing.T) {
-	base := v1alpha1.BundleDeploymentOptions{
-		NamespaceLabels:      map[string]string{"base": "keep"},
-		NamespaceAnnotations: map[string]string{"base-ann": "keep"},
-	}
-	target := v1alpha1.BundleTarget{
-		NamespaceLabels: map[string]string{
-			"region": "eu-west",
-			"base":   "override",
-		},
-		NamespaceAnnotations: map[string]string{
-			"team": "platform",
-		},
-	}
-
-	got := mergeTargetNamespaceMetadata(base, target)
-
-	if got.NamespaceLabels["region"] != "eu-west" {
-		t.Fatalf("expected matched namespace label to be merged, got %v", got.NamespaceLabels)
-	}
-	if got.NamespaceLabels["base"] != "override" {
-		t.Fatalf("expected matched namespace label to override base value, got %v", got.NamespaceLabels)
-	}
-	if got.NamespaceAnnotations["team"] != "platform" {
-		t.Fatalf("expected matched namespace annotation to be merged, got %v", got.NamespaceAnnotations)
-	}
-
-	// Pure function: inputs must not be modified.
-	if !maps.Equal(base.NamespaceLabels, map[string]string{"base": "keep"}) {
-		t.Fatalf("base namespace labels were modified: %v", base.NamespaceLabels)
-	}
-	if !maps.Equal(base.NamespaceAnnotations, map[string]string{"base-ann": "keep"}) {
-		t.Fatalf("base namespace annotations were modified: %v", base.NamespaceAnnotations)
-	}
-}
-
 func TestBundleDeployment_DoesNotApplyUnmatchedNamespaceMetadata(t *testing.T) {
 	target := &Target{
 		Cluster: &v1alpha1.Cluster{
@@ -449,20 +412,24 @@ func TestBundleDeployment_DoesNotApplyUnmatchedNamespaceMetadata(t *testing.T) {
 				Targets: []v1alpha1.BundleTarget{
 					{
 						Name: "cluster-one",
-						NamespaceLabels: map[string]string{
-							"env": "prod",
-						},
-						NamespaceAnnotations: map[string]string{
-							"team": "app",
+						BundleDeploymentOptions: v1alpha1.BundleDeploymentOptions{
+							NamespaceLabels: map[string]string{
+								"env": "prod",
+							},
+							NamespaceAnnotations: map[string]string{
+								"team": "app",
+							},
 						},
 					},
 					{
 						Name: "cluster-two",
-						NamespaceLabels: map[string]string{
-							"env": "staging",
-						},
-						NamespaceAnnotations: map[string]string{
-							"team": "ops",
+						BundleDeploymentOptions: v1alpha1.BundleDeploymentOptions{
+							NamespaceLabels: map[string]string{
+								"env": "staging",
+							},
+							NamespaceAnnotations: map[string]string{
+								"team": "ops",
+							},
 						},
 					},
 				},
