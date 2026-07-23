@@ -102,8 +102,8 @@ var _ = Describe("ClusterStatus Ticker", func() {
 	})
 
 	It("should stop periodic patches when context is cancelled", func() {
-		// Verifies the jitter select respects ctx.Done so the goroutine
-		// exits cleanly instead of blocking forever on time.After.
+		// Ensures the periodic ticker loop stops when ctx is cancelled,
+		// so the agent doesn't keep patching after shutdown.
 		checkinInterval = time.Millisecond * 50
 
 		var patchCount atomic.Int32
@@ -145,7 +145,7 @@ var _ = Describe("ClusterStatus Ticker", func() {
 		checkinInterval = time.Millisecond * 200
 
 		var mu sync.Mutex
-		firstPatchTimes := make([]time.Time, 0, agentCount)
+		firstPatchTimes := make(map[string]time.Time, agentCount)
 		allDone := make(chan struct{})
 
 		buildClient := func(name string) client.Client {
@@ -153,8 +153,8 @@ var _ = Describe("ClusterStatus Ticker", func() {
 				SubResourcePatch: func(ctx context.Context, c client.Client, subResourceName string, obj client.Object, patch client.Patch, opts ...client.SubResourcePatchOption) error {
 					mu.Lock()
 					defer mu.Unlock()
-					if len(firstPatchTimes) < agentCount {
-						firstPatchTimes = append(firstPatchTimes, time.Now())
+					if _, seen := firstPatchTimes[name]; !seen {
+						firstPatchTimes[name] = time.Now()
 						if len(firstPatchTimes) == agentCount {
 							close(allDone)
 						}
@@ -189,11 +189,10 @@ var _ = Describe("ClusterStatus Ticker", func() {
 		defer mu.Unlock()
 
 		// All agents started at the same moment; with jitter their first periodic
-		// patches must not all arrive within a single millisecond of each other.
-		earliest := firstPatchTimes[0]
-		latest := firstPatchTimes[0]
-		for _, t := range firstPatchTimes[1:] {
-			if t.Before(earliest) {
+		// patches must be spread across the checkinInterval window, not bunched at t=0.
+		var earliest, latest time.Time
+		for _, t := range firstPatchTimes {
+			if earliest.IsZero() || t.Before(earliest) {
 				earliest = t
 			}
 			if t.After(latest) {
@@ -201,7 +200,7 @@ var _ = Describe("ClusterStatus Ticker", func() {
 			}
 		}
 		spread := latest.Sub(earliest)
-		Expect(spread).To(BeNumerically(">", time.Millisecond),
+		Expect(spread).To(BeNumerically(">", checkinInterval/10),
 			"jitter should spread %d agents' first check-in across time, not bunch them at t=0", agentCount)
 	})
 })
