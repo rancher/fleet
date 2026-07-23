@@ -6,7 +6,7 @@ toolchain go1.26.5
 
 replace github.com/rancher/fleet/pkg/apis => ../apis
 
-require github.com/rancher/fleet/pkg/apis v0.15.4
+require github.com/rancher/fleet/pkg/apis v0.16.0
 
 require (
 	github.com/fxamacker/cbor/v2 v2.9.0 // indirect
