@@ -7,6 +7,7 @@ import (
 	"github.com/rancher/fleet/internal/config"
 	"github.com/rancher/fleet/internal/names"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/version"
 
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -81,6 +82,7 @@ func deleteNamespace(name string) {
 func newConfigMap(namespace, name string, cfg *config.Config) *corev1.ConfigMap {
 	cm, err := config.ToConfigMap(namespace, name, cfg)
 	Expect(err).NotTo(HaveOccurred())
+	cm.Annotations = map[string]string{config.VersionAnnotation: version.Version}
 	return cm
 }
 
