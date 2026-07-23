@@ -116,6 +116,9 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		}
 		seen[key] = struct{}{}
 
+		if u.EscapedPath() == "" {
+			continue
+		}
 		path := strings.Replace(regexp.QuoteMeta(u.EscapedPath()[1:]), `/_git/`, `(/_git)?/`, 1)
 		regexpStr := `(?i)(http://|https://|\w+@|ssh://(\w+@)?|git@(ssh\.)?)` + regexp.QuoteMeta(u.Hostname()) +
 			"(:[0-9]+|)[:/](v\\d/)?" + path + "(\\.git)?$"
