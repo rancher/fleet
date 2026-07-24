@@ -169,6 +169,7 @@ func (col *Collector) convertBundles(bundles []fleet.Bundle) []BundleInfo {
 			ForceSyncGeneration: b.Spec.ForceSyncGeneration,
 			ResourcesSHA256Sum:  b.Status.ResourcesSHA256Sum,
 			Finalizers:          b.Finalizers,
+			ValuesHash:          b.Spec.ValuesHash,
 		}
 
 		if b.DeletionTimestamp != nil {
@@ -220,6 +221,7 @@ func (col *Collector) convertBundleDeployments(bds []fleet.BundleDeployment) []B
 			AppliedDeploymentID: bd.Status.AppliedDeploymentID,
 			Finalizers:          bd.Finalizers,
 			Labels:              bd.Labels,
+			ValuesHash:          bd.Spec.ValuesHash,
 			BundleName:          bd.Labels[fleet.BundleLabel],
 			BundleNamespace:     bd.Labels[fleet.BundleNamespaceLabel],
 		}
