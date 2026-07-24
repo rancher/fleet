@@ -145,6 +145,12 @@ func (r *StatusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, err
 	}
 
+	// If the Accepted condition is False (e.g. missing secret, cabundle failure,
+	// restriction violation), propagate that failure to the Ready condition.
+	// Without this, a GitRepo with no bundles (because the job never ran) would
+	// report Ready=True because the empty bundle summary satisfies 0/0 == ready.
+	propagateAcceptedFailureToReady(gitrepo)
+
 	if err := r.updateStatus(ctx, orig, gitrepo); err != nil {
 		logger.Error(err, "Reconcile failed update to git repo status", "status", gitrepo.Status)
 		return ctrl.Result{RequeueAfter: durations.GitRepoStatusDelay}, nil
@@ -245,6 +251,49 @@ bundles:
 	gitrepo.Status.Conditions = newConditions
 
 	return nil
+}
+
+// propagateAcceptedFailureToReady ensures the Ready condition reflects an
+// Accepted=False error. When a pre-job error (missing secret, cabundle failure,
+// restriction violation) prevents any bundle from being created, the bundle
+// summary is 0/0, which would normally resolve to Ready=True. By copying the
+// Accepted condition's message onto Ready we surface the real error.
+func propagateAcceptedFailureToReady(gitrepo *fleet.GitRepo) {
+	var acceptedMsg string
+	var acceptedReason string
+	acceptedFalse := false
+	for _, c := range gitrepo.Status.Conditions {
+		if c.Type == fleet.GitRepoAcceptedCondition && c.Status == v1.ConditionFalse {
+			acceptedFalse = true
+			acceptedMsg = c.Message
+			acceptedReason = c.Reason
+			break
+		}
+	}
+	if !acceptedFalse {
+		return
+	}
+
+	found := false
+	newConditions := make([]genericcondition.GenericCondition, 0, len(gitrepo.Status.Conditions))
+	for _, c := range gitrepo.Status.Conditions {
+		if c.Type == string(fleet.Ready) {
+			c.Status = v1.ConditionFalse
+			c.Message = acceptedMsg
+			c.Reason = acceptedReason
+			found = true
+		}
+		newConditions = append(newConditions, c)
+	}
+	if !found {
+		newConditions = append(newConditions, genericcondition.GenericCondition{
+			Type:    string(fleet.Ready),
+			Status:  v1.ConditionFalse,
+			Message: acceptedMsg,
+			Reason:  acceptedReason,
+		})
+	}
+	gitrepo.Status.Conditions = newConditions
 }
 
 type forcedDelayingSource[R comparable] struct {
