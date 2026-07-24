@@ -150,6 +150,13 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 						w.logAndReturn(rw, err)
 						return
 					}
+				} else {
+					// see #5297
+					w.log.Info(
+						"Support for unauthenticated webhooks is a security risk and therefore deprecated. It will be removed in a future release. Configure GitRepo.spec.webhookSecret or create the global \"gitjob-webhook\" secret to authenticate this GitRepo.",
+						"gitrepo", gitrepo.Name,
+						"namespace", gitrepo.Namespace,
+					)
 				}
 
 				var gitRepoFromCluster fleet.GitRepo
