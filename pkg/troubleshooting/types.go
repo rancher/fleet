@@ -63,6 +63,7 @@ type BundleInfo struct {
 	Ready               bool              `json:"ready"`
 	ReadyMessage        string            `json:"readyMessage,omitempty"`
 	ErrorMessage        string            `json:"errorMessage,omitempty"`
+	ValuesHash          string            `json:"valuesHash,omitempty"`
 }
 
 // Note: syncGeneration tracks forceSyncGeneration application, NOT resource generation.
@@ -91,6 +92,7 @@ type BundleDeploymentInfo struct {
 	Labels              map[string]string `json:"labels,omitempty"`
 	BundleName          string            `json:"bundleName,omitempty"`
 	BundleNamespace     string            `json:"bundleNamespace,omitempty"`
+	ValuesHash          string            `json:"valuesHash,omitempty"`
 }
 
 // ContentInfo holds diagnostic information about a Fleet Content resource.
