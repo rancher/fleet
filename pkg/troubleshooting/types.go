@@ -93,6 +93,7 @@ type BundleDeploymentInfo struct {
 	BundleName          string            `json:"bundleName,omitempty"`
 	BundleNamespace     string            `json:"bundleNamespace,omitempty"`
 	ValuesHash          string            `json:"valuesHash,omitempty"`
+	WaitingForValues    bool              `json:"waitingForValues"`
 }
 
 // ContentInfo holds diagnostic information about a Fleet Content resource.
@@ -169,6 +170,7 @@ type Diagnostics struct {
 	GitReposUnpolled                            []GitRepoInfo            `json:"gitReposUnpolled,omitempty"`
 	BundlesWithGenerationMismatch               []BundleInfo             `json:"bundlesWithGenerationMismatch,omitempty"`
 	BundleDeploymentsWithSyncGenerationMismatch []BundleDeploymentInfo   `json:"bundleDeploymentsWithSyncGenerationMismatch,omitempty"`
+	SecretsWithValuesHashMismatch               []ValuesHashMismatch     `json:"secretsWithValuesHashMismatch,omitempty"`
 	OrphanedSecretsCount                        int                      `json:"orphanedSecretsCount,omitempty"`
 	InvalidSecretOwnersCount                    int                      `json:"invalidSecretOwnersCount,omitempty"`
 	ContentIssuesCount                          int                      `json:"contentIssuesCount,omitempty"`
@@ -178,6 +180,16 @@ type Diagnostics struct {
 	BundleDeploymentsWithDeletionTimestamp      int                      `json:"bundleDeploymentsWithDeletionTimestamp,omitempty"`
 	ContentsWithDeletionTimestamp               int                      `json:"contentsWithDeletionTimestamp,omitempty"`
 	ContentsWithZeroReferenceCount              int                      `json:"contentsWithZeroReferenceCount,omitempty"`
+}
+
+// ValuesHashMismatch describes a bundle lifecycle secret whose content hash
+// does not match its owner's Spec.ValuesHash.
+type ValuesHashMismatch struct {
+	Namespace  string `json:"namespace"`
+	Name       string `json:"name"`
+	OwnerKind  string `json:"ownerKind"`
+	SpecHash   string `json:"specHash"`
+	SecretHash string `json:"secretHash"`
 }
 
 // ResourceWithFinalizers describes a resource with more than one finalizer.
