@@ -1,6 +1,7 @@
 package reconciler
 
 import (
+	"slices"
 	"sync"
 
 	"github.com/reugn/go-quartz/quartz"
@@ -21,6 +22,10 @@ type jobRegistry struct {
 }
 
 func (r *jobRegistry) get(key *quartz.JobKey) (*CronDurationJob, bool) {
+	if key == nil {
+		return nil, false
+	}
+
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -30,6 +35,10 @@ func (r *jobRegistry) get(key *quartz.JobKey) (*CronDurationJob, bool) {
 }
 
 func (r *jobRegistry) store(key *quartz.JobKey, job *CronDurationJob) {
+	if key == nil {
+		return
+	}
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -40,6 +49,10 @@ func (r *jobRegistry) store(key *quartz.JobKey, job *CronDurationJob) {
 }
 
 func (r *jobRegistry) delete(key *quartz.JobKey) {
+	if key == nil {
+		return
+	}
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -72,17 +85,29 @@ func (r *jobRegistry) jobsForCluster(cluster, namespace string) []*CronDurationJ
 
 // isClusterScheduled returns true if the given cluster is targeted by any registered job.
 func (r *jobRegistry) isClusterScheduled(cluster, namespace string) bool {
-	return len(r.jobsForCluster(cluster, namespace)) > 0
+	return clusterHasJob(r.list(), cluster, namespace)
 }
 
 // clustersNotScheduled returns those of the given clusters which are targeted by no registered job.
 func (r *jobRegistry) clustersNotScheduled(clusters []string, namespace string) []string {
+	// A single snapshot serves every cluster, instead of re-listing the registry once per cluster.
+	jobs := r.list()
+
 	notScheduled := []string{}
 	for _, cluster := range clusters {
-		if !r.isClusterScheduled(cluster, namespace) {
+		if !clusterHasJob(jobs, cluster, namespace) {
 			notScheduled = append(notScheduled, cluster)
 		}
 	}
 
 	return notScheduled
+}
+
+// clusterHasJob returns true as soon as one of jobs targets the given cluster. Unlike
+// jobsForCluster, it answers that question without allocating a slice, and without locking the
+// jobs past the first match.
+func clusterHasJob(jobs []*CronDurationJob, cluster, namespace string) bool {
+	return slices.ContainsFunc(jobs, func(job *CronDurationJob) bool {
+		return job.targets(cluster, namespace)
+	})
 }
