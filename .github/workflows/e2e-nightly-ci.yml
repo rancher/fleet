@@ -57,9 +57,6 @@ jobs:
         with:
           go-version-file: 'go.mod'
       -
-        name: Install Ginkgo CLI
-        run: go install github.com/onsi/ginkgo/v2/ginkgo
-      -
         name: Cache crust-gather CLI
         id: cache-crust
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -157,26 +154,26 @@ jobs:
           export CI_OCI_CERTS_DIR
 
           # 1. Run test cases not needing infra
-          ginkgo --github-output --trace --label-filter='!infra-setup' e2e/single-cluster e2e/keep-resources
+          go test -count=1 -timeout=1h -p 1 ./e2e/single-cluster ./e2e/keep-resources -args -ginkgo.github-output -ginkgo.trace -ginkgo.label-filter='!infra-setup'
 
           # 2. Run tests for metrics
-          ginkgo --github-output --trace --label-filter='!oci-registry' e2e/metrics
-          SHARD=shard1 ginkgo --github-output --trace --label-filter='!oci-registry' e2e/metrics
+          go test -count=1 -timeout=1h ./e2e/metrics -args -ginkgo.github-output -ginkgo.trace -ginkgo.label-filter='!oci-registry'
+          SHARD=shard1 go test -count=1 -timeout=1h ./e2e/metrics -args -ginkgo.github-output -ginkgo.trace -ginkgo.label-filter='!oci-registry'
 
           # 3. Run tests requiring only the git server
           e2e/testenv/infra/infra setup --git-server=true
-          ginkgo --github-output --trace --label-filter='infra-setup && !helm-registry && !oci-registry' e2e/single-cluster/
+          go test -count=1 -timeout=1h ./e2e/single-cluster/ -args -ginkgo.github-output -ginkgo.trace -ginkgo.label-filter='infra-setup && !helm-registry && !oci-registry'
 
           # 4. Run tests requiring a Helm registry
           e2e/testenv/infra/infra setup --helm-registry=true
-          ginkgo --github-output --trace --label-filter='helm-registry' e2e/single-cluster
+          go test -count=1 -timeout=1h ./e2e/single-cluster -args -ginkgo.github-output -ginkgo.trace -ginkgo.label-filter='helm-registry'
 
           e2e/testenv/infra/infra teardown --helm-registry=true
 
           # 5. Run tests requiring an OCI registry
           e2e/testenv/infra/infra setup --oci-registry=true
-          ginkgo --github-output --trace --label-filter='oci-registry' e2e/single-cluster
-          ginkgo --github-output --trace --label-filter='oci-registry' e2e/metrics
+          go test -count=1 -timeout=1h ./e2e/single-cluster -args -ginkgo.github-output -ginkgo.trace -ginkgo.label-filter='oci-registry'
+          go test -count=1 -timeout=1h ./e2e/metrics -args -ginkgo.github-output -ginkgo.trace -ginkgo.label-filter='oci-registry'
 
           # 6. Tear down all infra
           e2e/testenv/infra/infra teardown
@@ -186,7 +183,7 @@ jobs:
         env:
           FLEET_E2E_NS: fleet-local
         run: |
-          ginkgo --github-output --trace e2e/acceptance/single-cluster-examples
+          go test -count=1 -timeout=1h ./e2e/acceptance/single-cluster-examples -args -ginkgo.github-output -ginkgo.trace
       -
         name: Fleet Tests Requiring Github Secrets
         if: ${{ matrix.test_type == 'e2e-secrets' }}
@@ -208,7 +205,7 @@ jobs:
           echo "${{ secrets.CI_SSH_KEY }}" > "$GIT_SSH_KEY"
           echo "${{ secrets.CI_SSH_PUBKEY }}" > "$GIT_SSH_PUBKEY"
 
-          ginkgo --github-output --trace e2e/require-secrets
+          go test -count=1 -timeout=1h ./e2e/require-secrets -args -ginkgo.github-output -ginkgo.trace
       -
         name: Upload Logs
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

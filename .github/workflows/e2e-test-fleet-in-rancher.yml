@@ -65,12 +65,6 @@ jobs:
           go-version-file: "fleet/go.mod"
 
       -
-        name: Install Ginkgo CLI
-        run: |
-          cd fleet
-          go install github.com/onsi/ginkgo/v2/ginkgo
-
-      -
         name: Cache crust-gather CLI
         id: cache-crust
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -307,12 +301,12 @@ jobs:
         run: |
           kubectl config use-context k3d-upstream
           cd fleet
-          ginkgo --github-output --trace e2e/acceptance/single-cluster-examples
+          go test -count=1 -timeout=1h ./e2e/acceptance/single-cluster-examples -args -ginkgo.github-output -ginkgo.trace
 
           CI_REGISTERED_CLUSTER=$(kubectl get clusters.fleet.cattle.io -n "$FLEET_E2E_NS_DOWNSTREAM" -o jsonpath='{..name}')
           export CI_REGISTERED_CLUSTER
 
-          ginkgo --github-output --trace e2e/multi-cluster
+          go test -count=1 -timeout=1h ./e2e/multi-cluster -args -ginkgo.github-output -ginkgo.trace
 
       -
         name: Dump Failed Downstream Environment
