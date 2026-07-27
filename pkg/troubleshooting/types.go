@@ -115,6 +115,7 @@ type SecretInfo struct {
 	OwnerKind         string   `json:"ownerKind,omitempty"`
 	OwnerName         string   `json:"ownerName,omitempty"`
 	OwnerUID          string   `json:"ownerUID,omitempty"`
+	ValuesHash        string   `json:"valuesHash,omitempty"`
 }
 
 // EventInfo holds diagnostic information about a Kubernetes event.

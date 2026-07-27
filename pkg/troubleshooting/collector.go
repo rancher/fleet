@@ -10,6 +10,7 @@ import (
 
 	"github.com/rancher/fleet/internal/cmd/controller/gitops/reconciler"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/helmvalues"
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -356,9 +357,22 @@ func (col *Collector) convertSecrets(secrets []corev1.Secret) []SecretInfo {
 			info.OwnerUID = string(owner.UID)
 		}
 
+		info.ValuesHash = secretValuesHash(s)
 		result = append(result, info)
 	}
 	return result
+}
+
+func secretValuesHash(s corev1.Secret) string {
+	switch s.Type {
+	case fleet.SecretTypeBundleValues:
+		if h, err := helmvalues.HashValuesSecret(s.Data); err == nil {
+			return h
+		}
+	case fleet.SecretTypeBundleDeploymentOptions:
+		return helmvalues.HashOptions(s.Data[helmvalues.ValuesKey], s.Data[helmvalues.StagedValuesKey])
+	}
+	return ""
 }
 
 func (col *Collector) convertEvents(events []corev1.Event) []EventInfo {
