@@ -40,7 +40,17 @@ func Ticker(ctx context.Context, client client.Client, agentNamespace string, cl
 	}
 
 	go func() {
-		time.Sleep(durations.ClusterRegisterDelay)
+		// Fixed registration delay plus jitter to spread startup check-ins when
+		// many agents restart simultaneously (e.g. after a fleet-controller recovery).
+		timer := time.NewTimer(durations.ClusterRegisterDelay + rand.N(checkinInterval))
+		select {
+		case <-timer.C:
+		case <-ctx.Done():
+			if !timer.Stop() {
+				<-timer.C
+			}
+			return
+		}
 		logger.V(1).Info("Reporting cluster status once")
 		if err := h.Update(ctx); err != nil {
 			logger.Error(err, "failed to report initial cluster status")
