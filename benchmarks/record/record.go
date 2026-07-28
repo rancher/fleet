@@ -265,8 +265,6 @@ func getMetrics(res map[string]float64, name, namespace string, port int, contro
 	defer cancel()
 
 	Eventually(func(g Gomega) {
-		// Note on the `nolint: gosec` comment below: We are looking for an available port number; this can afford to be
-		// fairly predictable.
 		hostPort = port + rand.IntN(65535-port) // TCP port range: 0-65535
 
 		// Create a listener on the port, just to check if it is open.
