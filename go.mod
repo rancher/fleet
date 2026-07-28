@@ -68,7 +68,7 @@ require (
 	github.com/opencontainers/image-spec v1.1.1
 	github.com/otiai10/copy v1.14.1
 	github.com/pkg/errors v0.9.1
-	github.com/prometheus/client_golang v1.23.2
+	github.com/prometheus/client_golang v1.24.0
 	github.com/prometheus/client_model v0.6.2
 	github.com/prometheus/common v0.70.0
 	github.com/rancher/fleet/pkg/apis v0.16.0
@@ -219,7 +219,7 @@ require (
 	github.com/pjbgf/sha1cd v0.6.0 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
-	github.com/prometheus/procfs v0.21.0 // indirect
+	github.com/prometheus/procfs v0.21.1 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/rubenv/sql-migrate v1.8.1 // indirect
