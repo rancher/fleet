@@ -80,7 +80,7 @@ require (
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go v0.43.0
-	github.com/ulikunitz/xz v0.5.15
+	github.com/ulikunitz/xz v0.5.16
 	go.uber.org/mock v0.6.0
 	go.uber.org/zap v1.28.0
 	golang.org/x/crypto v0.54.0
