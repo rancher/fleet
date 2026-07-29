@@ -62,11 +62,15 @@ jobs:
               date_cursor=$(date -u -d "$date_cursor + 1 day" +%F)
             done
             if [[ "$FORCE" != "true" ]] && (( working_days < MIN_WORKING_DAYS )); then
-              echo "PR #$pr_number is too new."
+              echo "PR #$pr_number is too new ($working_days working days old)."
               continue
             fi
 
-            if ! gh pr checks "$pr_number" --repo "$REPO"; then
+            if ! check_buckets=$(gh pr checks "$pr_number" --repo "$REPO" --json bucket); then
+              echo "Could not read checks for PR #$pr_number."
+              continue
+            fi
+            if ! jq -e 'length > 0 and all(.[]; .bucket == "pass")' <<<"$check_buckets" >/dev/null; then
               echo "PR #$pr_number does not have all checks green."
               continue
             fi
