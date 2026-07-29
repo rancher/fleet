@@ -75,7 +75,7 @@ var _ = Describe("jobRegistry", func() {
 			Expect(notScheduled).To(Equal([]string{"cluster3", "cluster4"}))
 		})
 
-		It("returns no cluster when the registry is empty", func() {
+		It("returns all clusters as not scheduled when the registry is empty", func() {
 			Expect((&jobRegistry{}).clustersNotScheduled([]string{"cluster1"}, "default")).
 				To(Equal([]string{"cluster1"}))
 		})
