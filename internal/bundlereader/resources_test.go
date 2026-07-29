@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -111,6 +113,60 @@ func TestValueMerge(t *testing.T) {
 			t.Fatalf("unable to find key replicas in values for service %s", serviceName)
 		}
 	}
+}
+
+func TestGenerateValuesRejectsPathOutsideBase(t *testing.T) {
+	dir := t.TempDir()
+	base := filepath.Join(dir, "bundle")
+	require.NoError(t, os.MkdirAll(base, 0755))
+
+	outsidePath := filepath.Join(dir, "outside-secret.yaml")
+	require.NoError(t, os.WriteFile(outsidePath, []byte("leaked: true"), 0644))
+
+	chart := &fleet.HelmOptions{
+		GitOpsHelmOptions: fleet.GitOpsHelmOptions{
+			ValuesFiles: []string{"../outside-secret.yaml"},
+		},
+	}
+
+	_, err := generateValues(base, chart)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid values file")
+}
+
+func TestGenerateValuesRejectsSymlinkPointingOutsideBase(t *testing.T) {
+	dir := t.TempDir()
+	base := filepath.Join(dir, "bundle")
+	require.NoError(t, os.MkdirAll(base, 0755))
+
+	outsidePath := filepath.Join(dir, "outside-secret.yaml")
+	require.NoError(t, os.WriteFile(outsidePath, []byte("leaked: true"), 0644))
+	require.NoError(t, os.Symlink(outsidePath, filepath.Join(base, "values.yaml")))
+
+	chart := &fleet.HelmOptions{
+		GitOpsHelmOptions: fleet.GitOpsHelmOptions{
+			ValuesFiles: []string{"values.yaml"},
+		},
+	}
+
+	_, err := generateValues(base, chart)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "escapes bundle directory")
+}
+
+func TestGenerateValuesReadsFileWithinBase(t *testing.T) {
+	base := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(base, "values.yaml"), []byte("foo: bar"), 0644))
+
+	chart := &fleet.HelmOptions{
+		GitOpsHelmOptions: fleet.GitOpsHelmOptions{
+			ValuesFiles: []string{"values.yaml"},
+		},
+	}
+
+	valuesMap, err := generateValues(base, chart)
+	require.NoError(t, err)
+	assert.Equal(t, "bar", valuesMap.Data["foo"])
 }
 
 func TestShouldAddAuthToRequest(t *testing.T) {
