@@ -151,28 +151,28 @@ jobs:
         env:
           FLEET_E2E_NS: fleet-local
         run: |
-          go test -count=1 -timeout=1h -p 1 ./e2e/single-cluster ./e2e/keep-resources -args -ginkgo.github-output -ginkgo.trace -ginkgo.label-filter='!infra-setup && !sharding'
+          go test -v -count=1 -timeout=1h -p 1 ./e2e/single-cluster ./e2e/keep-resources -args -ginkgo.github-output -ginkgo.trace -ginkgo.label-filter='!infra-setup && !sharding'
       -
         name: E2E Sharding Tests
         if: ${{ matrix.test_type.name == 'sharding' }}
         env:
           FLEET_E2E_NS: fleet-local
         run: |
-          go test -count=1 -timeout=1h ./e2e/single-cluster -args -ginkgo.github-output -ginkgo.trace -ginkgo.label-filter='sharding'
+          go test -v -count=1 -timeout=1h ./e2e/single-cluster -args -ginkgo.github-output -ginkgo.trace -ginkgo.label-filter='sharding'
       -
         name: E2E Sharded Metrics
         if: ${{ matrix.test_type.name == 'sharded-metrics' }}
         env:
           FLEET_E2E_NS: fleet-local
         run: |
-          SHARD=shard0 go test -count=1 -timeout=1h ./e2e/metrics -args -ginkgo.github-output -ginkgo.trace -ginkgo.label-filter='!oci-registry'
+          SHARD=shard0 go test -v -count=1 -timeout=1h ./e2e/metrics -args -ginkgo.github-output -ginkgo.trace -ginkgo.label-filter='!oci-registry'
       -
         name: E2E Metrics Tests
         if: ${{ matrix.test_type.name == 'metrics' }}
         env:
           FLEET_E2E_NS: fleet-local
         run: |
-          go test -count=1 -timeout=1h ./e2e/metrics -args -ginkgo.github-output -ginkgo.trace -ginkgo.label-filter='!oci-registry'
+          go test -v -count=1 -timeout=1h ./e2e/metrics -args -ginkgo.github-output -ginkgo.trace -ginkgo.label-filter='!oci-registry'
       -
         name: Create Zot certificates for OCI tests
         if: ${{ startsWith(matrix.test_type.name, 'infra-setup') }}
@@ -193,7 +193,7 @@ jobs:
 
           # Run tests requiring only the git server
           e2e/testenv/infra/infra setup --git-server=true
-          go test -count=1 -timeout=1h ./e2e/single-cluster/ -args -ginkgo.github-output -ginkgo.trace -ginkgo.label-filter='infra-setup && !helm-registry && !oci-registry'
+          go test -v -count=1 -timeout=1h ./e2e/single-cluster/ -args -ginkgo.github-output -ginkgo.trace -ginkgo.label-filter='infra-setup && !helm-registry && !oci-registry'
 
           e2e/testenv/infra/infra teardown
       -
@@ -212,7 +212,7 @@ jobs:
           e2e/testenv/infra/infra setup --git-server=true
           e2e/testenv/infra/infra setup --helm-registry=true
 
-          go test -count=1 -timeout=1h ./e2e/single-cluster -args -ginkgo.github-output -ginkgo.trace -ginkgo.label-filter='helm-registry'
+          go test -v -count=1 -timeout=1h ./e2e/single-cluster -args -ginkgo.github-output -ginkgo.trace -ginkgo.label-filter='helm-registry'
 
           e2e/testenv/infra/infra teardown
       -
@@ -244,8 +244,8 @@ jobs:
 
           # OCI tests can be flaky due to registry setup timing issues
           # Run with flake attempts to retry failed tests
-          go test -count=1 -timeout=1h ./e2e/single-cluster -args -ginkgo.github-output -ginkgo.trace -ginkgo.flake-attempts=2 -ginkgo.label-filter='oci-registry'
-          go test -count=1 -timeout=1h ./e2e/metrics -args -ginkgo.github-output -ginkgo.trace -ginkgo.flake-attempts=2 -ginkgo.label-filter='oci-registry'
+          go test -v -count=1 -timeout=1h ./e2e/single-cluster -args -ginkgo.github-output -ginkgo.trace -ginkgo.flake-attempts=2 -ginkgo.label-filter='oci-registry'
+          go test -v -count=1 -timeout=1h ./e2e/metrics -args -ginkgo.github-output -ginkgo.trace -ginkgo.flake-attempts=2 -ginkgo.label-filter='oci-registry'
 
           e2e/testenv/infra/infra teardown
       -
@@ -274,7 +274,7 @@ jobs:
           echo "${{ secrets.CI_SSH_KEY }}" > "$GIT_SSH_KEY"
           echo "${{ secrets.CI_SSH_PUBKEY }}" > "$GIT_SSH_PUBKEY"
 
-          go test -count=1 -timeout=1h ./e2e/require-secrets -args -ginkgo.github-output -ginkgo.trace
+          go test -v -count=1 -timeout=1h ./e2e/require-secrets -args -ginkgo.github-output -ginkgo.trace
       -
         name: Upload Logs
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

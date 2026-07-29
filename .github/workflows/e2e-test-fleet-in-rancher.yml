@@ -301,12 +301,12 @@ jobs:
         run: |
           kubectl config use-context k3d-upstream
           cd fleet
-          go test -count=1 -timeout=1h ./e2e/acceptance/single-cluster-examples -args -ginkgo.github-output -ginkgo.trace
+          go test -v -count=1 -timeout=1h ./e2e/acceptance/single-cluster-examples -args -ginkgo.github-output -ginkgo.trace
 
           CI_REGISTERED_CLUSTER=$(kubectl get clusters.fleet.cattle.io -n "$FLEET_E2E_NS_DOWNSTREAM" -o jsonpath='{..name}')
           export CI_REGISTERED_CLUSTER
 
-          go test -count=1 -timeout=1h ./e2e/multi-cluster -args -ginkgo.github-output -ginkgo.trace
+          go test -v -count=1 -timeout=1h ./e2e/multi-cluster -args -ginkgo.github-output -ginkgo.trace
 
       -
         name: Dump Failed Downstream Environment

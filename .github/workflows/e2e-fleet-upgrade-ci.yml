@@ -117,7 +117,7 @@ jobs:
         env:
           FLEET_E2E_NS: fleet-local
         run: |
-          go test -count=1 -timeout=1h ./e2e/installation -args -ginkgo.github-output -ginkgo.trace -ginkgo.label-filter="!multi-cluster"
+          go test -v -count=1 -timeout=1h ./e2e/installation -args -ginkgo.github-output -ginkgo.trace -ginkgo.label-filter="!multi-cluster"
       -
         name: Upload Logs
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

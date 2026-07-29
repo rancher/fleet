@@ -225,7 +225,7 @@ jobs:
           export CI_REGISTERED_CLUSTER
 
           kubectl config use-context k3d-upstream
-          go test -count=1 -timeout=1h ./e2e/multi-cluster -args -ginkgo.github-output -ginkgo.trace
+          go test -v -count=1 -timeout=1h ./e2e/multi-cluster -args -ginkgo.github-output -ginkgo.trace
       -
         name: E2E tests with managed downstream agent
         env:
@@ -234,7 +234,7 @@ jobs:
           FLEET_E2E_CLUSTER_DOWNSTREAM: k3d-managed-downstream
         run: |
           kubectl config use-context k3d-upstream
-          go test -count=1 -timeout=1h ./e2e/multi-cluster/installation -args -ginkgo.github-output -ginkgo.trace
+          go test -v -count=1 -timeout=1h ./e2e/multi-cluster/installation -args -ginkgo.github-output -ginkgo.trace
       -
         name: Acceptance Tests for Examples
         if: >
@@ -243,7 +243,7 @@ jobs:
           FLEET_E2E_NS: fleet-local
           FLEET_E2E_NS_DOWNSTREAM: fleet-default
         run: |
-          go test -count=1 -timeout=1h ./e2e/acceptance/multi-cluster-examples -args -ginkgo.github-output -ginkgo.trace
+          go test -v -count=1 -timeout=1h ./e2e/acceptance/multi-cluster-examples -args -ginkgo.github-output -ginkgo.trace
       -
         name: Dump Failed Downstream Environment
         if: failure()

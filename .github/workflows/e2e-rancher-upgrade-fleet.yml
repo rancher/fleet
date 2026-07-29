@@ -207,7 +207,7 @@ jobs:
           FLEET_AGENT_NAMESPACE: "cattle-fleet-system"
         run: |
           # this doesn't work with <0.10
-          go test -count=1 -timeout=1h ./e2e/installation -args -ginkgo.github-output -ginkgo.trace -ginkgo.label-filter='!single-cluster'
+          go test -v -count=1 -timeout=1h ./e2e/installation -args -ginkgo.github-output -ginkgo.trace -ginkgo.label-filter='!single-cluster'
       -
         name: E2E tests for examples
         env:
@@ -219,7 +219,7 @@ jobs:
           export CI_REGISTERED_CLUSTER
 
           kubectl config use-context k3d-upstream
-          go test -count=1 -timeout=1h ./e2e/multi-cluster -args -ginkgo.github-output -ginkgo.trace
+          go test -v -count=1 -timeout=1h ./e2e/multi-cluster -args -ginkgo.github-output -ginkgo.trace
       -
         name: Dump Failed Downstream Environment
         if: failure()
