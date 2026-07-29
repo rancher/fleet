@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strings"
 	"sync"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -183,20 +184,59 @@ func generateValues(base string, chart *fleet.HelmOptions) (valuesMap *fleet.Gen
 	if chart.Values != nil {
 		valuesMap = chart.Values
 	}
+	resolvedBase, err := filepath.EvalSymlinks(base)
+	if err != nil {
+		return nil, fmt.Errorf("resolving values base %q: %w", base, err)
+	}
 	for _, value := range chart.ValuesFiles {
-		valuesByte, err := os.ReadFile(base + "/" + value)
+		valuesPath, err := safeJoinSubDir(base, value)
 		if err != nil {
-			return nil, fmt.Errorf("reading values file: %s/%s: %w", base, value, err)
+			return nil, fmt.Errorf("invalid values file %q: %w", value, err)
+		}
+		resolvedValuesPath, err := filepath.EvalSymlinks(valuesPath)
+		if err != nil {
+			return nil, fmt.Errorf("resolving values file %q: %w", valuesPath, err)
+		}
+		if !pathWithinDir(resolvedBase, resolvedValuesPath) {
+			return nil, fmt.Errorf("invalid values file %q: target escapes bundle directory", value)
+		}
+		valuesByte, err := os.ReadFile(resolvedValuesPath)
+		if err != nil {
+			return nil, fmt.Errorf("reading values file %q: %w", resolvedValuesPath, err)
 		}
 		tmpDataOpt := &fleet.GenericMap{}
 		err = yaml.Unmarshal(valuesByte, tmpDataOpt)
 		if err != nil {
-			return nil, fmt.Errorf("reading values file: %s/%s: %w", base, value, err)
+			return nil, fmt.Errorf("reading values file %q: %w", resolvedValuesPath, err)
 		}
 		valuesMap = mergeGenericMap(valuesMap, tmpDataOpt)
 	}
 
 	return valuesMap, nil
+}
+
+func safeJoinSubDir(base, sub string) (string, error) {
+	cleanSub := filepath.Clean(filepath.FromSlash(sub))
+	if filepath.IsAbs(cleanSub) {
+		return "", fmt.Errorf("subdir must be relative, got %q", sub)
+	}
+	if cleanSub == "." {
+		return base, nil
+	}
+	joined := filepath.Join(base, cleanSub)
+	rel, err := filepath.Rel(base, joined)
+	if err != nil {
+		return "", err
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+		return "", fmt.Errorf("subdir %q escapes base directory", sub)
+	}
+	return joined, nil
+}
+
+func pathWithinDir(base, path string) bool {
+	rel, err := filepath.Rel(base, path)
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator))
 }
 
 func mergeGenericMap(first, second *fleet.GenericMap) *fleet.GenericMap {
@@ -238,12 +278,12 @@ func addRemoteCharts(directories []directory, base string, charts []*fleet.HelmO
 			}
 
 			directories = append(directories, directory{
-				prefix:  checksum(chart),
-				base:    base,
-				source:  chartURL,
-				auth:    auth,
-				version: chart.Version,
-					strippedCreds: strippedCredentialsForEmptyRegex,
+				prefix:        checksum(chart),
+				base:          base,
+				source:        chartURL,
+				auth:          auth,
+				version:       chart.Version,
+				strippedCreds: strippedCredentialsForEmptyRegex,
 			})
 		}
 	}
