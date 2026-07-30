@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"sync"
 	"time"
 
 	fleetutil "github.com/rancher/fleet/internal/cmd/controller/errorutil"
@@ -29,6 +30,15 @@ type CronDurationJob struct {
 	client           client.Client
 	hash             string
 	key              *quartz.JobKey
+
+	// mu guards the fields above against concurrent access by the job's own start and stop
+	// actions, which quartz runs in their own goroutine, and by reconciles of the job's Schedule,
+	// which may replace or delete the job.
+	mu sync.Mutex
+	// stale marks a job which has been replaced or deleted by a reconcile. Quartz may already have
+	// dispatched a start or stop action for it by then; that action must not run, as it would
+	// re-arm this job over the one which replaced it.
+	stale bool
 }
 
 // newCronDurationJob constructs a new CronDurationJob.
@@ -78,12 +88,34 @@ func newCronDurationJob(ctx context.Context, schedule *fleet.Schedule, scheduler
 
 // Execute implements the quartz.Job interface function to run a scheduled job.
 func (c *CronDurationJob) Execute(ctx context.Context) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.stale {
+		// The job has been replaced or deleted while quartz was dispatching this execution.
+		// Whichever job now owns the schedule, if any, is responsible for it.
+		return nil
+	}
+
 	if c.Started {
 		// If the job has already started, this execution is for the "stop" action,
 		// which was scheduled to run after the specified duration.
 		return c.executeStop(ctx)
 	}
 	return c.executeStart(ctx)
+}
+
+// targets returns true if the job's Schedule lives in the given namespace and currently matches the
+// given cluster.
+func (c *CronDurationJob) targets(cluster, namespace string) bool {
+	if c.Schedule.Namespace != namespace {
+		return false
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return slices.Contains(c.MatchingClusters, cluster)
 }
 
 // Description implements the quartz.Job interface function to describe a scheduled job.
@@ -281,38 +313,4 @@ func matchingClusters(ctx context.Context, matcher *matcher.ScheduleMatch, c cli
 	}
 
 	return clusterNames, nil
-}
-
-// ClusterScheduledMatcher implements the quarts.Matcher interface to match for
-// Scheduled clusters.
-type ClusterScheduledMatcher struct {
-	name      string
-	namespace string
-}
-
-func NewClusterScheduledMatcher(namespace, name string) *ClusterScheduledMatcher {
-	return &ClusterScheduledMatcher{
-		namespace: namespace,
-		name:      name,
-	}
-}
-
-// IsMatch implements the quartz.Matcher interface and returns true if the cluster stored
-// in the matcher is found in any of the matching clusters of the given job.
-// Returns false otherwise.
-func (n *ClusterScheduledMatcher) IsMatch(job quartz.ScheduledJob) bool {
-	cronDurationJob, ok := job.JobDetail().Job().(*CronDurationJob)
-	if !ok {
-		return false
-	}
-
-	if cronDurationJob.Schedule.Namespace != n.namespace {
-		return false
-	}
-	return slices.Contains(cronDurationJob.MatchingClusters, n.name)
-}
-
-// getClusterScheduleKeys returns the keys of the scheduled jobs that reference the given cluster.
-func getClusterScheduleKeys(scheduler quartz.Scheduler, cluster, namespace string) ([]*quartz.JobKey, error) {
-	return scheduler.GetJobKeys(NewClusterScheduledMatcher(namespace, cluster))
 }
