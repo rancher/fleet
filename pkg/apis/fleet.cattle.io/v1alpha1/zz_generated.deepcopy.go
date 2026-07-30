@@ -194,6 +194,11 @@ func (in *BundleDeploymentOptions) DeepCopyInto(out *BundleDeploymentOptions) {
 		*out = new(HelmOptions)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.CreateNamespace != nil {
+		in, out := &in.CreateNamespace, &out.CreateNamespace
+		*out = new(bool)
+		**out = **in
+	}
 	if in.Diff != nil {
 		in, out := &in.Diff, &out.Diff
 		*out = new(DiffOptions)
