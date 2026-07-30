@@ -41,6 +41,16 @@ type Policy struct {
 	// +nullable
 	AllowedServiceAccounts []string `json:"allowedServiceAccounts,omitempty"`
 
+	// AllowNamespaceCreation, when true, allows Fleet to create namespaces on
+	// downstream clusters during Helm installs. By default (false), when
+	// RequireServiceAccount is true, namespace creation is disabled so that
+	// tenant ServiceAccounts are not forced to hold the cluster-scoped
+	// namespaces.create verb. Operators who have secured namespace creation
+	// through other means (ValidatingAdmissionPolicy, Kyverno, etc.) can
+	// set this to true.
+	// +optional
+	AllowNamespaceCreation bool `json:"allowNamespaceCreation,omitempty"`
+
 	// GitRepo contains restrictions and defaults applied only by the GitRepo reconciler.
 	// +optional
 	GitRepo *GitRepoPolicySpec `json:"gitRepo,omitempty"`
