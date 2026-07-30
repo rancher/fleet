@@ -67,24 +67,26 @@ func AuthorizeAndAssignDefaults(ctx context.Context, c client.Client, gitrepo *f
 		return errors.New("empty targetNamespace denied, because allowedTargetNamespaceSelector restriction is present")
 	}
 
-	targetNamespace, err := isAllowed(gitrepo.Spec.TargetNamespace, "", allowedTargetNS)
-	if err != nil {
+	// Apply defaults before validation, so a default that is not in the allow-list
+	// is rejected rather than silently accepted. This keeps the GitRepo path
+	// consistent with the HelmOp and Bundle paths.
+	serviceAccount := firstNonEmpty(gitrepo.Spec.ServiceAccount, defaultSA)
+	clientSecretName := firstNonEmpty(gitrepo.Spec.ClientSecretName, defaultClientSecret)
+
+	if err := isAllowed(gitrepo.Spec.TargetNamespace, allowedTargetNS); err != nil {
 		return fmt.Errorf("disallowed targetNamespace %s: %w", gitrepo.Spec.TargetNamespace, err)
 	}
 
-	serviceAccount, err := isAllowed(gitrepo.Spec.ServiceAccount, defaultSA, allowedSAs)
-	if err != nil {
-		return fmt.Errorf("disallowed serviceAccount %s: %w", gitrepo.Spec.ServiceAccount, err)
+	if err := isAllowed(serviceAccount, allowedSAs); err != nil {
+		return fmt.Errorf("disallowed serviceAccount %s: %w", serviceAccount, err)
 	}
 
-	repo, err := isAllowedByRepo(gitrepo.Spec.Repo, grr.AllowedRepoPatterns, pol.GitAllowedRepoPatterns)
-	if err != nil {
+	if err := isAllowedByRepo(gitrepo.Spec.Repo, grr.AllowedRepoPatterns, pol.GitAllowedRepoPatterns); err != nil {
 		return fmt.Errorf("disallowed repo %s: %w", gitrepo.Spec.Repo, err)
 	}
 
-	clientSecretName, err := isAllowed(gitrepo.Spec.ClientSecretName, defaultClientSecret, allowedClientSecrets)
-	if err != nil {
-		return fmt.Errorf("disallowed clientSecretName %s: %w", gitrepo.Spec.ClientSecretName, err)
+	if err := isAllowed(clientSecretName, allowedClientSecrets); err != nil {
+		return fmt.Errorf("disallowed clientSecretName %s: %w", clientSecretName, err)
 	}
 
 	// Policy: RequireServiceAccount is checked after all defaulting.
@@ -93,9 +95,7 @@ func AuthorizeAndAssignDefaults(ctx context.Context, c client.Client, gitrepo *f
 	}
 
 	// Write resolved values back to the GitRepo.
-	gitrepo.Spec.TargetNamespace = targetNamespace
 	gitrepo.Spec.ServiceAccount = serviceAccount
-	gitrepo.Spec.Repo = repo
 	gitrepo.Spec.ClientSecretName = clientSecretName
 
 	return nil
@@ -130,18 +130,15 @@ func aggregate(restrictions []fleet.GitRepoRestriction) (result fleet.GitRepoRes
 	return result
 }
 
-func isAllowed(currentValue, defaultValue string, allowedValues []string) (string, error) {
-	if currentValue == "" {
-		return defaultValue, nil
-	}
-	if len(allowedValues) == 0 {
-		return currentValue, nil
+func isAllowed(currentValue string, allowedValues []string) error {
+	if currentValue == "" || len(allowedValues) == 0 {
+		return nil
 	}
 	if slices.Contains(allowedValues, currentValue) {
-		return currentValue, nil
+		return nil
 	}
 
-	return currentValue, fmt.Errorf("%s not in allowed set %v", currentValue, allowedValues)
+	return fmt.Errorf("%s not in allowed set %v", currentValue, allowedValues)
 }
 
 func isAllowedByRegex(currentValue, defaultValue string, patterns []string) (string, error) {
@@ -174,27 +171,27 @@ func isAllowedByRegex(currentValue, defaultValue string, patterns []string) (str
 // compatible). Policy patterns are evaluated anchored via policyrestrictions.IsAllowedByRegex.
 // An empty combined allow-list means no restriction. The repo passes if either non-empty
 // list accepts it.
-func isAllowedByRepo(repo string, grrPatterns, policyPatterns []string) (string, error) {
+func isAllowedByRepo(repo string, grrPatterns, policyPatterns []string) error {
 	if len(grrPatterns) == 0 && len(policyPatterns) == 0 {
-		return repo, nil
+		return nil
 	}
 	var grrErr, polErr error
 	if len(grrPatterns) > 0 {
 		_, grrErr = isAllowedByRegex(repo, "", grrPatterns)
 		if grrErr == nil {
-			return repo, nil
+			return nil
 		}
 	}
 	if len(policyPatterns) > 0 {
 		_, polErr = policyrestrictions.IsAllowedByRegex(repo, "", policyPatterns)
 		if polErr == nil {
-			return repo, nil
+			return nil
 		}
 	}
 	// Both lists were non-empty and both rejected — report the Policy error if
 	// only Policy patterns were present, otherwise report the GRR error.
 	if grrErr != nil {
-		return repo, grrErr
+		return grrErr
 	}
-	return repo, polErr
+	return polErr
 }
