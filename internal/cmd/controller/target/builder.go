@@ -13,8 +13,10 @@ import (
 	"github.com/Masterminds/sprig/v3"
 	"github.com/go-logr/logr"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
 
 	"github.com/rancher/fleet/internal/cmd/controller/options"
+	"github.com/rancher/fleet/internal/cmd/controller/policyrestrictions"
 	"github.com/rancher/fleet/internal/cmd/controller/target/matcher"
 	"github.com/rancher/fleet/internal/helmvalues"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -48,6 +50,11 @@ func New(client client.Client, reader client.Reader) *Manager {
 // unavailable; the caller should requeue to retry those BundleDeployments.
 func (m *Manager) Targets(ctx context.Context, bundle *fleet.Bundle, manifestID string) ([]*Target, bool, error) {
 	logger := log.FromContext(ctx).WithName("targets")
+
+	createNamespace, err := m.getCreateNamespaceForBundle(ctx, bundle)
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to resolve createNamespace from Policy: %w", err)
+	}
 
 	bm, err := matcher.New(bundle)
 	if err != nil {
@@ -89,6 +96,10 @@ func (m *Manager) Targets(ctx context.Context, bundle *fleet.Bundle, manifestID 
 			}
 
 			opts := options.Merge(bundle.Spec.BundleDeploymentOptions, targetOpts)
+			if createNamespace != nil {
+				opts.CreateNamespace = createNamespace
+			}
+
 			err = preprocessHelmValues(logger, &opts, &cluster)
 			if err != nil {
 				return nil, false, fmt.Errorf("cluster %s in namespace %s: %w", cluster.Name, cluster.Namespace, err)
@@ -396,4 +407,30 @@ func processTemplateValues(helmValues map[string]interface{}, templateContext ma
 	}
 
 	return renderedValues, nil
+}
+
+// getCreateNamespaceForBundle resolves whether namespace creation should be
+// disabled based on Policy objects in the bundle's namespace. Returns a pointer
+// to false when the aggregated policy requires a ServiceAccount but does not
+// allow namespace creation. Returns nil otherwise (no change to default).
+func (m *Manager) getCreateNamespaceForBundle(ctx context.Context, bundle *fleet.Bundle) (*bool, error) {
+	policies := &fleet.PolicyList{}
+	if err := m.client.List(ctx, policies, client.InNamespace(bundle.Namespace)); err != nil {
+		if apimeta.IsNoMatchError(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to list Policies: %w", err)
+	}
+
+	if len(policies.Items) == 0 {
+		return nil, nil
+	}
+
+	pol := policyrestrictions.Aggregate(policies.Items)
+	if pol.RequireServiceAccount && !pol.AllowNamespaceCreation {
+		v := false
+		return &v, nil
+	}
+
+	return nil, nil
 }
