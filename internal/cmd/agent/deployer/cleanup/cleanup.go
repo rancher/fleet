@@ -11,6 +11,7 @@ import (
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/kv"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/merr"
 	"github.com/rancher/fleet/internal/helmdeployer"
+	"github.com/rancher/fleet/internal/names"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/durations"
 
@@ -166,7 +167,7 @@ func releaseKey(ns string, bd *fleet.BundleDeployment) string {
 	}
 
 	if bd.Spec.Options.Helm == nil || bd.Spec.Options.Helm.ReleaseName == "" {
-		return ns + "/" + bd.Name
+		return ns + "/" + names.HelmReleaseName(bd.Name)
 	}
 	return ns + "/" + bd.Spec.Options.Helm.ReleaseName
 }
