@@ -192,6 +192,72 @@ var _ = Describe("ScheduleReconciler", func() {
 			Expect(newDescription).NotTo(Equal(originalDescription))
 		})
 
+		It("should leave an active schedule alone when its job is running", func() {
+			// Initial reconcile: the schedule gets a job and the cluster is scheduled.
+			_, err := reconciler.Reconcile(ctx, req)
+			Expect(err).NotTo(HaveOccurred())
+
+			jobKey := scheduleKey(schedule)
+			job, found := reconciler.jobs.get(jobKey)
+			Expect(found).To(BeTrue())
+
+			// Reproduce the state the job is in while quartz runs its start action: quartz has
+			// popped the job off its queue, and the job has flagged the cluster as active but has
+			// not yet re-armed itself with the stop action. The cluster status update it performs
+			// triggers a reconcile which lands right here.
+			Expect(scheduler.DeleteJob(jobKey)).To(Succeed())
+			Expect(setClusterActiveSchedule(ctx, k8sclient, cluster.Name, cluster.Namespace, true)).To(Succeed())
+
+			_, err = reconciler.Reconcile(ctx, req)
+			Expect(err).NotTo(HaveOccurred())
+
+			// The running job must be left in place, rather than treated as missing and recreated.
+			currentJob, found := reconciler.jobs.get(jobKey)
+			Expect(found).To(BeTrue())
+			Expect(currentJob).To(BeIdenticalTo(job))
+
+			// The active window must survive the reconcile.
+			updatedCluster := &fleet.Cluster{}
+			err = k8sclient.Get(ctx, client.ObjectKeyFromObject(cluster), updatedCluster)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(updatedCluster.Status.ActiveSchedule).To(BeTrue())
+		})
+
+		It("should not let a job which has been replaced start", func() {
+			_, err := reconciler.Reconcile(ctx, req)
+			Expect(err).NotTo(HaveOccurred())
+
+			jobKey := scheduleKey(schedule)
+			oldJob, found := reconciler.jobs.get(jobKey)
+			Expect(found).To(BeTrue())
+
+			// Update the schedule's spec, which replaces its job.
+			err = k8sclient.Get(ctx, req.NamespacedName, schedule)
+			Expect(err).NotTo(HaveOccurred())
+			schedule.Spec.Schedule = "0 */2 * * * *"
+			Expect(k8sclient.Update(ctx, schedule)).To(Succeed())
+
+			_, err = reconciler.Reconcile(ctx, req)
+			Expect(err).NotTo(HaveOccurred())
+
+			newJob, found := reconciler.jobs.get(jobKey)
+			Expect(found).To(BeTrue())
+			Expect(newJob).NotTo(BeIdenticalTo(oldJob))
+
+			// Quartz may already have dispatched a start for the old job. Running it would flag the
+			// cluster as active and re-arm the old job over the one which replaced it.
+			Expect(oldJob.Execute(ctx)).To(Succeed())
+
+			updatedCluster := &fleet.Cluster{}
+			err = k8sclient.Get(ctx, client.ObjectKeyFromObject(cluster), updatedCluster)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(updatedCluster.Status.ActiveSchedule).To(BeFalse())
+
+			scheduledJob, err := scheduler.GetScheduledJob(jobKey)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(scheduledJob.JobDetail().Job()).To(BeIdenticalTo(newJob))
+		})
+
 		It("should update the cluster's scheduled status when its labels no longer match", func() {
 			// Initial reconcile
 			_, err := reconciler.Reconcile(ctx, req)
@@ -312,13 +378,13 @@ var _ = Describe("ScheduleReconciler", func() {
 
 			// clusters 1, 2 and 3 should be scheduled in the quartz.Scheduler and also
 			// be flagged as Scheduled
-			checkState(scheduler, k8sclient, "test-cluster", "default",
+			checkState(reconciler, k8sclient, "test-cluster", "default",
 				expected{scheduledJob: true, statusScheduled: true, statusActiveSchedule: false})
-			checkState(scheduler, k8sclient, "test-cluster2", "default",
+			checkState(reconciler, k8sclient, "test-cluster2", "default",
 				expected{scheduledJob: true, statusScheduled: true, statusActiveSchedule: false})
-			checkState(scheduler, k8sclient, "test-cluster3", "default",
+			checkState(reconciler, k8sclient, "test-cluster3", "default",
 				expected{scheduledJob: true, statusScheduled: true, statusActiveSchedule: false})
-			checkState(scheduler, k8sclient, "test-cluster4", "default",
+			checkState(reconciler, k8sclient, "test-cluster4", "default",
 				expected{scheduledJob: false, statusScheduled: false, statusActiveSchedule: false})
 
 			// force the start of the schedule (so it sets .Status.ActiveSchedule=true)
@@ -334,13 +400,13 @@ var _ = Describe("ScheduleReconciler", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			// check now that the clusters have the expected values, specially Status.ActiveSchedule
-			checkState(scheduler, k8sclient, "test-cluster", "default",
+			checkState(reconciler, k8sclient, "test-cluster", "default",
 				expected{scheduledJob: true, statusScheduled: true, statusActiveSchedule: true})
-			checkState(scheduler, k8sclient, "test-cluster2", "default",
+			checkState(reconciler, k8sclient, "test-cluster2", "default",
 				expected{scheduledJob: true, statusScheduled: true, statusActiveSchedule: true})
-			checkState(scheduler, k8sclient, "test-cluster3", "default",
+			checkState(reconciler, k8sclient, "test-cluster3", "default",
 				expected{scheduledJob: true, statusScheduled: true, statusActiveSchedule: true})
-			checkState(scheduler, k8sclient, "test-cluster4", "default",
+			checkState(reconciler, k8sclient, "test-cluster4", "default",
 				expected{scheduledJob: false, statusScheduled: false, statusActiveSchedule: false})
 
 			// update the schedule, now it only looks for the label foo=bar
@@ -360,15 +426,15 @@ var _ = Describe("ScheduleReconciler", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			// cluster 2 and 4 should be still targeted.
-			checkState(scheduler, k8sclient, "test-cluster", "default",
+			checkState(reconciler, k8sclient, "test-cluster", "default",
 				expected{scheduledJob: false, statusScheduled: false, statusActiveSchedule: false})
 			// cluster 2 had Status.ActiveSchedule set to true, but because we updated the Schedule
 			// it should be back to false.
-			checkState(scheduler, k8sclient, "test-cluster2", "default",
+			checkState(reconciler, k8sclient, "test-cluster2", "default",
 				expected{scheduledJob: true, statusScheduled: true, statusActiveSchedule: false})
-			checkState(scheduler, k8sclient, "test-cluster3", "default",
+			checkState(reconciler, k8sclient, "test-cluster3", "default",
 				expected{scheduledJob: false, statusScheduled: false, statusActiveSchedule: false})
-			checkState(scheduler, k8sclient, "test-cluster4", "default",
+			checkState(reconciler, k8sclient, "test-cluster4", "default",
 				expected{scheduledJob: true, statusScheduled: true, statusActiveSchedule: false})
 		})
 	})
@@ -376,17 +442,15 @@ var _ = Describe("ScheduleReconciler", func() {
 
 //nolint:unparam // namespace is always default, for now. That may change.
 func checkState(
-	scheduler quartz.Scheduler,
+	reconciler *ScheduleReconciler,
 	k8sclient client.Client,
 	cluster, namespace string,
 	expectedState expected) {
-	isScheduled, err := isClusterScheduled(scheduler, cluster, namespace)
-	Expect(err).NotTo(HaveOccurred())
-	Expect(isScheduled).To(Equal(expectedState.scheduledJob))
+	Expect(reconciler.jobs.isClusterScheduled(cluster, namespace)).To(Equal(expectedState.scheduledJob))
 
 	key := client.ObjectKey{Name: cluster, Namespace: namespace}
 	clusterObj := &fleet.Cluster{}
-	err = k8sclient.Get(context.Background(), key, clusterObj)
+	err := k8sclient.Get(context.Background(), key, clusterObj)
 	Expect(err).NotTo(HaveOccurred())
 	Expect(clusterObj.Status.Scheduled).To(Equal(expectedState.statusScheduled))
 	Expect(clusterObj.Status.ActiveSchedule).To(Equal(expectedState.statusActiveSchedule))
