@@ -1,0 +1,932 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1/fleet-yaml",
+  "$defs": {
+    "AlphabeticalPolicy": {
+      "properties": {
+        "order": {
+          "type": "string",
+          "description": "Order specifies the sorting order of the tags. Given the letters of the\nalphabet as tags, ascending order would select Z, and descending order\nwould select A."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "AlphabeticalPolicy specifies a alphabetical ordering policy."
+    },
+    "BundleHelmOptions": {
+      "properties": {
+        "helmOpSecretName": {
+          "type": "string",
+          "description": "SecretName stores the secret name for storing credentials when accessing\na remote helm repository defined in a HelmOp resource"
+        },
+        "helmOpInsecureSkipTLSVerify": {
+          "type": "boolean",
+          "description": "InsecureSkipTLSverify will use insecure HTTPS to clone the helm app resource."
+        },
+        "helmOpCABundle": {
+          "type": "string",
+          "contentEncoding": "base64",
+          "description": "CABundle is a PEM encoded CA bundle used to validate TLS connections to\nthe Helm registry. It is resolved by the controller (which has access to\nRancher's cattle-system CA secrets, if any) and stored here so the agent can use\nit without requiring access to those secrets."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "BundleRef": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the bundle."
+        },
+        "selector": {
+          "$ref": "#/$defs/LabelSelector",
+          "description": "Selector matching bundle's labels."
+        },
+        "acceptedStates": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "AcceptedStates is a list of BundleDeployment state that are considered acceptable for this dependency.\nIf the dependency is in one of these states, it will not block the deployment of the dependent bundle.\nValid Values should match the StateRank keys.\nIf not specified, default to [\"Ready\"]: only fully ready dependencies are accepted\nExample: [\"Ready\", \"Modified\"] will accept dependencies that are either ready or have drifted from their desired state."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "BundleResource": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the resource, can include the bundle's internal path."
+        },
+        "content": {
+          "type": "string",
+          "description": "The content of the resource, can be compressed."
+        },
+        "encoding": {
+          "type": "string",
+          "description": "Encoding is either empty or \"base64+gz\"."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "BundleResource represents the content of a single resource from the bundle, like a YAML manifest."
+    },
+    "BundleTarget": {
+      "properties": {
+        "yaml": {
+          "$ref": "#/$defs/YAMLOptions",
+          "description": "YAML options, if using raw YAML these are names that map to\noverlays/{name} files that will be used to replace or patch a resource."
+        },
+        "kustomize": {
+          "$ref": "#/$defs/KustomizeOptions",
+          "description": "Kustomize options for the deployment, like the dir containing the\nkustomization.yaml file."
+        },
+        "defaultNamespace": {
+          "type": "string",
+          "description": "DefaultNamespace is the namespace to use for resources that do not\nspecify a namespace. This field is not used to enforce or lock down\nthe deployment to a specific namespace."
+        },
+        "namespace": {
+          "type": "string",
+          "description": "TargetNamespace if present will assign all resource to this\nnamespace and if any cluster scoped resource exists the deployment\nwill fail."
+        },
+        "helm": {
+          "$ref": "#/$defs/HelmOptions",
+          "description": "Helm options for the deployment, like the chart name, repo and values."
+        },
+        "serviceAccount": {
+          "type": "string",
+          "description": "ServiceAccount which will be used to perform this deployment."
+        },
+        "createNamespace": {
+          "type": "boolean",
+          "description": "CreateNamespace controls whether Fleet creates the target namespace on\ndownstream clusters during Helm installs. When nil, the default behavior\nis to create the namespace (backward-compatible). Set to false by the\ncontroller when Policy requires a ServiceAccount and does not explicitly\nallow namespace creation. This does not affect namespaceLabels/\nnamespaceAnnotations patching, which is always attempted (when set) as\nthe deployment's ServiceAccount and gated by downstream RBAC."
+        },
+        "forceSyncGeneration": {
+          "type": "integer",
+          "description": "ForceSyncGeneration is used to force a redeployment"
+        },
+        "diff": {
+          "$ref": "#/$defs/DiffOptions",
+          "description": "Diff can be used to ignore the modified state of objects which are amended at runtime."
+        },
+        "keepResources": {
+          "type": "boolean",
+          "description": "KeepResources can be used to keep the deployed resources when removing the bundle"
+        },
+        "deleteNamespace": {
+          "type": "boolean",
+          "description": "DeleteNamespace can be used to delete the deployed namespace when removing the bundle"
+        },
+        "ignore": {
+          "$ref": "#/$defs/IgnoreOptions",
+          "description": "IgnoreOptions can be used to ignore fields when monitoring the bundle."
+        },
+        "correctDrift": {
+          "$ref": "#/$defs/CorrectDrift",
+          "description": "CorrectDrift specifies how drift correction should work."
+        },
+        "namespaceLabels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object",
+          "description": "NamespaceLabels are labels that will be appended to the namespace created by Fleet."
+        },
+        "namespaceAnnotations": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object",
+          "description": "NamespaceAnnotations are annotations that will be appended to the namespace created by Fleet."
+        },
+        "deleteCRDResources": {
+          "type": "boolean",
+          "description": "DeleteCRDResources deletes CRDs. Warning! this will also delete all your Custom Resources."
+        },
+        "downstreamResources": {
+          "items": {
+            "$ref": "#/$defs/DownstreamResource"
+          },
+          "type": "array",
+          "description": "DownstreamResources points to resources to be copied into downstream clusters, from the bundle's\nnamespace."
+        },
+        "overwrites": {
+          "items": {
+            "$ref": "#/$defs/OverwrittenResource"
+          },
+          "type": "array",
+          "description": "Overwrites indicates which resources, if any, come from this bundle and overwrite another existing bundle.\nThis flag is set internally by Fleet, and should not be altered by users."
+        },
+        "allowedTargetNamespaceSelector": {
+          "$ref": "#/$defs/LabelSelector",
+          "description": "AllowedTargetNamespaceSelector restricts deployments to namespaces matching this selector.\nPropagated from GitRepoRestriction and validated by the agent on the downstream cluster."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of target. This value is largely for display and logging. If\nnot specified a default name of the format \"target000\" will be used"
+        },
+        "clusterName": {
+          "type": "string",
+          "description": "ClusterName to match a specific cluster by name that will be\nselected"
+        },
+        "clusterSelector": {
+          "$ref": "#/$defs/LabelSelector",
+          "description": "ClusterSelector is a selector to match clusters. The structure is\nthe standard metav1.LabelSelector format. If clusterGroupSelector or\nclusterGroup is specified, clusterSelector will be used only to\nfurther refine the selection after clusterGroupSelector and\nclusterGroup is evaluated."
+        },
+        "clusterGroup": {
+          "type": "string",
+          "description": "ClusterGroup to match a specific cluster group by name."
+        },
+        "clusterGroupSelector": {
+          "$ref": "#/$defs/LabelSelector",
+          "description": "ClusterGroupSelector is a selector to match cluster groups."
+        },
+        "doNotDeploy": {
+          "type": "boolean",
+          "description": "DoNotDeploy if set to true, will not deploy to this target."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "BundleTarget declares clusters to deploy to."
+    },
+    "BundleTargetRestriction": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "clusterName": {
+          "type": "string"
+        },
+        "clusterSelector": {
+          "$ref": "#/$defs/LabelSelector"
+        },
+        "clusterGroup": {
+          "type": "string"
+        },
+        "clusterGroupSelector": {
+          "$ref": "#/$defs/LabelSelector"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "BundleTargetRestriction is used internally by Fleet and should not be modified."
+    },
+    "ComparePatch": {
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "APIVersion is the apiVersion of the resource to match."
+        },
+        "kind": {
+          "type": "string",
+          "description": "Kind is the kind of the resource to match."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name is the name of the resource to match."
+        },
+        "namespace": {
+          "type": "string",
+          "description": "Namespace is the namespace of the resource to match."
+        },
+        "jsonPointers": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "JSONPointers ignore diffs at a certain JSON path."
+        },
+        "operations": {
+          "items": {
+            "$ref": "#/$defs/Operation"
+          },
+          "type": "array",
+          "description": "Operations remove a JSON path from the resource."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "ComparePatch matches a resource and removes fields from the check for modifications."
+    },
+    "ConfigMapKeySelector": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of a resource in the same namespace as the referent."
+        },
+        "namespace": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name"
+      ]
+    },
+    "CorrectDrift": {
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enabled correct drift if true."
+        },
+        "force": {
+          "type": "boolean",
+          "description": "Force helm rollback with --force option will be used if true. This will try to recreate all resources in the release."
+        },
+        "keepFailHistory": {
+          "type": "boolean",
+          "description": "KeepFailHistory keeps track of failed rollbacks in the helm history."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "DiffOptions": {
+      "properties": {
+        "comparePatches": {
+          "items": {
+            "$ref": "#/$defs/ComparePatch"
+          },
+          "type": "array",
+          "description": "ComparePatches match a resource and remove fields, or the resource itself from the check for modifications."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "DownstreamResource": {
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "DownstreamResource contains identifiers for a resource to be copied from the parent bundle's namespace to each downstream cluster."
+    },
+    "GitTarget": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name is the name of this target."
+        },
+        "clusterName": {
+          "type": "string",
+          "description": "ClusterName is the name of a cluster."
+        },
+        "clusterSelector": {
+          "$ref": "#/$defs/LabelSelector",
+          "description": "ClusterSelector is a label selector to select clusters."
+        },
+        "clusterGroup": {
+          "type": "string",
+          "description": "ClusterGroup is the name of a cluster group in the same namespace as the clusters."
+        },
+        "clusterGroupSelector": {
+          "$ref": "#/$defs/LabelSelector",
+          "description": "ClusterGroupSelector is a label selector to select cluster groups."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "GitTarget is a cluster or cluster group to deploy to."
+    },
+    "HelmOptions": {
+      "properties": {
+        "valuesFiles": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "ValuesFiles is a list of files to load values from."
+        },
+        "chart": {
+          "type": "string",
+          "description": "Chart can refer to any go-getter URL or OCI registry based helm\nchart URL. The chart will be downloaded."
+        },
+        "repo": {
+          "type": "string",
+          "description": "Repo is the name of the HTTPS helm repo to download the chart from."
+        },
+        "releaseName": {
+          "type": "string",
+          "description": "ReleaseName sets a custom release name to deploy the chart as. If\nnot specified a release name will be generated by combining the\ninvoking GitRepo.name + GitRepo.path."
+        },
+        "version": {
+          "type": "string",
+          "description": "Version of the chart to download"
+        },
+        "timeoutSeconds": {
+          "type": "integer",
+          "description": "TimeoutSeconds is the time to wait for Helm operations."
+        },
+        "values": {
+          "type": "object",
+          "description": "Values passed to Helm. It is possible to specify the keys and values\nas go template strings."
+        },
+        "templateValues": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object",
+          "description": "Template Values passed to Helm. It is possible to specify the keys and values\nas go template strings. Unlike .values, content of each key will be templated\nfirst, before serializing to yaml. This allows to template complex values,\nlike ranges and maps.\ntemplateValues keys have precedence over values keys in case of conflict."
+        },
+        "valuesFrom": {
+          "items": {
+            "$ref": "#/$defs/ValuesFrom"
+          },
+          "type": "array",
+          "description": "ValuesFrom loads the values from configmaps and secrets."
+        },
+        "force": {
+          "type": "boolean",
+          "description": "Force allows to override immutable resources. This could be dangerous."
+        },
+        "takeOwnership": {
+          "type": "boolean",
+          "description": "TakeOwnership makes helm skip the check for its own annotations"
+        },
+        "maxHistory": {
+          "type": "integer",
+          "description": "MaxHistory limits the maximum number of revisions saved per release by Helm."
+        },
+        "waitForJobs": {
+          "type": "boolean",
+          "description": "WaitForJobs if set and timeoutSeconds provided, will wait until all\nJobs have been completed before marking the GitRepo as ready. It\nwill wait for as long as timeoutSeconds"
+        },
+        "atomic": {
+          "type": "boolean",
+          "description": "Atomic sets the --atomic flag when Helm is performing an upgrade"
+        },
+        "disablePreProcess": {
+          "type": "boolean",
+          "description": "DisablePreProcess disables template processing in values"
+        },
+        "disableDNS": {
+          "type": "boolean",
+          "description": "DisableDNS can be used to customize Helm's EnableDNS option, which Fleet sets to `true` by default."
+        },
+        "skipSchemaValidation": {
+          "type": "boolean",
+          "description": "SkipSchemaValidation allows skipping schema validation against the chart values"
+        },
+        "disableDependencyUpdate": {
+          "type": "boolean",
+          "description": "DisableDependencyUpdate allows skipping chart dependencies update"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "HelmOptions for the deployment."
+    },
+    "IgnoreOptions": {
+      "properties": {
+        "conditions": {
+          "items": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "type": "array",
+          "description": "Conditions is a list of conditions to be ignored when monitoring the Bundle."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "IgnoreOptions defines conditions to be ignored when monitoring the Bundle."
+    },
+    "ImagePolicyChoice": {
+      "properties": {
+        "semver": {
+          "$ref": "#/$defs/SemVerPolicy",
+          "description": "SemVer gives a semantic version range to check against the tags\navailable."
+        },
+        "alphabetical": {
+          "$ref": "#/$defs/AlphabeticalPolicy",
+          "description": "Alphabetical set of rules to use for alphabetical ordering of the tags."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "ImagePolicyChoice is a union of all the types of policy that can be supplied."
+    },
+    "ImageScanYAML": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the image scan. Unused."
+        },
+        "tagName": {
+          "type": "string",
+          "description": "TagName is the tag ref that needs to be put in manifest to replace fields"
+        },
+        "gitrepoName": {
+          "type": "string",
+          "description": "GitRepo reference name"
+        },
+        "image": {
+          "type": "string",
+          "description": "Image is the name of the image repository"
+        },
+        "interval": {
+          "type": "string",
+          "description": "Interval is the length of time to wait between\nscans of the image repository."
+        },
+        "secretRef": {
+          "$ref": "#/$defs/LocalObjectReference",
+          "description": "SecretRef can be given the name of a secret containing\ncredentials to use for the image registry. The secret should be\ncreated with `kubectl create secret docker-registry`, or the\nequivalent."
+        },
+        "suspend": {
+          "type": "boolean",
+          "description": "This flag tells the controller to suspend subsequent image scans.\nIt does not apply to already started scans. Defaults to false."
+        },
+        "policy": {
+          "$ref": "#/$defs/ImagePolicyChoice",
+          "description": "Policy gives the particulars of the policy to be followed in\nselecting the most recent image"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "policy"
+      ],
+      "description": "ImageScanYAML is a single entry in the ImageScan list from fleet.yaml."
+    },
+    "KustomizeOptions": {
+      "properties": {
+        "dir": {
+          "type": "string",
+          "description": "Dir points to a custom folder for kustomize resources. This folder must contain\na kustomization.yaml file."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "KustomizeOptions for a deployment."
+    },
+    "LabelSelector": {
+      "properties": {
+        "matchLabels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "matchExpressions": {
+          "items": {
+            "$ref": "#/$defs/LabelSelectorRequirement"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "LabelSelectorRequirement": {
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "operator": {
+          "type": "string"
+        },
+        "values": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "key",
+        "operator"
+      ]
+    },
+    "LocalObjectReference": {
+      "properties": {
+        "name": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Operation": {
+      "properties": {
+        "op": {
+          "type": "string",
+          "description": "Op is usually \"remove\" or \"ignore\""
+        },
+        "path": {
+          "type": "string",
+          "description": "Path is the JSON path to remove. Not needed if Op is \"ignore\"."
+        },
+        "value": {
+          "type": "string",
+          "description": "Value is usually empty."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "Operation of a ComparePatch, usually: * \"remove\" to remove a specific path in a resource * \"ignore\" to remove the entire resource from checks for modifications."
+    },
+    "OverwrittenResource": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "namespace": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Partition": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "A user-friendly name given to the partition used for Display (optional)."
+        },
+        "maxUnavailable": {
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "description": "A number or percentage of clusters that can be unavailable in this\npartition before this partition is treated as done.\ndefault: 10%"
+        },
+        "clusterName": {
+          "type": "string",
+          "description": "ClusterName is the name of a cluster to include in this partition"
+        },
+        "clusterSelector": {
+          "$ref": "#/$defs/LabelSelector",
+          "description": "Selector matching cluster labels to include in this partition"
+        },
+        "clusterGroup": {
+          "type": "string",
+          "description": "A cluster group name to include in this partition"
+        },
+        "clusterGroupSelector": {
+          "$ref": "#/$defs/LabelSelector",
+          "description": "Selector matching cluster group labels to include in this partition"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "Partition defines a separate rollout strategy for a set of clusters."
+    },
+    "RolloutStrategy": {
+      "properties": {
+        "maxUnavailable": {
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "description": "A number or percentage of clusters that can be unavailable during an update\nof a bundle. This follows the same basic approach as a deployment rollout\nstrategy. Once the number of clusters meets unavailable state update will be\npaused. Default value is 100% which doesn't take effect on update.\ndefault: 100%"
+        },
+        "maxUnavailablePartitions": {
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "description": "A number or percentage of cluster partitions that can be unavailable during\nan update of a bundle.\ndefault: 0"
+        },
+        "autoPartitionSize": {
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "description": "A number or percentage of how to automatically partition clusters if no\nspecific partitioning strategy is configured.\ndefault: 25%"
+        },
+        "autoPartitionThreshold": {
+          "type": "integer",
+          "description": "AutoPartitionThreshold is the minimum number of clusters that need to be\npresent before auto-partitioning is enabled. If the number of target\nclusters is less than this value, all clusters will be placed in a single\npartition.\ndefault: 200"
+        },
+        "maxNew": {
+          "type": "integer",
+          "description": "MaxNew is the maximum number of new BundleDeployments that can be created\nin a single reconciliation. This limits the rate at which new deployments\nare staged when a bundle is first applied to many clusters.\ndefault: 50"
+        },
+        "partitions": {
+          "items": {
+            "$ref": "#/$defs/Partition"
+          },
+          "type": "array",
+          "description": "A list of definitions of partitions.  If any target clusters do not match\nthe configuration they are added to partitions at the end following the\nautoPartitionSize."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "RolloutStrategy controls the rollout of the bundle across clusters."
+    },
+    "SecretKeySelector": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of a resource in the same namespace as the referent."
+        },
+        "namespace": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name"
+      ]
+    },
+    "SemVerPolicy": {
+      "properties": {
+        "range": {
+          "type": "string",
+          "description": "Range gives a semver range for the image tag; the highest\nversion within the range that's a tag yields the latest image."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "range"
+      ],
+      "description": "SemVerPolicy specifies a semantic version policy."
+    },
+    "ValuesFrom": {
+      "properties": {
+        "configMapKeyRef": {
+          "$ref": "#/$defs/ConfigMapKeySelector",
+          "description": "The reference to a config map with release values."
+        },
+        "secretKeyRef": {
+          "$ref": "#/$defs/SecretKeySelector",
+          "description": "The reference to a secret with release values."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "Define helm values that can come from configmap, secret or external."
+    },
+    "YAMLOptions": {
+      "properties": {
+        "overlays": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Overlays is a list of names that maps to folders in \"overlays/\".\nIf you wish to customize the file ./subdir/resource.yaml then a file\n./overlays/myoverlay/subdir/resource.yaml will replace the base\nfile.\nA file named ./overlays/myoverlay/subdir/resource_patch.yaml will patch the base file."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "YAMLOptions, if using raw YAML these are names that map to overlays/{name} files that will be used to replace or patch a resource."
+    }
+  },
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Name of the bundle which will be created."
+    },
+    "labels": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "type": "object",
+      "description": "Labels are copied to the bundle and can be used in a\ndependsOn.selector."
+    },
+    "yaml": {
+      "$ref": "#/$defs/YAMLOptions",
+      "description": "YAML options, if using raw YAML these are names that map to\noverlays/{name} files that will be used to replace or patch a resource."
+    },
+    "kustomize": {
+      "$ref": "#/$defs/KustomizeOptions",
+      "description": "Kustomize options for the deployment, like the dir containing the\nkustomization.yaml file."
+    },
+    "defaultNamespace": {
+      "type": "string",
+      "description": "DefaultNamespace is the namespace to use for resources that do not\nspecify a namespace. This field is not used to enforce or lock down\nthe deployment to a specific namespace."
+    },
+    "namespace": {
+      "type": "string",
+      "description": "TargetNamespace if present will assign all resource to this\nnamespace and if any cluster scoped resource exists the deployment\nwill fail."
+    },
+    "helm": {
+      "$ref": "#/$defs/HelmOptions",
+      "description": "Helm options for the deployment, like the chart name, repo and values."
+    },
+    "serviceAccount": {
+      "type": "string",
+      "description": "ServiceAccount which will be used to perform this deployment."
+    },
+    "createNamespace": {
+      "type": "boolean",
+      "description": "CreateNamespace controls whether Fleet creates the target namespace on\ndownstream clusters during Helm installs. When nil, the default behavior\nis to create the namespace (backward-compatible). Set to false by the\ncontroller when Policy requires a ServiceAccount and does not explicitly\nallow namespace creation. This does not affect namespaceLabels/\nnamespaceAnnotations patching, which is always attempted (when set) as\nthe deployment's ServiceAccount and gated by downstream RBAC."
+    },
+    "forceSyncGeneration": {
+      "type": "integer",
+      "description": "ForceSyncGeneration is used to force a redeployment"
+    },
+    "diff": {
+      "$ref": "#/$defs/DiffOptions",
+      "description": "Diff can be used to ignore the modified state of objects which are amended at runtime."
+    },
+    "keepResources": {
+      "type": "boolean",
+      "description": "KeepResources can be used to keep the deployed resources when removing the bundle"
+    },
+    "deleteNamespace": {
+      "type": "boolean",
+      "description": "DeleteNamespace can be used to delete the deployed namespace when removing the bundle"
+    },
+    "ignore": {
+      "$ref": "#/$defs/IgnoreOptions",
+      "description": "IgnoreOptions can be used to ignore fields when monitoring the bundle."
+    },
+    "correctDrift": {
+      "$ref": "#/$defs/CorrectDrift",
+      "description": "CorrectDrift specifies how drift correction should work."
+    },
+    "namespaceLabels": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "type": "object",
+      "description": "NamespaceLabels are labels that will be appended to the namespace created by Fleet."
+    },
+    "namespaceAnnotations": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "type": "object",
+      "description": "NamespaceAnnotations are annotations that will be appended to the namespace created by Fleet."
+    },
+    "deleteCRDResources": {
+      "type": "boolean",
+      "description": "DeleteCRDResources deletes CRDs. Warning! this will also delete all your Custom Resources."
+    },
+    "downstreamResources": {
+      "items": {
+        "$ref": "#/$defs/DownstreamResource"
+      },
+      "type": "array",
+      "description": "DownstreamResources points to resources to be copied into downstream clusters, from the bundle's\nnamespace."
+    },
+    "overwrites": {
+      "items": {
+        "$ref": "#/$defs/OverwrittenResource"
+      },
+      "type": "array",
+      "description": "Overwrites indicates which resources, if any, come from this bundle and overwrite another existing bundle.\nThis flag is set internally by Fleet, and should not be altered by users."
+    },
+    "allowedTargetNamespaceSelector": {
+      "$ref": "#/$defs/LabelSelector",
+      "description": "AllowedTargetNamespaceSelector restricts deployments to namespaces matching this selector.\nPropagated from GitRepoRestriction and validated by the agent on the downstream cluster."
+    },
+    "paused": {
+      "type": "boolean",
+      "description": "Paused if set to true, will stop any BundleDeployments from being updated. It will be marked as out of sync."
+    },
+    "rolloutStrategy": {
+      "$ref": "#/$defs/RolloutStrategy",
+      "description": "RolloutStrategy controls the rollout of bundles, by defining\npartitions, canaries and percentages for cluster availability."
+    },
+    "resources": {
+      "items": {
+        "$ref": "#/$defs/BundleResource"
+      },
+      "type": "array",
+      "description": "Resources contains the resources that were read from the bundle's\npath. This includes the content of downloaded helm charts."
+    },
+    "targetCustomizationMode": {
+      "type": "string",
+      "description": "TargetCustomizationMode controls how targetCustomizations from fleet.yaml\nare evaluated. \"FirstMatch\" (default) stops at the first matching entry.\n\"AllMatches\" applies all matching entries in order, merging them."
+    },
+    "targets": {
+      "items": {
+        "$ref": "#/$defs/BundleTarget"
+      },
+      "type": "array",
+      "description": "Targets refer to the clusters which will be deployed to.\nTargets are evaluated in order and the first one to match is used."
+    },
+    "targetRestrictions": {
+      "items": {
+        "$ref": "#/$defs/BundleTargetRestriction"
+      },
+      "type": "array",
+      "description": "TargetRestrictions is an allow list, which controls if a bundledeployment is created for a target."
+    },
+    "dependsOn": {
+      "items": {
+        "$ref": "#/$defs/BundleRef"
+      },
+      "type": "array",
+      "description": "DependsOn refers to the bundles which must be ready before this bundle can be deployed."
+    },
+    "contentsId": {
+      "type": "string",
+      "description": "ContentsID stores the contents id when deploying contents using an OCI registry."
+    },
+    "helmOpOptions": {
+      "$ref": "#/$defs/BundleHelmOptions",
+      "description": "HelmOpOptions stores the options relative to HelmOp resources\nNon-nil HelmOpOptions indicate that the source of resources is a Helm chart,\nnot a git repository."
+    },
+    "valuesHash": {
+      "type": "string",
+      "description": "ValuesHash is the hash of the values used to render the Helm chart.\nIt changes when any values from fleet.yaml, values from ValuesFiles or values from target\ncustomization changes."
+    },
+    "targetCustomizations": {
+      "items": {
+        "$ref": "#/$defs/BundleTarget"
+      },
+      "type": "array",
+      "description": "TargetCustomizations are used to determine how resources should be\nmodified per target. Targets are evaluated in order. By default\n(FirstMatch) the first one to match a cluster is used for that cluster.\nIf targetCustomizationMode is set to AllMatches, all matching entries\nare merged in order."
+    },
+    "imageScans": {
+      "items": {
+        "$ref": "#/$defs/ImageScanYAML"
+      },
+      "type": "array",
+      "description": "ImageScans are optional and used to update container image\nreferences in the git repo."
+    },
+    "overrideTargets": {
+      "items": {
+        "$ref": "#/$defs/GitTarget"
+      },
+      "type": "array",
+      "description": "OverrideTargets overrides targets that are defined in the GitRepo\nresource. If overrideTargets is provided the bundle will not inherit\ntargets from the GitRepo."
+    }
+  },
+  "additionalProperties": false,
+  "type": "object",
+  "description": "FleetYAML is the top-level structure of the fleet.yaml file."
+}
