@@ -47,8 +47,8 @@ bump_fleet_module() {
 
 RANCHER_DIR="${RANCHER_DIR:-"$(dirname -- "$0")/../../../rancher"}"
 
-# this script may run from a different Fleet checkout than the one being
-# released, so the two must not be conflict. Resolved to an absolute path
+# This script may run from a different Fleet checkout than the one being
+# released, so the two must not conflict. Resolve FLEET_REPO_DIR to an absolute path
 # because every read below happens after the pushd.
 FLEET_REPO_DIR="${FLEET_REPO_DIR:-"$(dirname -- "$0")/../.."}"
 FLEET_REPO_DIR="$(cd -- "${FLEET_REPO_DIR}" && pwd)"
