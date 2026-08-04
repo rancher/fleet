@@ -21,7 +21,7 @@ bump_fleet_module() {
     # Guard against a tag that predates the module being split out of the main
     # Fleet module: without its own go.mod, `go get` silently falls back to
     # resolving the root `github.com/rancher/fleet` module instead.
-    if ! git -C ../fleet cat-file -e "${tag}:$1/go.mod" 2>/dev/null; then
+    if ! git -C "${FLEET_REPO_DIR}" cat-file -e "${tag}:$1/go.mod" 2>/dev/null; then
         printf 'ERROR: %s does not contain %s/go.mod\n' "${tag}" "$1" >&2
         printf 'The tag does not point at a standalone Go module; refusing to bump.\n' >&2
         exit 1
@@ -46,6 +46,12 @@ bump_fleet_module() {
 }
 
 RANCHER_DIR="${RANCHER_DIR:-"$(dirname -- "$0")/../../../rancher"}"
+
+# this script may run from a different Fleet checkout than the one being
+# released, so the two must not be conflict. Resolved to an absolute path
+# because every read below happens after the pushd.
+FLEET_REPO_DIR="${FLEET_REPO_DIR:-"$(dirname -- "$0")/../.."}"
+FLEET_REPO_DIR="$(cd -- "${FLEET_REPO_DIR}" && pwd)"
 
 pushd "${RANCHER_DIR}" > /dev/null
 
@@ -100,13 +106,13 @@ go generate
 git add build.yaml pkg/buildconfig/constants.go
 
 # Bump the Fleet API when a pkg/apis tag for this exact version exists in the fleet repo.
-if git -C ../fleet tag -l "pkg/apis/v${NEW_FLEET_VERSION}" | grep -q .; then
+if git -C "${FLEET_REPO_DIR}" tag -l "pkg/apis/v${NEW_FLEET_VERSION}" | grep -q .; then
     bump_fleet_module pkg/apis
 fi
 
 # Bump the Fleet helmvalues module when a pkg/helmvalues tag for this exact version
 # exists in the fleet repo.
-if git -C ../fleet tag -l "pkg/helmvalues/v${NEW_FLEET_VERSION}" | grep -q .; then
+if git -C "${FLEET_REPO_DIR}" tag -l "pkg/helmvalues/v${NEW_FLEET_VERSION}" | grep -q .; then
     bump_fleet_module pkg/helmvalues
 fi
 

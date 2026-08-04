@@ -35,11 +35,20 @@ jobs:
       contents: read
 
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Checkout Fleet (scripts)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: fleet
+          persist-credentials: false
+
+      # Release checkout, at the branch being released. Used only as a data
+      # source: git tags, and which submodules are split out on that branch.
+      - name: Checkout Fleet (release branch)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           ref: ${{ inputs.fleet_branch }}
-          path: fleet
+          path: fleet-release
           persist-credentials: false
 
       - name: Compute versions
@@ -47,6 +56,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           FLEET_BRANCH: ${{ inputs.fleet_branch }}
+          FLEET_REPO_DIR: ./fleet-release
         run: fleet/.github/scripts/compute-rancher-versions.sh
 
       - name: Checkout rancher/rancher
@@ -71,19 +81,19 @@ jobs:
           fi
 
           # For a new final minor version, every Fleet submodule that has already been split
-          # out on this branch (i.e. <mod>/go.mod exists in the fleet checkout) must be tagged,
+          # out on this branch (i.e. <mod>/go.mod exists in the release checkout) must be tagged,
           # and the tag must point at a commit that actually contains <mod>/go.mod. A submodule
           # not yet split out on this branch (e.g. pkg/helmvalues before it is backported) is not
           # required, since rancher/rancher cannot consume it yet either way.
           if [[ "${NEW_FLEET}" =~ \.0$ ]]; then
             for mod in pkg/apis pkg/helmvalues; do
-              if [ ! -f "fleet/${mod}/go.mod" ]; then
+              if [ ! -f "fleet-release/${mod}/go.mod" ]; then
                 printf 'INFO: %s/go.mod not present on this branch; skipping %s tag requirement\n' "${mod}" "${mod}"
                 continue
               fi
 
               tag="${mod}/v${NEW_FLEET}"
-              if ! git -C fleet tag -l "${tag}" | grep -q .; then
+              if ! git -C fleet-release tag -l "${tag}" | grep -q .; then
                 {
                   printf 'ERROR: %s tag not found in the fleet repo!\n' "${tag}"
                   printf 'For a new final minor version, %s must be bumped first.\n' "${mod}"
@@ -92,7 +102,7 @@ jobs:
                 exit 1
               fi
 
-              if ! git -C fleet cat-file -e "${tag}:${mod}/go.mod" 2>/dev/null; then
+              if ! git -C fleet-release cat-file -e "${tag}:${mod}/go.mod" 2>/dev/null; then
                 {
                   printf 'ERROR: %s exists but %s/go.mod is missing at that commit!\n' "${tag}" "${mod}"
                   printf 'The tag likely predates %s being split into its own Go module.\n' "${mod}"
@@ -105,7 +115,7 @@ jobs:
 
           # For any final version, rancher/rancher must not reference a pre-release Fleet API
           # so there must be a Fleet `pkg/apis/v<VERSION>` tag that the api is bumped in this action
-          if ! git -C fleet tag -l "pkg/apis/v${NEW_FLEET}" | grep -q .; then
+          if ! git -C fleet-release tag -l "pkg/apis/v${NEW_FLEET}" | grep -q .; then
             # Tag doesn't exist; check if rancher/rancher has a pre-release version that does not need to be bumped.
             RANCHER_FLEET_API_VERSION=$(grep 'github.com/rancher/fleet/pkg/apis' rancher/pkg/apis/go.mod | awk '{print $NF}')
             if [[ "${RANCHER_FLEET_API_VERSION:-}" =~ - ]]; then
@@ -123,7 +133,7 @@ jobs:
           # pre-release reference in a later file.
           # -o restricts the match to "<module> <version>" so a trailing " // indirect" is
           # excluded; otherwise awk would read "indirect" as the version and drop the match.
-          if ! git -C fleet tag -l "pkg/helmvalues/v${NEW_FLEET}" | grep -q .; then
+          if ! git -C fleet-release tag -l "pkg/helmvalues/v${NEW_FLEET}" | grep -q .; then
             RANCHER_FLEET_HELMVALUES_PRERELEASES=$(grep -rhsoE 'github.com/rancher/fleet/pkg/helmvalues[[:space:]]+v[0-9][^[:space:]]*' rancher --include=go.mod | awk '{print $NF}' | grep -- - | sort -u || true)
             if [ -n "${RANCHER_FLEET_HELMVALUES_PRERELEASES}" ]; then
               {
@@ -147,6 +157,8 @@ jobs:
         env:
           NEW_FLEET: ${{ steps.versions.outputs.new_fleet }}
           NEW_CHART: ${{ steps.versions.outputs.new_chart }}
+          # the script reads the absolute path after changing into the rancher checkout.
+          FLEET_REPO_DIR: ${{ github.workspace }}/fleet-release
         run: |
           ./fleet/.github/scripts/release-against-rancher.sh \
             "$NEW_FLEET" \
