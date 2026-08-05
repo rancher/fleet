@@ -15,6 +15,7 @@ import (
 	"github.com/Masterminds/semver/v3"
 	"github.com/go-logr/logr"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/kv"
+	"github.com/rancher/fleet/internal/cmd/controller/bundleevents"
 	fleetutil "github.com/rancher/fleet/internal/cmd/controller/errorutil"
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
@@ -71,6 +72,10 @@ type BundleReconciler struct {
 	Scheme    *runtime.Scheme
 	Recorder  events.EventRecorder
 	APIReader client.Reader
+
+	// Events reports the deployment state of the bundle's deployments. It
+	// may be nil, in which case no such events are created.
+	Events bundleevents.Notifier
 
 	Builder TargetBuilder
 	Store   Store
@@ -287,6 +292,12 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	if !bundle.DeletionTimestamp.IsZero() {
+		// The deployment state of a bundle which is going away is not
+		// worth reporting any more.
+		if r.Events != nil {
+			r.Events.Forget(bundle.UID)
+		}
+
 		return r.handleDelete(ctx, logger, req, bundle)
 	}
 
@@ -969,6 +980,16 @@ func (r *BundleReconciler) updateStatus(ctx context.Context, orig *fleet.Bundle,
 		return err
 	}
 	metrics.BundleCollector.Collect(ctx, bundle)
+
+	// The summary is only reported once it is persisted, and against the
+	// previously persisted one, so that the state change is detected even if
+	// the controller restarted in between. Reporting here, rather than at the
+	// end of Reconcile, covers the paths which persist a summary and then
+	// return early on an error.
+	if r.Events != nil {
+		r.Events.ObserveBundle(ctx, orig, bundle)
+	}
+
 	return nil
 }
 

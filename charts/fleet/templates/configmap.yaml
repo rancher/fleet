@@ -25,6 +25,20 @@ data:
       "imagePullSecrets": {{toJson .Values.global.cattle.imagePullSecrets}},
       {{ end }}
       "ignoreClusterRegistrationLabels": {{.Values.ignoreClusterRegistrationLabels}},
+      {{- with .Values.deploymentEvents }}
+      "deploymentEvents": {
+        "disabled": {{toJson .disabled}},
+        {{ if .debounce }}
+        "debounce": "{{.debounce}}",
+        {{ end }}
+        {{ if .minInterval }}
+        "minInterval": "{{.minInterval}}",
+        {{ end }}
+        "reportRecovery": {{toJson .reportRecovery}},
+        "perDeployment": {{toJson .perDeployment}},
+        "maxCauses": {{toJson .maxCauses}}
+      },
+      {{- end }}
       "bootstrap": {
         "paths": "{{.Values.bootstrap.paths}}",
         "repo": "{{.Values.bootstrap.repo}}",
