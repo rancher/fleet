@@ -2,7 +2,6 @@
 set -euo pipefail
 
 go generate
-ginkgo unfocus
 
 if [ -n "$(git status --porcelain)" ]; then
     printf 'Generated files have either been changed manually or were not updated.\n\n'

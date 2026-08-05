@@ -35,9 +35,6 @@ jobs:
         with:
           go-version-file: 'go.mod'
       -
-        name: Install Ginkgo CLI
-        run: go install github.com/onsi/ginkgo/v2/ginkgo
-      -
         name: Cache crust-gather CLI
         id: cache-crust
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -120,7 +117,7 @@ jobs:
         env:
           FLEET_E2E_NS: fleet-local
         run: |
-          ginkgo --github-output --trace --label-filter="!multi-cluster" e2e/installation
+          go test -v -count=1 -timeout=1h ./e2e/installation -args -ginkgo.github-output -ginkgo.trace -ginkgo.label-filter="!multi-cluster"
       -
         name: Upload Logs
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
