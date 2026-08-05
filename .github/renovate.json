@@ -54,6 +54,13 @@
       "extends": [
         "github>rancher/renovate-config//rancher-2.11#release"
       ]
+    },
+    {
+      "description": "Wait for paired Kubernetes updates in Helm values module",
+      "matchManagers": ["gomod"],
+      "matchFileNames": ["pkg/helmvalues/go.mod"],
+      "groupName": "Kubernetes dependencies",
+      "minimumGroupSize": 2
     }
   ]
 }
