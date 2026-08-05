@@ -59,6 +59,11 @@
       "description": "Wait for paired Kubernetes updates in Helm values module",
       "matchManagers": ["gomod"],
       "matchFileNames": ["pkg/helmvalues/go.mod"],
+      "matchPackageNames": [
+        "k8s.io/api",
+        "k8s.io/apimachinery"
+      ],
+      "enabled": true,
       "groupName": "Kubernetes dependencies",
       "minimumGroupSize": 2
     }
