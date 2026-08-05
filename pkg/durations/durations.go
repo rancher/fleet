@@ -46,6 +46,13 @@ const (
 	// a reconcile on its own, so the agent requeues at this interval to
 	// converge once the permission is added.
 	NamespacePermissionRequeueInterval = time.Minute * 2
+	// BundleEventsDebounce lets a burst of bundle deployment failures settle
+	// before it is reported as an event, so that the event describes the
+	// whole burst instead of only its first failure.
+	BundleEventsDebounce = time.Second * 5
+	// BundleEventsMinInterval is the minimum time between two events about
+	// the deployment state of the same object.
+	BundleEventsMinInterval = time.Minute * 1
 )
 
 // Equal reports whether the duration t is equal to u.
