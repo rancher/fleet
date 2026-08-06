@@ -65,6 +65,9 @@ const (
 
 	// reportingInstanceMaxLength is the maximum length the API accepts for reportingInstance.
 	reportingInstanceMaxLength = 128
+
+	// eventNameMaxLength is the maximum length the API accepts for an object name.
+	eventNameMaxLength = 253
 )
 
 // Notifier observes objects after their status has been updated, and reports
@@ -388,6 +391,17 @@ func (e *Emitter) dueTime(now, lastEmit time.Time, opts Options) time.Time {
 // do not fit stay queued and are retried on the next tick, where they may be
 // replaced by a newer description of the same object.
 func (e *Emitter) flush(ctx context.Context, opts Options) {
+	if !opts.Enabled {
+		// Options are read live, so reporting can be turned off while
+		// events are queued. Those describe a state which is still in the
+		// object's status, so they are dropped instead of being created
+		// after the fact. Dropping them also lets their entries be
+		// forgotten again, which a pending event exempts them from.
+		e.dropPending()
+
+		return
+	}
+
 	now := e.now()
 
 	for _, p := range e.claimDue(now) {
@@ -403,6 +417,18 @@ func (e *Emitter) flush(ctx context.Context, opts Options) {
 		}
 
 		e.recordEmit(p.uid, p.snap.fp, now, opts)
+	}
+}
+
+// dropPending discards every event waiting to be created.
+func (e *Emitter) dropPending() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	for _, ent := range e.entries {
+		ent.pending = nil
+		ent.dueAt = time.Time{}
+		ent.attempts = 0
 	}
 }
 
@@ -535,7 +561,7 @@ func (e *Emitter) create(ctx context.Context, snap *snapshot) error {
 
 	return e.client.Create(ctx, &eventsv1.Event{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("%s.%x", snap.regarding.Name, now.UnixNano()),
+			Name:      eventName(snap.regarding.Name, now),
 			Namespace: namespace,
 		},
 		EventTime:           metav1.MicroTime{Time: now},
@@ -547,6 +573,20 @@ func (e *Emitter) create(ctx context.Context, snap *snapshot) error {
 		Regarding:           snap.regarding,
 		Note:                snap.note,
 	})
+}
+
+// eventName builds the name of the event about an object, following the
+// convention used by client-go. The name of the object it is about is shortened
+// if the two together would not fit what the API accepts, since a rejected name
+// is a permanent error, which would drop the event.
+func eventName(regarding string, now time.Time) string {
+	suffix := fmt.Sprintf(".%x", now.UnixNano())
+	if len(regarding)+len(suffix) > eventNameMaxLength {
+		regarding = regarding[:eventNameMaxLength-len(suffix)]
+	}
+
+	// A name may not end in a separator, which cutting it can leave behind.
+	return strings.TrimRight(regarding, "-._") + suffix
 }
 
 // clearEmitted forgets which event was last created for an object, without

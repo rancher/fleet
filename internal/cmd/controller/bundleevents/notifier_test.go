@@ -19,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/util/validation"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/util/flowcontrol"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -399,6 +400,52 @@ func TestDisabledEmitsNothing(t *testing.T) {
 
 	if got := f.events(t); len(got) != 0 {
 		t.Fatalf("expected no events, got %d", len(got))
+	}
+}
+
+func TestDisablingDropsQueuedEvents(t *testing.T) {
+	f := newFixture(t, nil)
+
+	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)))
+
+	if ent := f.bundleEntry(); ent == nil || ent.pending == nil {
+		t.Fatal("expected the event to be queued while reporting is enabled")
+	}
+
+	f.opts.Enabled = false
+	f.flush(t)
+
+	if got := f.events(t); len(got) != 0 {
+		t.Fatalf("expected the queued event to be dropped, got %d", len(got))
+	}
+
+	// A pending event exempts the entry from the TTL, so it has to be
+	// cleared for the object to be forgotten again.
+	if ent := f.bundleEntry(); ent != nil && ent.pending != nil {
+		t.Fatal("expected the queued event to be cleared")
+	}
+}
+
+func TestEventNameFitsTheObjectNameLimit(t *testing.T) {
+	now := time.Date(2026, 7, 30, 10, 0, 0, 0, time.UTC)
+
+	for _, name := range []string{
+		"my-repo-app",
+		strings.Repeat("a", 236),
+		strings.Repeat("a", 253),
+		strings.Repeat("a", 235) + "-",
+	} {
+		got := eventName(name, now)
+
+		if len(got) > eventNameMaxLength {
+			t.Errorf("event name for a %d character object name is %d characters", len(name), len(got))
+		}
+		if errs := validation.IsDNS1123Subdomain(got); len(errs) > 0 {
+			t.Errorf("event name %q for a %d character object name is invalid: %v", got, len(name), errs)
+		}
+		if !strings.HasSuffix(got, fmt.Sprintf(".%x", now.UnixNano())) {
+			t.Errorf("event name %q does not carry the timestamp suffix", got)
+		}
 	}
 }
 
