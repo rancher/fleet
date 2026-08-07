@@ -24,4 +24,5 @@ jobs:
       - name: Run zizmor 🌈
         uses: zizmorcore/zizmor-action@6fc4b006235f201fdab3722e17240ab420d580e5 # v0.6.1
         with:
+          advanced-security: ${{ github.repository == 'rancher/fleet' }}
           config: .github/zizmor.yml
