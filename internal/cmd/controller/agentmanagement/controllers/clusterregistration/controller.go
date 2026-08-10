@@ -410,7 +410,7 @@ func sanitizeClusterLabels(request *fleet.ClusterRegistration) map[string]string
 	labels := make(map[string]string, len(request.Spec.ClusterLabels))
 	for k, v := range request.Spec.ClusterLabels {
 		if isReservedLabel(k) {
-			logrus.Warnf("ClusterRegistration %s/%s attempted to set reserved label %q; ignoring it",
+			logrus.Warnf("ClusterRegistration %s/%s attempted to set reserved label %q; ignoring that label",
 				request.Namespace, request.Name, k)
 			continue
 		}
