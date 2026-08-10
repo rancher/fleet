@@ -748,3 +748,30 @@ func TestTemplate_ToJsonFlowStyle(t *testing.T) {
 	_, err := Template(context.Background(), "test-bundle", m, opts, "v1.25.0")
 	require.NoError(t, err)
 }
+
+func TestTemplate_LeadingComment(t *testing.T) {
+	m := &manifest.Manifest{
+		Resources: []fleet.BundleResource{
+			{
+				Name:    "test-chart/Chart.yaml",
+				Content: "apiVersion: v2\nname: test-chart\nversion: 0.1.0\ntype: application\n",
+			},
+			{
+				Name:    "test-chart/templates/configmap.yaml",
+				Content: "{{- if .Values.configmap.enabled }}\n# ---------< SOME LABEL >---------\nkind: ConfigMap\napiVersion: v1\nmetadata:\n  name: some-envvar\n  namespace: {{ .Release.Namespace }}\ndata:\n  EXAMPLE_KEY: \"example-value\"\n{{- end }}\n",
+			},
+		},
+	}
+	opts := fleet.BundleDeploymentOptions{
+		DefaultNamespace: "default",
+		Helm: &fleet.HelmOptions{
+			Chart: "test-chart",
+			Values: &fleet.GenericMap{Data: map[string]any{
+				"configmap": map[string]any{"enabled": true},
+			}},
+		},
+	}
+	release, err := Template(context.Background(), "test-bundle", m, opts, "v1.25.0")
+	require.NoError(t, err)
+	require.Contains(t, release.Manifest, "kind: ConfigMap")
+}
