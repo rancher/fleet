@@ -110,7 +110,7 @@ type BundleSpec struct {
 	// Resources contains the resources that were read from the bundle's
 	// path. This includes the content of downloaded helm charts.
 	// +nullable
-	Resources []BundleResource `json:"resources,omitempty"`
+	Resources []BundleResource `json:"resources,omitempty" jsonschema:"-"`
 
 	// TargetCustomizationMode controls how targetCustomizations from fleet.yaml
 	// are evaluated. "FirstMatch" (default) stops at the first matching entry.
@@ -124,7 +124,7 @@ type BundleSpec struct {
 	Targets []BundleTarget `json:"targets,omitempty"`
 
 	// TargetRestrictions is an allow list, which controls if a bundledeployment is created for a target.
-	TargetRestrictions []BundleTargetRestriction `json:"targetRestrictions,omitempty"`
+	TargetRestrictions []BundleTargetRestriction `json:"targetRestrictions,omitempty" jsonschema:"-"`
 
 	// DependsOn refers to the bundles which must be ready before this bundle can be deployed.
 	// +nullable
@@ -132,18 +132,18 @@ type BundleSpec struct {
 
 	// ContentsID stores the contents id when deploying contents using an OCI registry.
 	// +nullable
-	ContentsID string `json:"contentsId,omitempty"`
+	ContentsID string `json:"contentsId,omitempty" jsonschema:"-"`
 
 	// HelmOpOptions stores the options relative to HelmOp resources
 	// Non-nil HelmOpOptions indicate that the source of resources is a Helm chart,
 	// not a git repository.
 	// +nullable
-	HelmOpOptions *BundleHelmOptions `json:"helmOpOptions,omitempty"`
+	HelmOpOptions *BundleHelmOptions `json:"helmOpOptions,omitempty" jsonschema:"-"`
 
 	// ValuesHash is the hash of the values used to render the Helm chart.
 	// It changes when any values from fleet.yaml, values from ValuesFiles or values from target
 	// customization changes.
-	ValuesHash string `json:"valuesHash,omitempty"`
+	ValuesHash string `json:"valuesHash,omitempty" jsonschema:"-"`
 }
 
 type BundleRef struct {
