@@ -2,12 +2,13 @@ package bootstrap
 
 import (
 	"context"
+	"fmt"
 	"maps"
 	"os"
 	"regexp"
 
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	secretutil "github.com/rancher/fleet/internal/cmd/controller/agentmanagement/secret"
 	fleetns "github.com/rancher/fleet/internal/cmd/controller/namespace"
@@ -68,7 +69,7 @@ func Register(ctx context.Context,
 }
 
 func (h *handler) OnConfig(config *fleetconfig.Config) error {
-	logrus.Debugf("Bootstrap config set, building namespace '%s', secret, local cluster, cluster group, ...", config.Bootstrap.Namespace)
+	log.Log.V(1).Info(fmt.Sprintf("Bootstrap config set, building namespace '%s', secret, local cluster, cluster group, ...", config.Bootstrap.Namespace))
 
 	var objs []runtime.Object
 	localClusterLabels := map[string]string{"name": fleet.LocalClusterName}
@@ -243,7 +244,7 @@ func (h *handler) getToken() (string, error) {
 
 	// kubernetes 1.24 doesn't populate sa.Secrets
 	if len(sa.Secrets) == 0 {
-		logrus.Infof("waiting on secret for service account %s/%s", h.systemNamespace, FleetBootstrap)
+		log.Log.Info(fmt.Sprintf("waiting on secret for service account %s/%s", h.systemNamespace, FleetBootstrap))
 		secret, err := secretutil.GetServiceAccountTokenSecret(sa, h.secretsController)
 		if err != nil {
 			return "", err

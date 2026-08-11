@@ -6,12 +6,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/rancher/fleet/internal/config"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/durations"
 	corecontrollers "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -55,7 +54,7 @@ func GetServiceAccountTokenSecret(sa *corev1.ServiceAccount, secretsController c
 
 func createServiceAccountTokenSecret(sa *corev1.ServiceAccount, secretsController corecontrollers.SecretController) (*corev1.Secret, error) {
 	// create the secret for the serviceAccount
-	logrus.Debugf("creating ServiceAccountTokenSecret for sa %v", sa.Name)
+	log.Log.V(1).Info(fmt.Sprintf("creating ServiceAccountTokenSecret for sa %v", sa.Name))
 	name := sa.Name + "-token"
 	sc := corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
@@ -82,15 +81,15 @@ func createServiceAccountTokenSecret(sa *corev1.ServiceAccount, secretsControlle
 		}
 		secret, err = secretsController.Get(sa.Namespace, name, metav1.GetOptions{})
 		if err != nil {
-			logrus.Debugf("secret %v already exists, error getting it", name)
+			log.Log.V(1).Info(fmt.Sprintf("secret %v already exists, error getting it", name))
 			return nil, fmt.Errorf("error getting secret: %w", err)
 		}
 	}
 	// Kubernetes auto populates the secret token after it is created, for which we should wait
-	logrus.Infof("Waiting for service account token key to be populated for secret %s/%s", secret.Namespace, secret.Name)
+	log.Log.Info(fmt.Sprintf("Waiting for service account token key to be populated for secret %s/%s", secret.Namespace, secret.Name))
 	if _, ok := secret.Data[corev1.ServiceAccountTokenKey]; !ok {
 		for {
-			logrus.Debugf("wait for svc account secret to be populated with token %s", secret.Name)
+			log.Log.V(1).Info("wait for svc account secret to be populated with token " + secret.Name)
 			time.Sleep(durations.ServiceTokenSleep)
 			secret, err = secretsController.Get(sa.Namespace, name, metav1.GetOptions{})
 			if err != nil {

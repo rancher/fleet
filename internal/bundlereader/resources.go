@@ -12,12 +12,12 @@ import (
 	"sync"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 
 	"github.com/rancher/wrangler/v3/pkg/data"
 
+	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/yaml"
 )
 
@@ -35,7 +35,7 @@ func readResources(ctx context.Context, spec *fleet.BundleSpec, compress bool, b
 
 	if spec.Helm != nil && (spec.Helm.Chart != "" || spec.Helm.Repo != "") {
 		if strings.HasPrefix(spec.Helm.Chart, ociURLPrefix) {
-			logrus.Warnf("helm.chart contains an OCI URL %q; use helm.repo instead (helm.chart for OCI URLs is deprecated)", spec.Helm.Chart)
+			log.Log.Info(fmt.Sprintf("helm.chart contains an OCI URL %q; use helm.repo instead (helm.chart for OCI URLs is deprecated)", spec.Helm.Chart))
 		}
 		if err := parseValuesFiles(base, spec.Helm); err != nil {
 			return nil, err
@@ -46,7 +46,7 @@ func readResources(ctx context.Context, spec *fleet.BundleSpec, compress bool, b
 	for _, target := range spec.Targets {
 		if target.Helm != nil {
 			if strings.HasPrefix(target.Helm.Chart, ociURLPrefix) {
-				logrus.Warnf("helm.chart contains an OCI URL %q in target customization %q; use helm.repo instead (helm.chart for OCI URLs is deprecated)", target.Helm.Chart, target.Name)
+				log.Log.Info(fmt.Sprintf("helm.chart contains an OCI URL %q in target customization %q; use helm.repo instead (helm.chart for OCI URLs is deprecated)", target.Helm.Chart, target.Name))
 			}
 			err := parseValuesFiles(base, target.Helm)
 			if err != nil {
@@ -230,7 +230,7 @@ func addRemoteCharts(ctx context.Context, directories []directory, base string, 
 					strippedCredentialsForEmptyRegex = true
 				}
 				if !warnedOnce && strippedCredentialsForEmptyRegex {
-					logrus.Warn("helmRepoURLRegex is empty: Helm credentials will not be forwarded to any repository; set spec.helmRepoURLRegex to enable credential forwarding")
+					log.Log.Info("helmRepoURLRegex is empty: Helm credentials will not be forwarded to any repository; set spec.helmRepoURLRegex to enable credential forwarding")
 					warnedOnce = true
 				}
 				// Only clear credentials; preserve transport settings (BasicHTTP, CABundle, InsecureSkipVerify)

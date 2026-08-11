@@ -2,14 +2,13 @@ package agentmanagement
 
 import (
 	"context"
+	"log"
 
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/controllers"
 
 	"github.com/rancher/wrangler/v3/pkg/kubeconfig"
 	"github.com/rancher/wrangler/v3/pkg/leader"
 	"github.com/rancher/wrangler/v3/pkg/schemes"
-
-	"github.com/sirupsen/logrus"
 
 	v1 "k8s.io/api/apps/v1"
 	policyv1 "k8s.io/api/policy/v1"
@@ -49,13 +48,13 @@ func start(ctx context.Context, kubeConfig, namespace string, disableBootstrap b
 	leader.RunOrDie(ctx, namespace, "fleet-agentmanagement-lock", k8s, func(ctx context.Context) {
 		appCtx, err := controllers.NewAppContext(clientConfig)
 		if err != nil {
-			logrus.Fatal(err)
+			log.Fatal(err)
 		}
 		if err := controllers.Register(ctx, appCtx, namespace, disableBootstrap, enforceTTL); err != nil {
-			logrus.Fatal(err)
+			log.Fatal(err)
 		}
 		if err := appCtx.Start(ctx); err != nil {
-			logrus.Fatal(err)
+			log.Fatal(err)
 		}
 	})
 

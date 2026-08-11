@@ -1,9 +1,10 @@
 package normalizers
 
 import (
-	"github.com/sirupsen/logrus"
+	"fmt"
 
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/objectset"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	adregv1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -31,7 +32,7 @@ func (m *MutatingWebhookNormalizer) convertMutatingWebhookV1(un *unstructured.Un
 	var webhook adregv1.MutatingWebhookConfiguration
 	err := runtime.DefaultUnstructuredConverter.FromUnstructured(un.Object, &webhook)
 	if err != nil {
-		logrus.Errorf("Failed to convert unstructured to webhook, err: %v", err)
+		log.Log.Error(nil, fmt.Sprintf("Failed to convert unstructured to webhook, err: %v", err))
 		return nil
 	}
 
@@ -43,7 +44,7 @@ func (m *MutatingWebhookNormalizer) convertMutatingWebhookV1(un *unstructured.Un
 				continue
 			}
 			if err := setMutatingWebhookV1CacertNil(liveWebhook, i); err != nil {
-				logrus.Errorf("Failed to normalize webhook cacert, err: %v", err)
+				log.Log.Error(nil, fmt.Sprintf("Failed to normalize webhook cacert, err: %v", err))
 				return nil
 			}
 		}
@@ -55,7 +56,7 @@ func setMutatingWebhookV1CacertNil(un *unstructured.Unstructured, index int) err
 	var webhook adregv1.MutatingWebhookConfiguration
 	err := runtime.DefaultUnstructuredConverter.FromUnstructured(un.Object, &webhook)
 	if err != nil {
-		logrus.Errorf("Failed to convert unstructured to webhook, err: %v", err)
+		log.Log.Error(nil, fmt.Sprintf("Failed to convert unstructured to webhook, err: %v", err))
 		return err
 	}
 
@@ -65,12 +66,12 @@ func setMutatingWebhookV1CacertNil(un *unstructured.Unstructured, index int) err
 	webhook.Webhooks[index].ClientConfig.CABundle = nil
 	newObj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&webhook)
 	if err != nil {
-		logrus.Errorf("Failed to convert unstructured to webhook, err: %v", err)
+		log.Log.Error(nil, fmt.Sprintf("Failed to convert unstructured to webhook, err: %v", err))
 		return err
 	}
 	if webhook.Webhooks != nil {
 		if err = unstructured.SetNestedField(un.Object, newObj["webhooks"], "webhooks"); err != nil {
-			logrus.Errorf("MutatingWebhook normalization error: %v", err)
+			log.Log.Error(nil, fmt.Sprintf("MutatingWebhook normalization error: %v", err))
 			return err
 		}
 	}

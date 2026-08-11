@@ -17,13 +17,13 @@ import (
 
 	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/sirupsen/logrus"
 	"oras.land/oras-go/v2"
 	"oras.land/oras-go/v2/content"
 	"oras.land/oras-go/v2/content/memory"
 	"oras.land/oras-go/v2/registry/remote"
 	"oras.land/oras-go/v2/registry/remote/auth"
 	"oras.land/oras-go/v2/registry/remote/retry"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/rancher/fleet/internal/manifest"
 	fleetgit "github.com/rancher/fleet/pkg/git"
@@ -86,7 +86,7 @@ func getHTTPClient(insecureSkipTLS bool, caBundle []byte) *http.Client {
 		proxyBytes := []byte(proxyCAPEM)
 		tmpPool := x509.NewCertPool()
 		if !tmpPool.AppendCertsFromPEM(proxyBytes) {
-			logrus.Warnf("%s is set but contains no valid PEM certificates; ignoring proxy CA bundle", fleetgit.ProxyCABundleEnvVar)
+			log.Log.Info(fleetgit.ProxyCABundleEnvVar + " is set but contains no valid PEM certificates; ignoring proxy CA bundle")
 		} else {
 			if len(caBundle) > 0 && caBundle[len(caBundle)-1] != '\n' {
 				caBundle = append(caBundle, '\n')
@@ -120,7 +120,7 @@ func getHTTPClient(insecureSkipTLS bool, caBundle []byte) *http.Client {
 			pool = x509.NewCertPool()
 		}
 		if !pool.AppendCertsFromPEM(caBundle) {
-			logrus.Warnf("CA bundle contains no valid PEM certificates; proceeding with system cert pool only")
+			log.Log.Info("CA bundle contains no valid PEM certificates; proceeding with system cert pool only")
 		}
 		transport.TLSClientConfig.RootCAs = pool
 		transport.TLSClientConfig.MinVersion = tls.VersionTLS12

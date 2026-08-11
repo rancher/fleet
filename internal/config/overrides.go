@@ -1,9 +1,10 @@
 package config
 
 import (
+	"fmt"
 	"os"
 
-	"github.com/sirupsen/logrus"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 const (
@@ -23,20 +24,20 @@ func BypassSystemCAStore() func() {
 	certDirBkp := os.Getenv(envVarSSLCertDir)
 
 	if err := os.Setenv(envVarSSLCertFile, "/dev/null"); err != nil {
-		logrus.Errorf("failed to set env var %s: %s", envVarSSLCertFile, err.Error())
+		log.Log.Error(nil, fmt.Sprintf("failed to set env var %s: %s", envVarSSLCertFile, err.Error()))
 	}
 
 	if err := os.Setenv(envVarSSLCertDir, "/dev/null"); err != nil {
-		logrus.Errorf("failed to set env var %s: %s", envVarSSLCertDir, err.Error())
+		log.Log.Error(nil, fmt.Sprintf("failed to set env var %s: %s", envVarSSLCertDir, err.Error()))
 	}
 
 	return func() {
 		if err := os.Setenv(envVarSSLCertFile, certFileBkp); err != nil {
-			logrus.Errorf("failed to restore env var %s: %s", envVarSSLCertFile, err.Error())
+			log.Log.Error(nil, fmt.Sprintf("failed to restore env var %s: %s", envVarSSLCertFile, err.Error()))
 		}
 
 		if err := os.Setenv(envVarSSLCertDir, certDirBkp); err != nil {
-			logrus.Errorf("failed to restore env var %s: %s", envVarSSLCertDir, err.Error())
+			log.Log.Error(nil, fmt.Sprintf("failed to restore env var %s: %s", envVarSSLCertDir, err.Error()))
 		}
 	}
 }
