@@ -135,7 +135,7 @@ var _ = Describe("Image Scan dynamic tests pushing to the local Zot registry", L
 	})
 
 	// this test didn't pass before adding fix for issue #2096
-	When("deploy imagescan setup with pre-release images and * semver range", func() {
+	When("deploy imagescan setup with pre-release images and wildcard semver range", func() {
 		BeforeEach(func() {
 			assetdir = "imagescan/pre-releases-ignored"
 			tmpRepoDir = GinkgoT().TempDir()
