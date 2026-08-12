@@ -5,9 +5,12 @@ package imagescan
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -123,13 +126,13 @@ func (j *TagScanJob) updateImageTags(ctx context.Context) {
 			return
 		}
 
-		auth, err := authFromSecret(secret, ref.Context().RegistryStr())
+		secretOptions, err := optionsFromSecret(secret, ref.Context().RegistryStr())
 		if err != nil {
 			err = j.updateErrorStatus(ctx, image, err)
 			logger.Error(err, "Failed to build auth info from secret")
 			return
 		}
-		options = append(options, remote.WithAuth(auth))
+		options = append(options, secretOptions...)
 	}
 
 	tags, err := remote.List(ref.Context(), append(options, remote.WithContext(ctx))...)
@@ -250,6 +253,31 @@ func authFromSecret(secret *corev1.Secret, registry string) (authn.Authenticator
 	default:
 		return nil, fmt.Errorf("unknown secret type %q", secret.Type)
 	}
+}
+
+func optionsFromSecret(secret *corev1.Secret, registry string) ([]remote.Option, error) {
+	auth, err := authFromSecret(secret, registry)
+	if err != nil {
+		return nil, err
+	}
+
+	options := []remote.Option{remote.WithAuth(auth)}
+	caData := secret.Data["ca.crt"]
+	if len(caData) == 0 {
+		return options, nil
+	}
+
+	pool, err := x509.SystemCertPool()
+	if err != nil || pool == nil {
+		pool = x509.NewCertPool()
+	}
+	if !pool.AppendCertsFromPEM(caData) {
+		return nil, errors.New("failed to append custom CA cert")
+	}
+
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.TLSClientConfig = &tls.Config{RootCAs: pool}
+	return append(options, remote.WithTransport(transport)), nil
 }
 
 func latestTag(policy fleet.ImagePolicyChoice, versions []string) (string, error) {

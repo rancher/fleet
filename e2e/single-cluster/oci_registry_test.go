@@ -2,6 +2,7 @@ package singlecluster_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -227,8 +228,19 @@ func getOCIRegistryExternalIP(k kubectl.Command) string {
 		return v
 	}
 
-	externalIP, err := k.Namespace(cmd.InfraNamespace).Get("service", "zot-service", "-o", "jsonpath={.status.loadBalancer.ingress[0].ip}")
-	Expect(err).ToNot(HaveOccurred(), externalIP)
+	var externalIP string
+	Eventually(func() error {
+		var err error
+		externalIP, err = k.Namespace(cmd.InfraNamespace).Get("service", "zot-service", "-o", "jsonpath={.status.loadBalancer.ingress[0].ip}")
+		if err != nil {
+			return err
+		}
+		externalIP = strings.TrimSpace(externalIP)
+		if externalIP == "" || externalIP == "<no value>" {
+			return errors.New("zot-service loadBalancer ingress is not ready yet")
+		}
+		return nil
+	}, 2*time.Minute, 2*time.Second).Should(Succeed())
 	return externalIP
 }
 

@@ -14,6 +14,7 @@ import (
 	"github.com/go-git/go-git/v5"
 	"github.com/rancher/fleet/e2e/testenv"
 	"github.com/rancher/fleet/e2e/testenv/githelper"
+	"github.com/rancher/fleet/e2e/testenv/infra/cmd"
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
 	"k8s.io/apimachinery/pkg/util/uuid"
 
@@ -70,7 +71,7 @@ var _ = Describe("Image Scan", Label("infra-setup"), func() {
 	})
 })
 
-var _ = Describe("Image Scan dynamic tests pushing to ttl.sh", Label("infra-setup"), func() {
+var _ = Describe("Image Scan dynamic tests pushing to the local Zot registry", Label("infra-setup"), func() {
 	var (
 		clonedir   string
 		k          kubectl.Command
@@ -246,14 +247,29 @@ func setupRepo(k kubectl.Command, tmpdir, clonedir, repoDir string) (*git.Reposi
 
 func tagAndPushImage(baseImage, image, tag string) string {
 	imageTag := fmt.Sprintf("%s:%s", image, tag)
-	// tag the image and push it to ttl.sh
+	registryHost := getOCIRegistryExternalIP(env.Kubectl.Namespace(cmd.InfraNamespace)) + ":8082"
+
+	Eventually(func() error {
+		loginCmd := exec.CommandContext(context.Background(), "docker", "login", "--username", os.Getenv("CI_OCI_USERNAME"), "--password", os.Getenv("CI_OCI_PASSWORD"), "--tls-verify=false", registryHost)
+		loginOut, err := loginCmd.CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("docker login to %s failed: %w: %s", registryHost, err, string(loginOut))
+		}
+		return nil
+	}, 2*time.Minute, 2*time.Second).Should(Succeed())
+
 	cmd := exec.CommandContext(context.Background(), "docker", "tag", baseImage, imageTag)
 	err := cmd.Run()
 	Expect(err).ToNot(HaveOccurred())
-	// push the image to ttl.sh
-	cmd = exec.CommandContext(context.Background(), "docker", "push", imageTag)
-	err = cmd.Run()
-	Expect(err).ToNot(HaveOccurred())
+
+	Eventually(func() error {
+		cmd = exec.CommandContext(context.Background(), "docker", "push", imageTag)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("docker push %s failed: %w: %s", imageTag, err, string(out))
+		}
+		return nil
+	}, 2*time.Minute, 2*time.Second).Should(Succeed())
 	return imageTag
 }
 
@@ -265,9 +281,9 @@ func initRegistryWithImageAndTag(baseImage string, tag string) (string, string) 
 		return err
 	}, 20*time.Second, 1*time.Second).Should(Succeed())
 
-	// generate a new uuid for this test
+	registryHost := getOCIRegistryExternalIP(env.Kubectl.Namespace(cmd.InfraNamespace))
 	uuid := uuid.NewUUID()
-	image := fmt.Sprintf("ttl.sh/%s-fleet-test", uuid)
+	image := fmt.Sprintf("%s:8082/%s-fleet-test", registryHost, uuid)
 	imageTag := tagAndPushImage(baseImage, image, tag)
 
 	return image, imageTag
