@@ -1,7 +1,6 @@
 package config
 
 import (
-	"fmt"
 	"os"
 
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -24,20 +23,20 @@ func BypassSystemCAStore() func() {
 	certDirBkp := os.Getenv(envVarSSLCertDir)
 
 	if err := os.Setenv(envVarSSLCertFile, "/dev/null"); err != nil {
-		log.Log.Error(nil, fmt.Sprintf("failed to set env var %s: %s", envVarSSLCertFile, err.Error()))
+		log.Log.Error(err, "failed to set env var", "name", envVarSSLCertFile)
 	}
 
 	if err := os.Setenv(envVarSSLCertDir, "/dev/null"); err != nil {
-		log.Log.Error(nil, fmt.Sprintf("failed to set env var %s: %s", envVarSSLCertDir, err.Error()))
+		log.Log.Error(err, "failed to set env var", "name", envVarSSLCertDir)
 	}
 
 	return func() {
 		if err := os.Setenv(envVarSSLCertFile, certFileBkp); err != nil {
-			log.Log.Error(nil, fmt.Sprintf("failed to restore env var %s: %s", envVarSSLCertFile, err.Error()))
+			log.Log.Error(err, "failed to restore env var", "name", envVarSSLCertFile)
 		}
 
 		if err := os.Setenv(envVarSSLCertDir, certDirBkp); err != nil {
-			log.Log.Error(nil, fmt.Sprintf("failed to restore env var %s: %s", envVarSSLCertDir, err.Error()))
+			log.Log.Error(err, "failed to restore env var", "name", envVarSSLCertDir)
 		}
 	}
 }

@@ -386,7 +386,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 	}
 
 	if err := connection.SmokeTestKubeClientConnection(kc); err != nil {
-		log.Log.Error(nil, fmt.Sprintf("Cluster import for '%s/%s'. Smoke test failed: %v", cluster.Namespace, cluster.Name, err))
+		log.Log.Error(err, fmt.Sprintf("Cluster import for '%s/%s'. Smoke test failed", cluster.Namespace, cluster.Name))
 		return status, err
 	}
 
@@ -516,7 +516,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 	}
 
 	if err := apply.ApplyObjects(objs...); err != nil {
-		log.Log.Error(nil, fmt.Sprintf("Failed cluster import for '%s/%s'. Cannot create agent deployment", cluster.Namespace, cluster.Name))
+		log.Log.Error(err, "Failed cluster import. Cannot create agent deployment", "cluster", cluster.Namespace+"/"+cluster.Name)
 		return status, err
 	}
 	log.Log.Info(fmt.Sprintf("Cluster import for '%s/%s'. Deployed new agent", cluster.Namespace, cluster.Name))

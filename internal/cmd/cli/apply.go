@@ -91,7 +91,7 @@ func (a *Apply) Run(cmd *cobra.Command, args []string) error {
 	var err error
 	retries, err := apply.GetOnConflictRetries()
 	if err != nil {
-		log.Log.Error(nil, fmt.Sprintf("failed parsing env variable %s, using defaults, err: %v", apply.FleetApplyConflictRetriesEnv, err))
+		log.Log.Error(err, "failed parsing env variable, using defaults", "name", apply.FleetApplyConflictRetriesEnv)
 	}
 	for range retries {
 		err = a.run(cmd, args)

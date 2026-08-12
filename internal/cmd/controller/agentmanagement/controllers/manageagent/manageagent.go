@@ -302,7 +302,7 @@ func (h *handler) OnNamespace(key string, namespace *corev1.Namespace) (*corev1.
 		log.Log.Info(fmt.Sprintf("Update agent bundle for cluster %s/%s", cluster.Namespace, cluster.Name))
 		bundleObjs, err := h.newAgentBundle(namespace.Name, cluster)
 		if err != nil {
-			log.Log.Error(nil, fmt.Sprintf("Failed to update agent bundle for cluster %s/%s", cluster.Namespace, cluster.Name))
+			log.Log.Error(err, fmt.Sprintf("Failed to update agent bundle for cluster %s/%s", cluster.Namespace, cluster.Name))
 			return nil, err
 		}
 		objs = append(objs, bundleObjs...)

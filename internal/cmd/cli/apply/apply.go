@@ -175,7 +175,7 @@ func CreateBundles(pctx context.Context, client client.Client, r record.EventRec
 						bundle, scans, err := bundleFromDir(ctx, repoName, path, opts)
 						if err != nil {
 							if errors.Is(err, ErrNoResources) {
-								log.Log.Info(fmt.Sprintf("%s: %v", path, err))
+								log.Log.Info(path, "error", err)
 								return nil
 							}
 							return err
@@ -274,7 +274,7 @@ func CreateBundlesDriven(pctx context.Context, client client.Client, r record.Ev
 				bundle, scans, err := bundleFromDir(ctx, repoName, baseDir, opts)
 				if err != nil {
 					if errors.Is(err, ErrNoResources) {
-						log.Log.Info(fmt.Sprintf("%s: %v", baseDir, err))
+						log.Log.Info(baseDir, "error", err)
 						return nil
 					}
 					return err
@@ -610,7 +610,7 @@ func save(ctx context.Context, c client.Client, bundle *fleet.Bundle) (*fleet.Bu
 			if err := deleteOCIManifest(ctx, c, bundle, ocistorage.OCIOpts{}); err != nil {
 				// return the error, since the OCI registry is an external entity to the cluster
 				// and we may encounter various types of transient errors (such as connection or access issues).
-				log.Log.Info(fmt.Sprintf("deleting OCI artifact: %v", err))
+				log.Log.Info("deleting OCI artifact", "error", err)
 				return err
 
 			}
@@ -671,7 +671,7 @@ func saveOCIBundle(ctx context.Context, c client.Client, r record.EventRecorder,
 			if err := deleteOCIManifest(ctx, c, bundle, opts); err != nil {
 				// we log the error and continue, since the OCI registry is an external entity to the cluster
 				// we may encounter various types of transient errors (such as connection or access issues).
-				log.Log.Info(fmt.Sprintf("deleting OCI artifact: %v", err))
+				log.Log.Info("deleting OCI artifact", "error", err)
 				sendWarningEvent(r, bundle.Namespace, bundle.Spec.ContentsID, err)
 			}
 		}

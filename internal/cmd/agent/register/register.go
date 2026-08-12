@@ -56,7 +56,7 @@ func Register(ctx context.Context, namespace string, config *rest.Config) (*Agen
 		if err == nil {
 			return cfg, nil
 		}
-		log.Log.Error(nil, fmt.Sprintf("Failed to register agent: %v", err))
+		log.Log.Error(err, "Failed to register agent")
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -90,7 +90,7 @@ func tryRegister(ctx context.Context, namespace string, cfg *rest.Config) (*Agen
 		return nil, err
 	} else if err := testClientConfig(secret.Data[Kubeconfig]); err != nil {
 		// skip testClientConfig check if previous error, or IsNotFound fallback succeeded
-		log.Log.Error(nil, fmt.Sprintf("Current credential failed, falling back to reregistering: %v", err))
+		log.Log.Error(err, "Current credential failed, falling back to reregistering")
 		secret, err = runRegistration(ctx, k8s.Core().V1(), namespace)
 		if err != nil {
 			return nil, fmt.Errorf("re-registration failed: %w", err)
@@ -222,7 +222,7 @@ func runRegistration(ctx context.Context, k8s coreInterface, namespace string) (
 
 		newSecret, err := fleetK8s.CoreV1().Secrets(secretNamespace).Get(ctx, secretName, metav1.GetOptions{})
 		if err != nil {
-			log.Log.Info(fmt.Sprintf("Waiting for secret '%s/%s' on management cluster for request '%s/%s': %v", secretNamespace, secretName, request.Namespace, request.Name, err))
+			log.Log.Info(fmt.Sprintf("Waiting for secret '%s/%s' on management cluster for request '%s/%s'", secretNamespace, secretName, request.Namespace, request.Name), "error", err)
 			continue
 		}
 

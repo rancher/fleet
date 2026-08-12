@@ -1,8 +1,6 @@
 package normalizers
 
 import (
-	"fmt"
-
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/objectset"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -32,7 +30,7 @@ func (m *MutatingWebhookNormalizer) convertMutatingWebhookV1(un *unstructured.Un
 	var webhook adregv1.MutatingWebhookConfiguration
 	err := runtime.DefaultUnstructuredConverter.FromUnstructured(un.Object, &webhook)
 	if err != nil {
-		log.Log.Error(nil, fmt.Sprintf("Failed to convert unstructured to webhook, err: %v", err))
+		log.Log.Error(err, "Failed to convert unstructured to webhook")
 		return nil
 	}
 
@@ -44,7 +42,7 @@ func (m *MutatingWebhookNormalizer) convertMutatingWebhookV1(un *unstructured.Un
 				continue
 			}
 			if err := setMutatingWebhookV1CacertNil(liveWebhook, i); err != nil {
-				log.Log.Error(nil, fmt.Sprintf("Failed to normalize webhook cacert, err: %v", err))
+				log.Log.Error(err, "Failed to normalize webhook cacert")
 				return nil
 			}
 		}
@@ -56,7 +54,7 @@ func setMutatingWebhookV1CacertNil(un *unstructured.Unstructured, index int) err
 	var webhook adregv1.MutatingWebhookConfiguration
 	err := runtime.DefaultUnstructuredConverter.FromUnstructured(un.Object, &webhook)
 	if err != nil {
-		log.Log.Error(nil, fmt.Sprintf("Failed to convert unstructured to webhook, err: %v", err))
+		log.Log.Error(err, "Failed to convert unstructured to webhook")
 		return err
 	}
 
@@ -66,12 +64,12 @@ func setMutatingWebhookV1CacertNil(un *unstructured.Unstructured, index int) err
 	webhook.Webhooks[index].ClientConfig.CABundle = nil
 	newObj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&webhook)
 	if err != nil {
-		log.Log.Error(nil, fmt.Sprintf("Failed to convert unstructured to webhook, err: %v", err))
+		log.Log.Error(err, "Failed to convert unstructured to webhook")
 		return err
 	}
 	if webhook.Webhooks != nil {
 		if err = unstructured.SetNestedField(un.Object, newObj["webhooks"], "webhooks"); err != nil {
-			log.Log.Error(nil, fmt.Sprintf("MutatingWebhook normalization error: %v", err))
+			log.Log.Error(err, "MutatingWebhook normalization error")
 			return err
 		}
 	}

@@ -2,7 +2,6 @@ package summary
 
 import (
 	"encoding/json"
-	"fmt"
 	"maps"
 	"os"
 	"strings"
@@ -157,7 +156,7 @@ func initializeCheckErrors() {
 		log.Log.V(1).Info("GVK Error Mapping Provided")
 		gvkErrorMapping := ConditionTypeStatusErrorMapping{}
 		if err := json.Unmarshal([]byte(gvkConfig), &gvkErrorMapping); err != nil {
-			log.Log.Error(nil, fmt.Sprintln("Unable to parse GVK config: ", err.Error()))
+			log.Log.Error(err, "Unable to parse GVK config")
 			return
 		}
 
