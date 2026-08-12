@@ -61,7 +61,7 @@
       "matchFileNames": ["pkg/helmvalues/go.mod"],
       "matchPackageNames": ["github.com/rancher/wrangler/v3"],
       "enabled": true,
-      "groupName": "Helm values dependencies",
+      "groupName": "wrangler-lasso",
       "minimumGroupSize": 1
     },
     {
