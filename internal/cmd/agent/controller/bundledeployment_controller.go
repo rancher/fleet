@@ -469,14 +469,33 @@ func (r *BundleDeploymentReconciler) copyResourcesFromUpstream(
 		return false, err
 	}
 
-	ns := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: destNS}}
-	if err := dsClient.Get(ctx, types.NamespacedName{Name: ns.Name}, &ns); apierrors.IsNotFound(err) {
+	// Whether the namespace exists is a fact about the cluster, not an action taken
+	// on the deployment's behalf, so it is read with the agent client: the copy does
+	// not require the deployment's service account to hold 'get' on namespaces.
+	// Creating the namespace is a downstream write and does run as that account.
+	var ns corev1.Namespace
+	err = r.LocalClient.Get(ctx, types.NamespacedName{Name: destNS}, &ns)
+	switch {
+	case apierrors.IsNotFound(err):
+		ns = corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: destNS}}
 		if err := dsClient.Create(ctx, &ns); err != nil {
+			if apierrors.IsForbidden(err) {
+				// Wrapped, so the caller still detects this as a Forbidden and
+				// requeues instead of failing the reconcile.
+				return false, fmt.Errorf(
+					"deployment namespace %q does not exist and the deployment's service account is not "+
+						"allowed to create it; create the namespace or grant it 'create' on namespaces: %w",
+					destNS,
+					err,
+				)
+			}
 			logger.Info(err.Error())
 			return false, err
 		}
 
-		logger.V(1).Info("Created namespace to copy resources from upstream", "namespace", ns.Name)
+		logger.V(1).Info("Created namespace to copy resources from upstream", "namespace", destNS)
+	case err != nil:
+		return false, fmt.Errorf("failed to look up deployment namespace %q for copying resources from upstream: %w", destNS, err)
 	}
 
 	requiresBDUpdate := false

@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -72,6 +73,7 @@ func TestCopyResourcesFromUpstream_CopiesUnderDeploymentClient(t *testing.T) {
 
 	r := &BundleDeploymentReconciler{
 		Reader:           upstream,
+		LocalClient:      downstream,
 		Deployer:         deployer.New(downstream, upstream, nil, nil),
 		DefaultNamespace: "cattle-fleet-system",
 	}
@@ -137,6 +139,7 @@ func TestCopyResourcesFromUpstream_ForbiddenSurfaces(t *testing.T) {
 
 	r := &BundleDeploymentReconciler{
 		Reader:           upstream,
+		LocalClient:      downstream,
 		Deployer:         deployer.New(downstream, upstream, nil, nil),
 		DefaultNamespace: "cattle-fleet-system",
 	}
@@ -147,6 +150,70 @@ func TestCopyResourcesFromUpstream_ForbiddenSurfaces(t *testing.T) {
 	}
 	if !apierrors.IsForbidden(err) {
 		t.Errorf("expected error to be detectable as Forbidden, got %v", err)
+	}
+}
+
+// TestCopyResourcesFromUpstream_MissingNamespaceForbidden verifies that a missing
+// deployment namespace the service account may not create is reported as such,
+// rather than as a "namespace not found" failure of the first resource write, and
+// that it stays detectable as a Forbidden so the caller requeues.
+func TestCopyResourcesFromUpstream_MissingNamespaceForbidden(t *testing.T) {
+	scheme := downstreamResourcesScheme(t)
+	bd := downstreamResourcesBundleDeployment()
+
+	upstream := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+		&corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: "src-secret", Namespace: "cluster-ns"},
+			Data:       map[string][]byte{"key": []byte("value")},
+		},
+	).Build()
+
+	// The namespace does not exist and the deployment's identity may neither read
+	// nor create it, which is what a tenant service account without cluster-scoped
+	// namespace access sees.
+	forbidden := apierrors.NewForbidden(
+		schema.GroupResource{Resource: "namespaces"}, "target", errors.New("nope"))
+	downstream := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithInterceptorFuncs(interceptor.Funcs{
+			Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+				if _, ok := obj.(*corev1.Namespace); ok {
+					return forbidden
+				}
+				return c.Get(ctx, key, obj, opts...)
+			},
+			Create: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.CreateOption) error {
+				if _, ok := obj.(*corev1.Namespace); ok {
+					return forbidden
+				}
+				return c.Create(ctx, obj, opts...)
+			},
+		}).
+		Build()
+
+	// The agent client can see that the namespace is absent, even though the
+	// deployment's identity cannot.
+	agent := fake.NewClientBuilder().WithScheme(scheme).Build()
+
+	r := &BundleDeploymentReconciler{
+		Reader:           upstream,
+		LocalClient:      agent,
+		Deployer:         deployer.New(downstream, upstream, nil, nil),
+		DefaultNamespace: "cattle-fleet-system",
+	}
+
+	_, err := r.copyResourcesFromUpstream(context.Background(), bd, logr.Discard())
+	if err == nil {
+		t.Fatal("expected an error, got nil")
+	}
+	if !apierrors.IsForbidden(err) {
+		t.Errorf("expected error to stay detectable as Forbidden, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "target") {
+		t.Errorf("expected the error to name the deployment namespace, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "does not exist") {
+		t.Errorf("expected the error to report the missing namespace, got %v", err)
 	}
 }
 
