@@ -118,6 +118,7 @@ jobs:
               --agents 1 \
               --network "nw01" \
               --image docker.io/rancher/k3s:${{matrix.k3s.version}} \
+              --k3s-arg "--kubelet-arg=image-gc-high-threshold=100@all" \
               --k3s-arg "--cluster-init@server:0"; then
               echo "Cluster created successfully"
               break

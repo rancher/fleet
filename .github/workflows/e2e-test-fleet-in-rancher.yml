@@ -170,6 +170,7 @@ jobs:
             --agents 1 \
             --k3s-arg '--kubelet-arg=eviction-hard=imagefs.available<1%,nodefs.available<1%@agent:*' \
             --k3s-arg '--kubelet-arg=eviction-minimum-reclaim=imagefs.available=1%,nodefs.available=1%@agent:*' \
+            --k3s-arg "--kubelet-arg=image-gc-high-threshold=100@all" \
             --network "nw01" \
             --image docker.io/rancher/k3s:${{ env.SETUP_K3S_VERSION }} \
             --k3s-arg "--cluster-init@server:0"
@@ -184,6 +185,7 @@ jobs:
             --agents 1 \
             --k3s-arg '--kubelet-arg=eviction-hard=imagefs.available<1%,nodefs.available<1%@agent:*' \
             --k3s-arg '--kubelet-arg=eviction-minimum-reclaim=imagefs.available=1%,nodefs.available=1%@agent:*' \
+            --k3s-arg "--kubelet-arg=image-gc-high-threshold=100@all" \
             --network "nw01" \
             --image docker.io/rancher/k3s:${{ env.SETUP_K3S_VERSION }} \
             --k3s-arg "--cluster-init@server:0"
