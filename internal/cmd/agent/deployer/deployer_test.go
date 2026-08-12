@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
+	"strings"
 	"testing"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -499,6 +501,96 @@ func TestIsStateAccepted(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := isStateAccepted(tc.state, tc.accepted); got != tc.want {
 				t.Errorf("isStateAccepted(%q, %v) = %v, want %v", tc.state, tc.accepted, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestCheckDependency(t *testing.T) {
+	const (
+		bundleNamespace  = "fleet-local"
+		clusterNamespace = "cluster-fleet-local-local-1a2b3c"
+	)
+
+	// notReadyDep is a dependency which has been deployed, but whose
+	// resources are not ready, i.e. it is in the NotReady state.
+	notReadyDep := &fleet.BundleDeployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "dep",
+			Namespace: clusterNamespace,
+			Labels: map[string]string{
+				fleet.BundleLabel:          "dep",
+				fleet.BundleNamespaceLabel: bundleNamespace,
+			},
+		},
+		Spec:   fleet.BundleDeploymentSpec{DeploymentID: "id1", StagedDeploymentID: "id1"},
+		Status: fleet.BundleDeploymentStatus{AppliedDeploymentID: "id1", Ready: false},
+	}
+
+	tests := map[string]struct {
+		acceptedStates  []fleet.BundleState
+		wantErr         bool
+		wantPending     []PendingDependency
+		wantErrContains string
+	}{
+		"dependency state is not accepted by default": {
+			acceptedStates: nil,
+			wantErr:        true,
+			wantPending: []PendingDependency{
+				{Name: "dep", State: fleet.NotReady},
+			},
+			wantErrContains: "dep (state: NotReady, accepted: Ready)",
+		},
+		"dependency state is not in acceptedStates": {
+			acceptedStates: []fleet.BundleState{fleet.Ready, fleet.Modified},
+			wantErr:        true,
+			wantPending: []PendingDependency{
+				{Name: "dep", State: fleet.NotReady, AcceptedStates: []fleet.BundleState{fleet.Ready, fleet.Modified}},
+			},
+			wantErrContains: "dep (state: NotReady, accepted: Ready, Modified)",
+		},
+		"dependency state is in acceptedStates": {
+			acceptedStates: []fleet.BundleState{fleet.Ready, fleet.NotReady},
+			wantErr:        false,
+		},
+	}
+
+	scheme := runtime.NewScheme()
+	utilruntime.Must(fleet.AddToScheme(scheme))
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			bd := &fleet.BundleDeployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "app",
+					Namespace: clusterNamespace,
+					Labels:    map[string]string{fleet.BundleNamespaceLabel: bundleNamespace},
+				},
+				Spec: fleet.BundleDeploymentSpec{
+					DependsOn: []fleet.BundleRef{{Name: "dep", AcceptedStates: tc.acceptedStates}},
+				},
+			}
+
+			c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(notReadyDep).Build()
+			d := Deployer{upstreamClient: c}
+
+			err := d.checkDependency(context.Background(), bd)
+			if !tc.wantErr {
+				if err != nil {
+					t.Fatalf("expected no error, got %v", err)
+				}
+				return
+			}
+
+			var depErr *NotReadyDependenciesError
+			if !errors.As(err, &depErr) {
+				t.Fatalf("expected a NotReadyDependenciesError, got %T: %v", err, err)
+			}
+			if !reflect.DeepEqual(depErr.Pending, tc.wantPending) {
+				t.Errorf("pending dependencies: got %+v, want %+v", depErr.Pending, tc.wantPending)
+			}
+			if !strings.Contains(err.Error(), tc.wantErrContains) {
+				t.Errorf("error message %q does not contain %q", err.Error(), tc.wantErrContains)
 			}
 		})
 	}

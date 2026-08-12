@@ -43,12 +43,47 @@ var deployErrPattern = regexp.MustCompile(
 		"(chart requires kubeVersion: [0-9A-Za-z\\.\\-<>=]+ which is incompatible with Kubernetes)", // trying to deploy to incompatible Kubernetes
 )
 
+// PendingDependency describes a dependency which is blocking a deployment,
+// together with the state it is in and the states which would unblock it.
+type PendingDependency struct {
+	Name           string
+	State          fleet.BundleState
+	AcceptedStates []fleet.BundleState
+}
+
+func (d PendingDependency) String() string {
+	accepted := effectiveAcceptedStates(d.AcceptedStates)
+
+	states := make([]string, 0, len(accepted))
+	for _, s := range accepted {
+		states = append(states, string(s))
+	}
+
+	return fmt.Sprintf("%s (state: %s, accepted: %s)", d.Name, d.State, strings.Join(states, ", "))
+}
+
+// NotReadyDependenciesError indicates that the bundledeployment is not deployed
+// yet because at least one of the bundles it depends on has not reached an
+// accepted state. This is a temporary condition, not a deployment error: the
+// controller requeues until the dependencies are met.
 type NotReadyDependenciesError struct {
-	Pending []string
+	Pending []PendingDependency
+}
+
+// PendingDescriptions returns one human readable description per blocking
+// dependency. Loggers reflect over a []PendingDependency instead of calling
+// String on its elements, so they should use this rather than Pending.
+func (e *NotReadyDependenciesError) PendingDescriptions() []string {
+	pending := make([]string, 0, len(e.Pending))
+	for _, d := range e.Pending {
+		pending = append(pending, d.String())
+	}
+
+	return pending
 }
 
 func (e *NotReadyDependenciesError) Error() string {
-	return fmt.Sprintf("dependent bundle(s) are not ready: %v", e.Pending)
+	return "waiting for dependent bundle(s) to reach an accepted state: " + strings.Join(e.PendingDescriptions(), "; ")
 }
 
 // NamespaceForbiddenError indicates the deployment's service account is not
@@ -445,7 +480,7 @@ func forbiddenToStatus(err error, status fleet.BundleDeploymentStatus) (bool, fl
 }
 
 func (d *Deployer) checkDependency(ctx context.Context, bd *fleet.BundleDeployment) error {
-	var depBundleList []string
+	var depBundleList []PendingDependency
 	bundleNamespace := bd.Labels[fleet.BundleNamespaceLabel]
 	for _, depend := range bd.Spec.DependsOn {
 		// skip empty BundleRef definitions. Possible if there is a typo in the yaml
@@ -477,8 +512,13 @@ func (d *Deployer) checkDependency(ctx context.Context, bd *fleet.BundleDeployme
 			}
 
 			for _, depBundle := range bds.Items {
-				if !isDependencyReady(depBundle, depend.AcceptedStates) {
-					depBundleList = append(depBundleList, depBundle.Name)
+				state := summary.GetDeploymentState(&depBundle)
+				if !isStateAccepted(state, depend.AcceptedStates) {
+					depBundleList = append(depBundleList, PendingDependency{
+						Name:           depBundle.Name,
+						State:          state,
+						AcceptedStates: depend.AcceptedStates,
+					})
 				}
 
 			}
@@ -492,18 +532,19 @@ func (d *Deployer) checkDependency(ctx context.Context, bd *fleet.BundleDeployme
 	return nil
 }
 
+// effectiveAcceptedStates returns the states which unblock a dependency. An
+// empty or nil list means the default: only Ready is accepted. Both the check
+// and the message reporting a blocked dependency go through here, so they
+// cannot disagree about what the default is.
+func effectiveAcceptedStates(acceptedStates []fleet.BundleState) []fleet.BundleState {
+	if len(acceptedStates) == 0 {
+		return []fleet.BundleState{fleet.Ready}
+	}
+	return acceptedStates
+}
+
 // isStateAccepted checks if currentState is in acceptedStates.
 // If acceptedStates is empty or nil, only Ready is accepted (default behavior).
 func isStateAccepted(currentState fleet.BundleState, acceptedStates []fleet.BundleState) bool {
-	if len(acceptedStates) == 0 {
-		return currentState == fleet.Ready
-	}
-	return slices.Contains(acceptedStates, currentState)
-}
-
-// isDependencyReady checks if a BundleDeployment dependency is in an acceptable state.
-// acceptedStates is a list of states that are considered acceptable for this dependency.
-// If acceptedStates is empty or nil, only the "Ready" state is accepted (default behavior).
-func isDependencyReady(depBundle fleet.BundleDeployment, acceptedStates []fleet.BundleState) bool {
-	return isStateAccepted(summary.GetDeploymentState(&depBundle), acceptedStates)
+	return slices.Contains(effectiveAcceptedStates(acceptedStates), currentState)
 }
