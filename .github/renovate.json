@@ -56,6 +56,15 @@
       ]
     },
     {
+      "description": "Update Wrangler in Helm values module",
+      "matchManagers": ["gomod"],
+      "matchFileNames": ["pkg/helmvalues/go.mod"],
+      "matchPackageNames": ["github.com/rancher/wrangler/v3"],
+      "enabled": true,
+      "groupName": "Helm values dependencies",
+      "minimumGroupSize": 1
+    },
+    {
       "description": "Wait for paired Kubernetes updates in Helm values module",
       "matchManagers": ["gomod"],
       "matchFileNames": ["pkg/helmvalues/go.mod"],
