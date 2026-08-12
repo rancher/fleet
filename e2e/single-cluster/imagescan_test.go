@@ -245,12 +245,29 @@ func setupRepo(k kubectl.Command, tmpdir, clonedir, repoDir string) (*git.Reposi
 	return repo, gh
 }
 
+func prepareDockerRegistryCA(registryHost string) {
+	rootCAPath := filepath.Join(os.Getenv("CI_OCI_CERTS_DIR"), "root.crt")
+	rootCA, err := os.ReadFile(rootCAPath)
+	Expect(err).ToNot(HaveOccurred(), "read root CA from %s", rootCAPath)
+
+	tempDir, err := os.MkdirTemp("", "fleet-docker-certs-")
+	Expect(err).ToNot(HaveOccurred())
+	DeferCleanup(func() {
+		_ = os.RemoveAll(tempDir)
+	})
+	Expect(os.WriteFile(filepath.Join(tempDir, "ca.pem"), rootCA, 0o600)).To(Succeed())
+	Expect(os.Setenv("DOCKER_CERT_PATH", tempDir)).To(Succeed())
+	Expect(os.Setenv("DOCKER_TLS_VERIFY", "1")).To(Succeed())
+	_ = registryHost
+}
+
 func tagAndPushImage(baseImage, image, tag string) string {
 	imageTag := fmt.Sprintf("%s:%s", image, tag)
 	registryHost := getOCIRegistryExternalIP(env.Kubectl.Namespace(cmd.InfraNamespace)) + ":8082"
+	prepareDockerRegistryCA(registryHost)
 
 	Eventually(func() error {
-		loginCmd := exec.CommandContext(context.Background(), "docker", "login", "--username", os.Getenv("CI_OCI_USERNAME"), "--password", os.Getenv("CI_OCI_PASSWORD"), "--tls-verify=false", registryHost)
+		loginCmd := exec.CommandContext(context.Background(), "docker", "login", "--username", os.Getenv("CI_OCI_USERNAME"), "--password", os.Getenv("CI_OCI_PASSWORD"), registryHost)
 		loginOut, err := loginCmd.CombinedOutput()
 		if err != nil {
 			return fmt.Errorf("docker login to %s failed: %w: %s", registryHost, err, string(loginOut))

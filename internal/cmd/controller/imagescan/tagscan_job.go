@@ -276,7 +276,10 @@ func optionsFromSecret(secret *corev1.Secret, registry string) ([]remote.Option,
 	}
 
 	transport := http.DefaultTransport.(*http.Transport).Clone()
-	transport.TLSClientConfig = &tls.Config{RootCAs: pool}
+	if transport.TLSClientConfig == nil {
+		transport.TLSClientConfig = &tls.Config{}
+	}
+	transport.TLSClientConfig.RootCAs = pool
 	return append(options, remote.WithTransport(transport)), nil
 }
 
