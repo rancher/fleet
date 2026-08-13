@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/internal/resource"
 	v1 "k8s.io/api/core/v1"
@@ -33,12 +33,12 @@ func NewKnownTypesNormalizer(overrides map[string]resource.ResourceOverride) (*k
 	for key, override := range overrides {
 		group, kind, err := getGroupKindForOverrideKey(key)
 		if err != nil {
-			log.Warn(err)
+			log.Log.Info(fmt.Sprint(err))
 		}
 		gk := schema.GroupKind{Group: group, Kind: kind}
 		for _, f := range override.KnownTypeFields {
 			if err := normalizer.addKnownField(gk, f.Field, f.Type); err != nil {
-				log.Warnf("Failed to configure known field normalizer: %v", err)
+				log.Log.Info(fmt.Sprintf("Failed to configure known field normalizer: %v", err))
 			}
 		}
 	}

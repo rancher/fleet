@@ -2,12 +2,11 @@ package monitor
 
 import (
 	"errors"
+	"log"
 	"reflect"
 	"time"
 
 	"github.com/rancher/lasso/pkg/controller"
-
-	"github.com/sirupsen/logrus"
 )
 
 type Cond string
@@ -128,7 +127,7 @@ func findOrCreateCond(obj any, condName string) reflect.Value {
 func findCond(obj any, val reflect.Value, name string) *reflect.Value {
 	defer func() {
 		if recover() != nil {
-			logrus.Fatalf("failed to find .Status.Conditions field on %v", reflect.TypeOf(obj))
+			log.Fatalf("failed to find .Status.Conditions field on %v", reflect.TypeOf(obj))
 		}
 	}()
 

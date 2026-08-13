@@ -11,7 +11,7 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/protocol/packp/capability"
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	httpgit "github.com/go-git/go-git/v5/plumbing/transport/http"
-	"github.com/sirupsen/logrus"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/rancher/fleet/internal/cmd/cli/gitcloner/submodule"
 	fleetgithub "github.com/rancher/fleet/internal/github"
@@ -73,7 +73,7 @@ func (c *Cloner) CloneRepo(opts *GitCloner) error {
 
 	if opts.Branch != "" {
 		if opts.Revision != "" {
-			logrus.Warn("Using branch for cloning the repo. Revision will be skipped.")
+			log.Log.Info("Using branch for cloning the repo. Revision will be skipped.")
 		}
 		return cloneBranch(opts, auth, caBundle)
 	}

@@ -3,9 +3,8 @@ package scheduling
 import (
 	"fmt"
 
-	"github.com/sirupsen/logrus"
-
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	policyv1 "k8s.io/api/policy/v1"
 	schedulingv1 "k8s.io/api/scheduling/v1"
@@ -39,7 +38,7 @@ func PodDisruptionBudget(agentNamespace string, pdbs *fleet.PodDisruptionBudgetS
 
 	switch {
 	case pdbs.MaxUnavailable == "" && pdbs.MinAvailable == "":
-		logrus.Warnf("Neither MaxUnavailable nor MinAvailable is set, defaulting to 0 for MaxUnavailable")
+		log.Log.Info("Neither MaxUnavailable nor MinAvailable is set, defaulting to 0 for MaxUnavailable")
 		pdbSpec.MaxUnavailable = &intstr.IntOrString{IntVal: 0}
 	case pdbs.MaxUnavailable != "" && (pdbs.MinAvailable == "" || pdbs.MinAvailable == "0"):
 		mu := intstr.Parse(pdbs.MaxUnavailable)

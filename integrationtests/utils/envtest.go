@@ -10,8 +10,6 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
-	"github.com/sirupsen/logrus"
-
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -47,11 +45,9 @@ func ShouldSuppressLogs() bool {
 //
 // This suppresses:
 // - Go standard library logger (log package) - used by Helm SDK for warnings
-// - Logrus logger - used by Fleet components for info/debug messages
 func SuppressLogs() {
 	if ShouldSuppressLogs() {
 		log.SetOutput(io.Discard)
-		logrus.SetOutput(io.Discard)
 	}
 }
 

@@ -13,13 +13,12 @@ import (
 	"github.com/rancher/fleet/internal/config"
 	fleetv1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1/summary"
 
-	"github.com/sirupsen/logrus"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/sets"
 	kstatus "sigs.k8s.io/cli-utils/pkg/kstatus/status"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 const (
@@ -154,10 +153,10 @@ func init() {
 func initializeCheckErrors() {
 	gvkConfig := os.Getenv(config.EnvVarWranglerCheckGVKErrorMapping)
 	if gvkConfig != "" {
-		logrus.Debugf("GVK Error Mapping Provided")
+		log.Log.V(1).Info("GVK Error Mapping Provided")
 		gvkErrorMapping := ConditionTypeStatusErrorMapping{}
 		if err := json.Unmarshal([]byte(gvkConfig), &gvkErrorMapping); err != nil {
-			logrus.Errorln("Unable to parse GVK config: ", err.Error())
+			log.Log.Error(err, "Unable to parse GVK config")
 			return
 		}
 
@@ -192,10 +191,10 @@ func initializeCheckErrors() {
 			maps.Copy(existingConditionsMap, newConditionsMap)
 			GVKConditionErrorMapping[gvk] = existingConditionsMap
 		}
-		logrus.Debugf("GVK Error Mapping Set")
+		log.Log.V(1).Info("GVK Error Mapping Set")
 		return
 	}
-	logrus.Debugf("GVK Error Mapping not provided, using predefined values")
+	log.Log.V(1).Info("GVK Error Mapping not provided, using predefined values")
 }
 
 func checkOwner(obj data.Object, conditions []Condition, summary fleetv1.Summary) fleetv1.Summary {

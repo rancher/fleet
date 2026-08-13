@@ -1,16 +1,16 @@
 package agent
 
 import (
+	"fmt"
 	"os"
 	"path"
 	"strconv"
 	"strings"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/rancher/fleet/internal/cmd"
 	"github.com/rancher/fleet/internal/config"
 	"github.com/rancher/fleet/internal/names"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -62,8 +62,7 @@ func Manifest(namespace string, agentScope string, opts ManifestOptions) []runti
 	}
 
 	admin := serviceAccount(namespace, DefaultName)
-
-	logrus.Debugf("Building manifest for fleet-agent in namespace %s (sa: %s)", namespace, admin.Name)
+	log.Log.V(1).Info(fmt.Sprintf("Building manifest for fleet-agent in namespace %s (sa: %s)", namespace, admin.Name))
 
 	defaultSa := serviceAccount(namespace, "default")
 	defaultSa.AutomountServiceAccountToken = new(bool)

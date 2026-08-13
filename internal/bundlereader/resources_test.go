@@ -3,16 +3,28 @@ package bundlereader
 import (
 	"bytes"
 	"context"
+	"fmt"
+	"strings"
 	"testing"
-
-	"github.com/sirupsen/logrus"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
+	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/util/yaml"
+	ctrlog "sigs.k8s.io/controller-runtime/pkg/log"
 )
+
+type logRecorder struct {
+	lines []string
+}
+
+func (r *logRecorder) Helper() {}
+
+func (r *logRecorder) Log(args ...any) {
+	r.lines = append(r.lines, fmt.Sprint(args...))
+}
 
 const (
 	valuesOneYaml = `microService1:
@@ -213,6 +225,12 @@ func TestAddRemoteChartsStripsCredentials(t *testing.T) {
 
 func TestAddRemoteChartsWarnsMissingRegex(t *testing.T) {
 	remoteChart := []*fleet.HelmOptions{{Chart: "/nonexistent/chart"}}
+	recorder := &logRecorder{}
+	oldLogger := ctrlog.Log
+	ctrlog.SetLogger(testr.NewWithInterface(recorder, testr.Options{Verbosity: 1}))
+	t.Cleanup(func() {
+		ctrlog.SetLogger(oldLogger)
+	})
 
 	tests := []struct {
 		name        string
@@ -260,23 +278,15 @@ func TestAddRemoteChartsWarnsMissingRegex(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var buf bytes.Buffer
-			oldOut := logrus.StandardLogger().Out
-			oldLevel := logrus.GetLevel()
-			logrus.SetOutput(&buf)
-			logrus.SetLevel(logrus.WarnLevel)
-			t.Cleanup(func() {
-				logrus.SetOutput(oldOut)
-				logrus.SetLevel(oldLevel)
-			})
+			recorder.lines = nil
 
 			_, err := addRemoteCharts(context.Background(), nil, t.TempDir(), tt.charts, tt.auth, tt.regex)
 			require.NoError(t, err)
 
 			if tt.wantWarning {
-				assert.Contains(t, buf.String(), "helmRepoURLRegex")
+				assert.Contains(t, strings.Join(recorder.lines, "\n"), "helmRepoURLRegex")
 			} else {
-				assert.NotContains(t, buf.String(), "helmRepoURLRegex")
+				assert.NotContains(t, strings.Join(recorder.lines, "\n"), "helmRepoURLRegex")
 			}
 		})
 	}

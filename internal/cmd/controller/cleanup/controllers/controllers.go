@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"log"
 
 	"github.com/rancher/fleet/internal/cmd/controller/cleanup/controllers/cleanup"
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -18,8 +19,6 @@ import (
 	"github.com/rancher/wrangler/v3/pkg/generated/controllers/rbac"
 	rbaccontrollers "github.com/rancher/wrangler/v3/pkg/generated/controllers/rbac/v1"
 	"github.com/rancher/wrangler/v3/pkg/start"
-
-	"github.com/sirupsen/logrus"
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -71,7 +70,7 @@ func Register(ctx context.Context, appCtx *AppContext) error {
 	)
 
 	if err := appCtx.Start(ctx); err != nil {
-		logrus.Fatal(err)
+		log.Fatal(err)
 	}
 
 	return nil

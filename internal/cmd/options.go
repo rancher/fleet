@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/sirupsen/logrus"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 type LeaderElectionOptions struct {
@@ -71,7 +71,7 @@ func NewLeaderElectionOptionsWithPrefix(prefix string) (LeaderElectionOptions, e
 func ParseEnvAgentReplicaCount() int32 {
 	replicas, err := parseEnvInt32("FLEET_AGENT_REPLICA_COUNT")
 	if err != nil {
-		logrus.Warn("FLEET_AGENT_REPLICA_COUNT not set, defaulting to 1")
+		log.Log.Info("FLEET_AGENT_REPLICA_COUNT not set, defaulting to 1", "error", err)
 		return 1
 	}
 	return replicas
