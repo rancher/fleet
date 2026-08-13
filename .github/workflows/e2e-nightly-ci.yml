@@ -119,6 +119,7 @@ jobs:
             --agents 1 \
             --network "nw01" \
             --image "docker.io/rancher/k3s:${K3S_VERSION}" \
+            --k3s-arg "--kubelet-arg=image-gc-high-threshold=100@all" \
             --k3s-arg "--cluster-init@server:0"
       -
         name: Import Images Into k3d
