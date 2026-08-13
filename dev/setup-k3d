@@ -57,4 +57,5 @@ k3d cluster create "$name" \
   -p "$(( 4343 + offs )):4343@server:0" \
   -p "$unique_tls_port:443@server:0" \
   --k3s-arg '--tls-san=k3d-upstream-server-0@server:0' \
+  --k3s-arg '--kubelet-arg=image-gc-high-threshold=100@all' \
   $args

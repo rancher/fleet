@@ -8,8 +8,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/sirupsen/logrus"
-
 	secretutil "github.com/rancher/fleet/internal/cmd/controller/agentmanagement/secret"
 	"github.com/rancher/fleet/internal/config"
 	"github.com/rancher/fleet/internal/names"
@@ -25,6 +23,7 @@ import (
 	apierror "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 	yaml "sigs.k8s.io/yaml"
 )
 
@@ -73,11 +72,11 @@ func Register(ctx context.Context,
 
 func (h *handler) OnChange(token *fleet.ClusterRegistrationToken, status fleet.ClusterRegistrationTokenStatus) ([]runtime.Object, fleet.ClusterRegistrationTokenStatus, error) {
 	if h.enforceTTL && (token.Spec.TTL == nil || token.Spec.TTL.Duration <= 0) {
-		logrus.Warnf("ClusterRegistrationToken '%s/%s' has no TTL, deleting", token.Namespace, token.Name)
+		log.Log.Info(fmt.Sprintf("ClusterRegistrationToken '%s/%s' has no TTL, deleting", token.Namespace, token.Name))
 		if err := h.clusterRegistrationTokens.Delete(token.Namespace, token.Name, nil); err != nil && !apierror.IsNotFound(err) {
 			return nil, status, fmt.Errorf("deleting ClusterRegistrationToken %s/%s with no TTL: %w", token.Namespace, token.Name, err)
 		}
-		logrus.Warnf("ClusterRegistrationToken %s/%s rejected: TTL is required", token.Namespace, token.Name)
+		log.Log.Info(fmt.Sprintf("ClusterRegistrationToken %s/%s rejected: TTL is required", token.Namespace, token.Name))
 
 		return nil, status, nil
 	}
@@ -87,8 +86,7 @@ func (h *handler) OnChange(token *fleet.ClusterRegistrationToken, status fleet.C
 			return nil, status, nil //nolint:nilerr // intentionally ignoring error to avoid retry loops on deletion failures
 		}
 	}
-
-	logrus.Debugf("Cluster registration token '%s/%s', creating import service account, roles and secret", token.Namespace, token.Name)
+	log.Log.V(1).Info(fmt.Sprintf("Cluster registration token '%s/%s', creating import service account, roles and secret", token.Namespace, token.Name))
 
 	var (
 		saName  = names.SafeConcatName(token.Name, string(token.UID))
@@ -98,7 +96,7 @@ func (h *handler) OnChange(token *fleet.ClusterRegistrationToken, status fleet.C
 	sa, err := h.serviceAccountCache.Get(token.Namespace, saName)
 	switch {
 	case apierror.IsNotFound(err):
-		logrus.Infof("ClusterRegistrationToken SA does not exist %v", saName)
+		log.Log.Info(fmt.Sprintf("ClusterRegistrationToken SA does not exist %v", saName))
 		// secret doesn't exist
 	case err != nil:
 		return nil, status, err
@@ -118,7 +116,7 @@ func (h *handler) OnChange(token *fleet.ClusterRegistrationToken, status fleet.C
 		}
 
 		if string(secretCreated.Data["token"]) == "" {
-			logrus.Debugf("ClusterRegistrationToken SA does not have a secret %s/%s", token.Namespace, saName)
+			log.Log.V(1).Info(fmt.Sprintf("ClusterRegistrationToken SA does not have a secret %s/%s", token.Namespace, saName))
 
 			secretReloaded, err := h.secretsCache.Get(token.Namespace, secretCreated.Name)
 			if err != nil {

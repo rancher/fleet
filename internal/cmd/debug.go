@@ -6,7 +6,6 @@ import (
 	"flag"
 	"fmt"
 
-	"github.com/sirupsen/logrus"
 	"go.uber.org/zap/zapcore"
 
 	"k8s.io/klog/v2"
@@ -22,7 +21,6 @@ func (c *DebugConfig) SetupDebug() error {
 	logging := flag.NewFlagSet("", flag.PanicOnError)
 	klog.InitFlags(logging)
 	if c.Debug {
-		logrus.SetLevel(logrus.DebugLevel)
 		if err := logging.Parse([]string{
 			fmt.Sprintf("-v=%d", c.DebugLevel),
 		}); err != nil {

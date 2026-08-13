@@ -17,8 +17,8 @@ import (
 	"github.com/rancher/fleet/internal/names"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
-	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/yaml"
 )
 
@@ -236,7 +236,7 @@ func bundleFromDir(ctx context.Context, name, baseDir string, bundleData []byte,
 	// Targets defined in the GitRepo are stored in the targets file, which will be used if OverrideTargets is not provided.
 	// Use targets from OverrideTargets if found in the fleet.yaml.
 	if fy.OverrideTargets != nil {
-		logrus.Debugf("Overriding targets for Bundle '%s' ", bundle.Name)
+		log.Log.V(1).Info(fmt.Sprintf("Overriding targets for Bundle '%s' ", bundle.Name))
 		for _, target := range fy.OverrideTargets {
 			bundle.Spec.Targets = append(bundle.Spec.Targets, fleet.BundleTarget{
 				Name:                 target.Name,

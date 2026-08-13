@@ -14,8 +14,6 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/rancher/fleet/internal/cmd"
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/agent"
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/scheduling"
@@ -24,6 +22,7 @@ import (
 	"github.com/rancher/fleet/internal/names"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/rancher/wrangler/v3/pkg/apply"
 	corecontrollers "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
@@ -123,8 +122,7 @@ func (h *handler) onClusterStatusChange(cluster *fleet.Cluster, status fleet.Clu
 	if SkipCluster(cluster) || LocalAgentDisabled(cluster) {
 		return status, nil
 	}
-
-	logrus.Debugf("Reconciling agent settings for cluster %s/%s", cluster.Namespace, cluster.Name)
+	log.Log.V(1).Info(fmt.Sprintf("Reconciling agent settings for cluster %s/%s", cluster.Namespace, cluster.Name))
 
 	status, vars, err := h.reconcileAgentEnvVars(cluster, status)
 	if err != nil {
@@ -301,10 +299,10 @@ func (h *handler) OnNamespace(key string, namespace *corev1.Namespace) (*corev1.
 		if SkipCluster(cluster) || LocalAgentDisabled(cluster) {
 			continue
 		}
-		logrus.Infof("Update agent bundle for cluster %s/%s", cluster.Namespace, cluster.Name)
+		log.Log.Info(fmt.Sprintf("Update agent bundle for cluster %s/%s", cluster.Namespace, cluster.Name))
 		bundleObjs, err := h.newAgentBundle(namespace.Name, cluster)
 		if err != nil {
-			logrus.Errorf("Failed to update agent bundle for cluster %s/%s", cluster.Namespace, cluster.Name)
+			log.Log.Error(err, fmt.Sprintf("Failed to update agent bundle for cluster %s/%s", cluster.Namespace, cluster.Name))
 			return nil, err
 		}
 		objs = append(objs, bundleObjs...)

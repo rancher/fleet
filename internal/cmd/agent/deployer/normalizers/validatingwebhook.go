@@ -1,9 +1,8 @@
 package normalizers
 
 import (
-	"github.com/sirupsen/logrus"
-
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/objectset"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	adregv1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -30,7 +29,7 @@ func (v *ValidatingWebhookNormalizer) convertValidatingWebhookV1(un *unstructure
 	var webhook adregv1.ValidatingWebhookConfiguration
 	err := runtime.DefaultUnstructuredConverter.FromUnstructured(un.Object, &webhook)
 	if err != nil {
-		logrus.Errorf("Failed to convert unstructured to webhook, err: %v", err)
+		log.Log.Error(err, "Failed to convert unstructured to webhook")
 		return nil
 	}
 
@@ -42,7 +41,7 @@ func (v *ValidatingWebhookNormalizer) convertValidatingWebhookV1(un *unstructure
 				continue
 			}
 			if err := setValidatingWebhookV1CacertNil(liveWebhook, i); err != nil {
-				logrus.Errorf("Failed to normalize webhook cacert, err: %v", err)
+				log.Log.Error(err, "Failed to normalize webhook cacert")
 				return nil
 			}
 		}
@@ -54,7 +53,7 @@ func setValidatingWebhookV1CacertNil(un *unstructured.Unstructured, index int) e
 	var webhook adregv1.ValidatingWebhookConfiguration
 	err := runtime.DefaultUnstructuredConverter.FromUnstructured(un.Object, &webhook)
 	if err != nil {
-		logrus.Errorf("Failed to convert unstructured to webhook, err: %v", err)
+		log.Log.Error(err, "Failed to convert unstructured to webhook")
 		return err
 	}
 
@@ -64,12 +63,12 @@ func setValidatingWebhookV1CacertNil(un *unstructured.Unstructured, index int) e
 	webhook.Webhooks[index].ClientConfig.CABundle = nil
 	newObj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&webhook)
 	if err != nil {
-		logrus.Errorf("Failed to convert unstructured to webhook, err: %v", err)
+		log.Log.Error(err, "Failed to convert unstructured to webhook")
 		return err
 	}
 	if webhook.Webhooks != nil {
 		if err = unstructured.SetNestedField(un.Object, newObj["webhooks"], "webhooks"); err != nil {
-			logrus.Errorf("ValidatingWebhook normalization error: %v", err)
+			log.Log.Error(err, "ValidatingWebhook normalization error")
 			return err
 		}
 	}

@@ -87,6 +87,7 @@ jobs:
             -p "443:443@agent:0:direct" \
             --api-port 6443 \
             --agents 1 \
+            --k3s-arg "--kubelet-arg=image-gc-high-threshold=100@all" \
             --network "nw01"
       -
         name: Provision k3d Downstream Cluster for agent-initiated registration
@@ -96,6 +97,7 @@ jobs:
             -p "444:443@agent:0:direct" \
             --api-port 6644 \
             --agents 1 \
+            --k3s-arg "--kubelet-arg=image-gc-high-threshold=100@all" \
             --network "nw01"
       -
         name: Provision k3d Downstream Cluster for manager-initiated registration
@@ -105,6 +107,7 @@ jobs:
             -p "445:443@agent:0:direct" \
             --api-port 6645 \
             --agents 1 \
+            --k3s-arg "--kubelet-arg=image-gc-high-threshold=100@all" \
             --network "nw01"
       -
         name: Import Images Into k3d

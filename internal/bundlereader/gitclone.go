@@ -14,7 +14,7 @@ import (
 	gogit "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 	httpgit "github.com/go-git/go-git/v5/plumbing/transport/http"
-	"github.com/sirupsen/logrus"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	fleetssh "github.com/rancher/fleet/internal/ssh"
 	fleetgit "github.com/rancher/fleet/pkg/git"
@@ -74,7 +74,7 @@ func gitDownload(ctx context.Context, dst, rawURL string, auth Auth) error {
 		proxyBytes := []byte(proxyCAPEM)
 		tmpPool := x509.NewCertPool()
 		if !tmpPool.AppendCertsFromPEM(proxyBytes) {
-			logrus.Warnf("%s is set but contains no valid PEM certificates; ignoring proxy CA bundle", fleetgit.ProxyCABundleEnvVar)
+			log.Log.Info(fleetgit.ProxyCABundleEnvVar + " is set but contains no valid PEM certificates; ignoring proxy CA bundle")
 		} else {
 			if len(caBundle) > 0 && caBundle[len(caBundle)-1] != '\n' {
 				caBundle = append(caBundle, '\n')

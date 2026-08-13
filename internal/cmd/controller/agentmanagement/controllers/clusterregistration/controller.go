@@ -10,8 +10,6 @@ import (
 	"maps"
 	"time"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/controllers/resources"
 	secretutil "github.com/rancher/fleet/internal/cmd/controller/agentmanagement/secret"
 	"github.com/rancher/fleet/internal/config"
@@ -20,6 +18,7 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/durations"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/rancher/wrangler/v3/pkg/apply"
 	corecontrollers "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
@@ -131,8 +130,8 @@ func (h *handler) OnCluster(key string, cluster *fleet.Cluster) (*fleet.Cluster,
 	}
 	for _, cr := range crs {
 		if !cr.Status.Granted {
-			logrus.Infof("Namespace assigned to cluster '%s/%s' enqueues cluster registration '%s/%s'", cluster.Namespace, cluster.Name,
-				cr.Namespace, cr.Name)
+			log.Log.Info(fmt.Sprintf("Namespace assigned to cluster '%s/%s' enqueues cluster registration '%s/%s'", cluster.Namespace, cluster.Name,
+				cr.Namespace, cr.Name))
 			h.clusterRegistration.Enqueue(cr.Namespace, cr.Name)
 		}
 	}
@@ -147,7 +146,7 @@ func (h *handler) OnSecretChange(key string, secret *v1.Secret) (*v1.Secret, err
 	}
 
 	if time.Since(secret.CreationTimestamp.Time) > deleteSecretAfter {
-		logrus.Infof("Deleting expired registration secret %s/%s", secret.Namespace, secret.Name)
+		log.Log.Info(fmt.Sprintf("Deleting expired registration secret %s/%s", secret.Namespace, secret.Name))
 		return secret, h.secrets.Delete(secret.Namespace, secret.Name, nil)
 	}
 
@@ -233,8 +232,8 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 		return nil, status, fmt.Errorf("failed to authorize cluster, cannot get service account token: %w", err)
 	} else if secret == nil {
 		status.ClusterName = cluster.Name
-		logrus.Infof("Cluster registration request '%s/%s', cluster '%s/%s' not granted, waiting for service account token",
-			request.Namespace, request.Name, cluster.Namespace, cluster.Name)
+		log.Log.Info(fmt.Sprintf("Cluster registration request '%s/%s', cluster '%s/%s' not granted, waiting for service account token",
+			request.Namespace, request.Name, cluster.Namespace, cluster.Name))
 		return nil, status, nil
 	}
 
@@ -242,7 +241,7 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 	crlist, _ := h.clusterRegistration.List(request.Namespace, metav1.ListOptions{})
 	for _, creg := range crlist.Items {
 		if shouldDelete(creg, *request) {
-			logrus.Debugf("Deleting old clusterregistration '%s/%s', now at '%s'", creg.Namespace, creg.Name, request.Name)
+			log.Log.V(1).Info(fmt.Sprintf("Deleting old clusterregistration '%s/%s', now at '%s'", creg.Namespace, creg.Name, request.Name))
 			if err := h.clusterRegistration.Delete(creg.Namespace, creg.Name, nil); err != nil && !apierrors.IsNotFound(err) {
 				return nil, status, err
 			}
@@ -252,8 +251,7 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 	// request is granted, create the registration secret and roles
 	status.ClusterName = cluster.Name
 	status.Granted = true
-
-	logrus.Infof("Cluster registration request '%s/%s' granted, creating cluster, request service account, registration secret", request.Namespace, request.Name)
+	log.Log.Info(fmt.Sprintf("Cluster registration request '%s/%s' granted, creating cluster, request service account, registration secret", request.Namespace, request.Name))
 
 	objs := []runtime.Object{
 		// the registration secret c-clientID-clientRandom
@@ -409,16 +407,16 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 		// that token's SA scoped read access to the credential secret.
 		tokenName := request.Labels[fleet.RegistrationTokenLabel]
 		if tokenName == "" {
-			logrus.Warnf("ClusterRegistration '%s/%s' has no %s label; cannot grant credential secret access for agent-initiated registration",
-				request.Namespace, request.Name, fleet.RegistrationTokenLabel)
+			log.Log.Info(fmt.Sprintf("ClusterRegistration '%s/%s' has no %s label; cannot grant credential secret access for agent-initiated registration",
+				request.Namespace, request.Name, fleet.RegistrationTokenLabel))
 		} else {
 			agentToken, tokenErr := h.tokenCache.Get(request.Namespace, tokenName)
 			if tokenErr != nil && !apierrors.IsNotFound(tokenErr) {
 				return nil, status, fmt.Errorf("looking up registration token %s/%s: %w", request.Namespace, tokenName, tokenErr)
 			}
 			if apierrors.IsNotFound(tokenErr) {
-				logrus.Warnf("ClusterRegistration '%s/%s': registration token %s/%s not found (may have expired), skipping credential secret access grant",
-					request.Namespace, request.Name, request.Namespace, tokenName)
+				log.Log.Info(fmt.Sprintf("ClusterRegistration '%s/%s': registration token %s/%s not found (may have expired), skipping credential secret access grant",
+					request.Namespace, request.Name, request.Namespace, tokenName))
 				return objs, status, nil
 			}
 			agentSAName := names.SafeConcatName(tokenName, string(agentToken.UID))
@@ -517,7 +515,7 @@ func (h *handler) createOrGetCluster(request *fleet.ClusterRegistration) (*fleet
 		return h.clusters.Get(request.Namespace, clusterName, metav1.GetOptions{})
 	}
 	if err == nil {
-		logrus.Infof("Created cluster %s/%s", request.Namespace, clusterName)
+		log.Log.Info(fmt.Sprintf("Created cluster %s/%s", request.Namespace, clusterName))
 	}
 	return cluster, err
 }
