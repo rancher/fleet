@@ -1,6 +1,6 @@
 module github.com/rancher/fleet/pkg/helmvalues
 
-go 1.26.0
+go 1.26.1
 
 toolchain go1.26.5
 
