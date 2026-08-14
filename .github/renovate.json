@@ -75,6 +75,34 @@
       "enabled": true,
       "groupName": "Kubernetes dependencies",
       "minimumGroupSize": 2
+    },
+    {
+      "description": "Automerge patch and minor updates on main",
+      "matchBaseBranches": [
+        "main"
+      ],
+      "matchJsonata": [
+        "$not($exists(vulnerabilityFixVersion) or $exists(isVulnerabilityAlert))"
+      ],
+      "matchUpdateTypes": [
+        "patch",
+        "minor"
+      ],
+      "automerge": true
+    },
+    {
+      "description": "Automerge security updates on main",
+      "matchBaseBranches": [
+        "main"
+      ],
+      "matchJsonata": [
+        "$exists(vulnerabilityFixVersion) or $exists(isVulnerabilityAlert)"
+      ],
+      "matchUpdateTypes": [
+        "patch",
+        "minor"
+      ],
+      "automerge": true
     }
   ]
 }
