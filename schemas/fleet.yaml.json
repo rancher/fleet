@@ -95,6 +95,10 @@
           "type": "object",
           "description": "NamespaceLabels are labels that will be appended to the namespace created by Fleet."
         },
+        "allowPodSecurityNamespaceLabels": {
+          "type": "boolean",
+          "description": "AllowPodSecurityNamespaceLabels controls whether NamespaceLabels with the\n`pod-security.kubernetes.io/` prefix are applied to the target namespace.\nWhen nil or false, those labels are dropped by the agent. It is set by the\ncontroller from the Policy objects of the bundle's namespace and any value\ncoming from fleet.yaml or a Bundle is discarded, so opting in is a cluster\nadministrator decision."
+        },
         "namespaceAnnotations": {
           "additionalProperties": {
             "type": "string"
@@ -736,6 +740,10 @@
       },
       "type": "object",
       "description": "NamespaceLabels are labels that will be appended to the namespace created by Fleet."
+    },
+    "allowPodSecurityNamespaceLabels": {
+      "type": "boolean",
+      "description": "AllowPodSecurityNamespaceLabels controls whether NamespaceLabels with the\n`pod-security.kubernetes.io/` prefix are applied to the target namespace.\nWhen nil or false, those labels are dropped by the agent. It is set by the\ncontroller from the Policy objects of the bundle's namespace and any value\ncoming from fleet.yaml or a Bundle is discarded, so opting in is a cluster\nadministrator decision."
     },
     "namespaceAnnotations": {
       "additionalProperties": {

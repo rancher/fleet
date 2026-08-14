@@ -13,9 +13,10 @@ import (
 
 // Merged is the aggregated result of one or more Policy objects in a namespace.
 type Merged struct {
-	RequireServiceAccount  bool
-	AllowedServiceAccounts []string
-	AllowNamespaceCreation bool
+	RequireServiceAccount           bool
+	AllowedServiceAccounts          []string
+	AllowNamespaceCreation          bool
+	AllowPodSecurityNamespaceLabels bool
 
 	// GitRepo-specific
 	GitDefaultServiceAccount    string
@@ -52,6 +53,11 @@ func Aggregate(policies []fleet.Policy) Merged {
 		// ensure no Policy in the namespace sets allowNamespaceCreation: true.
 		if p.AllowNamespaceCreation {
 			m.AllowNamespaceCreation = true
+		}
+		// Least-restrictive as well: one Policy allowing pod-security namespace
+		// labels enables them for all deployments in that namespace.
+		if p.AllowPodSecurityNamespaceLabels {
+			m.AllowPodSecurityNamespaceLabels = true
 		}
 		m.AllowedServiceAccounts = append(m.AllowedServiceAccounts, p.AllowedServiceAccounts...)
 

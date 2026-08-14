@@ -239,6 +239,25 @@ spec:
                   description: Options are the deployment options, that are currently
                     applied.
                   properties:
+                    allowPodSecurityNamespaceLabels:
+                      description: 'AllowPodSecurityNamespaceLabels controls whether
+                        NamespaceLabels with the
+
+                        `pod-security.kubernetes.io/` prefix are applied to the target
+                        namespace.
+
+                        When nil or false, those labels are dropped by the agent.
+                        It is set by the
+
+                        controller from the Policy objects of the bundle''s namespace
+                        and any value
+
+                        coming from fleet.yaml or a Bundle is discarded, so opting
+                        in is a cluster
+
+                        administrator decision.'
+                      nullable: true
+                      type: boolean
                     allowedTargetNamespaceSelector:
                       description: 'AllowedTargetNamespaceSelector restricts deployments
                         to namespaces matching this selector.
@@ -726,6 +745,25 @@ spec:
 
                     the next deployment.'
                   properties:
+                    allowPodSecurityNamespaceLabels:
+                      description: 'AllowPodSecurityNamespaceLabels controls whether
+                        NamespaceLabels with the
+
+                        `pod-security.kubernetes.io/` prefix are applied to the target
+                        namespace.
+
+                        When nil or false, those labels are dropped by the agent.
+                        It is set by the
+
+                        controller from the Policy objects of the bundle''s namespace
+                        and any value
+
+                        coming from fleet.yaml or a Bundle is discarded, so opting
+                        in is a cluster
+
+                        administrator decision.'
+                      nullable: true
+                      type: boolean
                     allowedTargetNamespaceSelector:
                       description: 'AllowedTargetNamespaceSelector restricts deployments
                         to namespaces matching this selector.
@@ -1694,6 +1732,25 @@ spec:
               type: object
             spec:
               properties:
+                allowPodSecurityNamespaceLabels:
+                  description: 'AllowPodSecurityNamespaceLabels controls whether NamespaceLabels
+                    with the
+
+                    `pod-security.kubernetes.io/` prefix are applied to the target
+                    namespace.
+
+                    When nil or false, those labels are dropped by the agent. It is
+                    set by the
+
+                    controller from the Policy objects of the bundle''s namespace
+                    and any value
+
+                    coming from fleet.yaml or a Bundle is discarded, so opting in
+                    is a cluster
+
+                    administrator decision.'
+                  nullable: true
+                  type: boolean
                 allowedTargetNamespaceSelector:
                   description: 'AllowedTargetNamespaceSelector restricts deployments
                     to namespaces matching this selector.
@@ -2699,6 +2756,25 @@ spec:
 
                       BundleDeploymentOptions from customizations into this struct.'
                     properties:
+                      allowPodSecurityNamespaceLabels:
+                        description: 'AllowPodSecurityNamespaceLabels controls whether
+                          NamespaceLabels with the
+
+                          `pod-security.kubernetes.io/` prefix are applied to the
+                          target namespace.
+
+                          When nil or false, those labels are dropped by the agent.
+                          It is set by the
+
+                          controller from the Policy objects of the bundle''s namespace
+                          and any value
+
+                          coming from fleet.yaml or a Bundle is discarded, so opting
+                          in is a cluster
+
+                          administrator decision.'
+                        nullable: true
+                        type: boolean
                       allowedTargetNamespaceSelector:
                         description: 'AllowedTargetNamespaceSelector restricts deployments
                           to namespaces matching this selector.
@@ -8035,6 +8111,25 @@ spec:
               type: object
             spec:
               properties:
+                allowPodSecurityNamespaceLabels:
+                  description: 'AllowPodSecurityNamespaceLabels controls whether NamespaceLabels
+                    with the
+
+                    `pod-security.kubernetes.io/` prefix are applied to the target
+                    namespace.
+
+                    When nil or false, those labels are dropped by the agent. It is
+                    set by the
+
+                    controller from the Policy objects of the bundle''s namespace
+                    and any value
+
+                    coming from fleet.yaml or a Bundle is discarded, so opting in
+                    is a cluster
+
+                    administrator decision.'
+                  nullable: true
+                  type: boolean
                 allowedTargetNamespaceSelector:
                   description: 'AllowedTargetNamespaceSelector restricts deployments
                     to namespaces matching this selector.
@@ -9072,6 +9167,25 @@ spec:
 
                       BundleDeploymentOptions from customizations into this struct.'
                     properties:
+                      allowPodSecurityNamespaceLabels:
+                        description: 'AllowPodSecurityNamespaceLabels controls whether
+                          NamespaceLabels with the
+
+                          `pod-security.kubernetes.io/` prefix are applied to the
+                          target namespace.
+
+                          When nil or false, those labels are dropped by the agent.
+                          It is set by the
+
+                          controller from the Policy objects of the bundle''s namespace
+                          and any value
+
+                          coming from fleet.yaml or a Bundle is discarded, so opting
+                          in is a cluster
+
+                          administrator decision.'
+                        nullable: true
+                        type: boolean
                       allowedTargetNamespaceSelector:
                         description: 'AllowedTargetNamespaceSelector restricts deployments
                           to namespaces matching this selector.
@@ -10462,6 +10576,22 @@ spec:
                 through other means (ValidatingAdmissionPolicy, Kyverno, etc.) can
 
                 set this to true.'
+              type: boolean
+            allowPodSecurityNamespaceLabels:
+              description: 'AllowPodSecurityNamespaceLabels, when true, allows namespaceLabels
+                with
+
+                the `pod-security.kubernetes.io/` prefix to be applied to the target
+
+                namespace on downstream clusters. By default (false) those labels
+                are
+
+                dropped, so Pod Security Standards set by cluster administrators cannot
+
+                be weakened through fleet.yaml. Set this to true in workspaces where
+                the
+
+                Git contents are trusted to manage Pod Security Standards.'
               type: boolean
             allowedServiceAccounts:
               description: 'AllowedServiceAccounts lists service accounts that may

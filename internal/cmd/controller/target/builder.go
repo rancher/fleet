@@ -64,6 +64,11 @@ func (m *Manager) Targets(ctx context.Context, bundle *fleet.Bundle, manifestID 
 		return nil, false, fmt.Errorf("failed to resolve createNamespace from Policy: %w", err)
 	}
 
+	allowPodSecurityNamespaceLabels, err := m.getAllowPodSecurityNamespaceLabelsForBundle(ctx, bundle)
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to resolve allowPodSecurityNamespaceLabels from Policy: %w", err)
+	}
+
 	bm, err := matcher.New(bundle)
 	if err != nil {
 		return nil, false, err
@@ -149,6 +154,10 @@ func (m *Manager) Targets(ctx context.Context, bundle *fleet.Bundle, manifestID 
 			if createNamespace != nil {
 				opts.CreateNamespace = createNamespace
 			}
+			// Discard any value coming from fleet.yaml or the Bundle: only
+			// Policy objects, which are managed by cluster administrators, may
+			// enable pod-security namespace labels.
+			opts.AllowPodSecurityNamespaceLabels = allowPodSecurityNamespaceLabels
 
 			err = preprocessHelmValues(logger, &opts, &cluster)
 			if err != nil {
@@ -501,4 +510,26 @@ func (m *Manager) getCreateNamespaceForBundle(ctx context.Context, bundle *fleet
 	}
 
 	return nil, nil
+}
+
+// getAllowPodSecurityNamespaceLabelsForBundle resolves whether namespaceLabels
+// with the `pod-security.kubernetes.io/` prefix may be applied to the target
+// namespace, based on Policy objects in the bundle's namespace. Returns a
+// pointer to true when the aggregated policy allows them, nil otherwise, which
+// the agent treats as "filter them out".
+func (m *Manager) getAllowPodSecurityNamespaceLabelsForBundle(ctx context.Context, bundle *fleet.Bundle) (*bool, error) {
+	policies := &fleet.PolicyList{}
+	if err := m.client.List(ctx, policies, client.InNamespace(bundle.Namespace)); err != nil {
+		if apimeta.IsNoMatchError(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to list Policies: %w", err)
+	}
+
+	if !policyrestrictions.Aggregate(policies.Items).AllowPodSecurityNamespaceLabels {
+		return nil, nil
+	}
+
+	v := true
+	return &v, nil
 }
