@@ -61,7 +61,7 @@ require (
 	github.com/google/go-containerregistry v0.21.8
 	github.com/invopop/jsonschema v0.14.0
 	github.com/jpillora/backoff v1.0.0
-	github.com/klauspost/compress v1.19.1
+	github.com/klauspost/compress v1.19.2
 	github.com/moby/moby/api v1.55.0
 	github.com/onsi/ginkgo/v2 v2.32.0
 	github.com/onsi/gomega v1.42.1
