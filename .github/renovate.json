@@ -77,10 +77,7 @@
       "minimumGroupSize": 2
     },
     {
-      "description": "Automerge patch and minor updates on main",
-      "matchBaseBranches": [
-        "main"
-      ],
+      "description": "Automerge patch and minor updates",
       "matchJsonata": [
         "$not($exists(vulnerabilityFixVersion) or $exists(isVulnerabilityAlert))"
       ],
@@ -91,10 +88,7 @@
       "automerge": true
     },
     {
-      "description": "Automerge security updates on main",
-      "matchBaseBranches": [
-        "main"
-      ],
+      "description": "Automerge security updates",
       "matchJsonata": [
         "$exists(vulnerabilityFixVersion) or $exists(isVulnerabilityAlert)"
       ],
