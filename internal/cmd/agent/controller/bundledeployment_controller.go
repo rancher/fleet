@@ -725,7 +725,6 @@ func (r *BundleDeploymentReconciler) requeueIfCopyForbidden(ctx context.Context,
 	}
 
 	bd.Status.Ready = false
-	bd.Status.NonModified = true
 	monitor.Cond(fleetv1.BundleDeploymentConditionReady).SetError(&bd.Status, "", fmt.Errorf("not ready: %w", err))
 	monitor.Cond(fleetv1.BundleDeploymentConditionInstalled).SetError(&bd.Status, "", fmt.Errorf("not installed: %w", err))
 	if err := r.updateStatus(ctx, orig, bd); err != nil {

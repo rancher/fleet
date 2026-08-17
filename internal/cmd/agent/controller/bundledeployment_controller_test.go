@@ -313,9 +313,6 @@ func TestRequeueIfCopyForbidden_Forbidden(t *testing.T) {
 	if persisted.Status.Ready {
 		t.Errorf("expected persisted status Ready=false")
 	}
-	if !persisted.Status.NonModified {
-		t.Errorf("expected persisted status NonModified=true")
-	}
 	if !hasFalseCondition(persisted.Status, fleetv1.BundleDeploymentConditionReady) {
 		t.Errorf("expected a false %q condition", fleetv1.BundleDeploymentConditionReady)
 	}
