@@ -9,13 +9,13 @@ package main
 
 import (
 	"encoding/json"
+	"log"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 
 	"github.com/invopop/jsonschema"
-	"github.com/sirupsen/logrus"
 
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
@@ -50,7 +50,7 @@ func main() {
 	// Pull `// ...` doc comments off the structs and turn them into schema
 	// descriptions. This is what gives IDEs inline documentation.
 	if err := r.AddGoComments(moduleBase, apisSrcDir); err != nil {
-		logrus.Fatalf("adding Go comments: %v", err)
+		log.Fatalf("adding Go comments: %v", err)
 	}
 	stripMarkers(r.CommentMap)
 
@@ -58,18 +58,18 @@ func main() {
 
 	data, err := json.MarshalIndent(schema, "", "  ")
 	if err != nil {
-		logrus.Fatalf("marshaling schema: %v", err)
+		log.Fatalf("marshaling schema: %v", err)
 	}
 	data = append(data, '\n')
 
 	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
-		logrus.Fatalf("creating output directory: %v", err)
+		log.Fatalf("creating output directory: %v", err)
 	}
 	if err := os.WriteFile(outputPath, data, 0o644); err != nil { //nolint:gosec
-		logrus.Fatalf("writing schema: %v", err)
+		log.Fatalf("writing schema: %v", err)
 	}
 
-	logrus.Infof("wrote %s", outputPath)
+	log.Printf("wrote %s", outputPath)
 }
 
 // stripMarkers removes code-generation marker lines from the extracted doc
