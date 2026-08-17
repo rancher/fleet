@@ -151,6 +151,55 @@ func TestCopyResourcesFromUpstream_ForbiddenSurfaces(t *testing.T) {
 	if !apierrors.IsForbidden(err) {
 		t.Errorf("expected error to be detectable as Forbidden, got %v", err)
 	}
+	var copyForbiddenError *CopyForbiddenError
+	if !errors.As(err, &copyForbiddenError) {
+		t.Errorf("expected a denied downstream write to be marked as a copy denial, got %v", err)
+	}
+}
+
+// TestCopyResourcesFromUpstream_UpstreamForbiddenNotMarked verifies that a Forbidden
+// from reading the sources on the management cluster is not mistaken for a denial of
+// the deployment's service account. That read runs as the agent, so no downstream grant
+// would resolve it and it must surface as a reconcile error instead of requeueing
+// indefinitely.
+func TestCopyResourcesFromUpstream_UpstreamForbiddenNotMarked(t *testing.T) {
+	scheme := downstreamResourcesScheme(t)
+	bd := downstreamResourcesBundleDeployment()
+
+	forbidden := apierrors.NewForbidden(
+		schema.GroupResource{Resource: "secrets"}, "src-secret", errors.New("nope"))
+	upstream := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithInterceptorFuncs(interceptor.Funcs{
+			Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+				if _, ok := obj.(*corev1.Secret); ok {
+					return forbidden
+				}
+				return c.Get(ctx, key, obj, opts...)
+			},
+		}).
+		Build()
+
+	downstream := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "target"}}).
+		Build()
+
+	r := &BundleDeploymentReconciler{
+		Reader:           upstream,
+		LocalClient:      downstream,
+		Deployer:         deployer.New(downstream, upstream, nil, nil),
+		DefaultNamespace: "cattle-fleet-system",
+	}
+
+	_, err := r.copyResourcesFromUpstream(context.Background(), bd, logr.Discard())
+	if err == nil {
+		t.Fatal("expected a forbidden error, got nil")
+	}
+	var copyForbiddenError *CopyForbiddenError
+	if errors.As(err, &copyForbiddenError) {
+		t.Errorf("expected an upstream read denial not to be marked as a copy denial, got %v", err)
+	}
 }
 
 // TestCopyResourcesFromUpstream_MissingNamespaceForbidden verifies that a missing
@@ -209,6 +258,10 @@ func TestCopyResourcesFromUpstream_MissingNamespaceForbidden(t *testing.T) {
 	if !apierrors.IsForbidden(err) {
 		t.Errorf("expected error to stay detectable as Forbidden, got %v", err)
 	}
+	var copyForbiddenError *CopyForbiddenError
+	if !errors.As(err, &copyForbiddenError) {
+		t.Errorf("expected a denied namespace create to be marked as a copy denial, got %v", err)
+	}
 	if !strings.Contains(err.Error(), "target") {
 		t.Errorf("expected the error to name the deployment namespace, got %v", err)
 	}
@@ -217,7 +270,7 @@ func TestCopyResourcesFromUpstream_MissingNamespaceForbidden(t *testing.T) {
 	}
 }
 
-// TestRequeueIfCopyForbidden_Forbidden verifies that a Forbidden copy error is
+// TestRequeueIfCopyForbidden_Forbidden verifies that a denied downstream copy write is
 // handled as a controlled requeue: the status is persisted as not-ready and the
 // result requeues after the namespace-permission interval, rather than being
 // returned as a reconcile error.
@@ -239,8 +292,8 @@ func TestRequeueIfCopyForbidden_Forbidden(t *testing.T) {
 	r := &BundleDeploymentReconciler{Client: c}
 
 	orig := bd.DeepCopy()
-	forbidden := apierrors.NewForbidden(
-		schema.GroupResource{Resource: "namespaces"}, "target", errors.New("nope"))
+	forbidden := copyForbidden(apierrors.NewForbidden(
+		schema.GroupResource{Resource: "namespaces"}, "target", errors.New("nope")))
 
 	handled, res, err := r.requeueIfCopyForbidden(context.Background(), orig, bd, forbidden)
 	if !handled {
@@ -293,6 +346,48 @@ func TestRequeueIfCopyForbidden_NotForbidden(t *testing.T) {
 	handled, _, err := r.requeueIfCopyForbidden(context.Background(), bd.DeepCopy(), bd, errors.New("boom"))
 	if handled {
 		t.Fatal("expected a non-forbidden error not to be handled")
+	}
+	if err != nil {
+		t.Fatalf("expected no error when not handling, got %v", err)
+	}
+
+	persisted := &fleetv1.BundleDeployment{}
+	if err := c.Get(context.Background(), types.NamespacedName{Namespace: "cluster-ns", Name: "bd-1"}, persisted); err != nil {
+		t.Fatalf("failed to fetch bundle deployment: %v", err)
+	}
+	if !persisted.Status.Ready {
+		t.Errorf("expected status to be untouched (Ready=true)")
+	}
+}
+
+// TestRequeueIfCopyForbidden_UnmarkedForbidden verifies that a Forbidden which did not
+// come from one of the downstream copy writes is left for the caller to return. Only
+// those writes run as the deployment's service account, so only they converge once a
+// downstream grant is added; requeueing anything else would loop forever on a status
+// that names the wrong cause.
+func TestRequeueIfCopyForbidden_UnmarkedForbidden(t *testing.T) {
+	scheme := runtime.NewScheme()
+	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+	utilruntime.Must(fleetv1.AddToScheme(scheme))
+
+	bd := &fleetv1.BundleDeployment{
+		ObjectMeta: metav1.ObjectMeta{Name: "bd-1", Namespace: "cluster-ns"},
+		Status:     fleetv1.BundleDeploymentStatus{Ready: true},
+	}
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithStatusSubresource(&fleetv1.BundleDeployment{}).
+		WithObjects(bd).
+		Build()
+
+	r := &BundleDeploymentReconciler{Client: c}
+
+	forbidden := apierrors.NewForbidden(
+		schema.GroupResource{Resource: "secrets"}, "src-secret", errors.New("nope"))
+
+	handled, _, err := r.requeueIfCopyForbidden(context.Background(), bd.DeepCopy(), bd, forbidden)
+	if handled {
+		t.Fatal("expected an unmarked forbidden error not to be handled")
 	}
 	if err != nil {
 		t.Fatalf("expected no error when not handling, got %v", err)

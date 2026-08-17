@@ -311,10 +311,12 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	forceDeploy, err := r.copyResourcesFromUpstream(ctx, bd, logger)
 	if err != nil {
-		// A Forbidden here means the deployment's service account is not allowed to
-		// create the target namespace or write the copied resources. Record it as a
-		// controlled requeue (the missing RBAC is not watched, so granting it would
-		// not otherwise re-trigger a reconcile) rather than tight-looping.
+		// A denied downstream write means the deployment's service account is not
+		// allowed to create the target namespace or write the copied resources. Record
+		// it as a controlled requeue (the missing RBAC is not watched, so granting it
+		// would not otherwise re-trigger a reconcile) rather than tight-looping. Other
+		// failures, including a Forbidden from reading the sources upstream, are
+		// returned.
 		if handled, res, rerr := r.requeueIfCopyForbidden(ctx, orig, bd, err); handled {
 			return res, rerr
 		}
@@ -480,14 +482,14 @@ func (r *BundleDeploymentReconciler) copyResourcesFromUpstream(
 		ns = corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: destNS}}
 		if err := dsClient.Create(ctx, &ns); err != nil {
 			if apierrors.IsForbidden(err) {
-				// Wrapped, so the caller still detects this as a Forbidden and
-				// requeues instead of failing the reconcile.
-				return false, fmt.Errorf(
+				// Marked as a denied copy write, so the caller requeues instead of
+				// failing the reconcile, and still unwraps to the Forbidden underneath.
+				return false, copyForbidden(fmt.Errorf(
 					"deployment namespace %q does not exist and the deployment's service account is not "+
 						"allowed to create it; create the namespace or grant it 'create' on namespaces: %w",
 					destNS,
 					err,
-				)
+				))
 			}
 			logger.Info(err.Error())
 			return false, err
@@ -577,7 +579,11 @@ func (r *BundleDeploymentReconciler) copySecret(
 		return nil
 	})
 	if err != nil {
-		return false, fmt.Errorf("failed to create or update secret %s/%s downstream: %w", bd.Namespace, name, err)
+		// The write ran as the deployment's service account, so a denial is marked as
+		// such and handled as a controlled requeue by requeueIfCopyForbidden.
+		return false, copyForbidden(
+			fmt.Errorf("failed to create or update secret %s/%s downstream: %w", bd.Namespace, name, err),
+		)
 	}
 
 	return op == controllerutil.OperationResultUpdated, nil
@@ -632,7 +638,11 @@ func (r *BundleDeploymentReconciler) copyConfigMap(
 		return nil
 	})
 	if err != nil {
-		return false, fmt.Errorf("failed to create or update configmap %s/%s downstream: %w", bd.Namespace, name, err)
+		// The write ran as the deployment's service account, so a denial is marked as
+		// such and handled as a controlled requeue by requeueIfCopyForbidden.
+		return false, copyForbidden(
+			fmt.Errorf("failed to create or update configmap %s/%s downstream: %w", bd.Namespace, name, err),
+		)
 	}
 
 	return op == controllerutil.OperationResultUpdated, nil
@@ -670,15 +680,47 @@ func (r *BundleDeploymentReconciler) requeueIfNamespaceForbidden(ctx context.Con
 	return true, ctrl.Result{RequeueAfter: durations.NamespacePermissionRequeueInterval}, nil
 }
 
+// CopyForbiddenError marks a denied downstream write made for a bundle deployment's
+// DownstreamResources: creating the deployment namespace, or writing a copied Secret or
+// ConfigMap. Those writes run as the deployment's service account, so a denial is a
+// statement about the tenant's downstream RBAC, and requeueIfCopyForbidden handles it as
+// a controlled requeue.
+//
+// The marker keeps that handling away from the reads from the management cluster in
+// copySecret/copyConfigMap: those run as the agent, so a Forbidden from them points at
+// the agent's own upstream RBAC, which no downstream grant resolves and which must
+// surface as a reconcile error rather than requeue indefinitely. It unwraps to the
+// underlying Forbidden error, so apierrors.IsForbidden still reports true.
+type CopyForbiddenError struct {
+	err error
+}
+
+func (e *CopyForbiddenError) Error() string { return e.err.Error() }
+
+func (e *CopyForbiddenError) Unwrap() error { return e.err }
+
+// copyForbidden marks err as a denied downstream copy write when it is a Forbidden, and
+// returns it unchanged otherwise.
+func copyForbidden(err error) error {
+	if !apierrors.IsForbidden(err) {
+		return err
+	}
+
+	return &CopyForbiddenError{err: err}
+}
+
 // requeueIfCopyForbidden handles a denied DownstreamResources copy: the deployment's
 // service account is not allowed to create the target namespace or write the copied
 // Secret/ConfigMap. Nothing has been deployed yet (the copy runs before DeployBundle),
 // so it records not-ready (Ready/Installed=false, without a Deployed condition) and does
 // a controlled requeue rather than a failed reconcile, so it does not tight-loop: the
 // copy converges once the missing namespace/resource RBAC is granted (granting it does
-// not otherwise trigger a reconcile). Returns handled=false when err is not a Forbidden.
+// not otherwise trigger a reconcile). Returns handled=false when err is not a
+// CopyForbiddenError, so a Forbidden raised by anything but those downstream writes is
+// left for the caller to return.
 func (r *BundleDeploymentReconciler) requeueIfCopyForbidden(ctx context.Context, orig, bd *fleetv1.BundleDeployment, err error) (bool, ctrl.Result, error) {
-	if !apierrors.IsForbidden(err) {
+	var copyForbiddenError *CopyForbiddenError
+	if !errors.As(err, &copyForbiddenError) {
 		return false, ctrl.Result{}, nil
 	}
 
