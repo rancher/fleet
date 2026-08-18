@@ -89,6 +89,11 @@
     },
     {
       "description": "Automerge security updates",
+      "matchDepTypes": [
+        "!devDependencies",
+        "!dev-dependencies",
+        "!test"
+      ],
       "matchJsonata": [
         "$exists(vulnerabilityFixVersion) or $exists(isVulnerabilityAlert)"
       ],
@@ -96,6 +101,7 @@
         "patch",
         "minor"
       ],
+      "enabled": true,
       "automerge": true
     }
   ]
