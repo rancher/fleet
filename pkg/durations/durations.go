@@ -46,6 +46,15 @@ const (
 	// a reconcile on its own, so the agent requeues at this interval to
 	// converge once the permission is added.
 	NamespacePermissionRequeueInterval = time.Minute * 2
+	// StaleCacheRequeue is how long the Fleet agent waits before looking again
+	// at a BundleDeployment which is missing from its cache but still present
+	// on the API server. It doubles on every further attempt, up to
+	// StaleCacheRequeueMax.
+	StaleCacheRequeue = time.Second * 30
+	// StaleCacheRequeueMax caps the wait between those attempts, so that a
+	// cache which never catches up stops polling the API server every few
+	// seconds.
+	StaleCacheRequeueMax = time.Minute * 10
 )
 
 // Equal reports whether the duration t is equal to u.
