@@ -150,7 +150,7 @@ func TestCopyResourcesFromUpstream_ForbiddenSurfaces(t *testing.T) {
 // TestCopyResourcesFromUpstream_UpstreamForbiddenNotMarked verifies that a Forbidden
 // from reading the sources on the management cluster is not mistaken for a denial of
 // the deployment's service account. That read runs as the agent, so no downstream grant
-// would resolve it and it must surface as a reconcile error instead of requeueing
+// would resolve it and it must surface as a reconcile error instead of requeuing
 // indefinitely.
 func TestCopyResourcesFromUpstream_UpstreamForbiddenNotMarked(t *testing.T) {
 	scheme := downstreamResourcesScheme(t)
