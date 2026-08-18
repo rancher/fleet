@@ -2,10 +2,12 @@ package helmdeployer
 
 import (
 	"context"
-	"reflect"
 	"testing"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -65,30 +67,23 @@ func TestDeleteResourcesCopiedFromUpstream_CollectsCopiesInAnyNamespace(t *testi
 
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(objs...).Build()
 
-	if err := deleteResourcesCopiedFromUpstream(context.Background(), c, c, bdName); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	require.NoError(t, deleteResourcesCopiedFromUpstream(context.Background(), c, c, bdName))
 
 	deleted := func(obj client.Object, ns, name string) bool {
 		err := c.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: name}, obj)
 		return apierrors.IsNotFound(err)
 	}
 
-	if !deleted(&corev1.Secret{}, releaseNS, "copied-secret") {
-		t.Errorf("expected owned secret in release namespace to be deleted")
-	}
-	if !deleted(&corev1.ConfigMap{}, releaseNS, "copied-cm") {
-		t.Errorf("expected owned configmap in release namespace to be deleted")
-	}
-	if !deleted(&corev1.Secret{}, "previous", "stale-secret") {
-		t.Errorf("expected owned secret left in a previously targeted namespace to be deleted")
-	}
-	if deleted(&corev1.Secret{}, releaseNS, "foreign-secret") {
-		t.Errorf("secret owned by a different bundle deployment must not be deleted")
-	}
-	if deleted(&corev1.ConfigMap{}, releaseNS, "unrelated-cm") {
-		t.Errorf("unlabeled configmap must not be deleted")
-	}
+	assert.True(t, deleted(&corev1.Secret{}, releaseNS, "copied-secret"),
+		"expected owned secret in release namespace to be deleted")
+	assert.True(t, deleted(&corev1.ConfigMap{}, releaseNS, "copied-cm"),
+		"expected owned configmap in release namespace to be deleted")
+	assert.True(t, deleted(&corev1.Secret{}, "previous", "stale-secret"),
+		"expected owned secret left in a previously targeted namespace to be deleted")
+	assert.False(t, deleted(&corev1.Secret{}, releaseNS, "foreign-secret"),
+		"secret owned by a different bundle deployment must not be deleted")
+	assert.False(t, deleted(&corev1.ConfigMap{}, releaseNS, "unrelated-cm"),
+		"unlabeled configmap must not be deleted")
 }
 
 // TestDeleteResourcesCopiedFromUpstream_ListsAsAgentDeletesAsDeployment verifies the
@@ -114,7 +109,7 @@ func TestDeleteResourcesCopiedFromUpstream_ListsAsAgentDeletesAsDeployment(t *te
 		).
 		WithInterceptorFuncs(interceptor.Funcs{
 			Delete: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.DeleteOption) error {
-				t.Errorf("deletes must not be issued through the agent client, got %T", obj)
+				assert.Fail(t, "deletes must not be issued through the agent client", "got %T", obj)
 				return nil
 			},
 		}).
@@ -129,17 +124,14 @@ func TestDeleteResourcesCopiedFromUpstream_ListsAsAgentDeletesAsDeployment(t *te
 				return nil
 			},
 			List: func(ctx context.Context, c client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
-				t.Errorf("lists must not be issued through the deployment client, got %T", list)
+				assert.Fail(t, "lists must not be issued through the deployment client", "got %T", list)
 				return nil
 			},
 		}).
 		Build()
 
-	if err := deleteResourcesCopiedFromUpstream(context.Background(), lister, deleter, bdName); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	require.NoError(t, deleteResourcesCopiedFromUpstream(context.Background(), lister, deleter, bdName))
 
-	if !reflect.DeepEqual(deletedNames, []string{"copied-secret", "copied-cm"}) {
-		t.Errorf("expected both copies to be deleted through the deployment client, got %v", deletedNames)
-	}
+	assert.Equal(t, []string{"copied-secret", "copied-cm"}, deletedNames,
+		"expected both copies to be deleted through the deployment client")
 }

@@ -3,7 +3,6 @@ package controller
 import (
 	"context"
 	"errors"
-	"strings"
 	"testing"
 	"time"
 
@@ -13,6 +12,8 @@ import (
 	fleetv1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	"github.com/go-logr/logr"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -78,33 +79,26 @@ func TestCopyResourcesFromUpstream_CopiesUnderDeploymentClient(t *testing.T) {
 		DefaultNamespace: "cattle-fleet-system",
 	}
 
-	if _, err := r.copyResourcesFromUpstream(context.Background(), bd, logr.Discard()); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	_, err := r.copyResourcesFromUpstream(context.Background(), bd, logr.Discard())
+	require.NoError(t, err)
 
 	ns := &corev1.Namespace{}
-	if err := downstream.Get(context.Background(), types.NamespacedName{Name: "target"}, ns); err != nil {
-		t.Errorf("expected target namespace to be created downstream: %v", err)
-	}
+	require.NoError(t,
+		downstream.Get(context.Background(), types.NamespacedName{Name: "target"}, ns),
+		"expected target namespace to be created downstream")
 
 	secret := &corev1.Secret{}
-	if err := downstream.Get(context.Background(), types.NamespacedName{Name: "src-secret", Namespace: "target"}, secret); err != nil {
-		t.Errorf("expected secret to be copied downstream: %v", err)
-	} else {
-		if string(secret.Data["key"]) != "value" {
-			t.Errorf("copied secret has wrong data: %q", secret.Data["key"])
-		}
-		if secret.Labels[fleetv1.BundleDeploymentOwnershipLabel] != bd.Name {
-			t.Errorf("copied secret missing ownership label")
-		}
-	}
+	require.NoError(t,
+		downstream.Get(context.Background(), types.NamespacedName{Name: "src-secret", Namespace: "target"}, secret),
+		"expected secret to be copied downstream")
+	assert.Equal(t, "value", string(secret.Data["key"]), "copied secret has wrong data")
+	assert.Equal(t, bd.Name, secret.Labels[fleetv1.BundleDeploymentOwnershipLabel], "copied secret missing ownership label")
 
 	cm := &corev1.ConfigMap{}
-	if err := downstream.Get(context.Background(), types.NamespacedName{Name: "src-cm", Namespace: "target"}, cm); err != nil {
-		t.Errorf("expected configmap to be copied downstream: %v", err)
-	} else if cm.Data["key"] != "value" {
-		t.Errorf("copied configmap has wrong data: %q", cm.Data["key"])
-	}
+	require.NoError(t,
+		downstream.Get(context.Background(), types.NamespacedName{Name: "src-cm", Namespace: "target"}, cm),
+		"expected configmap to be copied downstream")
+	assert.Equal(t, "value", cm.Data["key"], "copied configmap has wrong data")
 }
 
 // TestCopyResourcesFromUpstream_ForbiddenSurfaces verifies that a denied downstream
@@ -122,7 +116,8 @@ func TestCopyResourcesFromUpstream_ForbiddenSurfaces(t *testing.T) {
 	).Build()
 
 	forbidden := apierrors.NewForbidden(
-		schema.GroupResource{Resource: "secrets"}, "src-secret", errors.New("nope"))
+		schema.GroupResource{Resource: "secrets"}, "src-secret", errors.New("nope"),
+	)
 	downstream := fake.NewClientBuilder().
 		WithScheme(scheme).
 		// Pre-create the target namespace so the Forbidden is hit on the resource write.
@@ -145,16 +140,11 @@ func TestCopyResourcesFromUpstream_ForbiddenSurfaces(t *testing.T) {
 	}
 
 	_, err := r.copyResourcesFromUpstream(context.Background(), bd, logr.Discard())
-	if err == nil {
-		t.Fatal("expected a forbidden error, got nil")
-	}
-	if !apierrors.IsForbidden(err) {
-		t.Errorf("expected error to be detectable as Forbidden, got %v", err)
-	}
+	require.Error(t, err)
+	assert.True(t, apierrors.IsForbidden(err), "expected error to be detectable as Forbidden")
+
 	var copyForbiddenError *CopyForbiddenError
-	if !errors.As(err, &copyForbiddenError) {
-		t.Errorf("expected a denied downstream write to be marked as a copy denial, got %v", err)
-	}
+	assert.ErrorAs(t, err, &copyForbiddenError, "expected a denied downstream write to be marked as a copy denial")
 }
 
 // TestCopyResourcesFromUpstream_UpstreamForbiddenNotMarked verifies that a Forbidden
@@ -167,7 +157,8 @@ func TestCopyResourcesFromUpstream_UpstreamForbiddenNotMarked(t *testing.T) {
 	bd := downstreamResourcesBundleDeployment()
 
 	forbidden := apierrors.NewForbidden(
-		schema.GroupResource{Resource: "secrets"}, "src-secret", errors.New("nope"))
+		schema.GroupResource{Resource: "secrets"}, "src-secret", errors.New("nope"),
+	)
 	upstream := fake.NewClientBuilder().
 		WithScheme(scheme).
 		WithInterceptorFuncs(interceptor.Funcs{
@@ -193,13 +184,10 @@ func TestCopyResourcesFromUpstream_UpstreamForbiddenNotMarked(t *testing.T) {
 	}
 
 	_, err := r.copyResourcesFromUpstream(context.Background(), bd, logr.Discard())
-	if err == nil {
-		t.Fatal("expected a forbidden error, got nil")
-	}
+	require.Error(t, err)
+
 	var copyForbiddenError *CopyForbiddenError
-	if errors.As(err, &copyForbiddenError) {
-		t.Errorf("expected an upstream read denial not to be marked as a copy denial, got %v", err)
-	}
+	assert.NotErrorAs(t, err, &copyForbiddenError, "expected an upstream read denial not to be marked as a copy denial")
 }
 
 // TestCopyResourcesFromUpstream_MissingNamespaceForbidden verifies that a missing
@@ -221,7 +209,8 @@ func TestCopyResourcesFromUpstream_MissingNamespaceForbidden(t *testing.T) {
 	// nor create it, which is what a tenant service account without cluster-scoped
 	// namespace access sees.
 	forbidden := apierrors.NewForbidden(
-		schema.GroupResource{Resource: "namespaces"}, "target", errors.New("nope"))
+		schema.GroupResource{Resource: "namespaces"}, "target", errors.New("nope"),
+	)
 	downstream := fake.NewClientBuilder().
 		WithScheme(scheme).
 		WithInterceptorFuncs(interceptor.Funcs{
@@ -252,22 +241,13 @@ func TestCopyResourcesFromUpstream_MissingNamespaceForbidden(t *testing.T) {
 	}
 
 	_, err := r.copyResourcesFromUpstream(context.Background(), bd, logr.Discard())
-	if err == nil {
-		t.Fatal("expected an error, got nil")
-	}
-	if !apierrors.IsForbidden(err) {
-		t.Errorf("expected error to stay detectable as Forbidden, got %v", err)
-	}
+	require.Error(t, err)
+	assert.True(t, apierrors.IsForbidden(err), "expected error to stay detectable as Forbidden")
+
 	var copyForbiddenError *CopyForbiddenError
-	if !errors.As(err, &copyForbiddenError) {
-		t.Errorf("expected a denied namespace create to be marked as a copy denial, got %v", err)
-	}
-	if !strings.Contains(err.Error(), "target") {
-		t.Errorf("expected the error to name the deployment namespace, got %v", err)
-	}
-	if !strings.Contains(err.Error(), "does not exist") {
-		t.Errorf("expected the error to report the missing namespace, got %v", err)
-	}
+	require.ErrorAs(t, err, &copyForbiddenError, "expected a denied namespace create to be marked as a copy denial")
+	assert.Contains(t, err.Error(), "target", "expected the error to name the deployment namespace")
+	assert.Contains(t, err.Error(), "does not exist", "expected the error to report the missing namespace")
 }
 
 // TestRequeueIfCopyForbidden_Forbidden verifies that a denied downstream copy write is
@@ -293,32 +273,23 @@ func TestRequeueIfCopyForbidden_Forbidden(t *testing.T) {
 
 	orig := bd.DeepCopy()
 	forbidden := copyForbidden(apierrors.NewForbidden(
-		schema.GroupResource{Resource: "namespaces"}, "target", errors.New("nope")))
+		schema.GroupResource{Resource: "namespaces"}, "target", errors.New("nope"),
+	))
 
 	handled, res, err := r.requeueIfCopyForbidden(context.Background(), orig, bd, forbidden)
-	if !handled {
-		t.Fatal("expected the forbidden error to be handled")
-	}
-	if err != nil {
-		t.Fatalf("expected no error from a handled requeue, got %v", err)
-	}
-	if res.RequeueAfter != durations.NamespacePermissionRequeueInterval {
-		t.Errorf("expected requeue after %s, got %s", durations.NamespacePermissionRequeueInterval, res.RequeueAfter)
-	}
+	require.True(t, handled, "expected the forbidden error to be handled")
+	require.NoError(t, err, "expected no error from a handled requeue")
+	assert.Equal(t, durations.NamespacePermissionRequeueInterval, res.RequeueAfter)
 
 	persisted := &fleetv1.BundleDeployment{}
-	if err := c.Get(context.Background(), types.NamespacedName{Namespace: "cluster-ns", Name: "bd-1"}, persisted); err != nil {
-		t.Fatalf("failed to fetch persisted bundle deployment: %v", err)
-	}
-	if persisted.Status.Ready {
-		t.Errorf("expected persisted status Ready=false")
-	}
-	if !hasFalseCondition(persisted.Status, fleetv1.BundleDeploymentConditionReady) {
-		t.Errorf("expected a false %q condition", fleetv1.BundleDeploymentConditionReady)
-	}
-	if !hasFalseCondition(persisted.Status, fleetv1.BundleDeploymentConditionInstalled) {
-		t.Errorf("expected a false %q condition", fleetv1.BundleDeploymentConditionInstalled)
-	}
+	require.NoError(t,
+		c.Get(context.Background(), types.NamespacedName{Namespace: "cluster-ns", Name: "bd-1"}, persisted),
+		"failed to fetch persisted bundle deployment")
+	assert.False(t, persisted.Status.Ready, "expected persisted status Ready=false")
+	assert.True(t, hasFalseCondition(persisted.Status, fleetv1.BundleDeploymentConditionReady),
+		"expected a false %q condition", fleetv1.BundleDeploymentConditionReady)
+	assert.True(t, hasFalseCondition(persisted.Status, fleetv1.BundleDeploymentConditionInstalled),
+		"expected a false %q condition", fleetv1.BundleDeploymentConditionInstalled)
 }
 
 // TestRequeueIfCopyForbidden_NotForbidden verifies that a non-Forbidden error is
@@ -341,26 +312,20 @@ func TestRequeueIfCopyForbidden_NotForbidden(t *testing.T) {
 	r := &BundleDeploymentReconciler{Client: c}
 
 	handled, _, err := r.requeueIfCopyForbidden(context.Background(), bd.DeepCopy(), bd, errors.New("boom"))
-	if handled {
-		t.Fatal("expected a non-forbidden error not to be handled")
-	}
-	if err != nil {
-		t.Fatalf("expected no error when not handling, got %v", err)
-	}
+	require.False(t, handled, "expected a non-forbidden error not to be handled")
+	require.NoError(t, err, "expected no error when not handling")
 
 	persisted := &fleetv1.BundleDeployment{}
-	if err := c.Get(context.Background(), types.NamespacedName{Namespace: "cluster-ns", Name: "bd-1"}, persisted); err != nil {
-		t.Fatalf("failed to fetch bundle deployment: %v", err)
-	}
-	if !persisted.Status.Ready {
-		t.Errorf("expected status to be untouched (Ready=true)")
-	}
+	require.NoError(t,
+		c.Get(context.Background(), types.NamespacedName{Namespace: "cluster-ns", Name: "bd-1"}, persisted),
+		"failed to fetch bundle deployment")
+	assert.True(t, persisted.Status.Ready, "expected status to be untouched (Ready=true)")
 }
 
 // TestRequeueIfCopyForbidden_UnmarkedForbidden verifies that a Forbidden which did not
 // come from one of the downstream copy writes is left for the caller to return. Only
 // those writes run as the deployment's service account, so only they converge once a
-// downstream grant is added; requeueing anything else would loop forever on a status
+// downstream grant is added; requeuing anything else would loop forever on a status
 // that names the wrong cause.
 func TestRequeueIfCopyForbidden_UnmarkedForbidden(t *testing.T) {
 	scheme := runtime.NewScheme()
@@ -380,23 +345,18 @@ func TestRequeueIfCopyForbidden_UnmarkedForbidden(t *testing.T) {
 	r := &BundleDeploymentReconciler{Client: c}
 
 	forbidden := apierrors.NewForbidden(
-		schema.GroupResource{Resource: "secrets"}, "src-secret", errors.New("nope"))
+		schema.GroupResource{Resource: "secrets"}, "src-secret", errors.New("nope"),
+	)
 
 	handled, _, err := r.requeueIfCopyForbidden(context.Background(), bd.DeepCopy(), bd, forbidden)
-	if handled {
-		t.Fatal("expected an unmarked forbidden error not to be handled")
-	}
-	if err != nil {
-		t.Fatalf("expected no error when not handling, got %v", err)
-	}
+	require.False(t, handled, "expected an unmarked forbidden error not to be handled")
+	require.NoError(t, err, "expected no error when not handling")
 
 	persisted := &fleetv1.BundleDeployment{}
-	if err := c.Get(context.Background(), types.NamespacedName{Namespace: "cluster-ns", Name: "bd-1"}, persisted); err != nil {
-		t.Fatalf("failed to fetch bundle deployment: %v", err)
-	}
-	if !persisted.Status.Ready {
-		t.Errorf("expected status to be untouched (Ready=true)")
-	}
+	require.NoError(t,
+		c.Get(context.Background(), types.NamespacedName{Namespace: "cluster-ns", Name: "bd-1"}, persisted),
+		"failed to fetch bundle deployment")
+	assert.True(t, persisted.Status.Ready, "expected status to be untouched (Ready=true)")
 }
 
 func hasFalseCondition(status fleetv1.BundleDeploymentStatus, condType string) bool {
