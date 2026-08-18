@@ -12,6 +12,10 @@ on:
         default: false
         type: boolean
 
+concurrency:
+  group: renovate-auto-approve-${{ github.repository }}
+  cancel-in-progress: true
+
 permissions: {}
 
 jobs:
@@ -41,6 +45,21 @@ jobs:
 
           today=$(date -u +%F)
           eligible_prs=()
+          if ! pr_list_json=$(gh pr list --repo "$REPO" --state open \
+            --author "$RENOVATE_BOT_USERNAME" \
+            --sort created --order asc \
+            --json number,state,autoMergeRequest,headRepository,headRefName,author,createdAt \
+            --jq '.[] | @json'); then
+            echo "Failed to get open Renovate PRs from $REPO."
+            exit 1
+          fi
+
+          if [[ -z "$pr_list_json" ]]; then
+            echo "No open Renovate PRs to review."
+            printf 'eligible_prs=\n' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           while IFS= read -r pr_json; do
             pr_number=$(jq -r '.number' <<<"$pr_json")
             head_ref=$(jq -r '.headRefName' <<<"$pr_json")
@@ -76,10 +95,7 @@ jobs:
             fi
 
             eligible_prs+=("$pr_number")
-          done < <(gh pr list --repo "$REPO" --state open \
-            --author "$RENOVATE_BOT_USERNAME" \
-            --json number,state,autoMergeRequest,headRepository,headRefName,author,createdAt \
-            --jq '.[] | @json')
+          done <<<"$pr_list_json"
 
           printf 'eligible_prs=%s\n' "${eligible_prs[*]}" >> "$GITHUB_OUTPUT"
 
