@@ -2,6 +2,7 @@ package helmdeployer
 
 import (
 	"context"
+	"reflect"
 	"testing"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -15,6 +16,7 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 )
 
 func deleteScheme(t *testing.T) *runtime.Scheme {
@@ -24,13 +26,11 @@ func deleteScheme(t *testing.T) *runtime.Scheme {
 	return scheme
 }
 
-// TestDeleteResourcesCopiedFromUpstream_ScopedToReleaseNamespace verifies that the
-// cleanup deletes only the copies owned by the bundle deployment that live in the
-// release namespace, and leaves alone copies of other bundle deployments as well as
-// same-named copies that a different deployment placed in another namespace. The
-// namespace scoping is what lets the List succeed under an impersonated service
-// account that has no cluster-wide list access.
-func TestDeleteResourcesCopiedFromUpstream_ScopedToReleaseNamespace(t *testing.T) {
+// TestDeleteResourcesCopiedFromUpstream_CollectsCopiesInAnyNamespace verifies that the
+// cleanup deletes the copies owned by the bundle deployment wherever they were placed,
+// including a namespace the deployment no longer targets, and leaves alone copies owned
+// by another deployment as well as unlabeled resources.
+func TestDeleteResourcesCopiedFromUpstream_CollectsCopiesInAnyNamespace(t *testing.T) {
 	scheme := deleteScheme(t)
 
 	const releaseNS = "target"
@@ -46,9 +46,10 @@ func TestDeleteResourcesCopiedFromUpstream_ScopedToReleaseNamespace(t *testing.T
 			Name: "copied-cm", Namespace: releaseNS,
 			Labels: map[string]string{fleet.BundleDeploymentOwnershipLabel: bdName},
 		}},
-		// owned by bd-1 but in another namespace: out of scope, must survive
+		// owned by bd-1, left behind in a namespace it targeted earlier: must be
+		// deleted too, a namespace-scoped list would orphan it
 		&corev1.Secret{ObjectMeta: metav1.ObjectMeta{
-			Name: "other-ns-secret", Namespace: "elsewhere",
+			Name: "stale-secret", Namespace: "previous",
 			Labels: map[string]string{fleet.BundleDeploymentOwnershipLabel: bdName},
 		}},
 		// owned by a different bd in the release namespace: must survive
@@ -64,7 +65,7 @@ func TestDeleteResourcesCopiedFromUpstream_ScopedToReleaseNamespace(t *testing.T
 
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(objs...).Build()
 
-	if err := deleteResourcesCopiedFromUpstream(context.Background(), c, releaseNS, bdName); err != nil {
+	if err := deleteResourcesCopiedFromUpstream(context.Background(), c, c, bdName); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -79,13 +80,66 @@ func TestDeleteResourcesCopiedFromUpstream_ScopedToReleaseNamespace(t *testing.T
 	if !deleted(&corev1.ConfigMap{}, releaseNS, "copied-cm") {
 		t.Errorf("expected owned configmap in release namespace to be deleted")
 	}
-	if deleted(&corev1.Secret{}, "elsewhere", "other-ns-secret") {
-		t.Errorf("owned secret in another namespace must not be deleted (out of scope)")
+	if !deleted(&corev1.Secret{}, "previous", "stale-secret") {
+		t.Errorf("expected owned secret left in a previously targeted namespace to be deleted")
 	}
 	if deleted(&corev1.Secret{}, releaseNS, "foreign-secret") {
 		t.Errorf("secret owned by a different bundle deployment must not be deleted")
 	}
 	if deleted(&corev1.ConfigMap{}, releaseNS, "unrelated-cm") {
 		t.Errorf("unlabeled configmap must not be deleted")
+	}
+}
+
+// TestDeleteResourcesCopiedFromUpstream_ListsAsAgentDeletesAsDeployment verifies the
+// split between the two clients: the copies are found with the agent client, so the
+// deployment's service account needs no list access, and every delete is issued through
+// the deployment's own client, so it stays gated by that account's RBAC.
+func TestDeleteResourcesCopiedFromUpstream_ListsAsAgentDeletesAsDeployment(t *testing.T) {
+	scheme := deleteScheme(t)
+
+	const bdName = "bd-1"
+
+	lister := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(
+			&corev1.Secret{ObjectMeta: metav1.ObjectMeta{
+				Name: "copied-secret", Namespace: "target",
+				Labels: map[string]string{fleet.BundleDeploymentOwnershipLabel: bdName},
+			}},
+			&corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{
+				Name: "copied-cm", Namespace: "target",
+				Labels: map[string]string{fleet.BundleDeploymentOwnershipLabel: bdName},
+			}},
+		).
+		WithInterceptorFuncs(interceptor.Funcs{
+			Delete: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.DeleteOption) error {
+				t.Errorf("deletes must not be issued through the agent client, got %T", obj)
+				return nil
+			},
+		}).
+		Build()
+
+	var deletedNames []string
+	deleter := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithInterceptorFuncs(interceptor.Funcs{
+			Delete: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.DeleteOption) error {
+				deletedNames = append(deletedNames, obj.GetName())
+				return nil
+			},
+			List: func(ctx context.Context, c client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
+				t.Errorf("lists must not be issued through the deployment client, got %T", list)
+				return nil
+			},
+		}).
+		Build()
+
+	if err := deleteResourcesCopiedFromUpstream(context.Background(), lister, deleter, bdName); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !reflect.DeepEqual(deletedNames, []string{"copied-secret", "copied-cm"}) {
+		t.Errorf("expected both copies to be deleted through the deployment client, got %v", deletedNames)
 	}
 }

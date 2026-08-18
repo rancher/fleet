@@ -100,15 +100,17 @@ func (h *Helm) deleteByRelease(ctx context.Context, bundleID, releaseName string
 
 	// Delete the copied resources as the deployment's service account, gating the
 	// cleanup by the same downstream RBAC that governed the copy. Fall back to the
-	// agent client when no service account resolves, preserving prior behaviour.
-	copyClient := h.client
+	// agent client when no service account resolves, preserving prior behaviour. The
+	// copies are looked up with the agent client either way, see
+	// deleteResourcesCopiedFromUpstream.
+	deleteClient := h.client
 	if ic, err := h.ImpersonatedClient(ctx, serviceAccountName); err != nil {
 		return err
 	} else if ic != nil {
-		copyClient = ic
+		deleteClient = ic
 	}
 
-	return deleteResourcesCopiedFromUpstream(ctx, copyClient, releaseNamespace, bundleID)
+	return deleteResourcesCopiedFromUpstream(ctx, h.client, deleteClient, bundleID)
 }
 
 func (h *Helm) delete(ctx context.Context, bundleID string, options fleet.BundleDeploymentOptions, dryRun bool) error {
@@ -187,41 +189,44 @@ func deleteHistory(cfg *action.Configuration, logger logr.Logger, bundleID strin
 }
 
 // deleteResourcesCopiedFromUpstream deletes resources referenced through a bundle's `DownstreamResources`
-// field, and copied from upstream. The List is scoped to releaseNamespace, where the copies live
-// (copyResourcesFromUpstream places all of a bundle deployment's copies in its single deployment
-// namespace), so it works under an impersonated service account that lacks cluster-wide list access.
-func deleteResourcesCopiedFromUpstream(ctx context.Context, c client.Client, releaseNamespace, bdName string) error {
+// field, and copied from upstream.
+//
+// The copies are located with lister, the agent client: which objects Fleet copied is a
+// fact about the cluster rather than an action taken on the deployment's behalf, so the
+// deployment's service account does not need cluster-wide list access. Listing across
+// namespaces also still finds copies left behind in a namespace the deployment no longer
+// targets, which a namespace-scoped list would orphan. Deleting them is a downstream
+// write and runs through deleter, the deployment's service account.
+func deleteResourcesCopiedFromUpstream(ctx context.Context, lister client.Reader, deleter client.Client, bdName string) error {
 	var merr []error
 
-	// We do not know the names of the resources copied from the upstream cluster, so we select them
-	// by ownership label within the deployment namespace where they were copied.
-	opts := []client.ListOption{
-		client.InNamespace(releaseNamespace),
-		client.MatchingLabels{
-			fleet.BundleDeploymentOwnershipLabel: bdName,
-		},
+	// No information is available about a deleted bundle deployment beside its name and namespace;
+	// in particular, we do not know where its resources copied from the upstream cluster, if any, might live, so we
+	// cannot delete them by name and namespace; instead, we need to resort to labels.
+	opts := client.MatchingLabels{
+		fleet.BundleDeploymentOwnershipLabel: bdName,
 	}
 
 	secrets := corev1.SecretList{}
 
 	// XXX: should we log instead of erroring?
-	if err := c.List(ctx, &secrets, opts...); err != nil {
+	if err := lister.List(ctx, &secrets, opts); err != nil {
 		merr = append(merr, fmt.Errorf("failed to list copied secrets from upstream to delete from outdated bundle: %w", err))
 	}
 
 	for _, s := range secrets.Items {
-		if err := c.Delete(ctx, &s); err != nil {
+		if err := deleter.Delete(ctx, &s); err != nil {
 			merr = append(merr, fmt.Errorf("failed to delete outdated secrets copied from upstream: %w", err))
 		}
 	}
 
 	cms := corev1.ConfigMapList{}
 
-	if err := c.List(ctx, &cms, opts...); err != nil {
+	if err := lister.List(ctx, &cms, opts); err != nil {
 		merr = append(merr, fmt.Errorf("failed to list copied configmaps from upstream to delete from outdated bundle: %w", err))
 	}
 	for _, cm := range cms.Items {
-		if err := c.Delete(ctx, &cm); err != nil {
+		if err := deleter.Delete(ctx, &cm); err != nil {
 			merr = append(merr, fmt.Errorf("failed to delete outdated configmaps copied from upstream: %w", err))
 		}
 	}
