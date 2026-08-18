@@ -93,7 +93,7 @@ var _ = Describe("Helm Chart Values", func() {
 			Expect(t).To(HaveKeyWithValue("namespace", ContainSubstring("fleet-local")))
 			Expect(t).To(HaveKey("annotations"))
 			Expect(t["annotations"]).To(Equal(`{"app":"fleet","more":"data"}`))
-			Expect(t).To(HaveKeyWithValue("image", MatchRegexp("^rancher/mirrored-library-busybox:[0-9.]+$")))
+			Expect(t).To(HaveKeyWithValue("image", MatchRegexp("^rancher/mirrored-library-busybox:[0-9]+\\.[0-9]+\\.[0-9]+$")))
 			Expect(t).To(HaveKeyWithValue("imagePullPolicy", "IfNotPresent"))
 			Expect(t).To(HaveKeyWithValue("clusterValues", "{}"))
 			Expect(t).To(HaveKeyWithValue("global", "null"))
@@ -109,7 +109,7 @@ var _ = Describe("Helm Chart Values", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(*d.Spec.Replicas).To(Equal(int32(1)))
-			Expect(d.Spec.Template.Spec.Containers[0].Image).To(MatchRegexp("^rancher/mirrored-library-busybox:[0-9.]+$"))
+			Expect(t).To(HaveKeyWithValue("image", MatchRegexp("^rancher/mirrored-library-busybox:[0-9]+\\.[0-9]+\\.[0-9]+$")))
 			Expect(d.Spec.Template.Spec.Containers[0].ImagePullPolicy).To(Equal(corev1.PullIfNotPresent))
 			Expect(d.Spec.Template.Annotations).To(SatisfyAll(
 				HaveKeyWithValue("app", "fleet"),
