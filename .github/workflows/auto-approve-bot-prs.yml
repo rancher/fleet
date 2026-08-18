@@ -50,7 +50,7 @@ jobs:
             --sort created --order asc \
             --json number,state,autoMergeRequest,headRepository,headRefName,author,createdAt \
             --jq '.[] | @json'); then
-            echo "Could not list Renovate PRs from $REPO."
+            echo "Failed to get open Renovate PRs from $REPO."
             exit 1
           fi
 
