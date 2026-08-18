@@ -102,9 +102,7 @@ var _ = Describe("Downstream objects cloning gated by service account RBAC", Ord
 		_, _ = k.Delete("secret", srcSecret)
 		_, _ = k.Delete("configmap", srcCM)
 		_, _ = k.Namespace(agentNamespace).Delete("serviceaccount", saName)
-		// Cluster-scoped RBAC is not removed with the namespace.
-		_, _ = k.Delete("clusterrole", nsRole)
-		_, _ = k.Delete("clusterrolebinding", nsRole)
+		// The Role and RoleBinding live in deployNS and go with it.
 		_, _ = k.Delete("namespace", deployNS, "--wait=false")
 	})
 
@@ -128,9 +126,13 @@ var _ = Describe("Downstream objects cloning gated by service account RBAC", Ord
 		}).WithTimeout(testenv.MediumTimeout).WithPolling(testenv.LongPollingInterval).Should(Succeed())
 
 		By("granting the service account access to the deployment namespace")
+		// The copy gets, creates and updates; the release applies the chart's own
+		// resources server-side, which needs patch; the cleanup on delete needs
+		// delete. Listing the copies to clean them up is done by the agent, so the
+		// account needs no list access of its own.
 		out, err := k.Namespace(deployNS).Create(
 			"role", "dsr-copy",
-			"--verb=get,list,watch,create,update,patch,delete",
+			"--verb=get,create,update,patch,delete",
 			"--resource=secrets,configmaps",
 		)
 		Expect(err).ToNot(HaveOccurred(), out)
@@ -141,18 +143,19 @@ var _ = Describe("Downstream objects cloning gated by service account RBAC", Ord
 		)
 		Expect(err).ToNot(HaveOccurred(), out)
 
-		// The deploy path (namespace label SSA + Helm install) also runs as the SA,
-		// so it needs to reach the (cluster-scoped) deployment namespace for the
-		// release to install and the cleanup-on-delete to have a release to act on.
-		out, err = k.Create(
-			"clusterrole", nsRole,
-			"--verb=get,list,watch,patch,update",
+		// The deploy path also runs as the SA, and applying the release patches the
+		// deployment namespace itself server-side. A namespaced Role covers that:
+		// a request to a namespace is attributed to that namespace, so the account
+		// needs no cluster-scoped access.
+		out, err = k.Namespace(deployNS).Create(
+			"role", nsRole,
+			"--verb=patch",
 			"--resource=namespaces",
 		)
 		Expect(err).ToNot(HaveOccurred(), out)
-		out, err = k.Create(
-			"clusterrolebinding", nsRole,
-			"--clusterrole="+nsRole,
+		out, err = k.Namespace(deployNS).Create(
+			"rolebinding", nsRole,
+			"--role="+nsRole,
 			"--serviceaccount="+agentNamespace+":"+saName,
 		)
 		Expect(err).ToNot(HaveOccurred(), out)
