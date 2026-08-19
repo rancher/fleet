@@ -227,18 +227,39 @@ var _ = Describe("ClusterRegistrationToken", func() {
 			objectGone(token).Should(Succeed())
 		})
 
-		It("does not delete a token before its TTL has elapsed", func() {
-			// Populate the SA token Secret rather than creating the token
-			// bare: the reconcile that observes the ServiceAccount otherwise
-			// parks forever in the handler's unbounded wait for that Secret
-			// (envtest populates no service account tokens), holding a worker
-			// for the rest of the suite. This also settles the token, so the
-			// assertion below observes a fully reconciled object.
-			token, _ := createTokenWithPopulatedSecret("long-ttl", &metav1.Duration{Duration: time.Hour}, "long-ttl-value")
+		It("keeps a token alive until its TTL elapses, then deletes it", func() {
+			// Settle the token under a long TTL first: a short one at
+			// creation races setup, which takes seconds (see the spec
+			// above), and leaves the handler parked in its unbounded wait
+			// for the SA token Secret.
+			token, _ := createTokenWithPopulatedSecret("short-ttl", &metav1.Duration{Duration: time.Hour}, "short-ttl-value")
 
-			Consistently(func(g Gomega) {
-				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: regNamespace, Name: token.Name}, &fleet.ClusterRegistrationToken{})).To(Succeed())
+			// Expiry is measured from CreationTimestamp, so aim the TTL at a
+			// wall clock deadline. margin keeps the survival check clear of
+			// that deadline, absorbing CI jitter.
+			const ttlWindow = 15 * time.Second
+			const margin = 5 * time.Second
+
+			key := types.NamespacedName{Namespace: regNamespace, Name: token.Name}
+			deadline := time.Now().Add(ttlWindow)
+			Eventually(func(g Gomega) {
+				var current fleet.ClusterRegistrationToken
+				g.Expect(k8sClient.Get(ctx, key, &current)).To(Succeed())
+				current.Spec.TTL = &metav1.Duration{Duration: deadline.Sub(current.CreationTimestamp.Time)}
+				g.Expect(k8sClient.Update(ctx, &current)).To(Succeed())
 			}).Should(Succeed())
+
+			// The token has to survive right up to its expiry...
+			survives := time.Until(deadline) - margin
+			Expect(survives).To(BeNumerically(">", 0),
+				"setting the TTL took longer than ttlWindow, raise ttlWindow")
+			Consistently(func(g Gomega) {
+				g.Expect(k8sClient.Get(ctx, key, &fleet.ClusterRegistrationToken{})).To(Succeed())
+			}, survives, 500*time.Millisecond).Should(Succeed())
+
+			// ...and be gone once it passes. Deletion here comes from the
+			// handler's EnqueueAfter, which no other spec covers.
+			objectGone(token).Should(Succeed())
 		})
 	})
 
