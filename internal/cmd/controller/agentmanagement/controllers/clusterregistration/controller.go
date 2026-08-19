@@ -7,7 +7,7 @@ package clusterregistration
 import (
 	"context"
 	"fmt"
-	"maps"
+	"strings"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -499,7 +499,7 @@ func (h *handler) createOrGetCluster(request *fleet.ClusterRegistration) (*fleet
 	// and managed clusters would already exist
 	labels := map[string]string{}
 	if !config.Get().IgnoreClusterRegistrationLabels {
-		maps.Copy(labels, request.Spec.ClusterLabels)
+		labels = sanitizeClusterLabels(request)
 	}
 	labels[fleet.ClusterAnnotation] = clusterName
 
@@ -520,6 +520,37 @@ func (h *handler) createOrGetCluster(request *fleet.ClusterRegistration) (*fleet
 		logrus.Infof("Created cluster %s/%s", request.Namespace, clusterName)
 	}
 	return cluster, err
+}
+
+// sanitizeClusterLabels copies the agent-supplied ClusterLabels while dropping
+// any key a downstream agent must not be able to assert. Keys under the
+// reserved management.cattle.io/ and fleet.cattle.io/ prefixes are Rancher- and
+// Fleet-managed and are trusted for cluster targeting.
+func sanitizeClusterLabels(request *fleet.ClusterRegistration) map[string]string {
+	labels := make(map[string]string, len(request.Spec.ClusterLabels))
+	for k, v := range request.Spec.ClusterLabels {
+		if isReservedLabel(k) {
+			logrus.Warnf("ClusterRegistration %s/%s attempted to set reserved label %q; ignoring that label",
+				request.Namespace, request.Name, k)
+			continue
+		}
+		labels[k] = v
+	}
+	return labels
+}
+
+// isReservedLabel reports whether key falls under a reserved, controller-managed
+// label prefix that an agent may not assert. These namespaces are managed by
+// Rancher and Fleet respectively and are trusted for cluster targeting (e.g.
+// management.cattle.io/cluster-display-name is consumed by clusterName
+// selectors); letting an agent set them would allow a registrant to spoof
+// another cluster's identity and attract its BundleDeployments. The debugging
+// label fleet.cattle.io/created-by-agent-pod is explicitly allowed.
+func isReservedLabel(key string) bool {
+	if key == fleet.CreatedByAgentPodLabel {
+		return false
+	}
+	return strings.HasPrefix(key, fleet.ManagementLabelPrefix) || strings.HasPrefix(key, fleet.FleetLabelPrefix)
 }
 
 func (h *handler) authorizeCluster(sa *v1.ServiceAccount, cluster *fleet.Cluster, req *fleet.ClusterRegistration) (*v1.Secret, error) {
