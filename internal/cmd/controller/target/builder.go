@@ -221,7 +221,7 @@ func preprocessHelmValues(logger logr.Logger, opts *fleet.BundleDeploymentOption
 	clusterAnnotations := yaml.CleanAnnotationsForExport(cluster.Annotations)
 
 	for k, v := range cluster.Labels {
-		if strings.HasPrefix(k, "fleet.cattle.io/") || strings.HasPrefix(k, "management.cattle.io/") {
+		if strings.HasPrefix(k, fleet.FleetLabelPrefix) || strings.HasPrefix(k, fleet.ManagementLabelPrefix) {
 			clusterLabels[k] = v
 		}
 	}
