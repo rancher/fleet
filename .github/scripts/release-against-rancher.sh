@@ -18,6 +18,14 @@ bump_fleet_module() {
     local escaped_module="${module//./\\.}"
     local tag="$1/v${NEW_FLEET_VERSION}"
 
+    local modfiles
+    modfiles=$(grep -rlE "^[[:space:]]*require[[:space:]]+${escaped_module}[[:space:]]|^[[:space:]]+${escaped_module}[[:space:]]" --include=go.mod . || true)
+    # A Fleet module rancher/rancher does not consume yet needs no bump.
+    if [ -z "${modfiles}" ]; then
+        printf 'INFO: no go.mod in rancher/rancher requires %s; skipping bump\n' "${module}"
+        return 0
+    fi
+
     # Guard against a tag that predates the module being split out of the main
     # Fleet module: without its own go.mod, `go get` silently falls back to
     # resolving the root `github.com/rancher/fleet` module instead.
@@ -27,12 +35,6 @@ bump_fleet_module() {
         exit 1
     fi
 
-    local modfiles
-    modfiles=$(grep -rlE "^[[:space:]]*require[[:space:]]+${escaped_module}[[:space:]]|^[[:space:]]+${escaped_module}[[:space:]]" --include=go.mod . || true)
-    if [ -z "${modfiles}" ]; then
-        printf 'ERROR: no go.mod in rancher/rancher requires %s\n' "${module}" >&2
-        exit 1
-    fi
     while IFS= read -r modfile; do
         local moddir
         moddir=$(dirname "${modfile}")
