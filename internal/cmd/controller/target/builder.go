@@ -309,6 +309,9 @@ func tplFuncMap() template.FuncMap {
 	delete(f, "expandenv")
 	delete(f, "include")
 	delete(f, "tpl")
+	// getHostByName performs a live DNS lookup (net.LookupHost). Sprig
+	// classifies it as non-hermetic, so it is not available in templates.
+	delete(f, "getHostByName")
 
 	return f
 }
