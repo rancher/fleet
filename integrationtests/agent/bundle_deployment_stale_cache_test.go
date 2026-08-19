@@ -26,8 +26,8 @@ func helmReleaseSecrets(namespace string) []corev1.Secret {
 	return list.Items
 }
 
-// The agent used to delete the resources it manages whenever its cached 
-// client reported a BundleDeployment as NotFound, 
+// The agent used to delete the resources it manages whenever its cached
+// client reported a BundleDeployment as NotFound,
 // even though the BundleDeployment still existed upstream.
 //
 // The agent reads BundleDeployments through the manager's cache
