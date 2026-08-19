@@ -78,7 +78,7 @@ require (
 	github.com/rancher/wrangler/v3 v3.7.1
 	github.com/reugn/go-quartz v0.15.2
 	github.com/spf13/cobra v1.10.2
-	github.com/stretchr/testify v1.11.1
+	github.com/stretchr/testify v1.12.0
 	github.com/testcontainers/testcontainers-go v0.44.0
 	github.com/ulikunitz/xz v0.5.16
 	go.uber.org/mock v0.6.0
