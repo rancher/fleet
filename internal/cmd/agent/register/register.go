@@ -185,7 +185,7 @@ func runRegistration(ctx context.Context, k8s coreInterface, namespace string) (
 	if cfg.Labels == nil {
 		cfg.Labels = map[string]string{}
 	}
-	cfg.Labels["fleet.cattle.io/created-by-agent-pod"] = os.Getenv("HOSTNAME")
+	cfg.Labels[fleet.CreatedByAgentPodLabel] = os.Getenv("HOSTNAME")
 
 	tokenName := string(values(secret.Data)[TokenName])
 	log.Log.Info(fmt.Sprintf("Creating clusterregistration with id '%s' for new token", clientID))
