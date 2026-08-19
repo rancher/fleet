@@ -47,9 +47,9 @@ jobs:
           eligible_prs=()
           if ! pr_list_json=$(gh pr list --repo "$REPO" --state open \
             --author "$RENOVATE_BOT_USERNAME" \
-            --sort created --order asc \
+            --limit 100 \
             --json number,state,body,autoMergeRequest,headRepository,headRefName,author,createdAt \
-            --jq '.[] | @json'); then
+            --jq 'sort_by(.createdAt)[] | @json'); then
             echo "Failed to get open Renovate PRs from $REPO."
             exit 1
           fi
