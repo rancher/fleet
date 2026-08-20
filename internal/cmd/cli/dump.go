@@ -27,10 +27,13 @@ fleet dump check
 
 // NewDump returns a subcommand to dump Fleet's state
 func NewDump() *cobra.Command {
-	return command.Command(&Dump{}, cobra.Command{
+	cmd := command.Command(&Dump{}, cobra.Command{
 		Use:   "dump [flags]",
 		Short: "Dump state of upstream Fleet-managed resources into an archive",
 	})
+
+	registerLoggingAndKubeconfigFlags(cmd)
+	return cmd
 }
 
 type Dump struct {

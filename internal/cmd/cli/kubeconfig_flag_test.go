@@ -18,7 +18,9 @@ func kubeconfigCommands() map[string]func() *cobra.Command {
 		"bundlediff":          NewBundleDiff,
 		"clusterregistration": NewClusterRegistration,
 		"deploy":              NewDeploy,
+		"dump":                NewDump,
 		"gitjob":              NewGitjob,
+		"migrate":             NewMigrateGitRepoHelmURLRegex,
 		"monitor":             NewMonitor,
 		"target":              NewTarget,
 	}
