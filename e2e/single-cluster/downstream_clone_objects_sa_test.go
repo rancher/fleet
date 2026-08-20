@@ -127,9 +127,11 @@ var _ = Describe("Downstream objects cloning gated by service account RBAC", Ord
 
 		By("granting the service account access to the deployment namespace")
 		// The copy gets, creates and updates; the release applies the chart's own
-		// resources server-side, which needs patch; the cleanup on delete needs
-		// delete. Listing the copies to clean them up is done by the agent, so the
-		// account needs no list access of its own.
+		// resources server-side, which needs patch; uninstalling it purges the Helm
+		// release storage, which is kept in Secrets in this namespace and is written
+		// through the same impersonated identity, so that needs delete. Removing the
+		// resources copied from upstream is done by the agent, so the account needs
+		// no list or delete access of its own for those.
 		out, err := k.Namespace(deployNS).Create(
 			"role", "dsr-copy",
 			"--verb=get,create,update,patch,delete",
@@ -177,7 +179,7 @@ var _ = Describe("Downstream objects cloning gated by service account RBAC", Ord
 			g.Expect(ready).To(Equal("1/1"))
 		}).WithTimeout(testenv.LongTimeout).WithPolling(testenv.LongPollingInterval).Should(Succeed())
 
-		By("cleaning up the copied resources under the same service account when the HelmOp is deleted")
+		By("cleaning up the copied resources when the HelmOp is deleted")
 		out, err = k.Delete("helmop", name)
 		Expect(err).ToNot(HaveOccurred(), out)
 

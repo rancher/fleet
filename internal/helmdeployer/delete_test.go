@@ -18,7 +18,6 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 )
 
 func deleteScheme(t *testing.T) *runtime.Scheme {
@@ -67,7 +66,7 @@ func TestDeleteResourcesCopiedFromUpstream_CollectsCopiesInAnyNamespace(t *testi
 
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(objs...).Build()
 
-	require.NoError(t, deleteResourcesCopiedFromUpstream(context.Background(), c, c, bdName))
+	require.NoError(t, deleteResourcesCopiedFromUpstream(context.Background(), c, bdName))
 
 	deleted := func(obj client.Object, ns, name string) bool {
 		err := c.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: name}, obj)
@@ -84,54 +83,4 @@ func TestDeleteResourcesCopiedFromUpstream_CollectsCopiesInAnyNamespace(t *testi
 		"secret owned by a different bundle deployment must not be deleted")
 	assert.False(t, deleted(&corev1.ConfigMap{}, releaseNS, "unrelated-cm"),
 		"unlabeled configmap must not be deleted")
-}
-
-// TestDeleteResourcesCopiedFromUpstream_ListsAsAgentDeletesAsDeployment verifies the
-// split between the two clients: the copies are found with the agent client, so the
-// deployment's service account needs no list access, and every delete is issued through
-// the deployment's own client, so it stays gated by that account's RBAC.
-func TestDeleteResourcesCopiedFromUpstream_ListsAsAgentDeletesAsDeployment(t *testing.T) {
-	scheme := deleteScheme(t)
-
-	const bdName = "bd-1"
-
-	lister := fake.NewClientBuilder().
-		WithScheme(scheme).
-		WithObjects(
-			&corev1.Secret{ObjectMeta: metav1.ObjectMeta{
-				Name: "copied-secret", Namespace: "target",
-				Labels: map[string]string{fleet.BundleDeploymentOwnershipLabel: bdName},
-			}},
-			&corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{
-				Name: "copied-cm", Namespace: "target",
-				Labels: map[string]string{fleet.BundleDeploymentOwnershipLabel: bdName},
-			}},
-		).
-		WithInterceptorFuncs(interceptor.Funcs{
-			Delete: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.DeleteOption) error {
-				assert.Fail(t, "deletes must not be issued through the agent client", "got %T", obj)
-				return nil
-			},
-		}).
-		Build()
-
-	var deletedNames []string
-	deleter := fake.NewClientBuilder().
-		WithScheme(scheme).
-		WithInterceptorFuncs(interceptor.Funcs{
-			Delete: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.DeleteOption) error {
-				deletedNames = append(deletedNames, obj.GetName())
-				return nil
-			},
-			List: func(ctx context.Context, c client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
-				assert.Fail(t, "lists must not be issued through the deployment client", "got %T", list)
-				return nil
-			},
-		}).
-		Build()
-
-	require.NoError(t, deleteResourcesCopiedFromUpstream(context.Background(), lister, deleter, bdName))
-
-	assert.Equal(t, []string{"copied-secret", "copied-cm"}, deletedNames,
-		"expected both copies to be deleted through the deployment client")
 }

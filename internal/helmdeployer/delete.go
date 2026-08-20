@@ -98,19 +98,7 @@ func (h *Helm) deleteByRelease(ctx context.Context, bundleID, releaseName string
 		return fmt.Errorf("failed to delete release %s: %w", releaseName, err)
 	}
 
-	// Delete the copied resources as the deployment's service account, gating the
-	// cleanup by the same downstream RBAC that governed the copy. Fall back to the
-	// agent client when no service account resolves, preserving prior behaviour. The
-	// copies are looked up with the agent client either way, see
-	// deleteResourcesCopiedFromUpstream.
-	deleteClient := h.client
-	if ic, err := h.ImpersonatedClient(ctx, serviceAccountName); err != nil {
-		return err
-	} else if ic != nil {
-		deleteClient = ic
-	}
-
-	return deleteResourcesCopiedFromUpstream(ctx, h.client, deleteClient, bundleID)
+	return deleteResourcesCopiedFromUpstream(ctx, h.client, bundleID)
 }
 
 func (h *Helm) delete(ctx context.Context, bundleID string, options fleet.BundleDeploymentOptions, dryRun bool) error {
@@ -190,14 +178,7 @@ func deleteHistory(cfg *action.Configuration, logger logr.Logger, bundleID strin
 
 // deleteResourcesCopiedFromUpstream deletes resources referenced through a bundle's `DownstreamResources`
 // field, and copied from upstream.
-//
-// The copies are located with lister, the agent client: which objects Fleet copied is a
-// fact about the cluster rather than an action taken on the deployment's behalf, so the
-// deployment's service account does not need cluster-wide list access. Listing across
-// namespaces also still finds copies left behind in a namespace the deployment no longer
-// targets, which a namespace-scoped list would orphan. Deleting them is a downstream
-// write and runs through deleter, the deployment's service account.
-func deleteResourcesCopiedFromUpstream(ctx context.Context, lister client.Reader, deleter client.Client, bdName string) error {
+func deleteResourcesCopiedFromUpstream(ctx context.Context, c client.Client, bdName string) error {
 	var merr []error
 
 	// No information is available about a deleted bundle deployment beside its name and namespace;
@@ -210,23 +191,23 @@ func deleteResourcesCopiedFromUpstream(ctx context.Context, lister client.Reader
 	secrets := corev1.SecretList{}
 
 	// XXX: should we log instead of erroring?
-	if err := lister.List(ctx, &secrets, opts); err != nil {
+	if err := c.List(ctx, &secrets, opts); err != nil {
 		merr = append(merr, fmt.Errorf("failed to list copied secrets from upstream to delete from outdated bundle: %w", err))
 	}
 
 	for _, s := range secrets.Items {
-		if err := deleter.Delete(ctx, &s); err != nil {
+		if err := c.Delete(ctx, &s); err != nil {
 			merr = append(merr, fmt.Errorf("failed to delete outdated secrets copied from upstream: %w", err))
 		}
 	}
 
 	cms := corev1.ConfigMapList{}
 
-	if err := lister.List(ctx, &cms, opts); err != nil {
+	if err := c.List(ctx, &cms, opts); err != nil {
 		merr = append(merr, fmt.Errorf("failed to list copied configmaps from upstream to delete from outdated bundle: %w", err))
 	}
 	for _, cm := range cms.Items {
-		if err := deleter.Delete(ctx, &cm); err != nil {
+		if err := c.Delete(ctx, &cm); err != nil {
 			merr = append(merr, fmt.Errorf("failed to delete outdated configmaps copied from upstream: %w", err))
 		}
 	}
