@@ -58,7 +58,10 @@ func (m *MigrateGitRepoHelmURLRegex) Run(cmd *cobra.Command, _ []string) error {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zopts)))
 	ctx := log.IntoContext(cmd.Context(), ctrl.Log)
 
-	cfg := ctrl.GetConfigOrDie()
+	cfg, err := getKubeconfig()
+	if err != nil {
+		return err
+	}
 	cl, err := client.New(cfg, client.Options{Scheme: scheme})
 	if err != nil {
 		return err

@@ -2,7 +2,6 @@ package cli
 
 import (
 	"errors"
-	"flag"
 	"os"
 	"reflect"
 
@@ -45,12 +44,7 @@ func NewTarget() *cobra.Command {
 	})
 	cmd.SetOut(os.Stdout)
 
-	// add command line flags from zap and controller-runtime, which use
-	// goflags and convert them to pflags
-	fs := flag.NewFlagSet("", flag.ExitOnError)
-	zopts.BindFlags(fs)
-	ctrl.RegisterFlags(fs)
-	cmd.Flags().AddGoFlagSet(fs)
+	registerLoggingAndKubeconfigFlags(cmd)
 	return cmd
 }
 
@@ -94,7 +88,10 @@ func (t *Target) Run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	cfg := ctrl.GetConfigOrDie()
+	cfg, err := getKubeconfig()
+	if err != nil {
+		return err
+	}
 	client, err := client.New(cfg, client.Options{Scheme: scheme})
 	if err != nil {
 		return err
