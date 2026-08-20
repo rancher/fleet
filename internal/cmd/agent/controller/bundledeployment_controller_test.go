@@ -143,8 +143,8 @@ func TestCopyResourcesFromUpstream_ForbiddenSurfaces(t *testing.T) {
 	require.Error(t, err)
 	assert.True(t, apierrors.IsForbidden(err), "expected error to be detectable as Forbidden")
 
-	var copyForbiddenError *CopyForbiddenError
-	assert.ErrorAs(t, err, &copyForbiddenError, "expected a denied downstream write to be marked as a copy denial")
+	var copyErr *copyForbiddenError
+	assert.ErrorAs(t, err, &copyErr, "expected a denied downstream write to be marked as a copy denial")
 }
 
 // TestCopyResourcesFromUpstream_UpstreamForbiddenNotMarked verifies that a Forbidden
@@ -186,8 +186,8 @@ func TestCopyResourcesFromUpstream_UpstreamForbiddenNotMarked(t *testing.T) {
 	_, err := r.copyResourcesFromUpstream(context.Background(), bd, logr.Discard())
 	require.Error(t, err)
 
-	var copyForbiddenError *CopyForbiddenError
-	assert.NotErrorAs(t, err, &copyForbiddenError, "expected an upstream read denial not to be marked as a copy denial")
+	var copyErr *copyForbiddenError
+	assert.NotErrorAs(t, err, &copyErr, "expected an upstream read denial not to be marked as a copy denial")
 }
 
 // TestCopyResourcesFromUpstream_MissingNamespaceForbidden verifies that a missing
@@ -244,8 +244,8 @@ func TestCopyResourcesFromUpstream_MissingNamespaceForbidden(t *testing.T) {
 	require.Error(t, err)
 	assert.True(t, apierrors.IsForbidden(err), "expected error to stay detectable as Forbidden")
 
-	var copyForbiddenError *CopyForbiddenError
-	require.ErrorAs(t, err, &copyForbiddenError, "expected a denied namespace create to be marked as a copy denial")
+	var copyErr *copyForbiddenError
+	require.ErrorAs(t, err, &copyErr, "expected a denied namespace create to be marked as a copy denial")
 	assert.Contains(t, err.Error(), "target", "expected the error to name the deployment namespace")
 	assert.Contains(t, err.Error(), "does not exist", "expected the error to report the missing namespace")
 }

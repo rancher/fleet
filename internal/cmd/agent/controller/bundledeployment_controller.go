@@ -680,7 +680,7 @@ func (r *BundleDeploymentReconciler) requeueIfNamespaceForbidden(ctx context.Con
 	return true, ctrl.Result{RequeueAfter: durations.NamespacePermissionRequeueInterval}, nil
 }
 
-// CopyForbiddenError marks a denied downstream write made for a bundle deployment's
+// copyForbiddenError marks a denied downstream write made for a bundle deployment's
 // DownstreamResources: creating the deployment namespace, or writing a copied Secret or
 // ConfigMap. Those writes run as the deployment's service account, so a denial is a
 // statement about the tenant's downstream RBAC, and requeueIfCopyForbidden handles it as
@@ -691,13 +691,13 @@ func (r *BundleDeploymentReconciler) requeueIfNamespaceForbidden(ctx context.Con
 // the agent's own upstream RBAC, which no downstream grant resolves and which must
 // surface as a reconcile error rather than requeue indefinitely. It unwraps to the
 // underlying Forbidden error, so apierrors.IsForbidden still reports true.
-type CopyForbiddenError struct {
+type copyForbiddenError struct {
 	err error
 }
 
-func (e *CopyForbiddenError) Error() string { return e.err.Error() }
+func (e *copyForbiddenError) Error() string { return e.err.Error() }
 
-func (e *CopyForbiddenError) Unwrap() error { return e.err }
+func (e *copyForbiddenError) Unwrap() error { return e.err }
 
 // copyForbidden marks err as a denied downstream copy write when it is a Forbidden, and
 // returns it unchanged otherwise.
@@ -706,7 +706,7 @@ func copyForbidden(err error) error {
 		return err
 	}
 
-	return &CopyForbiddenError{err: err}
+	return &copyForbiddenError{err: err}
 }
 
 // requeueIfCopyForbidden handles a denied DownstreamResources copy: the deployment's
@@ -716,11 +716,10 @@ func copyForbidden(err error) error {
 // a controlled requeue rather than a failed reconcile, so it does not tight-loop: the
 // copy converges once the missing namespace/resource RBAC is granted (granting it does
 // not otherwise trigger a reconcile). Returns handled=false when err is not a
-// CopyForbiddenError, so a Forbidden raised by anything but those downstream writes is
+// copyForbiddenError, so a Forbidden raised by anything but those downstream writes is
 // left for the caller to return.
 func (r *BundleDeploymentReconciler) requeueIfCopyForbidden(ctx context.Context, orig, bd *fleetv1.BundleDeployment, err error) (bool, ctrl.Result, error) {
-	var copyForbiddenError *CopyForbiddenError
-	if !errors.As(err, &copyForbiddenError) {
+	if _, ok := errors.AsType[*copyForbiddenError](err); !ok {
 		return false, ctrl.Result{}, nil
 	}
 
