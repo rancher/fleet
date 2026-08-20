@@ -188,10 +188,14 @@ var setupCmd = &cobra.Command{
 			if externalIP == "" {
 				externalIP = waitForLoadbalancer(k, "chartmuseum-service")
 			}
+			chartMuseumURL := fmt.Sprintf("https://%s:8081", externalIP)
+			if err := waitForChartMuseumReadyEventually(chartMuseumURL); err != nil {
+				fail(err)
+			}
 
 			_ = eventually(func() (string, error) {
 				c, err := chartmuseum.NewClient(
-					chartmuseum.URL(fmt.Sprintf("https://%s:8081", externalIP)),
+					chartmuseum.URL(chartMuseumURL),
 					chartmuseum.Username(os.Getenv("CI_OCI_USERNAME")),
 					chartmuseum.Password(os.Getenv("CI_OCI_PASSWORD")),
 					chartmuseum.InsecureSkipVerify(true),
@@ -365,9 +369,64 @@ func waitForPodReady(k kubectl.Command, appName string) {
 
 func waitForLoadbalancer(k kubectl.Command, name string) string {
 	ip := eventually(func() (string, error) {
-		return k.Get("service", name, "-o", "jsonpath={.status.loadBalancer.ingress[0].ip}")
+		out, err := k.Get("service", name, "-o", "jsonpath={.status.loadBalancer.ingress[0].ip}")
+		if err != nil {
+			return "", err
+		}
+
+		value := strings.TrimSpace(out)
+		if value == "" || value == "<no value>" {
+			return "", fmt.Errorf("service %s loadBalancer ingress IP is not available yet", name)
+		}
+
+		return value, nil
 	})
 	return ip
+}
+
+func waitForChartMuseumReady(baseURL string) error {
+	addr := strings.TrimRight(baseURL, "/") + "/health"
+	client := http.Client{
+		Timeout: 5 * time.Second,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+	}
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, addr, nil)
+	if err != nil {
+		return fmt.Errorf("creating ChartMuseum health request: %w", err)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("waiting for ChartMuseum health endpoint: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("waiting for ChartMuseum health endpoint: status %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
+func waitForChartMuseumReadyEventually(baseURL string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeoutDuration)
+	defer cancel()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("timed out waiting for ChartMuseum readiness: %w", ctx.Err())
+		default:
+			if err := waitForChartMuseumReady(baseURL); err != nil {
+				time.Sleep(time.Second)
+				continue
+			}
+			return nil
+		}
+	}
 }
 
 // fail prints err and exits.

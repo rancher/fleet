@@ -2,6 +2,7 @@ package deployer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -13,6 +14,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -152,6 +154,129 @@ func TestSetNamespaceLabelsAndAnnotations(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestSetNamespaceLabelsAndAnnotations_CreateNamespaceFalse verifies that
+// disabling Helm namespace creation (CreateNamespace=false) does not prevent
+// Fleet from applying namespaceLabels/namespaceAnnotations to the (already
+// existing) namespace. CreateNamespace only governs creation; mutation is gated
+// by the deployment's service account RBAC, not by this flag.
+func TestSetNamespaceLabelsAndAnnotations_CreateNamespaceFalse(t *testing.T) {
+	createNS := false
+	bd := &fleet.BundleDeployment{Spec: fleet.BundleDeploymentSpec{
+		Options: fleet.BundleDeploymentOptions{
+			CreateNamespace:      &createNS,
+			NamespaceLabels:      map[string]string{"label": "value"},
+			NamespaceAnnotations: map[string]string{"ann": "value"},
+		},
+	}}
+	ns := corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   "namespace",
+			Labels: map[string]string{"kubernetes.io/metadata.name": "namespace"},
+		},
+	}
+
+	scheme := runtime.NewScheme()
+	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+
+	updateCalled := false
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(&ns).
+		WithInterceptorFuncs(interceptor.Funcs{
+			Update: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.UpdateOption) error {
+				updateCalled = true
+				return c.Update(ctx, obj, opts...)
+			},
+		}).
+		Build()
+
+	h := Deployer{client: fakeClient}
+	err := h.setNamespaceLabelsAndAnnotations(context.Background(), bd, "namespace/foo/bar")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !updateCalled {
+		t.Error("namespace UPDATE was not attempted when CreateNamespace is false; mutation must not be gated by CreateNamespace")
+	}
+
+	result := &corev1.Namespace{}
+	if err := fakeClient.Get(context.Background(), types.NamespacedName{Name: "namespace"}, result); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Labels["label"] != "value" {
+		t.Errorf("label: got %q, want %q", result.Labels["label"], "value")
+	}
+	if result.Annotations["ann"] != "value" {
+		t.Errorf("annotation: got %q, want %q", result.Annotations["ann"], "value")
+	}
+}
+
+// TestSetNamespaceLabelsAndAnnotations_ForbiddenSurfaces verifies that a
+// permission error from the namespace client is wrapped such that it is still
+// detectable as a Forbidden error (so the caller can record it as a status
+// condition instead of requeuing forever).
+func TestSetNamespaceLabelsAndAnnotations_ForbiddenSurfaces(t *testing.T) {
+	bd := &fleet.BundleDeployment{Spec: fleet.BundleDeploymentSpec{
+		Options: fleet.BundleDeploymentOptions{
+			NamespaceLabels: map[string]string{"label": "value"},
+		},
+	}}
+	ns := corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   "namespace",
+			Labels: map[string]string{"kubernetes.io/metadata.name": "namespace"},
+		},
+	}
+
+	scheme := runtime.NewScheme()
+	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+
+	forbidden := apierrors.NewForbidden(
+		schema.GroupResource{Resource: "namespaces"}, "namespace", errors.New("nope"))
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(&ns).
+		WithInterceptorFuncs(interceptor.Funcs{
+			Update: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.UpdateOption) error {
+				return forbidden
+			},
+		}).
+		Build()
+
+	h := Deployer{client: fakeClient}
+	err := h.setNamespaceLabelsAndAnnotations(context.Background(), bd, "namespace/foo/bar")
+	if err == nil {
+		t.Fatal("expected a forbidden error, got nil")
+	}
+	if !apierrors.IsForbidden(err) {
+		t.Errorf("expected error to be detectable as Forbidden, got %v", err)
+	}
+
+	if do, status := forbiddenToStatus(err, fleet.BundleDeploymentStatus{}); !do {
+		t.Error("forbiddenToStatus did not record the forbidden error as a status condition")
+	} else if status.Ready {
+		t.Error("expected status.Ready to be false")
+	}
+}
+
+// TestNamespaceForbiddenError verifies that the typed error DeployBundle
+// returns for a denied namespace patch is both detectable via errors.As (so the
+// controller can do a controlled requeue) and still unwraps to a Forbidden
+// error.
+func TestNamespaceForbiddenError(t *testing.T) {
+	forbidden := apierrors.NewForbidden(
+		schema.GroupResource{Resource: "namespaces"}, "namespace", errors.New("nope"))
+	err := error(&NamespaceForbiddenError{err: forbidden})
+
+	var nsErr *NamespaceForbiddenError
+	if !errors.As(err, &nsErr) {
+		t.Errorf("expected error to be detectable as *NamespaceForbiddenError, got %v", err)
+	}
+	if !apierrors.IsForbidden(err) {
+		t.Errorf("expected error to unwrap to a Forbidden error, got %v", err)
 	}
 }
 

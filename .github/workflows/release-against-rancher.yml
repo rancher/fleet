@@ -18,6 +18,7 @@ on:
         #   (currently: Fleet minor - 1 = Rancher minor)
         options:
           - main
+          - release/v0.16
           - release/v0.15
           - release/v0.14
           - release/v0.13
@@ -34,7 +35,7 @@ jobs:
       contents: read
 
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           path: fleet
@@ -48,7 +49,7 @@ jobs:
         run: fleet/.github/scripts/compute-rancher-versions.sh
 
       - name: Checkout rancher/rancher
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           repository: rancher/rancher
@@ -68,16 +69,37 @@ jobs:
             exit 0
           fi
 
-          # For a new final minor version, pkg/apis must be tagged in the fleet repo.
+          # For a new final minor version, every Fleet submodule that has already been split
+          # out on this branch (i.e. <mod>/go.mod exists in the fleet checkout) must be tagged,
+          # and the tag must point at a commit that actually contains <mod>/go.mod. A submodule
+          # not yet split out on this branch (e.g. pkg/helmvalues before it is backported) is not
+          # required, since rancher/rancher cannot consume it yet either way.
           if [[ "${NEW_FLEET}" =~ \.0$ ]]; then
-            if ! git -C fleet tag -l "pkg/apis/v${NEW_FLEET}" | grep -q .; then
-              {
-                printf 'ERROR: pkg/apis/v%s tag not found in the fleet repo!\n' "${NEW_FLEET}"
-                printf 'For a new final minor version, pkg/apis must be bumped first.\n'
-                printf 'Please create the tag: git tag pkg/apis/v%s\n' "${NEW_FLEET}"
-              } >&2
-              exit 1
-            fi
+            for mod in pkg/apis pkg/helmvalues; do
+              if [ ! -f "fleet/${mod}/go.mod" ]; then
+                printf 'INFO: %s/go.mod not present on this branch; skipping %s tag requirement\n' "${mod}" "${mod}"
+                continue
+              fi
+
+              tag="${mod}/v${NEW_FLEET}"
+              if ! git -C fleet tag -l "${tag}" | grep -q .; then
+                {
+                  printf 'ERROR: %s tag not found in the fleet repo!\n' "${tag}"
+                  printf 'For a new final minor version, %s must be bumped first.\n' "${mod}"
+                  printf 'Please create the tag: git tag %s\n' "${tag}"
+                } >&2
+                exit 1
+              fi
+
+              if ! git -C fleet cat-file -e "${tag}:${mod}/go.mod" 2>/dev/null; then
+                {
+                  printf 'ERROR: %s exists but %s/go.mod is missing at that commit!\n' "${tag}" "${mod}"
+                  printf 'The tag likely predates %s being split into its own Go module.\n' "${mod}"
+                  printf 'Delete and recreate the tag from a commit where %s/go.mod exists.\n' "${mod}"
+                } >&2
+                exit 1
+              fi
+            done
           fi
 
           # For any final version, rancher/rancher must not reference a pre-release Fleet API
@@ -94,7 +116,25 @@ jobs:
             fi
           fi
 
-      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+          # Same guard for the pkg/helmvalues module. Rancher may reference it from a different
+          # go.mod than pkg/apis, and potentially from more than one, so scan all of rancher's
+          # module files and consider every match (not just the first) to avoid missing a
+          # pre-release reference in a later file.
+          # -o restricts the match to "<module> <version>" so a trailing " // indirect" is
+          # excluded; otherwise awk would read "indirect" as the version and drop the match.
+          if ! git -C fleet tag -l "pkg/helmvalues/v${NEW_FLEET}" | grep -q .; then
+            RANCHER_FLEET_HELMVALUES_PRERELEASES=$(grep -rhsoE 'github.com/rancher/fleet/pkg/helmvalues[[:space:]]+v[0-9][^[:space:]]*' rancher --include=go.mod | awk '{print $NF}' | grep -- - | sort -u || true)
+            if [ -n "${RANCHER_FLEET_HELMVALUES_PRERELEASES}" ]; then
+              {
+                printf 'ERROR: rancher/rancher uses pre-release Fleet helmvalues, but pkg/helmvalues/v%s tag not found\n' "${NEW_FLEET}"
+                printf 'Referenced pre-release version(s): %s\n' "$(echo "${RANCHER_FLEET_HELMVALUES_PRERELEASES}" | tr '\n' ' ')"
+                printf 'Please create the tag: git tag pkg/helmvalues/v%s\n' "${NEW_FLEET}"
+              } >&2
+              exit 1
+            fi
+          fi
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: ./rancher/go.mod
           cache-dependency-path: ./rancher/go.sum

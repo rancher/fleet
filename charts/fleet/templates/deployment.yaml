@@ -122,6 +122,7 @@ spec:
         {{- end }}
         command:
         - fleetcontroller
+        args:
         {{- if $shard.id }}
         - --shard-id
         - {{ quote $shard.id }}
@@ -174,6 +175,7 @@ spec:
         imagePullPolicy: "{{ $.Values.image.imagePullPolicy }}"
         command:
         - fleetcontroller
+        args:
         - cleanup
         {{- if $.Values.debug }}
         - --debug
@@ -241,6 +243,7 @@ spec:
         imagePullPolicy: "{{ $.Values.image.imagePullPolicy }}"
         command:
         - fleetcontroller
+        args:
         - agentmanagement
         {{- if not $.Values.bootstrap.enabled }}
         - --disable-bootstrap

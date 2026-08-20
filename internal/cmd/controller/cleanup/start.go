@@ -2,8 +2,7 @@ package cleanup
 
 import (
 	"context"
-
-	"github.com/sirupsen/logrus"
+	"log"
 
 	"github.com/rancher/fleet/internal/cmd/controller/cleanup/controllers"
 	"github.com/rancher/wrangler/v3/pkg/kubeconfig"
@@ -31,10 +30,10 @@ func start(ctx context.Context, kubeConfig, namespace string) error {
 	leader.RunOrDie(ctx, namespace, "fleet-cleanup-lock", k8s, func(ctx context.Context) {
 		appCtx, err := controllers.NewAppContext(clientConfig)
 		if err != nil {
-			logrus.Fatal(err)
+			log.Fatal(err)
 		}
 		if err := controllers.Register(ctx, appCtx); err != nil {
-			logrus.Fatal(err)
+			log.Fatal(err)
 		}
 	})
 

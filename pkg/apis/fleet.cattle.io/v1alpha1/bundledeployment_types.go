@@ -86,6 +86,17 @@ type BundleDeploymentOptions struct {
 	// +nullable
 	ServiceAccount string `json:"serviceAccount,omitempty"`
 
+	// CreateNamespace controls whether Fleet creates the target namespace on
+	// downstream clusters during Helm installs. When nil, the default behavior
+	// is to create the namespace (backward-compatible). Set to false by the
+	// controller when Policy requires a ServiceAccount and does not explicitly
+	// allow namespace creation. This does not affect namespaceLabels/
+	// namespaceAnnotations patching, which is always attempted (when set) as
+	// the deployment's ServiceAccount and gated by downstream RBAC.
+	// +optional
+	// +nullable
+	CreateNamespace *bool `json:"createNamespace,omitempty"`
+
 	// ForceSyncGeneration is used to force a redeployment
 	ForceSyncGeneration int64 `json:"forceSyncGeneration,omitempty"`
 
@@ -123,12 +134,12 @@ type BundleDeploymentOptions struct {
 
 	// Overwrites indicates which resources, if any, come from this bundle and overwrite another existing bundle.
 	// This flag is set internally by Fleet, and should not be altered by users.
-	Overwrites []OverwrittenResource `json:"overwrites,omitempty"`
+	Overwrites []OverwrittenResource `json:"overwrites,omitempty" jsonschema:"-"`
 
 	// AllowedTargetNamespaceSelector restricts deployments to namespaces matching this selector.
 	// Propagated from GitRepoRestriction and validated by the agent on the downstream cluster.
 	// +nullable
-	AllowedTargetNamespaceSelector *metav1.LabelSelector `json:"allowedTargetNamespaceSelector,omitempty"`
+	AllowedTargetNamespaceSelector *metav1.LabelSelector `json:"allowedTargetNamespaceSelector,omitempty" jsonschema:"-"`
 }
 
 // GitOpsBundleDeploymentOptions contains options which only make sense for GitOps

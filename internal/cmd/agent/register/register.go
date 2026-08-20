@@ -7,8 +7,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/rancher/fleet/internal/config"
 	"github.com/rancher/fleet/internal/registration"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -26,6 +24,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/yaml"
 )
 
@@ -57,7 +56,7 @@ func Register(ctx context.Context, namespace string, config *rest.Config) (*Agen
 		if err == nil {
 			return cfg, nil
 		}
-		logrus.Errorf("Failed to register agent: %v", err)
+		log.Log.Error(err, "Failed to register agent")
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -81,7 +80,7 @@ func tryRegister(ctx context.Context, namespace string, cfg *rest.Config) (*Agen
 
 	secret, err := k8s.Core().V1().Secret().Get(namespace, CredName, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
-		logrus.Warn("Cannot find fleet-agent secret, running registration")
+		log.Log.Info("Cannot find fleet-agent secret, running registration")
 		// fallback to local cattle-fleet-system/fleet-agent-bootstrap
 		secret, err = runRegistration(ctx, k8s.Core().V1(), namespace)
 		if err != nil {
@@ -91,7 +90,7 @@ func tryRegister(ctx context.Context, namespace string, cfg *rest.Config) (*Agen
 		return nil, err
 	} else if err := testClientConfig(secret.Data[Kubeconfig]); err != nil {
 		// skip testClientConfig check if previous error, or IsNotFound fallback succeeded
-		logrus.Errorf("Current credential failed, falling back to reregistering: %v", err)
+		log.Log.Error(err, "Current credential failed, falling back to reregistering")
 		secret, err = runRegistration(ctx, k8s.Core().V1(), namespace)
 		if err != nil {
 			return nil, fmt.Errorf("re-registration failed: %w", err)
@@ -186,11 +185,10 @@ func runRegistration(ctx context.Context, k8s coreInterface, namespace string) (
 	if cfg.Labels == nil {
 		cfg.Labels = map[string]string{}
 	}
-	cfg.Labels["fleet.cattle.io/created-by-agent-pod"] = os.Getenv("HOSTNAME")
+	cfg.Labels[fleet.CreatedByAgentPodLabel] = os.Getenv("HOSTNAME")
 
 	tokenName := string(values(secret.Data)[TokenName])
-
-	logrus.Infof("Creating clusterregistration with id '%s' for new token", clientID)
+	log.Log.Info(fmt.Sprintf("Creating clusterregistration with id '%s' for new token", clientID))
 	request, err := fc.Fleet().V1alpha1().ClusterRegistration().Create(&fleet.ClusterRegistration{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "request-",
@@ -224,7 +222,7 @@ func runRegistration(ctx context.Context, k8s coreInterface, namespace string) (
 
 		newSecret, err := fleetK8s.CoreV1().Secrets(secretNamespace).Get(ctx, secretName, metav1.GetOptions{})
 		if err != nil {
-			logrus.Infof("Waiting for secret '%s/%s' on management cluster for request '%s/%s': %v", secretNamespace, secretName, request.Namespace, request.Name, err)
+			log.Log.Info(fmt.Sprintf("Waiting for secret '%s/%s' on management cluster for request '%s/%s'", secretNamespace, secretName, request.Namespace, request.Name), "error", err)
 			continue
 		}
 

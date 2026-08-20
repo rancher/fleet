@@ -608,19 +608,17 @@ func TestNewJob(t *testing.T) {
 			},
 			expectedInitContainers: []corev1.Container{
 				{
-					Command: []string{
-						"log.sh",
-					},
+					Command: []string{"fleet"},
 					Args: []string{
-						"fleet",
 						"gitcloner",
 						"repo",
 						"/workspace",
 						"--branch",
 						"master",
 					},
-					Image: "test",
-					Name:  "gitcloner-initializer",
+					Image:                    "test",
+					Name:                     "gitcloner-initializer",
+					TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 					VolumeMounts: []corev1.VolumeMount{
 						{
 							Name:      gitClonerVolumeName,
@@ -681,19 +679,17 @@ func TestNewJob(t *testing.T) {
 			},
 			expectedInitContainers: []corev1.Container{
 				{
-					Command: []string{
-						"log.sh",
-					},
+					Command: []string{"fleet"},
 					Args: []string{
-						"fleet",
 						"gitcloner",
 						"repo",
 						"/workspace",
 						"--branch",
 						"foo",
 					},
-					Image: "test",
-					Name:  "gitcloner-initializer",
+					Image:                    "test",
+					Name:                     "gitcloner-initializer",
+					TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 					VolumeMounts: []corev1.VolumeMount{
 						{
 							Name:      gitClonerVolumeName,
@@ -754,19 +750,17 @@ func TestNewJob(t *testing.T) {
 			},
 			expectedInitContainers: []corev1.Container{
 				{
-					Command: []string{
-						"log.sh",
-					},
+					Command: []string{"fleet"},
 					Args: []string{
-						"fleet",
 						"gitcloner",
 						"repo",
 						"/workspace",
 						"--revision",
 						"foo",
 					},
-					Image: "test",
-					Name:  "gitcloner-initializer",
+					Image:                    "test",
+					Name:                     "gitcloner-initializer",
+					TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 					VolumeMounts: []corev1.VolumeMount{
 						{
 							Name:      gitClonerVolumeName,
@@ -827,11 +821,8 @@ func TestNewJob(t *testing.T) {
 			},
 			expectedInitContainers: []corev1.Container{
 				{
-					Command: []string{
-						"log.sh",
-					},
+					Command: []string{"fleet"},
 					Args: []string{
-						"fleet",
 						"gitcloner",
 						"repo",
 						"/workspace",
@@ -842,8 +833,9 @@ func TestNewJob(t *testing.T) {
 						"--password-file",
 						"/gitjob/credentials/" + corev1.BasicAuthPasswordKey,
 					},
-					Image: "test",
-					Name:  "gitcloner-initializer",
+					Image:                    "test",
+					Name:                     "gitcloner-initializer",
+					TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 					VolumeMounts: []corev1.VolumeMount{
 						{
 							Name:      gitClonerVolumeName,
@@ -927,11 +919,8 @@ func TestNewJob(t *testing.T) {
 			},
 			expectedInitContainers: []corev1.Container{
 				{
-					Command: []string{
-						"log.sh",
-					},
+					Command: []string{"fleet"},
 					Args: []string{
-						"fleet",
 						"gitcloner",
 						"repo",
 						"/workspace",
@@ -941,8 +930,9 @@ func TestNewJob(t *testing.T) {
 						"/gitjob/ssh/" + corev1.SSHAuthPrivateKey,
 					},
 					// FLEET_KNOWN_HOSTS not expected here as strict host key checks are disabled
-					Image: "test",
-					Name:  "gitcloner-initializer",
+					Image:                    "test",
+					Name:                     "gitcloner-initializer",
+					TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 					VolumeMounts: []corev1.VolumeMount{
 						{
 							Name:      gitClonerVolumeName,
@@ -1012,11 +1002,8 @@ func TestNewJob(t *testing.T) {
 			strictHostKeyChecks: true,
 			expectedInitContainers: []corev1.Container{
 				{
-					Command: []string{
-						"log.sh",
-					},
+					Command: []string{"fleet"},
 					Args: []string{
-						"fleet",
 						"gitcloner",
 						"ssh://repo",
 						"/workspace",
@@ -1035,8 +1022,9 @@ func TestNewJob(t *testing.T) {
 							Value: "some known hosts",
 						},
 					},
-					Image: "test",
-					Name:  "gitcloner-initializer",
+					Image:                    "test",
+					Name:                     "gitcloner-initializer",
+					TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 					VolumeMounts: []corev1.VolumeMount{
 						{
 							Name:      gitClonerVolumeName,
@@ -1104,11 +1092,8 @@ func TestNewJob(t *testing.T) {
 			strictHostKeyChecks: true,
 			expectedInitContainers: []corev1.Container{
 				{
-					Command: []string{
-						"log.sh",
-					},
+					Command: []string{"fleet"},
 					Args: []string{
-						"fleet",
 						"gitcloner",
 						"ssh://repo",
 						"/workspace",
@@ -1127,8 +1112,9 @@ func TestNewJob(t *testing.T) {
 							Value: "foo",
 						},
 					},
-					Image: "test",
-					Name:  "gitcloner-initializer",
+					Image:                    "test",
+					Name:                     "gitcloner-initializer",
+					TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 					VolumeMounts: []corev1.VolumeMount{
 						{
 							Name:      gitClonerVolumeName,
@@ -1203,11 +1189,8 @@ func TestNewJob(t *testing.T) {
 			strictHostKeyChecks: true,
 			expectedInitContainers: []corev1.Container{
 				{
-					Command: []string{
-						"log.sh",
-					},
+					Command: []string{"fleet"},
 					Args: []string{
-						"fleet",
 						"gitcloner",
 						"ssh://repo",
 						"/workspace",
@@ -1224,8 +1207,9 @@ func TestNewJob(t *testing.T) {
 							Value: "foo",
 						},
 					},
-					Image: "test",
-					Name:  "gitcloner-initializer",
+					Image:                    "test",
+					Name:                     "gitcloner-initializer",
+					TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 					VolumeMounts: []corev1.VolumeMount{
 						{
 							Name:      gitClonerVolumeName,
@@ -1278,11 +1262,8 @@ func TestNewJob(t *testing.T) {
 			},
 			expectedInitContainers: []corev1.Container{
 				{
-					Command: []string{
-						"log.sh",
-					},
+					Command: []string{"fleet"},
 					Args: []string{
-						"fleet",
 						"gitcloner",
 						"repo",
 						"/workspace",
@@ -1295,8 +1276,9 @@ func TestNewJob(t *testing.T) {
 						"--github-app-key-file",
 						"/gitjob/githubapp/github_app_private_key",
 					},
-					Image: "test",
-					Name:  "gitcloner-initializer",
+					Image:                    "test",
+					Name:                     "gitcloner-initializer",
+					TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 					VolumeMounts: []corev1.VolumeMount{
 						{
 							Name:      gitClonerVolumeName,
@@ -1378,11 +1360,8 @@ func TestNewJob(t *testing.T) {
 			},
 			expectedInitContainers: []corev1.Container{
 				{
-					Command: []string{
-						"log.sh",
-					},
+					Command: []string{"fleet"},
 					Args: []string{
-						"fleet",
 						"gitcloner",
 						"repo",
 						"/workspace",
@@ -1391,8 +1370,9 @@ func TestNewJob(t *testing.T) {
 						"--ca-bundle-file",
 						"/gitjob/cabundle/" + bundleCAFile,
 					},
-					Image: "test",
-					Name:  "gitcloner-initializer",
+					Image:                    "test",
+					Name:                     "gitcloner-initializer",
+					TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 					VolumeMounts: []corev1.VolumeMount{
 						{
 							Name:      gitClonerVolumeName,
@@ -1474,11 +1454,8 @@ func TestNewJob(t *testing.T) {
 			},
 			expectedInitContainers: []corev1.Container{
 				{
-					Command: []string{
-						"log.sh",
-					},
+					Command: []string{"fleet"},
 					Args: []string{
-						"fleet",
 						"gitcloner",
 						"repo",
 						"/workspace",
@@ -1487,8 +1464,9 @@ func TestNewJob(t *testing.T) {
 						"--ca-bundle-file",
 						"/gitjob/cabundle/" + bundleCAFile,
 					},
-					Image: "test",
-					Name:  "gitcloner-initializer",
+					Image:                    "test",
+					Name:                     "gitcloner-initializer",
+					TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 					VolumeMounts: []corev1.VolumeMount{
 						{
 							Name:      gitClonerVolumeName,
@@ -1554,7 +1532,8 @@ func TestNewJob(t *testing.T) {
 						"--cacerts-file",
 						"/etc/rancher/certs/cacerts",
 					},
-					Name: "fleet",
+					Name:                     "fleet",
+					TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 					VolumeMounts: []corev1.VolumeMount{
 						{
 							Name:      "rancher-helm-secret-cert",
@@ -1608,11 +1587,8 @@ func TestNewJob(t *testing.T) {
 			},
 			expectedInitContainers: []corev1.Container{
 				{
-					Command: []string{
-						"log.sh",
-					},
+					Command: []string{"fleet"},
 					Args: []string{
-						"fleet",
 						"gitcloner",
 						"repo",
 						"/workspace",
@@ -1620,8 +1596,9 @@ func TestNewJob(t *testing.T) {
 						"master",
 						"--insecure-skip-tls",
 					},
-					Image: "test",
-					Name:  "gitcloner-initializer",
+					Image:                    "test",
+					Name:                     "gitcloner-initializer",
+					TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 					VolumeMounts: []corev1.VolumeMount{
 						{
 							Name:      gitClonerVolumeName,
@@ -1643,8 +1620,9 @@ func TestNewJob(t *testing.T) {
 			},
 			expectedContainers: []corev1.Container{
 				{
-					Name: "fleet",
-					Args: []string{"--helm-insecure-skip-tls"},
+					Name:                     "fleet",
+					TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
+					Args:                     []string{"--helm-insecure-skip-tls"},
 				},
 			},
 			expectedVolumes: []corev1.Volume{
@@ -1685,19 +1663,17 @@ func TestNewJob(t *testing.T) {
 			},
 			expectedInitContainers: []corev1.Container{
 				{
-					Command: []string{
-						"log.sh",
-					},
+					Command: []string{"fleet"},
 					Args: []string{
-						"fleet",
 						"gitcloner",
 						"repo",
 						"/workspace",
 						"--branch",
 						"master",
 					},
-					Image: "test",
-					Name:  "gitcloner-initializer",
+					Image:                    "test",
+					Name:                     "gitcloner-initializer",
+					TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 					VolumeMounts: []corev1.VolumeMount{
 						{
 							Name:      gitClonerVolumeName,
@@ -2434,7 +2410,6 @@ func TestGitClonerSSH(t *testing.T) {
 			// The error does not matter, as known hosts checks should not be called for non-SSH repos
 			knownHostsErr: errors.New("something happened"),
 			expectedContainerArgs: []string{
-				"fleet",
 				"gitcloner",
 				"foo",
 				"/workspace",
@@ -2450,7 +2425,6 @@ func TestGitClonerSSH(t *testing.T) {
 				},
 			},
 			expectedContainerArgs: []string{
-				"fleet",
 				"gitcloner",
 				"ssh://foo",
 				"/workspace",
@@ -2466,7 +2440,6 @@ func TestGitClonerSSH(t *testing.T) {
 				},
 			},
 			expectedContainerArgs: []string{
-				"fleet",
 				"gitcloner",
 				"foo",
 				"/workspace",
@@ -2483,7 +2456,6 @@ func TestGitClonerSSH(t *testing.T) {
 			},
 			knownHostsData: "foo",
 			expectedContainerArgs: []string{
-				"fleet",
 				"gitcloner",
 				"ssh://foo",
 				"/workspace",

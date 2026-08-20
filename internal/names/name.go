@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"github.com/sirupsen/logrus"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 var (
@@ -93,13 +93,13 @@ func HelmReleaseName(str string) string {
 	if helmReleaseName.MatchString(str) && dnsLabelSafe.MatchString(str) {
 		short := Limit(str, v1alpha1.MaxHelmReleaseNameLen)
 		if short != str {
-			logrus.Debugf("shorten bundle name %v to %v", str, short)
+			log.Log.V(1).Info(fmt.Sprintf("shorten bundle name %v to %v", str, short))
 		}
 		return short
 	}
 
 	// if the string ends up empty or otherwise invalid, fall back to just
 	// a checksum of the original input
-	logrus.Debugf("couldn't derive a valid bundle name, using checksum instead for '%s'", str)
+	log.Log.V(1).Info(fmt.Sprintf("couldn't derive a valid bundle name, using checksum instead for '%s'", str))
 	return Hex(bak, 24)
 }

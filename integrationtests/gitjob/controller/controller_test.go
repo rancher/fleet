@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -111,7 +112,8 @@ var _ = Describe("GitJob controller", func() {
 			}).Should(Not(HaveOccurred()))
 
 			Expect(job.Spec.Template.Spec.Containers).To(HaveLen(1))
-			Expect(job.Spec.Template.Spec.Containers[0].Args).To(ContainElements("fleet", "apply"))
+			Expect(job.Spec.Template.Spec.Containers[0].Command).To(Equal([]string{"fleet"}))
+			Expect(job.Spec.Template.Spec.Containers[0].Args).To(ContainElements("apply"))
 
 			gitRepoOwnerRef := metav1.OwnerReference{
 				Kind:       "GitRepo",
@@ -194,10 +196,8 @@ var _ = Describe("GitJob controller", func() {
 						for _, rule := range role.Rules {
 							for _, resource := range rule.Resources {
 								if resource == "secrets" {
-									for _, verb := range rule.Verbs {
-										if verb == "create" {
-											return nil
-										}
+									if slices.Contains(rule.Verbs, "create") {
+										return nil
 									}
 								}
 							}
@@ -216,7 +216,7 @@ var _ = Describe("GitJob controller", func() {
 
 			It("does not create secrets", func() {
 				By("not creating a secret for the CA bundle")
-				secretName := fmt.Sprintf("%s-cabundle", gitRepoName)
+				secretName := gitRepoName + "-cabundle"
 				ns := types.NamespacedName{Name: secretName, Namespace: gitRepo.Namespace}
 				var secret corev1.Secret
 
@@ -228,7 +228,7 @@ var _ = Describe("GitJob controller", func() {
 				}, time.Second*5, time.Second*1).Should(Succeed())
 
 				By("not creating a secret for the Helm client")
-				secretName = fmt.Sprintf("%s-rancher-cabundle", gitRepoName)
+				secretName = gitRepoName + "-rancher-cabundle"
 				ns = types.NamespacedName{Name: secretName, Namespace: gitRepo.Namespace}
 
 				Consistently(func(g Gomega) {
@@ -264,7 +264,7 @@ var _ = Describe("GitJob controller", func() {
 
 			It("creates secrets for the CA bundle", func() {
 				By("creating a CA bundle secret for the git cloner")
-				secretName := fmt.Sprintf("%s-cabundle", gitRepoName)
+				secretName := gitRepoName + "-cabundle"
 				ns := types.NamespacedName{Name: secretName, Namespace: gitRepo.Namespace}
 				var secret corev1.Secret
 
@@ -285,7 +285,7 @@ var _ = Describe("GitJob controller", func() {
 				}, time.Second*5, time.Second*1).Should(Succeed())
 
 				By("creating a CA bundle secret for the Helm client")
-				secretName = fmt.Sprintf("%s-rancher-cabundle", gitRepoName)
+				secretName = gitRepoName + "-rancher-cabundle"
 				ns = types.NamespacedName{Name: secretName, Namespace: gitRepo.Namespace}
 
 				Eventually(func(g Gomega) {
@@ -330,7 +330,7 @@ var _ = Describe("GitJob controller", func() {
 					Name:       gitRepoName,
 				}
 
-				secretName := fmt.Sprintf("%s-cabundle", gitRepoName)
+				secretName := gitRepoName + "-cabundle"
 				ns := types.NamespacedName{Name: secretName, Namespace: gitRepo.Namespace}
 				var secret corev1.Secret
 
@@ -345,7 +345,7 @@ var _ = Describe("GitJob controller", func() {
 				}, time.Second*5, time.Second*1).Should(Succeed())
 
 				By("creating a secret for the Helm client CA bundle")
-				secretName = fmt.Sprintf("%s-rancher-cabundle", gitRepoName)
+				secretName = gitRepoName + "-rancher-cabundle"
 				ns = types.NamespacedName{Name: secretName, Namespace: gitRepo.Namespace}
 
 				Eventually(func(g Gomega) {
@@ -373,7 +373,7 @@ var _ = Describe("GitJob controller", func() {
 					Name:       gitRepoName,
 				}
 
-				secretName := fmt.Sprintf("%s-cabundle", gitRepoName)
+				secretName := gitRepoName + "-cabundle"
 				ns := types.NamespacedName{Name: secretName, Namespace: gitRepo.Namespace}
 				var secret corev1.Secret
 
@@ -1171,7 +1171,7 @@ var _ = Describe("GitJob controller", func() {
 			})
 
 			It("does not create a CA bundle secret for the Helm client", func() {
-				secretName := fmt.Sprintf("%s-rancher-cabundle", gitRepoName)
+				secretName := gitRepoName + "-rancher-cabundle"
 				ns := types.NamespacedName{Name: secretName, Namespace: gitRepo.Namespace}
 
 				var secret corev1.Secret
@@ -1263,7 +1263,7 @@ var _ = Describe("GitJob controller", func() {
 			})
 
 			It("creates a CA bundle secret for the Helm client", func() {
-				secretName := fmt.Sprintf("%s-rancher-cabundle", gitRepoName)
+				secretName := gitRepoName + "-rancher-cabundle"
 				ns := types.NamespacedName{Name: secretName, Namespace: gitRepo.Namespace}
 
 				var secret corev1.Secret

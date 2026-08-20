@@ -1,6 +1,7 @@
 package cleanup
 
 import (
+	"slices"
 	"time"
 
 	"github.com/rancher/fleet/internal/cmd/cli/cleanup"
@@ -25,8 +26,7 @@ var _ = Describe("Fleet CLI clusterregistration cleanup", Ordered, func() {
 			err := k8sClient.Create(ctx, c)
 			Expect(err).NotTo(HaveOccurred())
 		}
-		for i := len(clusterregistrations) - 1; i >= 0; i-- {
-			cr := clusterregistrations[i]
+		for i, cr := range slices.Backward(clusterregistrations) {
 			tmp := &clusterregistrations[i]
 
 			err := k8sClient.Create(ctx, tmp)

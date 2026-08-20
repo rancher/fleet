@@ -22,21 +22,18 @@ jobs:
 
     steps:
       -
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
       -
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: 'go.mod'
       -
-        name: Install Ginkgo CLI
-        run: go install github.com/onsi/ginkgo/v2/ginkgo
-      -
         name: Cache crust-gather CLI
         id: cache-crust
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.local/bin/crust-gather
           key: ${{ runner.os }}-crust-gather-${{ hashFiles('.github/scripts/install-crust-gather.sh') }}
@@ -65,7 +62,7 @@ jobs:
       -
         name: Cache k3d CLI
         id: cache-k3d
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.local/bin/k3d
           key: ${{ runner.os }}-k3d-${{ hashFiles('.github/scripts/install-k3d.sh') }}
@@ -90,6 +87,7 @@ jobs:
             -p "443:443@agent:0:direct" \
             --api-port 6443 \
             --agents 1 \
+            --k3s-arg "--kubelet-arg=image-gc-high-threshold=100@all" \
             --network "nw01"
       -
         name: Provision k3d Downstream Cluster for agent-initiated registration
@@ -99,6 +97,7 @@ jobs:
             -p "444:443@agent:0:direct" \
             --api-port 6644 \
             --agents 1 \
+            --k3s-arg "--kubelet-arg=image-gc-high-threshold=100@all" \
             --network "nw01"
       -
         name: Provision k3d Downstream Cluster for manager-initiated registration
@@ -108,6 +107,7 @@ jobs:
             -p "445:443@agent:0:direct" \
             --api-port 6645 \
             --agents 1 \
+            --k3s-arg "--kubelet-arg=image-gc-high-threshold=100@all" \
             --network "nw01"
       -
         name: Import Images Into k3d
@@ -159,7 +159,7 @@ jobs:
           { grep -q -m 1 "1/1"; kill $!; } < <(kubectl get cluster -n fleet-default -w)
 
           echo "waiting for cluster to report being ready..."
-          while [ $(kubectl -n fleet-default get cluster -o jsonpath='{.items[0].status.summary.ready}') -ne 1 ]; do
+          while [[ "$(kubectl -n fleet-default get cluster -o jsonpath='{.items[0].status.summary.ready}')" -ne 1 ]]; do
             sleep 1
           done
 
@@ -224,10 +224,11 @@ jobs:
           FLEET_E2E_NS_DOWNSTREAM: fleet-default
         run: |
           # Force use of non-managed downstream cluster for portability
-          export CI_REGISTERED_CLUSTER=$(kubectl get clusters.fleet.cattle.io -n $FLEET_E2E_NS_DOWNSTREAM -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}' | grep -v second)
+          CI_REGISTERED_CLUSTER=$(kubectl get clusters.fleet.cattle.io -n "$FLEET_E2E_NS_DOWNSTREAM" -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}' | grep -v second)
+          export CI_REGISTERED_CLUSTER
 
           kubectl config use-context k3d-upstream
-          ginkgo --github-output --trace e2e/multi-cluster
+          go test -v -count=1 -timeout=1h ./e2e/multi-cluster -args -ginkgo.github-output -ginkgo.trace
       -
         name: E2E tests with managed downstream agent
         env:
@@ -236,7 +237,7 @@ jobs:
           FLEET_E2E_CLUSTER_DOWNSTREAM: k3d-managed-downstream
         run: |
           kubectl config use-context k3d-upstream
-          ginkgo --github-output --trace e2e/multi-cluster/installation
+          go test -v -count=1 -timeout=1h ./e2e/multi-cluster/installation -args -ginkgo.github-output -ginkgo.trace
       -
         name: Acceptance Tests for Examples
         if: >
@@ -245,7 +246,7 @@ jobs:
           FLEET_E2E_NS: fleet-local
           FLEET_E2E_NS_DOWNSTREAM: fleet-default
         run: |
-          ginkgo --github-output --trace e2e/acceptance/multi-cluster-examples
+          go test -v -count=1 -timeout=1h ./e2e/acceptance/multi-cluster-examples -args -ginkgo.github-output -ginkgo.trace
       -
         name: Dump Failed Downstream Environment
         if: failure()

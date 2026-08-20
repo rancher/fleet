@@ -6,9 +6,10 @@ package normalizers
 
 import (
 	"encoding/json"
+	"fmt"
 
 	jsonpatch "github.com/evanphx/json-patch"
-	log "github.com/sirupsen/logrus"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -34,7 +35,7 @@ func NewIgnoreNormalizer(ignore []resource.ResourceIgnoreDifferences, overrides 
 	for key, override := range overrides {
 		group, kind, err := getGroupKindForOverrideKey(key)
 		if err != nil {
-			log.Warn(err)
+			log.Log.Info(fmt.Sprint(err))
 		}
 		if len(override.IgnoreDifferences.JSONPointers) > 0 {
 			ignore = append(ignore, resource.ResourceIgnoreDifferences{
@@ -93,7 +94,7 @@ func (n *ignoreNormalizer) Normalize(un *unstructured.Unstructured) error {
 	for _, patch := range matched {
 		patchedData, err := patch.patch.Apply(docData)
 		if err != nil {
-			log.Debugf("Failed to apply normalization: %v", err)
+			log.Log.V(1).Info(fmt.Sprintf("Failed to apply normalization: %v", err))
 			continue
 		}
 		docData = patchedData

@@ -244,6 +244,11 @@ func TestDetect_Success(t *testing.T) {
 	if caps.AllowTipSHA1InWant {
 		t.Error("expected AllowTipSHA1InWant to be false")
 	}
+
+	// End-to-end: a shallow, reachable-SHA-capable server yields StrategyShallowSHA.
+	if got := detector.ChooseStrategy(caps); got != StrategyShallowSHA {
+		t.Errorf("got strategy %s, want %s", got, StrategyShallowSHA)
+	}
 }
 
 func TestDetect_SessionFactoryError(t *testing.T) {
@@ -350,61 +355,4 @@ func TestNewCapabilityDetectorWithFactory(t *testing.T) {
 	if detector.factory != factory {
 		t.Error("factory not set correctly")
 	}
-}
-
-func TestDetect_GitHub(t *testing.T) {
-	detector := NewCapabilityDetector()
-
-	caps, err := detector.Detect("https://github.com/go-git/go-git", nil)
-	if err != nil {
-		t.Fatalf("Detect failed: %v", err)
-	}
-
-	// GitHub supports shallow clones
-	if !caps.Shallow {
-		t.Error("expected GitHub to support shallow clones")
-	}
-
-	t.Logf("GitHub capabilities: AllowReachableSHA1InWant=%v, AllowTipSHA1InWant=%v, Shallow=%v",
-		caps.AllowReachableSHA1InWant,
-		caps.AllowTipSHA1InWant,
-		caps.Shallow,
-	)
-
-	strategy := detector.ChooseStrategy(caps)
-	t.Logf("Chosen strategy: %s", strategy)
-}
-
-func TestDetect_GitLab(t *testing.T) {
-	detector := NewCapabilityDetector()
-
-	caps, err := detector.Detect("https://gitlab.com/gitlab-org/gitlab", nil)
-	if err != nil {
-		t.Fatalf("Detect failed: %v", err)
-	}
-
-	// GitLab supports shallow clones
-	if !caps.Shallow {
-		t.Error("expected GitLab to support shallow clones")
-	}
-
-	t.Logf("GitLab capabilities: AllowReachableSHA1InWant=%v, AllowTipSHA1InWant=%v, Shallow=%v",
-		caps.AllowReachableSHA1InWant,
-		caps.AllowTipSHA1InWant,
-		caps.Shallow,
-	)
-
-	strategy := detector.ChooseStrategy(caps)
-	t.Logf("Chosen strategy: %s", strategy)
-}
-
-func TestDetect_InvalidURL(t *testing.T) {
-	detector := NewCapabilityDetector()
-
-	_, err := detector.Detect("https://nonexistent.invalid/repo", nil)
-	if err == nil {
-		t.Error("expected error for invalid URL")
-	}
-
-	t.Logf("Expected error: %v", err)
 }

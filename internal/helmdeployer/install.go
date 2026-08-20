@@ -236,7 +236,7 @@ func (h *Helm) configureInstallAction(u *action.Install, cfg *action.Configurati
 	u.Replace = true
 	u.RollbackOnFailure = options.Helm.Atomic
 	u.ReleaseName = releaseName
-	u.CreateNamespace = true
+	u.CreateNamespace = options.CreateNamespace == nil || *options.CreateNamespace
 	u.Namespace = namespace
 	u.Timeout = timeout
 	u.DryRunStrategy = h.configureDryRunStrategy(dryRunCfg)

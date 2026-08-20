@@ -3,6 +3,7 @@ package controller
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"testing"
@@ -28,7 +29,7 @@ import (
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/git/mocks"
 
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
@@ -307,15 +308,15 @@ func waitDeleteGitrepo(gitRepo v1alpha1.GitRepo) {
 	Eventually(func() bool {
 		var gitRepoFromCluster v1alpha1.GitRepo
 		err := k8sClient.Get(ctx, types.NamespacedName{Name: gitRepo.Name, Namespace: gitRepo.Namespace}, &gitRepoFromCluster)
-		return errors.IsNotFound(err)
+		return apierrors.IsNotFound(err)
 	}).Should(BeTrue())
 }
 
-func beOwnedBy(expected interface{}) gomegatypes.GomegaMatcher {
+func beOwnedBy(expected any) gomegatypes.GomegaMatcher {
 	return gcustom.MakeMatcher(func(meta metav1.ObjectMeta) (bool, error) {
 		ref, ok := expected.(metav1.OwnerReference)
 		if !ok {
-			return false, fmt.Errorf("beOwnedBy matcher expects metav1.OwnerReference")
+			return false, errors.New("beOwnedBy matcher expects metav1.OwnerReference")
 		}
 
 		for _, or := range meta.OwnerReferences {

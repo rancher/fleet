@@ -24,7 +24,7 @@ func startDockerRegistry(ctx context.Context) (testcontainers.Container, error) 
 	maxRetries := 3
 	var lastErr error
 
-	for i := 0; i < maxRetries; i++ {
+	for i := range maxRetries {
 		container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 			ContainerRequest: req,
 			Started:          true,

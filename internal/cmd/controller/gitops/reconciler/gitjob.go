@@ -537,13 +537,14 @@ func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.Git
 				RestartPolicy:      corev1.RestartPolicyNever,
 				Containers: []corev1.Container{
 					{
-						Name:         "fleet",
-						Image:        r.Image,
-						Command:      []string{"log.sh"},
-						Args:         append(args, paths...),
-						WorkingDir:   "/workspace/source",
-						VolumeMounts: volumeMounts,
-						Env:          envs,
+						Name:                     "fleet",
+						Image:                    r.Image,
+						Command:                  []string{"fleet"},
+						Args:                     append(args[1:], paths...),
+						TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
+						WorkingDir:               "/workspace/source",
+						VolumeMounts:             volumeMounts,
+						Env:                      envs,
 						SecurityContext: &corev1.SecurityContext{
 							AllowPrivilegeEscalation: &[]bool{false}[0],
 							ReadOnlyRootFilesystem:   &[]bool{true}[0],
@@ -690,12 +691,13 @@ func (r *GitJobReconciler) newGitCloner(
 	}
 
 	return corev1.Container{
-		Command:      []string{"log.sh"},
-		Args:         args,
-		Image:        r.Image,
-		Name:         "gitcloner-initializer",
-		VolumeMounts: volumeMounts,
-		Env:          env,
+		Command:                  []string{"fleet"},
+		Args:                     args[1:],
+		Image:                    r.Image,
+		Name:                     "gitcloner-initializer",
+		TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
+		VolumeMounts:             volumeMounts,
+		Env:                      env,
 		SecurityContext: &corev1.SecurityContext{
 			AllowPrivilegeEscalation: &[]bool{false}[0],
 			ReadOnlyRootFilesystem:   &[]bool{true}[0],

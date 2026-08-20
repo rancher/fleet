@@ -3,7 +3,7 @@ package helmvalues_test
 import (
 	"testing"
 
-	"github.com/rancher/fleet/internal/helmvalues"
+	"github.com/rancher/fleet/pkg/helmvalues"
 )
 
 func TestHashOptions(t *testing.T) {

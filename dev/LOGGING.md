@@ -26,8 +26,8 @@ logger.V(1).Info(
 More info [here](https://github.com/kubernetes-sigs/controller-runtime/blob/main/TMP-LOGGING.md) on how
 `controller-runtime` approaches logging.
 
-Fleet has preexisting logging code using [logrus](https://github.com/sirupsen/logrus), which can be ported to
-[zap](https://pkg.go.dev/go.uber.org/zap), for which `controller-runtime` provides helpers.
+Fleet uses the controller-runtime `logr` API for structured logging. Runtime binaries configure it with
+[zap](https://pkg.go.dev/go.uber.org/zap) through controller-runtime's logging helpers.
 
 ## Where to log
 

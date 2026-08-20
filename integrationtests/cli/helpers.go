@@ -42,8 +42,7 @@ func GetBundleListFromOutput(w io.Writer) ([]*v1alpha1.Bundle, error) {
 	}
 	bundles := []*v1alpha1.Bundle{}
 	bundlesWithSeparator := strings.ReplaceAll(string(buf.Contents()), apiVersion, separator+apiVersion)
-	bundlesStr := strings.Split(bundlesWithSeparator, separator)
-	for _, bundleStr := range bundlesStr {
+	for bundleStr := range strings.SplitSeq(bundlesWithSeparator, separator) {
 		if bundleStr != "" {
 			bundle := &v1alpha1.Bundle{}
 			err := yaml.NewYAMLToJSONDecoder(bytes.NewBufferString(bundleStr)).Decode(bundle)

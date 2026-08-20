@@ -26,4 +26,4 @@ if [ "${#group2_packages[@]}" -eq 0 ]; then
   exit 0
 fi
 
-ginkgo --github-output --trace "${group2_packages[@]}"
+go test -v -count=1 -timeout=1h -p 1 "${group2_packages[@]}" -args -ginkgo.github-output -ginkgo.trace

@@ -250,10 +250,21 @@ func tagAndPushImage(baseImage, image, tag string) string {
 	cmd := exec.CommandContext(context.Background(), "docker", "tag", baseImage, imageTag)
 	err := cmd.Run()
 	Expect(err).ToNot(HaveOccurred())
-	// push the image to ttl.sh
-	cmd = exec.CommandContext(context.Background(), "docker", "push", imageTag)
-	err = cmd.Run()
-	Expect(err).ToNot(HaveOccurred())
+	const pushTimeout = 30 * time.Second
+
+	Eventually(func() error {
+		ctx, cancel := context.WithTimeout(context.Background(), pushTimeout)
+		defer cancel()
+
+		// CombinedOutput, so a failing push reports the registry's reason
+		// instead of a bare exit status.
+		out, err := exec.CommandContext(ctx, "docker", "push", imageTag).CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("docker push %s: %s: %w", imageTag, out, err)
+		}
+
+		return nil
+	}, 2*time.Minute, time.Second).Should(Succeed())
 	return imageTag
 }
 

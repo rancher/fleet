@@ -12,8 +12,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/labels"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/rancher/fleet/internal/client"
 	"github.com/rancher/fleet/internal/cmd"
@@ -89,6 +89,7 @@ func RegisterImport(
 	clusters.OnChange(ctx, "import-cluster", h.OnChange)
 	fleetcontrollers.RegisterClusterStatusHandler(ctx, clusters, "Imported", "import-cluster", h.importCluster)
 	config.OnChange(ctx, h.onConfig)
+	config.OnChange(ctx, h.enqueueLocalClusterOnConfig)
 
 	clustersCache := clusters.Cache()
 	clustersCache.AddIndexer(clusterForKubeconfigSecretIndexer, func(cluster *fleet.Cluster) ([]string, error) {
@@ -97,7 +98,7 @@ func RegisterImport(
 		}
 		ns, err := allowedKubeConfigSecretNamespace(cluster)
 		if err != nil {
-			logrus.Debugf("Cluster %s/%s: skipping kubeconfig secret index: %v", cluster.Namespace, cluster.Name, err)
+			log.Log.V(1).Info(fmt.Sprintf("Cluster %s/%s: skipping kubeconfig secret index: %v", cluster.Namespace, cluster.Name, err))
 			return []string{}, nil
 		}
 		secretKey := ns + "/" + cluster.Spec.KubeConfigSecret
@@ -111,7 +112,7 @@ func RegisterImport(
 		cfg := config.Get()
 		for _, cluster := range clusters {
 			if err := h.checkForConfigChange(cfg, cluster, secret); err != nil {
-				logrus.WithError(err).Errorf("cluster %s/%s: could not check for config changes", cluster.Namespace, cluster.Name)
+				log.Log.Error(err, fmt.Sprintf("cluster %s/%s: could not check for config changes", cluster.Namespace, cluster.Name))
 			}
 		}
 		// Successfully checked all clusters for config changes. No secret modification needed,
@@ -145,7 +146,7 @@ func (i *importHandler) onConfig(cfg *config.Config) error {
 
 		kubeConfigNS, err := allowedKubeConfigSecretNamespace(cluster)
 		if err != nil {
-			logrus.WithError(err).Warnf("cluster %s/%s: skipping config change check", cluster.Namespace, cluster.Name)
+			log.Log.Info(fmt.Sprintf("cluster %s/%s: skipping config change check", cluster.Namespace, cluster.Name), "error", err)
 			continue
 		}
 		secret, err := i.secretsCache.Get(kubeConfigNS, cluster.Spec.KubeConfigSecret)
@@ -153,10 +154,22 @@ func (i *importHandler) onConfig(cfg *config.Config) error {
 			return fmt.Errorf("cluster %s/%s: could not check for config changes: %w", cluster.Namespace, cluster.Name, err)
 		}
 		if err := i.checkForConfigChange(cfg, cluster, secret); err != nil {
-			logrus.WithError(err).Warnf("cluster %s/%s: could not check for config changes", cluster.Namespace, cluster.Name)
+			log.Log.Info(fmt.Sprintf("cluster %s/%s: could not check for config changes", cluster.Namespace, cluster.Name), "error", err)
 			continue
 		}
 	}
+	return nil
+}
+
+// enqueueLocalClusterOnConfig re-evaluates the local cluster whenever the global
+// config changes, so that flipping Bootstrap.LocalAgentDisabled triggers
+// teardown (or redeploy) of its agent through importCluster. The config is
+// the single source of truth; see manageagent.LocalAgentDisabled.
+func (i *importHandler) enqueueLocalClusterOnConfig(cfg *config.Config) error {
+	if cfg == nil || cfg.Bootstrap.Namespace == "" || cfg.Bootstrap.Namespace == "-" {
+		return nil
+	}
+	i.clusters.Enqueue(cfg.Bootstrap.Namespace, fleet.LocalClusterName)
 	return nil
 }
 
@@ -196,20 +209,11 @@ func hashStatusField(field any) string {
 }
 
 // localAgentDisabled reports whether the agent must not be deployed for this
-// cluster. It only ever applies to the management (local) cluster: the
-// disabling label is honored exclusively there, so that labeling a downstream
-// cluster cannot prevent its agent from being deployed or tear it down.
+// cluster. It only ever applies to the management (local) cluster and is driven
+// by the global config, so it is honored even when the bootstrap controller is
+// disabled (e.g. under Rancher). See manageagent.LocalAgentDisabled.
 func localAgentDisabled(cluster *fleet.Cluster) bool {
-	return isLocalCluster(cluster) && cluster.Labels[fleet.LocalAgentDisabledLabel] == "true"
-}
-
-// isLocalCluster is a fast, metadata-only check that a Cluster object is the
-// management (local) cluster: it must carry the well-known name in the
-// configured bootstrap namespace, matching what the bootstrap controller
-// creates.
-func isLocalCluster(cluster *fleet.Cluster) bool {
-	return cluster.Name == fleet.LocalClusterName &&
-		cluster.Namespace == config.Get().Bootstrap.Namespace
+	return manageagent.LocalAgentDisabled(cluster)
 }
 
 // isManagementCluster confirms, with certainty, that the cluster reachable
@@ -280,7 +284,7 @@ func (i *importHandler) OnChange(key string, cluster *fleet.Cluster) (_ *fleet.C
 
 	// NOTE(mm): why is this not done in importCluster?
 	if cluster.Spec.ClientID == "" {
-		logrus.Debugf("Cluster import for '%s/%s'. Agent found, updating ClientID", cluster.Namespace, cluster.Name)
+		log.Log.V(1).Info(fmt.Sprintf("Cluster import for '%s/%s'. Agent found, updating ClientID", cluster.Namespace, cluster.Name))
 
 		cluster = cluster.DeepCopy()
 		cluster.Spec.ClientID, err = randomtoken.Generate()
@@ -342,15 +346,13 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 	if err != nil {
 		return status, err
 	}
-
-	logrus.Debugf("Cluster import for '%s/%s'. Getting kubeconfig from secret in namespace %s", cluster.Namespace, cluster.Name, kubeConfigSecretNamespace)
+	log.Log.V(1).Info(fmt.Sprintf("Cluster import for '%s/%s'. Getting kubeconfig from secret in namespace %s", cluster.Namespace, cluster.Name, kubeConfigSecretNamespace))
 
 	secret, err := i.secretsCache.Get(kubeConfigSecretNamespace, cluster.Spec.KubeConfigSecret)
 	if err != nil {
 		return status, err
 	}
-
-	logrus.Debugf("Cluster import for '%s/%s'. Setting up agent with kubeconfig from secret '%s/%s'", cluster.Namespace, cluster.Name, kubeConfigSecretNamespace, cluster.Spec.KubeConfigSecret)
+	log.Log.V(1).Info(fmt.Sprintf("Cluster import for '%s/%s'. Setting up agent with kubeconfig from secret '%s/%s'", cluster.Namespace, cluster.Name, kubeConfigSecretNamespace, cluster.Spec.KubeConfigSecret))
 	var (
 		cfg          = config.Get()
 		apiServerURL = string(secret.Data[config.APIServerURLKey])
@@ -360,11 +362,11 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 	if apiServerURL == "" {
 		if len(cfg.APIServerURL) == 0 {
 			// Current config cannot be deployed, so remove the "config changed" mark
-			logrus.Warnf("cannot import cluster '%s/%s', missing apiServerURL in fleet config for cluster auto registration", cluster.Namespace, cluster.Name)
+			log.Log.Info(fmt.Sprintf("cannot import cluster '%s/%s', missing apiServerURL in fleet config for cluster auto registration", cluster.Namespace, cluster.Name))
 			status.AgentConfigChanged = false
 			return status, nil
 		}
-		logrus.Debugf("Cluster import for '%s/%s'. Using apiServerURL from fleet-controller config", cluster.Namespace, cluster.Name)
+		log.Log.V(1).Info(fmt.Sprintf("Cluster import for '%s/%s'. Using apiServerURL from fleet-controller config", cluster.Namespace, cluster.Name))
 		apiServerURL = cfg.APIServerURL
 	}
 
@@ -384,7 +386,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 	}
 
 	if err := connection.SmokeTestKubeClientConnection(kc); err != nil {
-		logrus.Errorf("Cluster import for '%s/%s'. Smoke test failed: %v", cluster.Namespace, cluster.Name, err)
+		log.Log.Error(err, fmt.Sprintf("Cluster import for '%s/%s'. Smoke test failed", cluster.Namespace, cluster.Name))
 		return status, err
 	}
 
@@ -421,12 +423,12 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 			if apierrors.IsAlreadyExists(err) {
 				token, err = i.tokens.Get(cluster.Namespace, tokenName)
 				if err != nil {
-					logrus.Debugf("Failed to get existing ClusterRegistrationToken for cluster %s/%s: %v (requeuing)", cluster.Namespace, cluster.Name, err)
+					log.Log.V(1).Info(fmt.Sprintf("Failed to get existing ClusterRegistrationToken for cluster %s/%s: %v (requeuing)", cluster.Namespace, cluster.Name, err))
 					i.clusters.EnqueueAfter(cluster.Namespace, cluster.Name, durations.TokenClusterEnqueueDelay)
 					return status, err
 				}
 			} else {
-				logrus.Debugf("Failed to create ClusterRegistrationToken for cluster %s/%s: %v (requeuing)", cluster.Namespace, cluster.Name, err)
+				log.Log.V(1).Info(fmt.Sprintf("Failed to create ClusterRegistrationToken for cluster %s/%s: %v (requeuing)", cluster.Namespace, cluster.Name, err))
 				i.clusters.EnqueueAfter(cluster.Namespace, cluster.Name, durations.TokenClusterEnqueueDelay)
 				return status, err
 			}
@@ -514,10 +516,10 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 	}
 
 	if err := apply.ApplyObjects(objs...); err != nil {
-		logrus.Errorf("Failed cluster import for '%s/%s'. Cannot create agent deployment", cluster.Namespace, cluster.Name)
+		log.Log.Error(err, "Failed cluster import. Cannot create agent deployment", "cluster", cluster.Namespace+"/"+cluster.Name)
 		return status, err
 	}
-	logrus.Infof("Cluster import for '%s/%s'. Deployed new agent", cluster.Namespace, cluster.Name)
+	log.Log.Info(fmt.Sprintf("Cluster import for '%s/%s'. Deployed new agent", cluster.Namespace, cluster.Name))
 
 	if err := i.cleanupLeftoverDefaultNamespace(kc); err != nil {
 		return status, err
@@ -568,18 +570,17 @@ func (i *importHandler) teardownLocalAgent(cluster *fleet.Cluster) error {
 	}
 
 	// Before deleting anything, make absolutely sure the kubeconfig points at
-	// the management cluster itself. isLocalCluster already gated us here based
-	// on metadata, but tearing down an agent is destructive, so we confirm
-	// cluster identity for real.
+	// the management cluster itself. manageagent.IsLocalCluster already gated us
+	// here based on metadata, but tearing down an agent is destructive, so we
+	// confirm cluster identity for real.
 	isLocal, err := i.isManagementCluster(kc)
 	if err != nil {
 		return err
 	}
 	if !isLocal {
-		logrus.Warnf(
-			"Cluster import for '%s/%s'. Refusing to remove agent: label %s=true is set but the cluster reached through its kubeconfig is not the management cluster",
-			cluster.Namespace, cluster.Name, fleet.LocalAgentDisabledLabel,
-		)
+		log.Log.Info(fmt.Sprintf("Cluster import for '%s/%s'. Refusing to remove agent: localAgentDisabled is set but the cluster reached through its kubeconfig is not the management cluster",
+			cluster.Namespace, cluster.Name))
+
 		return nil
 	}
 
@@ -605,8 +606,7 @@ func (i *importHandler) teardownLocalAgent(cluster *fleet.Cluster) error {
 	if err := i.cleanupLeftoverDefaultNamespace(kc); err != nil {
 		return err
 	}
-
-	logrus.Infof("Cluster import for '%s/%s'. Removed local agent (%s=true)", cluster.Namespace, cluster.Name, fleet.LocalAgentDisabledLabel)
+	log.Log.Info(fmt.Sprintf("Cluster import for '%s/%s'. Removed local agent (localAgentDisabled=true)", cluster.Namespace, cluster.Name))
 	return nil
 }
 
@@ -678,7 +678,7 @@ func (i *importHandler) cleanupLeftoverDefaultNamespace(kc kubernetes.Interface)
 	// Clean up the leftover agent if the default namespace still exists.
 	_, err := kc.CoreV1().Namespaces().Get(i.ctx, config.DefaultNamespace, metav1.GetOptions{})
 	if err == nil {
-		logrus.Infof("System namespace (%s) does not equal default namespace (%s), checking for leftover objects...", i.systemNamespace, config.DefaultNamespace)
+		log.Log.Info(fmt.Sprintf("System namespace (%s) does not equal default namespace (%s), checking for leftover objects...", i.systemNamespace, config.DefaultNamespace))
 		if err := i.deleteAgentResources(kc, config.DefaultNamespace); err != nil {
 			return err
 		}
@@ -752,7 +752,7 @@ func (i *importHandler) checkForConfigChange(cfg *config.Config, cluster *fleet.
 	if err != nil {
 		if errors.Is(err, errUnavailableAPIServerURL) {
 			// skip the rest of checks
-			logrus.WithError(err).Warnf("cluster %s/%s: could not check for config changes", cluster.Namespace, cluster.Name)
+			log.Log.Info(fmt.Sprintf("cluster %s/%s: could not check for config changes", cluster.Namespace, cluster.Name), "error", err)
 			return nil
 		}
 		return err
@@ -764,8 +764,7 @@ func (i *importHandler) checkForConfigChange(cfg *config.Config, cluster *fleet.
 	if !hasConfigChanged {
 		return nil
 	}
-
-	logrus.Infof("API server config changed, trigger cluster import for cluster %s/%s", cluster.Namespace, cluster.Name)
+	log.Log.Info(fmt.Sprintf("API server config changed, trigger cluster import for cluster %s/%s", cluster.Namespace, cluster.Name))
 	c := cluster.DeepCopy()
 	c.Status.AgentConfigChanged = true
 	_, err = i.clusters.UpdateStatus(c)

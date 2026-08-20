@@ -159,7 +159,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 				{
 					BundleDeploymentOptions: v1alpha1.BundleDeploymentOptions{
 						Helm: &v1alpha1.HelmOptions{
-							Values: &v1alpha1.GenericMap{Data: map[string]interface{}{"replicas": "3"}},
+							Values: &v1alpha1.GenericMap{Data: map[string]any{"replicas": "3"}},
 						},
 					},
 					ClusterGroup: "all",
@@ -170,7 +170,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 				{
 					BundleDeploymentOptions: v1alpha1.BundleDeploymentOptions{
 						Helm: &v1alpha1.HelmOptions{
-							Values: &v1alpha1.GenericMap{Data: map[string]interface{}{"replicas": "1"}},
+							Values: &v1alpha1.GenericMap{Data: map[string]any{"replicas": "1"}},
 						},
 					},
 					ClusterGroup: "all",
@@ -205,7 +205,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 				{
 					BundleDeploymentOptions: v1alpha1.BundleDeploymentOptions{
 						Helm: &v1alpha1.HelmOptions{
-							Values: &v1alpha1.GenericMap{Data: map[string]interface{}{"replicas": "1"}},
+							Values: &v1alpha1.GenericMap{Data: map[string]any{"replicas": "1"}},
 						},
 					},
 					ClusterGroup: "one",
@@ -213,7 +213,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 				{
 					BundleDeploymentOptions: v1alpha1.BundleDeploymentOptions{
 						Helm: &v1alpha1.HelmOptions{
-							Values: &v1alpha1.GenericMap{Data: map[string]interface{}{"replicas": "2"}},
+							Values: &v1alpha1.GenericMap{Data: map[string]any{"replicas": "2"}},
 						},
 					},
 					ClusterGroup: "two",
@@ -224,7 +224,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 				{
 					BundleDeploymentOptions: v1alpha1.BundleDeploymentOptions{
 						Helm: &v1alpha1.HelmOptions{
-							Values: &v1alpha1.GenericMap{Data: map[string]interface{}{"replicas": "4"}},
+							Values: &v1alpha1.GenericMap{Data: map[string]any{"replicas": "4"}},
 						},
 					},
 					ClusterGroup: "all",
@@ -264,7 +264,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 				{
 					BundleDeploymentOptions: v1alpha1.BundleDeploymentOptions{
 						Helm: &v1alpha1.HelmOptions{
-							Values: &v1alpha1.GenericMap{Data: map[string]interface{}{"replicas": "1"}},
+							Values: &v1alpha1.GenericMap{Data: map[string]any{"replicas": "1"}},
 						},
 					},
 					ClusterGroup: "one",
@@ -272,7 +272,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 				{
 					BundleDeploymentOptions: v1alpha1.BundleDeploymentOptions{
 						Helm: &v1alpha1.HelmOptions{
-							Values: &v1alpha1.GenericMap{Data: map[string]interface{}{"replicas": "4"}},
+							Values: &v1alpha1.GenericMap{Data: map[string]any{"replicas": "4"}},
 						},
 					},
 					ClusterGroup: "all",
@@ -283,7 +283,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 				{
 					BundleDeploymentOptions: v1alpha1.BundleDeploymentOptions{
 						Helm: &v1alpha1.HelmOptions{
-							Values: &v1alpha1.GenericMap{Data: map[string]interface{}{"replicas": "5"}},
+							Values: &v1alpha1.GenericMap{Data: map[string]any{"replicas": "5"}},
 						},
 					},
 					ClusterGroup: "all",
@@ -321,7 +321,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 				{
 					BundleDeploymentOptions: v1alpha1.BundleDeploymentOptions{
 						Helm: &v1alpha1.HelmOptions{
-							Values: &v1alpha1.GenericMap{Data: map[string]interface{}{"replicas": "2"}},
+							Values: &v1alpha1.GenericMap{Data: map[string]any{"replicas": "2"}},
 						},
 					},
 					ClusterGroup: "all",
@@ -332,7 +332,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 				{
 					BundleDeploymentOptions: v1alpha1.BundleDeploymentOptions{
 						Helm: &v1alpha1.HelmOptions{
-							Values: &v1alpha1.GenericMap{Data: map[string]interface{}{"replicas": "1"}},
+							Values: &v1alpha1.GenericMap{Data: map[string]any{"replicas": "1"}},
 						},
 					},
 					ClusterGroup: "one",
@@ -480,7 +480,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 				{
 					BundleDeploymentOptions: v1alpha1.BundleDeploymentOptions{
 						Helm: &v1alpha1.HelmOptions{
-							Values: &v1alpha1.GenericMap{Data: map[string]interface{}{"replicas": "1"}},
+							Values: &v1alpha1.GenericMap{Data: map[string]any{"replicas": "1"}},
 						},
 					},
 					ClusterGroup: "all",
@@ -519,7 +519,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 				{
 					BundleDeploymentOptions: v1alpha1.BundleDeploymentOptions{
 						Helm: &v1alpha1.HelmOptions{
-							Values: &v1alpha1.GenericMap{Data: map[string]interface{}{"replicas": "1"}},
+							Values: &v1alpha1.GenericMap{Data: map[string]any{"replicas": "1"}},
 						},
 					},
 					ClusterGroup: "one",
@@ -527,7 +527,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 				{
 					BundleDeploymentOptions: v1alpha1.BundleDeploymentOptions{
 						Helm: &v1alpha1.HelmOptions{
-							Values: &v1alpha1.GenericMap{Data: map[string]interface{}{"replicas": "2"}},
+							Values: &v1alpha1.GenericMap{Data: map[string]any{"replicas": "2"}},
 						},
 					},
 					ClusterGroup: "two",
@@ -538,7 +538,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 				{
 					BundleDeploymentOptions: v1alpha1.BundleDeploymentOptions{
 						Helm: &v1alpha1.HelmOptions{
-							Values: &v1alpha1.GenericMap{Data: map[string]interface{}{"replicas": "4"}},
+							Values: &v1alpha1.GenericMap{Data: map[string]any{"replicas": "4"}},
 						},
 					},
 					ClusterGroup: "all",
@@ -611,7 +611,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 				{
 					BundleDeploymentOptions: v1alpha1.BundleDeploymentOptions{
 						Helm: &v1alpha1.HelmOptions{
-							Values: &v1alpha1.GenericMap{Data: map[string]interface{}{"region": "us-west"}},
+							Values: &v1alpha1.GenericMap{Data: map[string]any{"region": "us-west"}},
 						},
 					},
 					ClusterGroup: "one",
@@ -619,7 +619,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 				{
 					BundleDeploymentOptions: v1alpha1.BundleDeploymentOptions{
 						Helm: &v1alpha1.HelmOptions{
-							Values: &v1alpha1.GenericMap{Data: map[string]interface{}{"env": "prod"}},
+							Values: &v1alpha1.GenericMap{Data: map[string]any{"env": "prod"}},
 						},
 					},
 					ClusterGroup: "all",
@@ -681,7 +681,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 				{
 					BundleDeploymentOptions: v1alpha1.BundleDeploymentOptions{
 						Helm: &v1alpha1.HelmOptions{
-							Values: &v1alpha1.GenericMap{Data: map[string]interface{}{"env": "prod"}},
+							Values: &v1alpha1.GenericMap{Data: map[string]any{"env": "prod"}},
 						},
 					},
 					ClusterGroup: "all",

@@ -49,8 +49,9 @@ spec:
           - containerPort: 8081
             name: metrics
           {{- end }}
-          args:
+          command:
           - fleetcontroller
+          args:
           - gitjob
           - --gitjob-image
           - "{{ template "system_default_registry" $ }}{{ $.Values.image.repository }}:{{ $.Values.image.tag }}"

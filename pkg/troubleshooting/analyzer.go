@@ -294,6 +294,16 @@ func OutputIssues(w io.Writer, snapshots []*Snapshot) error {
 		}
 	}
 
+	if len(diag.SecretsWithValuesHashMismatch) > 0 {
+		hasIssues = true
+		fmt.Fprintln(w)
+		printWarning(w, fmt.Sprintf("Secrets with ValuesHash Mismatch (%d)", len(diag.SecretsWithValuesHashMismatch)))
+		for _, s := range diag.SecretsWithValuesHashMismatch {
+			fmt.Fprintf(w, "  • %s %s/%s (secret: %s, spec: %s)\n",
+				s.OwnerKind, s.Namespace, s.Name, s.SecretHash, s.SpecHash)
+		}
+	}
+
 	if !hasIssues {
 		printSuccess(w, "No issues detected!")
 	}
@@ -489,6 +499,10 @@ func printDiagnosticsSummary(w io.Writer, diag *Diagnostics) {
 	// Commit Mismatches
 	commitIssues := len(diag.GitReposWithCommitMismatch)
 	fmt.Fprintf(tw, "  Commit Mismatches:\t%d\t%s\n", commitIssues, statusIcon(commitIssues))
+
+	// ValuesHash Mismatches
+	valuesHashIssues := len(diag.SecretsWithValuesHashMismatch)
+	fmt.Fprintf(tw, "  ValuesHash Mismatches:\t%d\t%s\n", valuesHashIssues, statusIcon(valuesHashIssues))
 
 	// GitRepos last polled too long ago
 	pollingIssues := len(diag.GitReposUnpolled)

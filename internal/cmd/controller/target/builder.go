@@ -13,14 +13,16 @@ import (
 	"github.com/Masterminds/sprig/v3"
 	"github.com/go-logr/logr"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	errutil "github.com/rancher/fleet/internal/cmd/controller/errorutil"
 	"github.com/rancher/fleet/internal/cmd/controller/labelselectors"
 	"github.com/rancher/fleet/internal/cmd/controller/options"
+	"github.com/rancher/fleet/internal/cmd/controller/policyrestrictions"
 	"github.com/rancher/fleet/internal/cmd/controller/target/matcher"
-	"github.com/rancher/fleet/internal/helmvalues"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/helmvalues"
 
 	"github.com/rancher/wrangler/v3/pkg/yaml"
 
@@ -55,6 +57,11 @@ func (m *Manager) Targets(ctx context.Context, bundle *fleet.Bundle, manifestID 
 	namespaceSelector, err := m.getNamespaceSelectorForBundle(ctx, bundle)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to get namespace selector: %w", err)
+	}
+
+	createNamespace, err := m.getCreateNamespaceForBundle(ctx, bundle)
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to resolve createNamespace from Policy: %w", err)
 	}
 
 	bm, err := matcher.New(bundle)
@@ -138,6 +145,9 @@ func (m *Manager) Targets(ctx context.Context, bundle *fleet.Bundle, manifestID 
 			opts := options.Merge(bundle.Spec.BundleDeploymentOptions, targetOpts)
 			if namespaceSelector != nil {
 				opts.AllowedTargetNamespaceSelector = namespaceSelector
+			}
+			if createNamespace != nil {
+				opts.CreateNamespace = createNamespace
 			}
 
 			err = preprocessHelmValues(logger, &opts, &cluster)
@@ -261,7 +271,7 @@ func preprocessHelmValues(logger logr.Logger, opts *fleet.BundleDeploymentOption
 	clusterAnnotations := yaml.CleanAnnotationsForExport(cluster.Annotations)
 
 	for k, v := range cluster.Labels {
-		if strings.HasPrefix(k, "fleet.cattle.io/") || strings.HasPrefix(k, "management.cattle.io/") {
+		if strings.HasPrefix(k, fleet.FleetLabelPrefix) || strings.HasPrefix(k, fleet.ManagementLabelPrefix) {
 			clusterLabels[k] = v
 		}
 	}
@@ -380,6 +390,9 @@ func tplFuncMap() template.FuncMap {
 	delete(f, "expandenv")
 	delete(f, "include")
 	delete(f, "tpl")
+	// getHostByName performs a live DNS lookup (net.LookupHost). Sprig
+	// classifies it as non-hermetic, so it is not available in templates.
+	delete(f, "getHostByName")
 
 	return f
 }
@@ -465,4 +478,30 @@ func (m *Manager) getNamespaceSelectorForBundle(ctx context.Context, bundle *fle
 	}
 
 	return result, nil
+}
+
+// getCreateNamespaceForBundle resolves whether namespace creation should be
+// disabled based on Policy objects in the bundle's namespace. Returns a pointer
+// to false when the aggregated policy requires a ServiceAccount but does not
+// allow namespace creation. Returns nil otherwise (no change to default).
+func (m *Manager) getCreateNamespaceForBundle(ctx context.Context, bundle *fleet.Bundle) (*bool, error) {
+	policies := &fleet.PolicyList{}
+	if err := m.client.List(ctx, policies, client.InNamespace(bundle.Namespace)); err != nil {
+		if apimeta.IsNoMatchError(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to list Policies: %w", err)
+	}
+
+	if len(policies.Items) == 0 {
+		return nil, nil
+	}
+
+	pol := policyrestrictions.Aggregate(policies.Items)
+	if pol.RequireServiceAccount && !pol.AllowNamespaceCreation {
+		v := false
+		return &v, nil
+	}
+
+	return nil, nil
 }

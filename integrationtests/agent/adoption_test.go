@@ -2,6 +2,7 @@ package agent_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -290,7 +291,7 @@ func (e adoptEnv) bundleDeploymentNotOwnedByUs(bd *v1alpha1.BundleDeployment) er
 			return nil
 		}
 	}
-	return fmt.Errorf("does not match expected condition")
+	return errors.New("does not match expected condition")
 }
 
 func (e adoptEnv) bundleDeploymentReady(bd *v1alpha1.BundleDeployment) error {
@@ -300,5 +301,5 @@ func (e adoptEnv) bundleDeploymentReady(bd *v1alpha1.BundleDeployment) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("does not match expected condition")
+	return errors.New("does not match expected condition")
 }

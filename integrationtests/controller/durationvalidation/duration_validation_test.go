@@ -2,6 +2,7 @@ package durationvalidation
 
 import (
 	"fmt"
+	"maps"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -14,16 +15,16 @@ const durationMsg = "must be a valid Go duration"
 type durationCase struct {
 	kind      string
 	specField string
-	baseSpec  map[string]interface{}
+	baseSpec  map[string]any
 }
 
 var durationCases = []durationCase{
-	{"GitRepo", "pollingInterval", map[string]interface{}{"repo": "https://github.com/rancher/fleet-test-data"}},
-	{"GitRepo", "imageScanInterval", map[string]interface{}{"repo": "https://github.com/rancher/fleet-test-data"}},
-	{"HelmOp", "pollingInterval", map[string]interface{}{}},
-	{"ClusterRegistrationToken", "ttl", map[string]interface{}{}},
-	{"ImageScan", "interval", map[string]interface{}{"image": "nginx"}},
-	{"Schedule", "duration", map[string]interface{}{}},
+	{"GitRepo", "pollingInterval", map[string]any{"repo": "https://github.com/rancher/fleet-test-data"}},
+	{"GitRepo", "imageScanInterval", map[string]any{"repo": "https://github.com/rancher/fleet-test-data"}},
+	{"HelmOp", "pollingInterval", map[string]any{}},
+	{"ClusterRegistrationToken", "ttl", map[string]any{}},
+	{"ImageScan", "interval", map[string]any{"image": "nginx"}},
+	{"Schedule", "duration", map[string]any{}},
 }
 
 var validDurations = []string{"15s", "5m", "2h", "1h30m", "300ms", "1.5h", "100µs", "0", "0s"}
@@ -34,10 +35,8 @@ var invalidDurations = []string{"1d", "1w", "1y", "7d12h", "abc", "5x", "-1h",
 	"5000000h"}
 
 func newObj(c durationCase, value string) *unstructured.Unstructured {
-	spec := map[string]interface{}{}
-	for k, v := range c.baseSpec {
-		spec[k] = v
-	}
+	spec := map[string]any{}
+	maps.Copy(spec, c.baseSpec)
 	spec[c.specField] = value
 
 	u := &unstructured.Unstructured{}

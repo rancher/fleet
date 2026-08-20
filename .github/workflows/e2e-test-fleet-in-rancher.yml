@@ -28,7 +28,7 @@ permissions:
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
-  SETUP_K3S_VERSION: 'v1.36.0-k3s1'
+  SETUP_K3S_VERSION: 'v1.35.6-k3s1'
 
 jobs:
   release-against-test-charts:
@@ -52,7 +52,7 @@ jobs:
 
       -
         name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -60,20 +60,14 @@ jobs:
 
       -
         name: Install Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: "fleet/go.mod"
 
       -
-        name: Install Ginkgo CLI
-        run: |
-          cd fleet
-          go install github.com/onsi/ginkgo/v2/ginkgo
-
-      -
         name: Cache crust-gather CLI
         id: cache-crust
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.local/bin/crust-gather
           key: ${{ runner.os }}-crust-gather-${{ hashFiles('./fleet/.github/scripts/install-crust-gather.sh') }}
@@ -93,7 +87,7 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       -
         name: Set up build cache
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         id: rancher-cli-cache
         with:
           path: ~/.local/bin/rancher
@@ -102,7 +96,7 @@ jobs:
       -
         name: Cache kubectl and helm
         id: deps-cache
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.local/bin/kubectl
@@ -116,8 +110,8 @@ jobs:
         run: |
           mkdir -p ~/.local/bin
           if [ "$DEPS_CACHE_HIT" != "true" ]; then
-            KUBECTL_VERSION="v1.36.0"
-            KUBECTL_SUM_amd64="123d8c8844f46b1244c547fffb3c17180c0c26dac9890589fe7e67763298748e"
+            KUBECTL_VERSION="v1.35.0"
+            KUBECTL_SUM_amd64="a2e984a18a0c063279d692533031c1eff93a262afcc0afdc517375432d060989"
             curl -sSfL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl" -o kubectl
             echo "${KUBECTL_SUM_amd64}  kubectl" | sha256sum -c -
             mv kubectl ~/.local/bin/
@@ -137,9 +131,9 @@ jobs:
         run: |
           mkdir -p ~/.local/bin
           # renovate: datasource=github-releases depName=rancher/cli
-          RANCHER_CLI_VERSION="v2.14.2"
-          # renovate: datasource=github-release-attachments depName=rancher/cli digestVersion=v2.14.2
-          RANCHER_CLI_SUM_amd64="3a3eb0da83cbeb5e726f3153c8e16a8c067298c0ddc1c2ba86b7732fa0231149"
+          RANCHER_CLI_VERSION="v2.15.0"
+          # renovate: datasource=github-release-attachments depName=rancher/cli digestVersion=v2.15.0
+          RANCHER_CLI_SUM_amd64="5c7cea9ea36ba192d83a3a4c8a0deb3e58d762719a49640c4bd6d3555dce1700"
           curl -fsSL -o "rancher-linux-amd64-${RANCHER_CLI_VERSION}.tar.gz" \
             "https://github.com/rancher/cli/releases/download/${RANCHER_CLI_VERSION}/rancher-linux-amd64-${RANCHER_CLI_VERSION}.tar.gz"
           echo "${RANCHER_CLI_SUM_amd64}  rancher-linux-amd64-${RANCHER_CLI_VERSION}.tar.gz" | sha256sum -c -
@@ -148,7 +142,7 @@ jobs:
       -
         name: Cache k3d CLI
         id: cache-k3d
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.local/bin/k3d
           key: ${{ runner.os }}-k3d-${{ hashFiles('./fleet/.github/scripts/install-k3d.sh') }}
@@ -176,6 +170,7 @@ jobs:
             --agents 1 \
             --k3s-arg '--kubelet-arg=eviction-hard=imagefs.available<1%,nodefs.available<1%@agent:*' \
             --k3s-arg '--kubelet-arg=eviction-minimum-reclaim=imagefs.available=1%,nodefs.available=1%@agent:*' \
+            --k3s-arg "--kubelet-arg=image-gc-high-threshold=100@all" \
             --network "nw01" \
             --image docker.io/rancher/k3s:${{ env.SETUP_K3S_VERSION }} \
             --k3s-arg "--cluster-init@server:0"
@@ -190,6 +185,7 @@ jobs:
             --agents 1 \
             --k3s-arg '--kubelet-arg=eviction-hard=imagefs.available<1%,nodefs.available<1%@agent:*' \
             --k3s-arg '--kubelet-arg=eviction-minimum-reclaim=imagefs.available=1%,nodefs.available=1%@agent:*' \
+            --k3s-arg "--kubelet-arg=image-gc-high-threshold=100@all" \
             --network "nw01" \
             --image docker.io/rancher/k3s:${{ env.SETUP_K3S_VERSION }} \
             --k3s-arg "--cluster-init@server:0"
@@ -234,7 +230,7 @@ jobs:
             --create-namespace \
             --namespace cattle-system \
             --set replicas=1 \
-            --set hostname=$ip.sslip.io \
+            --set "hostname=${ip}.sslip.io" \
             --set bootstrapPassword=admin \
             --set agentTLSMode=system-store \
             --set "extraEnv[0].name=CATTLE_CHART_DEFAULT_URL" \
@@ -263,7 +259,7 @@ jobs:
 
       -
         name: Checkout rancher/rancher
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -307,11 +303,12 @@ jobs:
         run: |
           kubectl config use-context k3d-upstream
           cd fleet
-          ginkgo --github-output --trace e2e/acceptance/single-cluster-examples
+          go test -v -count=1 -timeout=1h ./e2e/acceptance/single-cluster-examples -args -ginkgo.github-output -ginkgo.trace
 
-          export CI_REGISTERED_CLUSTER=$(kubectl get clusters.fleet.cattle.io -n $FLEET_E2E_NS_DOWNSTREAM -o jsonpath='{..name}')
+          CI_REGISTERED_CLUSTER=$(kubectl get clusters.fleet.cattle.io -n "$FLEET_E2E_NS_DOWNSTREAM" -o jsonpath='{..name}')
+          export CI_REGISTERED_CLUSTER
 
-          ginkgo --github-output --trace e2e/multi-cluster
+          go test -v -count=1 -timeout=1h ./e2e/multi-cluster -args -ginkgo.github-output -ginkgo.trace
 
       -
         name: Dump Failed Downstream Environment

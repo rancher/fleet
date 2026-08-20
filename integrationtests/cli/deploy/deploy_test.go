@@ -157,20 +157,20 @@ var _ = Describe("Fleet CLI Deploy", func() {
 	When("deploying on top of a release in `pending-install` status", func() {
 		BeforeEach(func() {
 			// Create release v1 (deployed)
-			releaseV1 := map[string]interface{}{
+			releaseV1 := map[string]any{
 				"name":      "testbundle-simple-chart",
 				"version":   1,
 				"namespace": namespace,
-				"info": map[string]interface{}{
+				"info": map[string]any{
 					"status": "deployed",
 				},
-				"chart": map[string]interface{}{
-					"metadata": map[string]interface{}{
+				"chart": map[string]any{
+					"metadata": map[string]any{
 						"name":    "testbundle-simple-chart",
 						"version": "0.1.0",
 					},
 				},
-				"config":   map[string]interface{}{},
+				"config":   map[string]any{},
 				"manifest": "",
 				"labels":   map[string]string{},
 			}
@@ -202,20 +202,20 @@ var _ = Describe("Fleet CLI Deploy", func() {
 			}
 
 			// Create release v2 (pending-install)
-			releaseV2 := map[string]interface{}{
+			releaseV2 := map[string]any{
 				"name":      "testbundle-simple-chart",
 				"version":   2,
 				"namespace": namespace,
-				"info": map[string]interface{}{
+				"info": map[string]any{
 					"status": "pending-install",
 				},
-				"chart": map[string]interface{}{
-					"metadata": map[string]interface{}{
+				"chart": map[string]any{
+					"metadata": map[string]any{
 						"name":    "testbundle-simple-chart",
 						"version": "0.1.0",
 					},
 				},
-				"config":   map[string]interface{}{},
+				"config":   map[string]any{},
 				"manifest": "",
 				"labels":   map[string]string{},
 			}
@@ -300,20 +300,20 @@ var _ = Describe("Fleet CLI Deploy", func() {
 		BeforeEach(func() {
 			// Create ONLY release v1 (pending-install) - no v0 deployed version exists
 			// This simulates a failed initial install or lost history scenario
-			releaseV1 := map[string]interface{}{
+			releaseV1 := map[string]any{
 				"name":      "testbundle-simple-chart",
 				"version":   1,
 				"namespace": namespace,
-				"info": map[string]interface{}{
+				"info": map[string]any{
 					"status": "pending-install",
 				},
-				"chart": map[string]interface{}{
-					"metadata": map[string]interface{}{
+				"chart": map[string]any{
+					"metadata": map[string]any{
 						"name":    "testbundle-simple-chart",
 						"version": "0.1.0",
 					},
 				},
-				"config":   map[string]interface{}{},
+				"config":   map[string]any{},
 				"manifest": "",
 				"labels":   map[string]string{},
 			}

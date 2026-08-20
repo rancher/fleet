@@ -12,7 +12,8 @@ KUBEBUILDER_ASSETS=$(setup-envtest use --use-env -p path "$ENVTEST_K8S_VERSION")
 export KUBEBUILDER_ASSETS
 
 # Group 1: Run specific packages (adjust these based on execution time analysis)
-ginkgo --github-output --trace\
+go test -v -count=1 -timeout=1h -p 1 \
   ./integrationtests/agent/... \
   ./integrationtests/cli/... \
-  ./integrationtests/controller/...
+  ./integrationtests/controller/... \
+  -args -ginkgo.github-output -ginkgo.trace

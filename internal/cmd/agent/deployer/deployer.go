@@ -20,6 +20,7 @@ import (
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -49,6 +50,23 @@ type NotReadyDependenciesError struct {
 func (e *NotReadyDependenciesError) Error() string {
 	return fmt.Sprintf("dependent bundle(s) are not ready: %v", e.Pending)
 }
+
+// NamespaceForbiddenError indicates the deployment's service account is not
+// allowed to mutate the target namespace. The Helm release installed, but the
+// requested namespaceLabels/namespaceAnnotations could not be applied, so the
+// deployment is reported not-ready. It is handled as a controlled requeue
+// rather than a failed reconcile (to avoid tight-looping); the patch converges
+// once the missing namespace RBAC is granted. That grant is not a watched
+// resource and would never re-trigger a reconcile on its own, hence the
+// controlled requeue. It unwraps to the underlying Forbidden error, so
+// apierrors.IsForbidden still reports true.
+type NamespaceForbiddenError struct {
+	err error
+}
+
+func (e *NamespaceForbiddenError) Error() string { return e.err.Error() }
+
+func (e *NamespaceForbiddenError) Unwrap() error { return e.err }
 
 type Deployer struct {
 	client         client.Client
@@ -121,6 +139,16 @@ func (d *Deployer) DeployBundle(
 	status.AppliedDeploymentID = bd.Spec.DeploymentID
 
 	if err := d.setNamespaceLabelsAndAnnotations(ctx, bd, releaseID); err != nil {
+		// A permission error here means the deployment's service account is
+		// not allowed to mutate the target namespace. Record it on the status
+		// and return a typed error so the controller does a controlled requeue
+		// (the missing namespace RBAC is not watched, so granting it would not
+		// otherwise re-trigger a reconcile) rather than tight-looping.
+		if do, newStatus := forbiddenToStatus(err, status); do {
+			newStatus.Release = releaseID
+			newStatus.AppliedDeploymentID = bd.Spec.DeploymentID
+			return newStatus, &NamespaceForbiddenError{err: err}
+		}
 		return fleet.BundleDeploymentStatus{}, err
 	}
 
@@ -209,7 +237,17 @@ func (d *Deployer) setNamespaceLabelsAndAnnotations(ctx context.Context, bd *fle
 		return nil
 	}
 
-	ns, err := d.fetchNamespace(ctx, releaseID)
+	// Patch the namespace as the deployment's service account so that this
+	// operation is gated by the same downstream RBAC as the deployment itself,
+	// rather than by the agent's cluster-admin credentials. When the deployment
+	// resolves to no service account, fall back to the agent client, preserving
+	// the previous behaviour.
+	c, err := d.namespaceClient(ctx, bd)
+	if err != nil {
+		return err
+	}
+
+	ns, err := fetchNamespace(ctx, c, releaseID)
 	if err != nil {
 		return err
 	}
@@ -235,13 +273,39 @@ func (d *Deployer) setNamespaceLabelsAndAnnotations(ctx context.Context, bd *fle
 
 	ns.Labels = desiredLabels
 	ns.Annotations = desiredAnnotations
-	return d.updateNamespace(ctx, ns)
+	return updateNamespace(ctx, c, ns)
+}
+
+// namespaceClient returns the client to use for namespace label/annotation
+// mutations. When the deployment resolves to a service account (pinned, or the
+// "fleet-default" fallback), it returns a client impersonating that account, so
+// the mutation is authorized against the downstream RBAC of the tenant rather
+// than the agent's cluster-admin credentials. Otherwise it returns the agent
+// client, preserving the previous behaviour.
+func (d *Deployer) namespaceClient(ctx context.Context, bd *fleet.BundleDeployment) (client.Client, error) {
+	if bd == nil {
+		return nil, errors.New("bundledeployment is nil")
+	}
+	if d.helm != nil {
+		c, err := d.helm.ImpersonatedClient(ctx, bd.Spec.Options.ServiceAccount)
+		if err != nil {
+			return nil, err
+		}
+		if c != nil {
+			return c, nil
+		}
+	}
+	return d.client, nil
 }
 
 // updateNamespace updates a namespace resource in the cluster.
-func (d *Deployer) updateNamespace(ctx context.Context, ns *corev1.Namespace) error {
-	err := d.client.Update(ctx, ns)
-	if err != nil {
+func updateNamespace(ctx context.Context, c client.Client, ns *corev1.Namespace) error {
+	if err := c.Update(ctx, ns); err != nil {
+		if apierrors.IsForbidden(err) {
+			return fmt.Errorf("the deployment's service account is not allowed to update namespace %q; "+
+				"grant it 'update' on this namespace (scoped via resourceNames) or remove "+
+				"namespaceLabels/namespaceAnnotations: %w", ns.Name, err)
+		}
 		return err
 	}
 
@@ -250,11 +314,15 @@ func (d *Deployer) updateNamespace(ctx context.Context, ns *corev1.Namespace) er
 
 // fetchNamespace gets the namespace matching the release ID. Returns an error if none is found.
 // releaseID is composed of release.Namespace/release.Name/release.Version
-func (d *Deployer) fetchNamespace(ctx context.Context, releaseID string) (*corev1.Namespace, error) {
+func fetchNamespace(ctx context.Context, c client.Client, releaseID string) (*corev1.Namespace, error) {
 	namespace := strings.Split(releaseID, "/")[0]
 	ns := &corev1.Namespace{}
-	err := d.client.Get(ctx, types.NamespacedName{Name: namespace}, ns)
-	if err != nil {
+	if err := c.Get(ctx, types.NamespacedName{Name: namespace}, ns); err != nil {
+		if apierrors.IsForbidden(err) {
+			return nil, fmt.Errorf("the deployment's service account is not allowed to get namespace %q; "+
+				"grant it 'get' on this namespace (scoped via resourceNames) or remove "+
+				"namespaceLabels/namespaceAnnotations: %w", namespace, err)
+		}
 		return nil, err
 	}
 	return ns, nil
@@ -266,6 +334,14 @@ const podSecurityLabelPrefix = "pod-security.kubernetes.io/"
 // the `kubernetes.io/metadata.name` label added by Kubernetes when creating the namespace
 // and any existing `pod-security.kubernetes.io/*` labels. Labels with the
 // `pod-security.kubernetes.io/` prefix in optLabels are ignored.
+//
+// This filtering is intentionally unconditional and independent of the
+// service-account impersonation used for the namespace patch: it must also hold
+// for deployments that run as the agent (no service account pinned), where
+// there is no downstream RBAC gating at all. It is the only safeguard against a
+// bundle escalating pod-security enforcement on its target namespace. To set
+// pod-security labels on a namespace, declare them on the Namespace resource in
+// the bundle instead.
 func addLabelsFromOptions(logger logr.Logger, nsLabels map[string]string, optLabels map[string]string) {
 	for k, v := range optLabels {
 		if strings.HasPrefix(k, podSecurityLabelPrefix) {
@@ -344,6 +420,28 @@ func deployErrToStatus(err error, status fleet.BundleDeploymentStatus) (bool, fl
 	}
 
 	return false, status
+}
+
+// forbiddenToStatus records a namespace permission error as a status condition,
+// mirroring deployErrToStatus. Such errors occur when the deployment's service
+// account is not allowed to mutate the target namespace. The condition surfaces
+// the missing RBAC on the bundle deployment; the caller wraps the error in a
+// NamespaceForbiddenError so the controller does a controlled requeue (at
+// NamespacePermissionRequeueInterval) rather than tight-looping, letting the
+// patch converge once the permission is granted.
+func forbiddenToStatus(err error, status fleet.BundleDeploymentStatus) (bool, fleet.BundleDeploymentStatus) {
+	if !apierrors.IsForbidden(err) {
+		return false, status
+	}
+
+	status.Ready = false
+	status.NonModified = true
+
+	msg := err.Error()
+	condition.Cond(fleet.BundleDeploymentConditionReady).SetError(&status, "", fmt.Errorf("not ready: %s", msg))
+	condition.Cond(fleet.BundleDeploymentConditionInstalled).SetError(&status, "", fmt.Errorf("not installed: %s", msg))
+
+	return true, status
 }
 
 func (d *Deployer) checkDependency(ctx context.Context, bd *fleet.BundleDeployment) error {

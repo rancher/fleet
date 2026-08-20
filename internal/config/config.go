@@ -25,6 +25,11 @@ const (
 	AgentTLSModeStrict       = "strict"
 	AgentTLSModeSystemStore  = "system-store"
 	Key                      = "config"
+	// VersionAnnotation on the fleet-controller configmap records the Fleet
+	// version the config was rendered for, so a controller only adopts config
+	// written for its own version. The agent configmap is intentionally not
+	// annotated.
+	VersionAnnotation = "fleet.cattle.io/version"
 	// DefaultNamespace is the default for the system namespace, which
 	// contains the controller and agent
 	DefaultNamespace       = "cattle-fleet-system"
@@ -264,6 +269,15 @@ var durationConfigKeys = []string{
 }
 
 func ReadConfig(cm *v1.ConfigMap) (*Config, error) {
+	// A running controller (config != nil) ignores a ConfigMap whose version
+	// annotation is absent or differs from its own, adopting only config it can
+	// positively confirm was rendered for its version; at startup there is no
+	// config to protect, so load it regardless of version.
+	if config != nil && cm.Annotations[VersionAnnotation] != version.Version {
+		logger := log.Log.WithName("fleet-config")
+		logger.Info("skipping hot-reload because version annotation of the ConfigMap is missing or is not matched.")
+		return config, nil
+	}
 	cfg := DefaultConfig()
 	data := cm.Data[Key]
 	if len(data) == 0 {

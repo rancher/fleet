@@ -18,15 +18,14 @@ import (
 	"github.com/rancher/fleet/internal/bundlereader"
 	"github.com/rancher/fleet/internal/content"
 	"github.com/rancher/fleet/internal/fleetyaml"
-	"github.com/rancher/fleet/internal/helmvalues"
 	"github.com/rancher/fleet/internal/manifest"
 	"github.com/rancher/fleet/internal/names"
 	"github.com/rancher/fleet/internal/ocistorage"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleetevent "github.com/rancher/fleet/pkg/event"
+	"github.com/rancher/fleet/pkg/helmvalues"
 
 	"github.com/rancher/wrangler/v3/pkg/yaml"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 	k8syaml "sigs.k8s.io/yaml"
 
@@ -39,6 +38,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 var (
@@ -175,7 +175,7 @@ func CreateBundles(pctx context.Context, client client.Client, r record.EventRec
 						bundle, scans, err := bundleFromDir(ctx, repoName, path, opts)
 						if err != nil {
 							if errors.Is(err, ErrNoResources) {
-								logrus.Warnf("%s: %v", path, err)
+								log.Log.Info(path, "error", err)
 								return nil
 							}
 							return err
@@ -274,7 +274,7 @@ func CreateBundlesDriven(pctx context.Context, client client.Client, r record.Ev
 				bundle, scans, err := bundleFromDir(ctx, repoName, baseDir, opts)
 				if err != nil {
 					if errors.Is(err, ErrNoResources) {
-						logrus.Warnf("%s: %v", baseDir, err)
+						log.Log.Info(baseDir, "error", err)
 						return nil
 					}
 					return err
@@ -359,7 +359,7 @@ func pruneBundlesNotFoundInRepo(
 
 	for _, bundle := range bundleList.Items {
 		if _, ok := gitRepoBundlesMap[bundle.Name]; !ok {
-			logrus.Debugf("Bundle to be deleted since it is not found in gitrepo %v anymore %v %v", repoName, bundle.Namespace, bundle.Name)
+			log.Log.V(1).Info(fmt.Sprintf("Bundle to be deleted since it is not found in gitrepo %v anymore %v %v", repoName, bundle.Namespace, bundle.Name))
 
 			// Populate new bundles' `Overwrites` field with possible overlaps between the in-cluster bundle, to be deleted,
 			// and bundles which will be created in the cluster.
@@ -370,17 +370,16 @@ func pruneBundlesNotFoundInRepo(
 			// See fleet#3770 for more context.
 			for _, inClusterRsc := range bundle.Spec.Resources {
 				for _, grb := range gitRepoBundlesMap {
-					logrus.Debugf("gitRepo bundle: %v", grb)
+					log.Log.V(1).Info(fmt.Sprintf("gitRepo bundle: %v", grb))
 					for _, grRsc := range grb.Spec.Resources {
 						if inClusterRsc.Name != grRsc.Name {
 							continue
 						}
-
-						logrus.Debugf("resources: [in cluster] %v\n, [in gitrepo] %v", inClusterRsc, grRsc)
+						log.Log.V(1).Info(fmt.Sprintf("resources: [in cluster] %v\n, [in gitrepo] %v", inClusterRsc, grRsc))
 
 						ow1, err := getKindNS(grRsc, grb.Name)
 						if err != nil {
-							logrus.Debugf("for bundle from git repo, failed to get kind and namespace for resource %v", grRsc)
+							log.Log.V(1).Info(fmt.Sprintf("for bundle from git repo, failed to get kind and namespace for resource %v", grRsc))
 							continue
 						}
 						if ow1.Kind == "" {
@@ -391,7 +390,7 @@ func pruneBundlesNotFoundInRepo(
 
 						ow2, err := getKindNS(inClusterRsc, bundle.Name)
 						if err != nil {
-							logrus.Debugf("for in-cluster bundle, failed to get kind and namespace for resource %v", grRsc)
+							log.Log.V(1).Info(fmt.Sprintf("for in-cluster bundle, failed to get kind and namespace for resource %v", grRsc))
 							continue
 						}
 						if ow2.Kind == "" {
@@ -611,7 +610,7 @@ func save(ctx context.Context, c client.Client, bundle *fleet.Bundle) (*fleet.Bu
 			if err := deleteOCIManifest(ctx, c, bundle, ocistorage.OCIOpts{}); err != nil {
 				// return the error, since the OCI registry is an external entity to the cluster
 				// and we may encounter various types of transient errors (such as connection or access issues).
-				logrus.Warnf("deleting OCI artifact: %v", err)
+				log.Log.Info("deleting OCI artifact", "error", err)
 				return err
 
 			}
@@ -625,7 +624,7 @@ func save(ctx context.Context, c client.Client, bundle *fleet.Bundle) (*fleet.Bu
 	if err != nil {
 		return nil, err
 	}
-	logrus.Infof("%s (bundle): %s/%s", result, bundle.Namespace, bundle.Name)
+	log.Log.Info(fmt.Sprintf("%s (bundle): %s/%s", result, bundle.Namespace, bundle.Name))
 
 	return bundle, nil
 }
@@ -644,7 +643,7 @@ func saveImageScans(ctx context.Context, c client.Client, bundle *fleet.Bundle, 
 		if err != nil {
 			return err
 		}
-		logrus.Infof("%s (scan): %s/%s", result, scan.Namespace, scan.Name)
+		log.Log.Info(fmt.Sprintf("%s (scan): %s/%s", result, scan.Namespace, scan.Name))
 	}
 	return nil
 }
@@ -654,7 +653,7 @@ func saveOCIBundle(ctx context.Context, c client.Client, r record.EventRecorder,
 	if err != nil {
 		return bundle, err
 	}
-	logrus.Infof("OCI artifact stored successfully: %s %s", bundle.Name, manifestID)
+	log.Log.Info(fmt.Sprintf("OCI artifact stored successfully: %s %s", bundle.Name, manifestID))
 
 	updated := bundle.DeepCopy()
 	_, err = controllerutil.CreateOrUpdate(ctx, c, bundle, func() error {
@@ -672,7 +671,7 @@ func saveOCIBundle(ctx context.Context, c client.Client, r record.EventRecorder,
 			if err := deleteOCIManifest(ctx, c, bundle, opts); err != nil {
 				// we log the error and continue, since the OCI registry is an external entity to the cluster
 				// we may encounter various types of transient errors (such as connection or access issues).
-				logrus.Warnf("deleting OCI artifact: %v", err)
+				log.Log.Info("deleting OCI artifact", "error", err)
 				sendWarningEvent(r, bundle.Namespace, bundle.Spec.ContentsID, err)
 			}
 		}
@@ -700,7 +699,7 @@ func saveOCIBundle(ctx context.Context, c client.Client, r record.EventRecorder,
 	if err != nil {
 		return nil, err
 	}
-	logrus.Infof("%s (oci secret): %s/%s", result, bundle.Namespace, bundle.Name)
+	log.Log.Info(fmt.Sprintf("%s (oci secret): %s/%s", result, bundle.Namespace, bundle.Name))
 
 	return bundle, nil
 }
@@ -877,7 +876,7 @@ func deleteSecretIfExists(ctx context.Context, c client.Client, name, ns string)
 func sendWarningEvent(r record.EventRecorder, namespace, artifactID string, errorToLog error) {
 	jobName := os.Getenv(JobNameEnvVar)
 	if jobName == "" {
-		logrus.Warnf("%q environment variable not set", JobNameEnvVar)
+		log.Log.Info(fmt.Sprintf("%q environment variable not set", JobNameEnvVar))
 		return
 	}
 	job := &batchv1.Job{
@@ -953,8 +952,8 @@ func getKindNS(br fleet.BundleResource, bundleName string) (fleet.OverwrittenRes
 	if br.Encoding == "base64+gz" {
 		contents, err = content.GUnzip([]byte(br.Content))
 		if err != nil {
-			logrus.Debugf("could not uncompress contents of resource %s in bundle %s;"+
-				" skipping overlap detection for this resource", br.Name, bundleName)
+			log.Log.V(1).Info(fmt.Sprintf("could not uncompress contents of resource %s in bundle %s;"+
+				" skipping overlap detection for this resource", br.Name, bundleName))
 			return fleet.OverwrittenResource{}, nil //nolint:nilerr // intentionally skipping this resource
 		}
 	} else {
@@ -973,14 +972,13 @@ func getKindNS(br fleet.BundleResource, bundleName string) (fleet.OverwrittenRes
 	if err != nil {
 		return fleet.OverwrittenResource{}, fmt.Errorf("could not convert resource contents into object: %w", err)
 	}
-
-	logrus.Debugf("contents from bundle resource: %v", string(contents))
+	log.Log.V(1).Info(fmt.Sprintf("contents from bundle resource: %v", string(contents)))
 
 	or := fleet.OverwrittenResource{
 		Kind:      rsc.Kind,
 		Name:      rsc.Name,
 		Namespace: rsc.Namespace,
 	}
-	logrus.Debugf("returning overwritten resource: %v", or)
+	log.Log.V(1).Info(fmt.Sprintf("returning overwritten resource: %v", or))
 	return or, nil
 }

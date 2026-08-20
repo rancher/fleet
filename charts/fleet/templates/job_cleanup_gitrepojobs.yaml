@@ -37,9 +37,8 @@ spec:
                 - ALL
               readOnlyRootFilesystem: false
               privileged: false
-            command:
-            - fleet
             args:
+            - fleet
             - cleanup
             - gitjob
           nodeSelector: {{ include "linux-node-selector" . | nindent 12 }}

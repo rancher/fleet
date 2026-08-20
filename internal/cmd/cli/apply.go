@@ -9,10 +9,10 @@ import (
 
 	gogit "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/rancher/fleet/internal/bundlereader"
 	command "github.com/rancher/fleet/internal/cmd"
@@ -91,7 +91,7 @@ func (a *Apply) Run(cmd *cobra.Command, args []string) error {
 	var err error
 	retries, err := apply.GetOnConflictRetries()
 	if err != nil {
-		logrus.Errorf("failed parsing env variable %s, using defaults, err: %v", apply.FleetApplyConflictRetriesEnv, err)
+		log.Log.Error(err, "failed parsing env variable, using defaults", "name", apply.FleetApplyConflictRetriesEnv)
 	}
 	for range retries {
 		err = a.run(cmd, args)

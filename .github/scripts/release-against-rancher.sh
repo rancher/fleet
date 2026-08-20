@@ -7,9 +7,44 @@ set -euo pipefail
 NEW_FLEET_VERSION="$1"    # e.g. 0.15.1
 NEW_CHART_VERSION="$2"    # e.g. 110.0.1
 
-bump_fleet_api() {
-    go get -u "github.com/rancher/fleet/pkg/apis@v${NEW_FLEET_VERSION}"
-    go mod tidy
+bump_fleet_module() {
+    # Bump a Fleet submodule wherever rancher/rancher requires it.
+    # $1: fleet submodule path, e.g. pkg/apis or pkg/helmvalues
+    #
+    # rancher references Fleet modules from more than one go.mod (e.g. its root
+    # module and its nested pkg/apis module), so update every go.mod that
+    # requires the module, not just the root one.
+    local module="github.com/rancher/fleet/$1"
+    local escaped_module="${module//./\\.}"
+    local tag="$1/v${NEW_FLEET_VERSION}"
+
+    local modfiles
+    modfiles=$(grep -rlE "^[[:space:]]*require[[:space:]]+${escaped_module}[[:space:]]|^[[:space:]]+${escaped_module}[[:space:]]" --include=go.mod . || true)
+    # A Fleet module rancher/rancher does not consume yet needs no bump.
+    if [ -z "${modfiles}" ]; then
+        printf 'INFO: no go.mod in rancher/rancher requires %s; skipping bump\n' "${module}"
+        return 0
+    fi
+
+    # Guard against a tag that predates the module being split out of the main
+    # Fleet module: without its own go.mod, `go get` silently falls back to
+    # resolving the root `github.com/rancher/fleet` module instead.
+    if ! git -C ../fleet cat-file -e "${tag}:$1/go.mod" 2>/dev/null; then
+        printf 'ERROR: %s does not contain %s/go.mod\n' "${tag}" "$1" >&2
+        printf 'The tag does not point at a standalone Go module; refusing to bump.\n' >&2
+        exit 1
+    fi
+
+    while IFS= read -r modfile; do
+        local moddir
+        moddir=$(dirname "${modfile}")
+        (
+            cd "${moddir}"
+            go get -u "${module}@v${NEW_FLEET_VERSION}"
+            go mod tidy
+        )
+        git add "${moddir}/go.mod" "${moddir}/go.sum"
+    done <<< "${modfiles}"
 }
 
 RANCHER_DIR="${RANCHER_DIR:-"$(dirname -- "$0")/../../../rancher"}"
@@ -68,13 +103,13 @@ git add build.yaml pkg/buildconfig/constants.go
 
 # Bump the Fleet API when a pkg/apis tag for this exact version exists in the fleet repo.
 if git -C ../fleet tag -l "pkg/apis/v${NEW_FLEET_VERSION}" | grep -q .; then
-    bump_fleet_api
+    bump_fleet_module pkg/apis
+fi
 
-    pushd pkg/apis > /dev/null
-    bump_fleet_api
-    popd > /dev/null
-
-    git add go.mod go.sum pkg/apis/go.mod pkg/apis/go.sum
+# Bump the Fleet helmvalues module when a pkg/helmvalues tag for this exact version
+# exists in the fleet repo.
+if git -C ../fleet tag -l "pkg/helmvalues/v${NEW_FLEET_VERSION}" | grep -q .; then
+    bump_fleet_module pkg/helmvalues
 fi
 
 git commit -m "Updating to Fleet v${NEW_FLEET_VERSION}"

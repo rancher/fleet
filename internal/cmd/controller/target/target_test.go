@@ -485,6 +485,14 @@ func TestBundleDeployment_DoesNotApplyUnmatchedNamespaceMetadata(t *testing.T) {
 	}
 }
 
+func TestTplFuncMap_ExcludesGetHostByName(t *testing.T) {
+	f := tplFuncMap()
+
+	if _, ok := f["getHostByName"]; ok {
+		t.Fatal("getHostByName must be excluded from the template function map")
+	}
+}
+
 const clusterYamlWithTemplateValues = `apiVersion: fleet.cattle.io/v1alpha1
 kind: Cluster
 metadata:

@@ -4,12 +4,12 @@ on:
     inputs:
       charts_base_branch:
         description: "Use the following rancher/charts branch as a base (e.g. dev-v2.7)"
-        required: true
+        required: false
         default: "dev-v2.14"
         type: string
       charts_repo:
         description: "Push to the following Rancher charts repo (which must exist)"
-        required: true
+        required: false
         default: "fleetrepoci/charts"
         type: string
       charts_target_branch:
@@ -20,12 +20,12 @@ on:
     inputs:
       charts_base_branch:
         description: "Use the following rancher/charts branch as a base (e.g. dev-v2.7)"
-        required: true
+        required: false
         default: "dev-v2.14"
         type: string
       charts_repo:
         description: "Push to the following Rancher charts repo (which must exist)"
-        required: true
+        required: false
         default: "fleetrepoci/charts"
         type: string
       charts_target_branch:
@@ -44,7 +44,7 @@ env:
   GOARCH: amd64
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   push-test-rancher-charts:
@@ -67,12 +67,12 @@ jobs:
           echo "charts_repo=$charts_repo" >> "$GITHUB_OUTPUT"
 
       - name: Checkout rancher/fleet
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           path: fleet
 
-      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: 'fleet/go.mod'
 
@@ -84,18 +84,18 @@ jobs:
 
       - name: Get UUID
         id: uuid
-        run: echo "uuid=$(uuidgen)" >> $GITHUB_OUTPUT
+        run: echo "uuid=$(uuidgen)" >> "$GITHUB_OUTPUT"
 
       - name: Extract metadata for Fleet controller image
         id: meta-fleet
-        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           images: |
             ttl.sh/rancher-fleet-${{ steps.uuid.outputs.uuid }}
           tags: type=raw,value=1h
 
       - name: Build and push Fleet controller image
-        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: ./fleet
           file: ./fleet/package/Dockerfile
@@ -107,14 +107,14 @@ jobs:
 
       - name: Extract metadata for Fleet agent image
         id: meta-fleet-agent
-        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           images: |
             ttl.sh/rancher-fleet-agent-${{ steps.uuid.outputs.uuid }}
           tags: type=raw,value=1h
 
       - name: Build and push Fleet agent image
-        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: ./fleet
           file: ./fleet/package/Dockerfile.agent
@@ -125,7 +125,7 @@ jobs:
           labels: ${{ steps.meta-fleet-agent.outputs.labels }}
 
       - name: Checkout test charts repo
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           token: ${{secrets.CI_PUSH_TO_FLEETREPOCI}}
@@ -188,7 +188,7 @@ jobs:
         run: |
           fleet_test_version=9.9.9
 
-          latest_fleet_rancher_version=$(ls ./charts/charts/fleet/ | tail -1)
+          latest_fleet_rancher_version=$(find ./charts/charts/fleet/ -mindepth 1 -maxdepth 1 -printf '%f\n' | sort -V | tail -1)
           latest_chart="${latest_fleet_rancher_version%%+*}"
           latest_fleet="${latest_fleet_rancher_version#*+up}"
 

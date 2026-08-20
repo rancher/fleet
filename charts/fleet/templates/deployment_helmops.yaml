@@ -49,8 +49,9 @@ spec:
           - containerPort: 8081
             name: metrics
           {{- end }}
-          args:
+          command:
           - fleetcontroller
+          args:
           - helmops
           {{- if $.Values.debug }}
           - --debug

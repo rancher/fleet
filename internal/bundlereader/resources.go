@@ -12,12 +12,12 @@ import (
 	"sync"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 
 	"github.com/rancher/wrangler/v3/pkg/data"
 
+	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/yaml"
 )
 
@@ -35,7 +35,7 @@ func readResources(ctx context.Context, spec *fleet.BundleSpec, compress bool, b
 
 	if spec.Helm != nil && (spec.Helm.Chart != "" || spec.Helm.Repo != "") {
 		if strings.HasPrefix(spec.Helm.Chart, ociURLPrefix) {
-			logrus.Warnf("helm.chart contains an OCI URL %q; use helm.repo instead (helm.chart for OCI URLs is deprecated)", spec.Helm.Chart)
+			log.Log.Info(fmt.Sprintf("helm.chart contains an OCI URL %q; use helm.repo instead (helm.chart for OCI URLs is deprecated)", spec.Helm.Chart))
 		}
 		if err := parseValuesFiles(base, spec.Helm); err != nil {
 			return nil, err
@@ -46,7 +46,7 @@ func readResources(ctx context.Context, spec *fleet.BundleSpec, compress bool, b
 	for _, target := range spec.Targets {
 		if target.Helm != nil {
 			if strings.HasPrefix(target.Helm.Chart, ociURLPrefix) {
-				logrus.Warnf("helm.chart contains an OCI URL %q in target customization %q; use helm.repo instead (helm.chart for OCI URLs is deprecated)", target.Helm.Chart, target.Name)
+				log.Log.Info(fmt.Sprintf("helm.chart contains an OCI URL %q in target customization %q; use helm.repo instead (helm.chart for OCI URLs is deprecated)", target.Helm.Chart, target.Name))
 			}
 			err := parseValuesFiles(base, target.Helm)
 			if err != nil {
@@ -148,6 +148,8 @@ type directory struct {
 	version string
 	// auth is the auth to use for the chart URL
 	auth Auth
+	// indicates auth was stripped because helmRepoURLRegex was empty
+	strippedCreds bool
 }
 
 func addDirectory(base, customDir, defaultDir string) ([]directory, error) {
@@ -214,6 +216,7 @@ func mergeGenericMap(first, second *fleet.GenericMap) *fleet.GenericMap {
 // For every chart that is not on disk, create a directory struct that contains the charts URL as path.
 // This adds one directory per HelmOption.
 func addRemoteCharts(ctx context.Context, directories []directory, base string, charts []*fleet.HelmOptions, auth Auth, helmRepoURLRegex string) ([]directory, error) {
+	warnedOnce := false
 	for _, chart := range charts {
 		if _, err := os.Stat(filepath.Join(base, chart.Chart)); os.IsNotExist(err) || chart.Repo != "" {
 			shouldAddAuthToRequest, err := shouldAddAuthToRequest(helmRepoURLRegex, chart.Repo, chart.Chart)
@@ -221,7 +224,15 @@ func addRemoteCharts(ctx context.Context, directories []directory, base string, 
 				return nil, fmt.Errorf("failed to add auth to request for %s: %w", downloadChartError(*chart), err)
 			}
 			auth := auth // loop-scoped variable
+			strippedCredentialsForEmptyRegex := false
 			if !shouldAddAuthToRequest {
+				if helmRepoURLRegex == "" && (auth.Username != "" || auth.Password != "" || len(auth.SSHPrivateKey) > 0) {
+					strippedCredentialsForEmptyRegex = true
+				}
+				if !warnedOnce && strippedCredentialsForEmptyRegex {
+					log.Log.Info("helmRepoURLRegex is empty: Helm credentials will not be forwarded to any repository; set spec.helmRepoURLRegex to enable credential forwarding")
+					warnedOnce = true
+				}
 				// Only clear credentials; preserve transport settings (BasicHTTP, CABundle, InsecureSkipVerify)
 				auth.Username = ""
 				auth.Password = ""
@@ -234,11 +245,12 @@ func addRemoteCharts(ctx context.Context, directories []directory, base string, 
 			}
 
 			directories = append(directories, directory{
-				prefix:  checksum(chart),
-				base:    base,
-				source:  chartURL,
-				auth:    auth,
-				version: chart.Version,
+				prefix:        checksum(chart),
+				base:          base,
+				source:        chartURL,
+				auth:          auth,
+				version:       chart.Version,
+				strippedCreds: strippedCredentialsForEmptyRegex,
 			})
 		}
 	}

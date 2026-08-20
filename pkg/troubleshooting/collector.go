@@ -10,6 +10,7 @@ import (
 
 	"github.com/rancher/fleet/internal/cmd/controller/gitops/reconciler"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/helmvalues"
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -95,7 +96,7 @@ func (col *Collector) CollectResources(ctx context.Context, c client.Client) (*S
 	}
 
 	// Collect diagnostics
-	diagnostics := col.collectDiagnostics(gitRepos, bundles, bundleDeployments, contents, clusters, clusterGroups, orphanedSecrets, contentIssues)
+	diagnostics := col.collectDiagnostics(gitRepos, bundles, bundleDeployments, contents, clusters, clusterGroups, bundleSecrets, orphanedSecrets, contentIssues)
 
 	return &Snapshot{
 		Timestamp:         timestamp,
@@ -169,6 +170,7 @@ func (col *Collector) convertBundles(bundles []fleet.Bundle) []BundleInfo {
 			ForceSyncGeneration: b.Spec.ForceSyncGeneration,
 			ResourcesSHA256Sum:  b.Status.ResourcesSHA256Sum,
 			Finalizers:          b.Finalizers,
+			ValuesHash:          b.Spec.ValuesHash,
 		}
 
 		if b.DeletionTimestamp != nil {
@@ -220,6 +222,8 @@ func (col *Collector) convertBundleDeployments(bds []fleet.BundleDeployment) []B
 			AppliedDeploymentID: bd.Status.AppliedDeploymentID,
 			Finalizers:          bd.Finalizers,
 			Labels:              bd.Labels,
+			ValuesHash:          bd.Spec.ValuesHash,
+			WaitingForValues:    bd.Spec.WaitingForValues,
 			BundleName:          bd.Labels[fleet.BundleLabel],
 			BundleNamespace:     bd.Labels[fleet.BundleNamespaceLabel],
 		}
@@ -354,9 +358,22 @@ func (col *Collector) convertSecrets(secrets []corev1.Secret) []SecretInfo {
 			info.OwnerUID = string(owner.UID)
 		}
 
+		info.ValuesHash = secretValuesHash(s)
 		result = append(result, info)
 	}
 	return result
+}
+
+func secretValuesHash(s corev1.Secret) string {
+	switch s.Type {
+	case fleet.SecretTypeBundleValues:
+		if h, err := helmvalues.HashValuesSecret(s.Data); err == nil {
+			return h
+		}
+	case fleet.SecretTypeBundleDeploymentOptions:
+		return helmvalues.HashOptions(s.Data[helmvalues.ValuesKey], s.Data[helmvalues.StagedValuesKey])
+	}
+	return ""
 }
 
 func (col *Collector) convertEvents(events []corev1.Event) []EventInfo {
@@ -699,6 +716,7 @@ func (col *Collector) collectDiagnostics(
 	contents []fleet.Content,
 	clusters []fleet.Cluster,
 	clusterGroups []fleet.ClusterGroup,
+	bundleSecrets []corev1.Secret,
 	orphanedSecrets []corev1.Secret,
 	contentIssues []ContentIssue,
 ) *Diagnostics {
@@ -726,6 +744,7 @@ func (col *Collector) collectDiagnostics(
 		GitReposUnpolled:                            col.convertGitRepos(col.detectUnpolledGitRepos(gitRepos)),
 		BundlesWithGenerationMismatch:               col.convertBundles(col.detectBundlesWithGenerationMismatch(bundles)),
 		BundleDeploymentsWithSyncGenerationMismatch: col.convertBundleDeployments(col.detectBundleDeploymentsWithSyncGenerationMismatch(bundleDeployments)),
+		SecretsWithValuesHashMismatch:               col.detectSecretsWithValuesHashMismatch(bundleSecrets, bundles, bundleDeployments),
 		OrphanedSecretsCount:                        len(orphanedSecrets),
 		InvalidSecretOwnersCount:                    len(invalidSecretOwners),
 		ContentIssuesCount:                          len(contentIssues),
@@ -826,6 +845,69 @@ func (col *Collector) filterSecretsWithInvalidOwners(orphanedSecrets []corev1.Se
 	}
 
 	return invalidOwners
+}
+
+// detectSecretsWithValuesHashMismatch detects bundle lifecycle secrets whose
+// content hash does not match their owner's Spec.ValuesHash.
+func (col *Collector) detectSecretsWithValuesHashMismatch(bundleSecrets []corev1.Secret, bundles []fleet.Bundle, bundleDeployments []fleet.BundleDeployment) []ValuesHashMismatch {
+	// Create ValuesHash and UID maps
+	bundleHashes := make(map[string]string)
+	bundleUIDs := make(map[string]string)
+	for _, b := range bundles {
+		key := b.Namespace + "/" + b.Name
+		bundleHashes[key] = b.Spec.ValuesHash
+		bundleUIDs[key] = string(b.UID)
+	}
+
+	bundleDeploymentHashes := make(map[string]string)
+	bundleDeploymentUIDs := make(map[string]string)
+	bundleDeploymentWaiting := make(map[string]bool)
+	for _, bd := range bundleDeployments {
+		key := bd.Namespace + "/" + bd.Name
+		bundleDeploymentHashes[key] = bd.Spec.ValuesHash
+		bundleDeploymentUIDs[key] = string(bd.UID)
+		bundleDeploymentWaiting[key] = bd.Spec.WaitingForValues
+	}
+
+	var mismatches []ValuesHashMismatch
+	for _, secret := range bundleSecrets {
+		if secret.DeletionTimestamp != nil || len(secret.OwnerReferences) == 0 {
+			continue
+		}
+
+		owner := secret.OwnerReferences[0]
+		key := secret.Namespace + "/" + owner.Name
+		var specHash, expectedUID string
+		switch owner.Kind {
+		case "Bundle":
+			specHash = bundleHashes[key]
+			expectedUID = bundleUIDs[key]
+		case "BundleDeployment":
+			if bundleDeploymentWaiting[key] {
+				continue
+			}
+			specHash = bundleDeploymentHashes[key]
+			expectedUID = bundleDeploymentUIDs[key]
+		}
+		if expectedUID == "" || expectedUID != string(owner.UID) {
+			continue
+		}
+
+		secretHash := secretValuesHash(secret)
+		if specHash == secretHash {
+			continue
+		}
+
+		mismatches = append(mismatches, ValuesHashMismatch{
+			Namespace:  secret.Namespace,
+			Name:       secret.Name,
+			OwnerKind:  owner.Kind,
+			SpecHash:   specHash,
+			SecretHash: secretHash,
+		})
+	}
+
+	return mismatches
 }
 
 // countBundlesWithDeletionTimestamp counts bundles that have deletion timestamps

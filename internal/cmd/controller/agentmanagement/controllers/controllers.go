@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"log"
 
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/controllers/bootstrap"
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/controllers/cluster"
@@ -27,8 +28,6 @@ import (
 	"github.com/rancher/wrangler/v3/pkg/generated/controllers/rbac"
 	rbaccontrollers "github.com/rancher/wrangler/v3/pkg/generated/controllers/rbac/v1"
 	"github.com/rancher/wrangler/v3/pkg/start"
-
-	"github.com/sirupsen/logrus"
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -146,7 +145,7 @@ func Register(ctx context.Context, appCtx *AppContext, systemNamespace string, d
 		appCtx.Bundle())
 
 	if err := appCtx.Start(ctx); err != nil {
-		logrus.Fatal(err)
+		log.Fatal(err)
 	}
 
 	return nil

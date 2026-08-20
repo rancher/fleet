@@ -244,4 +244,149 @@ var _ = Describe("Bundle target DownstreamResources", Ordered, func() {
 			}
 		})
 	})
+
+	When("a secret is referenced both as a helm secret and a downstream resource", func() {
+		const bundleName = "target-downstream-secret"
+		BeforeEach(func() {
+			genericSecret := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: "mysecret", Namespace: namespace},
+				Data:       map[string][]byte{"key": []byte("value")},
+			}
+			Expect(k8sClient.Create(ctx, genericSecret)).To(Succeed())
+			DeferCleanup(func() {
+				Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, genericSecret))).To(Succeed())
+				Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, &v1alpha1.Bundle{
+					ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: bundleName},
+				}))).NotTo(HaveOccurred())
+				cleanupBundleDeployments(bundleName, namespace)
+			})
+		})
+		It("does not loop forever trying to update the immutable secret type", func() {
+			bundle := &v1alpha1.Bundle{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      bundleName,
+					Namespace: namespace,
+				},
+				Spec: v1alpha1.BundleSpec{
+					HelmOpOptions: &v1alpha1.BundleHelmOptions{
+						SecretName: "mysecret",
+					},
+					BundleDeploymentOptions: v1alpha1.BundleDeploymentOptions{
+						DownstreamResources: []v1alpha1.DownstreamResource{
+							{Kind: "Secret", Name: "mysecret"},
+						},
+					},
+					Targets: []v1alpha1.BundleTarget{
+						{ClusterGroup: "one"},
+					},
+					TargetRestrictions: []v1alpha1.BundleTargetRestriction{
+						{ClusterGroup: "one"},
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, bundle)).To(Succeed())
+			Eventually(func(g Gomega) {
+				latestBundle := &v1alpha1.Bundle{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(bundle), latestBundle)).To(Succeed())
+				g.Expect(latestBundle.Status.ObservedGeneration).To(BeNumerically("==", 1))
+			}).Should(Succeed())
+		})
+	})
+
+	When("the data of a cloned downstream secret changes upstream", func() {
+		const bundleName = "downstream-secret-update"
+
+		BeforeEach(func() {
+			genericSecret := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: "have-secret", Namespace: namespace},
+				Data:       map[string][]byte{"key": []byte("first")},
+			}
+			Expect(k8sClient.Create(ctx, genericSecret)).To(Succeed())
+			DeferCleanup(func() {
+				Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, genericSecret))).To(Succeed())
+				Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, &v1alpha1.Bundle{
+					ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: bundleName},
+				}))).NotTo(HaveOccurred())
+				cleanupBundleDeployments(bundleName, namespace)
+			})
+		})
+
+		It("propagates the new data to the downstream copy while keeping its type", func() {
+			By("creating a bundle that clones the secret downstream")
+			bundle := &v1alpha1.Bundle{
+				ObjectMeta: metav1.ObjectMeta{Name: bundleName, Namespace: namespace},
+				Spec: v1alpha1.BundleSpec{
+					BundleDeploymentOptions: v1alpha1.BundleDeploymentOptions{
+						DownstreamResources: []v1alpha1.DownstreamResource{
+							{Kind: "Secret", Name: "have-secret"},
+						},
+					},
+					Targets: []v1alpha1.BundleTarget{
+						{ClusterGroup: "one"},
+					},
+					TargetRestrictions: []v1alpha1.BundleTargetRestriction{
+						{ClusterGroup: "one"},
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, bundle)).To(Succeed())
+
+			By("finding the cluster namespace of the single BundleDeployment")
+			var bdNamespace string
+			Eventually(func(g Gomega) {
+				bdList := &v1alpha1.BundleDeploymentList{}
+				g.Expect(k8sClient.List(ctx, bdList, client.MatchingLabels{
+					"fleet.cattle.io/bundle-name":      bundleName,
+					"fleet.cattle.io/bundle-namespace": namespace,
+				})).To(Succeed())
+				g.Expect(bdList.Items).To(HaveLen(1))
+				bdNamespace = bdList.Items[0].Namespace
+			}).Should(Succeed())
+
+			By("waiting for the clone to appear with the initial data")
+			Eventually(func(g Gomega) {
+				copied := &corev1.Secret{}
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{
+					Name: "have-secret", Namespace: bdNamespace,
+				}, copied)).To(Succeed())
+				g.Expect(copied.Data).To(HaveKeyWithValue("key", []byte("first")))
+			}).Should(Succeed())
+
+			By("updating the upstream secret's data")
+			Eventually(func(g Gomega) {
+				src := &corev1.Secret{}
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{
+					Name: "have-secret", Namespace: namespace,
+				}, src)).To(Succeed())
+				src.Data["key"] = []byte("second")
+				g.Expect(k8sClient.Update(ctx, src)).To(Succeed())
+			}).Should(Succeed())
+
+			// The secret->bundle watch relies on a field indexer that is only
+			// registered in the production operator, not in this test suite, so
+			// changing the source secret does not re-trigger the bundle. Bump an
+			// annotation to force a reconcile (AnnotationChangedPredicate).
+			By("triggering a bundle reconcile so the clone is re-synced")
+			Eventually(func(g Gomega) {
+				latest := &v1alpha1.Bundle{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(bundle), latest)).To(Succeed())
+				if latest.Annotations == nil {
+					latest.Annotations = map[string]string{}
+				}
+				latest.Annotations["test/trigger"] = "1"
+				g.Expect(k8sClient.Update(ctx, latest)).To(Succeed())
+			}).Should(Succeed())
+
+			By("verifying the downstream copy reflects the new data and keeps its type")
+			Eventually(func(g Gomega) {
+				copied := &corev1.Secret{}
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{
+					Name: "have-secret", Namespace: bdNamespace,
+				}, copied)).To(Succeed())
+				g.Expect(copied.Data).To(HaveKeyWithValue("key", []byte("second")))
+				g.Expect(copied.Type).To(Equal(corev1.SecretTypeOpaque))
+			}).Should(Succeed())
+		})
+	})
+
 })

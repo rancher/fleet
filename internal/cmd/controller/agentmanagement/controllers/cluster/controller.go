@@ -3,13 +3,13 @@ package cluster
 
 import (
 	"context"
-
-	"github.com/sirupsen/logrus"
+	"fmt"
 
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/controllers/manageagent"
 	"github.com/rancher/fleet/internal/names"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	corecontrollers "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/v3/pkg/kv"
@@ -65,7 +65,7 @@ func Register(ctx context.Context,
 // ensureNSDeleted is a handler that enqueues the cluster registration namespace, when a cluster is deleted.
 func (h *handler) ensureNSDeleted(key string, obj *fleet.Cluster) (*fleet.Cluster, error) {
 	if obj == nil {
-		logrus.Debugf("Cluster %s deleted, enqueue cluster namespace deletion", key)
+		log.Log.V(1).Info(fmt.Sprintf("Cluster %s deleted, enqueue cluster namespace deletion", key))
 		h.namespaces.Enqueue(clusterNamespace(kv.Split(key, "/")))
 	}
 	return obj, nil
@@ -90,7 +90,7 @@ func (h *handler) findClusters(namespaces corecontrollers.NamespaceCache) relate
 		if clusterNS == "" || clusterName == "" {
 			return nil, nil
 		}
-		logrus.Debugf("Enqueueing cluster %s/%s for bundledeployment %s/%s", clusterNS, clusterName, namespace, obj.(*fleet.BundleDeployment).Name)
+		log.Log.V(1).Info(fmt.Sprintf("Enqueueing cluster %s/%s for bundledeployment %s/%s", clusterNS, clusterName, namespace, obj.(*fleet.BundleDeployment).Name))
 		return []relatedresource.Key{
 			{
 				Namespace: clusterNS,
@@ -115,8 +115,7 @@ func (h *handler) OnClusterChanged(cluster *fleet.Cluster, status fleet.ClusterS
 	if manageagent.SkipCluster(cluster) {
 		return status, nil
 	}
-
-	logrus.Debugf("OnClusterChanged for cluster status %s, updating namespace in status", cluster.Name)
+	log.Log.V(1).Info(fmt.Sprintf("OnClusterChanged for cluster status %s, updating namespace in status", cluster.Name))
 	if status.Namespace == "" {
 		status.Namespace = clusterNamespace(cluster.Namespace, cluster.Name)
 	}

@@ -3,6 +3,7 @@ package bundlereader
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -22,6 +23,8 @@ import (
 	"github.com/rancher/fleet/internal/helmupdater"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
+
+const helmRepoURLRegexUIHint = "helmRepoURLRegex is empty, so Helm credentials were not forwarded; set spec.helmRepoURLRegex to allow credential forwarding"
 
 // ignoreTree represents a tree of ignored paths (read from .fleetignore files), each node being a directory.
 // It provides a means for ignored paths to be propagated down the tree, but not between subdirectories of a same
@@ -166,7 +169,7 @@ func loadDirectory(ctx context.Context, opts loadOpts, dir directory) ([]fleet.B
 
 	files, err := GetContent(ctx, dir.base, dir.source, dir.version, dir.auth, opts.disableDepsUpdate, opts.ignoreApplyConfigs)
 	if err != nil {
-		return nil, err
+		return nil, maybeAddHelmRepoURLRegexHint(err, dir)
 	}
 
 	for name, data := range files {
@@ -188,6 +191,19 @@ func loadDirectory(ctx context.Context, opts loadOpts, dir directory) ([]fleet.B
 	}
 
 	return resources, nil
+}
+
+func maybeAddHelmRepoURLRegexHint(err error, dir directory) error {
+	if err == nil {
+		return nil
+	}
+	if !dir.strippedCreds {
+		return err
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return err
+	}
+	return fmt.Errorf("%w: %s", err, helmRepoURLRegexUIHint)
 }
 
 // GetContent uses fetchToDir (and Helm for OCI) to read the files from directories and servers.

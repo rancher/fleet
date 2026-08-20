@@ -3,14 +3,28 @@ package bundlereader
 import (
 	"bytes"
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
+	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/util/yaml"
+	ctrlog "sigs.k8s.io/controller-runtime/pkg/log"
 )
+
+type logRecorder struct {
+	lines []string
+}
+
+func (r *logRecorder) Helper() {}
+
+func (r *logRecorder) Log(args ...any) {
+	r.lines = append(r.lines, fmt.Sprint(args...))
+}
 
 const (
 	valuesOneYaml = `microService1:
@@ -206,4 +220,74 @@ func TestAddRemoteChartsStripsCredentials(t *testing.T) {
 	assert.Nil(t, got.SSHPrivateKey, "SSHPrivateKey must be stripped when helmRepoURLRegex is empty")
 	assert.True(t, got.BasicHTTP, "BasicHTTP must be preserved when stripping credentials")
 	assert.True(t, got.InsecureSkipVerify, "InsecureSkipVerify must be preserved when stripping credentials")
+	assert.True(t, dirs[0].strippedCreds, "directory should be marked when credentials are stripped due to empty helmRepoURLRegex")
+}
+
+func TestAddRemoteChartsWarnsMissingRegex(t *testing.T) {
+	remoteChart := []*fleet.HelmOptions{{Chart: "/nonexistent/chart"}}
+	recorder := &logRecorder{}
+	oldLogger := ctrlog.Log
+	ctrlog.SetLogger(testr.NewWithInterface(recorder, testr.Options{Verbosity: 1}))
+	t.Cleanup(func() {
+		ctrlog.SetLogger(oldLogger)
+	})
+
+	tests := []struct {
+		name        string
+		charts      []*fleet.HelmOptions
+		auth        Auth
+		regex       string
+		wantWarning bool
+	}{
+		{
+			name:        "credentials set, regex empty — warn",
+			charts:      remoteChart,
+			auth:        Auth{Username: "user", Password: "secret"},
+			regex:       "",
+			wantWarning: true,
+		},
+		{
+			name:        "SSH key set, regex empty — warn",
+			charts:      remoteChart,
+			auth:        Auth{SSHPrivateKey: []byte("key")},
+			regex:       "",
+			wantWarning: true,
+		},
+		{
+			name:        "no credentials, regex empty — no warn",
+			charts:      remoteChart,
+			auth:        Auth{BasicHTTP: true},
+			regex:       "",
+			wantWarning: false,
+		},
+		{
+			name:        "credentials set, regex provided — no warn",
+			charts:      remoteChart,
+			auth:        Auth{Username: "user", Password: "secret"},
+			regex:       "https://charts\\.example\\.com.*",
+			wantWarning: false,
+		},
+		{
+			name:        "credentials set, regex empty, no charts — no warn",
+			charts:      nil,
+			auth:        Auth{Username: "user", Password: "secret"},
+			regex:       "",
+			wantWarning: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			recorder.lines = nil
+
+			_, err := addRemoteCharts(context.Background(), nil, t.TempDir(), tt.charts, tt.auth, tt.regex)
+			require.NoError(t, err)
+
+			if tt.wantWarning {
+				assert.Contains(t, strings.Join(recorder.lines, "\n"), "helmRepoURLRegex")
+			} else {
+				assert.NotContains(t, strings.Join(recorder.lines, "\n"), "helmRepoURLRegex")
+			}
+		})
+	}
 }
