@@ -85,6 +85,7 @@
         "patch",
         "minor"
       ],
+      "enabled": true,
       "automerge": true
     },
     {
