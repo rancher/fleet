@@ -193,6 +193,9 @@ func TestCreateBundlesWritesSuccessfulBundlesAfterReadError(t *testing.T) {
 			if !strings.Contains(err.Error(), "failed to process bundle") {
 				t.Fatalf("expected error for invalid bundle, got %v", err)
 			}
+			if !strings.Contains(err.Error(), "invalid:") {
+				t.Fatalf("expected error to identify the invalid bundle path, got %v", err)
+			}
 			if got := output.String(); !strings.Contains(got, "name: repo-first") || !strings.Contains(got, "name: repo-last") {
 				t.Fatalf("expected output to include valid bundles, got %q", got)
 			}
@@ -221,6 +224,9 @@ func TestCreateBundlesReturnsReadErrorWhenAllBundlesFail(t *testing.T) {
 			err := createBundles(context.Background(), nil, nil, "repo", []string{"invalid-a", "invalid-b"}, Options{Output: &bytes.Buffer{}, DrivenScanSeparator: ":"})
 			if err == nil || strings.Count(err.Error(), "failed to process bundle") != 2 {
 				t.Fatalf("expected bundle read error, got %v", err)
+			}
+			if !strings.Contains(err.Error(), "invalid-a:") || !strings.Contains(err.Error(), "invalid-b:") {
+				t.Fatalf("expected error to identify both invalid bundle paths, got %v", err)
 			}
 		})
 	}
@@ -264,10 +270,59 @@ func TestCreateBundlesWritesOtherBundlesAfterWriteError(t *testing.T) {
 			if err == nil || !strings.Contains(err.Error(), "failed to write first bundle") {
 				t.Fatalf("expected bundle write error, got %v", err)
 			}
+			if !strings.Contains(err.Error(), "repo-first:") {
+				t.Fatalf("expected error to identify the failing bundle name, got %v", err)
+			}
 			lastBundle := &fleet.Bundle{}
 			if err := kubeClient.Get(context.Background(), client.ObjectKey{Name: "repo-last", Namespace: "fleet-local"}, lastBundle); err != nil {
 				t.Fatalf("expected last bundle to be written, got %v", err)
 			}
 		})
+	}
+}
+
+func TestCreateBundlesContinuesWalkAfterDirectoryError(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("cannot restrict directory permissions when running as root")
+	}
+
+	root := t.TempDir()
+	t.Chdir(root)
+	for _, name := range []string{"first", "last"} {
+		if err := os.Mkdir(name, 0o750); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(name, "configmap.yaml"), []byte("apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: "+name+"\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(name, "fleet.yaml"), []byte("namespace: default\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// "blocked" sorts before "first" and "last", so the walk must recover
+	// from the error here to reach the remaining bundles.
+	blockedDir := filepath.Join(root, "blocked")
+	if err := os.Mkdir(blockedDir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(blockedDir, "fleet.yaml"), []byte("namespace: default\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(blockedDir, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(blockedDir, 0o750) })
+
+	output := &bytes.Buffer{}
+	err := CreateBundles(context.Background(), nil, nil, "repo", []string{"."}, Options{
+		Output:                       output,
+		BundleCreationMaxConcurrency: 1,
+	})
+	if err == nil || !strings.Contains(err.Error(), "failed walking path") {
+		t.Fatalf("expected a walk error for the blocked directory, got %v", err)
+	}
+	if got := output.String(); !strings.Contains(got, "name: repo-first") || !strings.Contains(got, "name: repo-last") {
+		t.Fatalf("expected output to include bundles found after the blocked directory, got %q", got)
 	}
 }

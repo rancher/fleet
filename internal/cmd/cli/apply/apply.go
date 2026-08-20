@@ -165,7 +165,11 @@ func CreateBundles(ctx context.Context, client client.Client, r record.EventReco
 			for _, baseDir := range matches {
 				if err := filepath.WalkDir(baseDir, func(path string, entry fs.DirEntry, err error) error {
 					if err != nil {
-						return fmt.Errorf("failed walking path %q: %w", path, err)
+						readErrorChan <- fmt.Errorf("failed walking path %q: %w", path, err)
+						if entry != nil && entry.IsDir() {
+							return filepath.SkipDir
+						}
+						return nil
 					}
 					if entry.IsDir() && entry.Name() == ".git" {
 						return filepath.SkipDir
@@ -187,7 +191,7 @@ func CreateBundles(ctx context.Context, client client.Client, r record.EventReco
 					readWg.Go(func() {
 						defer readSemaphore.Release(1)
 						if err := setAuthByPath(&opts, path); err != nil {
-							readErrorChan <- err
+							readErrorChan <- fmt.Errorf("%s: %w", path, err)
 							return
 						}
 
@@ -197,12 +201,12 @@ func CreateBundles(ctx context.Context, client client.Client, r record.EventReco
 								log.Log.Info(path, "error", err)
 								return
 							}
-							readErrorChan <- err
+							readErrorChan <- fmt.Errorf("%s: %w", path, err)
 							return
 						}
 						select {
 						case <-ctx.Done():
-							readErrorChan <- ctx.Err()
+							readErrorChan <- fmt.Errorf("%s: %w", path, ctx.Err())
 						case bundlesChan <- &bundleWithOpts{bundle: bundle, scans: scans, opts: &opts}:
 						}
 					})
@@ -238,12 +242,16 @@ func CreateBundles(ctx context.Context, client client.Client, r record.EventReco
 	var writeWg sync.WaitGroup
 	for _, b := range bundlesToWrite {
 		if err := writeSemaphore.Acquire(ctx, 1); err != nil {
-			writeErrorChan <- err
+			writeErrorChan <- fmt.Errorf("%s: %w", b.bundle.Name, err)
 			continue
 		}
 		writeWg.Go(func() {
 			defer writeSemaphore.Release(1)
-			writeErrorChan <- writeBundle(ctx, client, r, b.bundle, b.scans, *b.opts)
+			if err := writeBundle(ctx, client, r, b.bundle, b.scans, *b.opts); err != nil {
+				writeErrorChan <- fmt.Errorf("%s: %w", b.bundle.Name, err)
+				return
+			}
+			writeErrorChan <- nil
 		})
 	}
 
@@ -286,35 +294,35 @@ func CreateBundlesDriven(ctx context.Context, client client.Client, r record.Eve
 			opts := opts
 
 			if err := readSemaphore.Acquire(ctx, 1); err != nil {
-				readErrorChan <- err
+				readErrorChan <- fmt.Errorf("%s: %w", baseDir, err)
 				continue
 			}
 			readWg.Go(func() {
 				defer readSemaphore.Release(1)
-				var err error
-				baseDir, opts.BundleFile, err = getPathAndFleetYaml(baseDir, opts.DrivenScanSeparator)
+				path, fleetFile, err := getPathAndFleetYaml(baseDir, opts.DrivenScanSeparator)
 				if err != nil {
-					readErrorChan <- err
+					readErrorChan <- fmt.Errorf("%s: %w", baseDir, err)
+					return
+				}
+				opts.BundleFile = fleetFile
+
+				if err := setAuthByPath(&opts, path); err != nil {
+					readErrorChan <- fmt.Errorf("%s: %w", path, err)
 					return
 				}
 
-				if err := setAuthByPath(&opts, baseDir); err != nil {
-					readErrorChan <- err
-					return
-				}
-
-				bundle, scans, err := bundleFromDir(ctx, repoName, baseDir, opts)
+				bundle, scans, err := bundleFromDir(ctx, repoName, path, opts)
 				if err != nil {
 					if errors.Is(err, ErrNoResources) {
 						log.Log.Info(baseDir, "error", err)
 						return
 					}
-					readErrorChan <- err
+					readErrorChan <- fmt.Errorf("%s: %w", path, err)
 					return
 				}
 				select {
 				case <-ctx.Done():
-					readErrorChan <- ctx.Err()
+					readErrorChan <- fmt.Errorf("%s: %w", path, ctx.Err())
 				case bundlesChan <- &bundleWithOpts{bundle: bundle, scans: scans, opts: &opts}:
 				}
 			})
@@ -345,12 +353,16 @@ func CreateBundlesDriven(ctx context.Context, client client.Client, r record.Eve
 	var writeWg sync.WaitGroup
 	for _, b := range bundlesToWrite {
 		if err := writeSemaphore.Acquire(ctx, 1); err != nil {
-			writeErrorChan <- err
+			writeErrorChan <- fmt.Errorf("%s: %w", b.bundle.Name, err)
 			continue
 		}
 		writeWg.Go(func() {
 			defer writeSemaphore.Release(1)
-			writeErrorChan <- writeBundle(ctx, client, r, b.bundle, b.scans, *b.opts)
+			if err := writeBundle(ctx, client, r, b.bundle, b.scans, *b.opts); err != nil {
+				writeErrorChan <- fmt.Errorf("%s: %w", b.bundle.Name, err)
+				return
+			}
+			writeErrorChan <- nil
 		})
 	}
 
