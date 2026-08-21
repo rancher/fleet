@@ -256,14 +256,15 @@ func CreateBundles(ctx context.Context, client client.Client, r record.EventReco
 
 	if len(gitRepoBundlesMap) == 0 {
 		close(writeErrorChan)
-		if readErr != nil {
-			return readErr
+		if err := errors.Join(readErr, <-writeErrorsDone); err != nil {
+			return err
 		}
 		return fmt.Errorf("no resource found at the following paths to deploy: %v", baseDirs)
 	}
 
 	writeWg.Wait()
 	close(writeErrorChan)
+
 	return errors.Join(readErr, pruneErr, <-writeErrorsDone)
 }
 
@@ -365,14 +366,15 @@ func CreateBundlesDriven(ctx context.Context, client client.Client, r record.Eve
 
 	if len(gitRepoBundlesMap) == 0 {
 		close(writeErrorChan)
-		if readErr != nil {
-			return readErr
+		if err := errors.Join(readErr, <-writeErrorsDone); err != nil {
+			return err
 		}
 		return fmt.Errorf("no resource found at the following paths to deploy: %v", baseDirs)
 	}
 
 	writeWg.Wait()
 	close(writeErrorChan)
+
 	return errors.Join(readErr, pruneErr, <-writeErrorsDone)
 }
 
