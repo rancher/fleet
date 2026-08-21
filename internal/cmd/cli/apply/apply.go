@@ -250,9 +250,7 @@ func CreateBundles(ctx context.Context, client client.Client, r record.EventReco
 			defer writeSemaphore.Release(1)
 			if err := writeBundle(ctx, client, r, b.bundle, b.scans, *b.opts); err != nil {
 				writeErrorChan <- fmt.Errorf("%s: %w", b.bundle.Name, err)
-				return
 			}
-			writeErrorChan <- nil
 		})
 	}
 
@@ -361,9 +359,7 @@ func CreateBundlesDriven(ctx context.Context, client client.Client, r record.Eve
 			defer writeSemaphore.Release(1)
 			if err := writeBundle(ctx, client, r, b.bundle, b.scans, *b.opts); err != nil {
 				writeErrorChan <- fmt.Errorf("%s: %w", b.bundle.Name, err)
-				return
 			}
-			writeErrorChan <- nil
 		})
 	}
 
