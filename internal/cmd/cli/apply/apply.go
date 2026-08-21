@@ -106,6 +106,7 @@ type bundleWithOpts struct {
 func collectErrors(errorChan <-chan error) <-chan error {
 	done := make(chan error, 1)
 	go func() {
+		defer close(done)
 		var errs []error
 		for err := range errorChan {
 			if err != nil {
