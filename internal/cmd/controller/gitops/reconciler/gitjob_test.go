@@ -3467,3 +3467,102 @@ func TestCreateJob_AlreadyExistsIsIgnored(t *testing.T) {
 		t.Fatal("createJob should return false when job already exists")
 	}
 }
+
+// Test_PropagateAcceptedFailureToReady_SetsReadyFalse verifies that when the
+// Accepted condition is False, propagateAcceptedFailureToReady forces Ready to
+// False with the same message and reason. This is the core fix for
+// https://github.com/rancher/fleet/issues/4865.
+func Test_PropagateAcceptedFailureToReady_SetsReadyFalse(t *testing.T) {
+	gitrepo := &fleetv1.GitRepo{}
+	gitrepo.Status.Conditions = []genericcondition.GenericCondition{
+		{
+			Type:    fleetv1.GitRepoAcceptedCondition,
+			Status:  "False",
+			Message: "failed to look up HelmSecretNameForPaths, error: secret not found",
+			Reason:  "Error",
+		},
+		{
+			Type:   "Ready",
+			Status: "True",
+		},
+	}
+
+	propagateAcceptedFailureToReady(gitrepo)
+
+	readyCond, found := getCondition(gitrepo, "Ready")
+	if !found {
+		t.Fatal("expected Ready condition to be present")
+	}
+	if readyCond.Status != "False" {
+		t.Errorf("expected Ready=False, got Ready=%s", readyCond.Status)
+	}
+	if readyCond.Message != "failed to look up HelmSecretNameForPaths, error: secret not found" {
+		t.Errorf("unexpected Ready message: %s", readyCond.Message)
+	}
+}
+
+// Test_PropagateAcceptedFailureToReady_AddsReadyWhenMissing verifies that when
+// Ready is absent and Accepted=False, a Ready=False condition is added.
+func Test_PropagateAcceptedFailureToReady_AddsReadyWhenMissing(t *testing.T) {
+	gitrepo := &fleetv1.GitRepo{}
+	gitrepo.Status.Conditions = []genericcondition.GenericCondition{
+		{
+			Type:    fleetv1.GitRepoAcceptedCondition,
+			Status:  "False",
+			Message: "missing cabundle secret",
+			Reason:  "Error",
+		},
+	}
+
+	propagateAcceptedFailureToReady(gitrepo)
+
+	readyCond, found := getCondition(gitrepo, "Ready")
+	if !found {
+		t.Fatal("expected Ready condition to be added")
+	}
+	if readyCond.Status != "False" {
+		t.Errorf("expected Ready=False, got Ready=%s", readyCond.Status)
+	}
+	if readyCond.Message != "missing cabundle secret" {
+		t.Errorf("unexpected Ready message: %s", readyCond.Message)
+	}
+}
+
+// Test_PropagateAcceptedFailureToReady_NoOpWhenAcceptedTrue verifies that when
+// Accepted=True, the Ready condition is not changed by propagateAcceptedFailureToReady.
+func Test_PropagateAcceptedFailureToReady_NoOpWhenAcceptedTrue(t *testing.T) {
+	gitrepo := &fleetv1.GitRepo{}
+	gitrepo.Status.Conditions = []genericcondition.GenericCondition{
+		{
+			Type:   fleetv1.GitRepoAcceptedCondition,
+			Status: "True",
+		},
+		{
+			Type:   "Ready",
+			Status: "True",
+		},
+	}
+
+	propagateAcceptedFailureToReady(gitrepo)
+
+	readyCond, found := getCondition(gitrepo, "Ready")
+	if !found {
+		t.Fatal("expected Ready condition to be present")
+	}
+	if readyCond.Status != "True" {
+		t.Errorf("expected Ready=True (unchanged), got Ready=%s", readyCond.Status)
+	}
+}
+
+// Test_PropagateAcceptedFailureToReady_NoOpWhenNoAccepted verifies that when
+// no Accepted condition is present, propagateAcceptedFailureToReady is a no-op.
+func Test_PropagateAcceptedFailureToReady_NoOpWhenNoAccepted(t *testing.T) {
+	gitrepo := &fleetv1.GitRepo{}
+	// No Accepted condition, no Ready condition - simulates fresh GitRepo with 0/0 bundles.
+	propagateAcceptedFailureToReady(gitrepo)
+
+	_, found := getCondition(gitrepo, "Ready")
+	if found {
+		t.Error("expected no Ready condition to be added when no Accepted condition is present")
+	}
+}
