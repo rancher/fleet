@@ -121,6 +121,16 @@ type BundleDeploymentOptions struct {
 	// +nullable
 	NamespaceLabels map[string]string `json:"namespaceLabels,omitempty"`
 
+	// AllowPodSecurityNamespaceLabels controls whether NamespaceLabels with the
+	// `pod-security.kubernetes.io/` prefix are applied to the target namespace.
+	// When nil or false, those labels are dropped by the agent. It is set by the
+	// controller from the Policy objects of the bundle's namespace and any value
+	// coming from fleet.yaml or a Bundle is discarded, so opting in is a cluster
+	// administrator decision.
+	// +optional
+	// +nullable
+	AllowPodSecurityNamespaceLabels *bool `json:"allowPodSecurityNamespaceLabels,omitempty"`
+
 	// NamespaceAnnotations are annotations that will be appended to the namespace created by Fleet.
 	// +nullable
 	NamespaceAnnotations map[string]string `json:"namespaceAnnotations,omitempty"`

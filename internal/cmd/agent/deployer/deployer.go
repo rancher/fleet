@@ -257,7 +257,9 @@ func (d *Deployer) setNamespaceLabelsAndAnnotations(ctx context.Context, bd *fle
 		if desiredLabels == nil {
 			desiredLabels = make(map[string]string)
 		}
-		addLabelsFromOptions(log.FromContext(ctx), desiredLabels, bd.Spec.Options.NamespaceLabels)
+		allowPodSecurity := bd.Spec.Options.AllowPodSecurityNamespaceLabels != nil &&
+			*bd.Spec.Options.AllowPodSecurityNamespaceLabels
+		addLabelsFromOptions(log.FromContext(ctx), desiredLabels, bd.Spec.Options.NamespaceLabels, allowPodSecurity)
 	}
 	desiredAnnotations := maps.Clone(ns.Annotations)
 	if bd.Spec.Options.NamespaceAnnotations != nil {
@@ -332,20 +334,19 @@ const podSecurityLabelPrefix = "pod-security.kubernetes.io/"
 
 // addLabelsFromOptions updates nsLabels to contain labels from optLabels, while preserving
 // the `kubernetes.io/metadata.name` label added by Kubernetes when creating the namespace
-// and any existing `pod-security.kubernetes.io/*` labels. Labels with the
-// `pod-security.kubernetes.io/` prefix in optLabels are ignored.
+// and any existing `pod-security.kubernetes.io/*` labels which optLabels does not declare.
 //
-// This filtering is intentionally unconditional and independent of the
-// service-account impersonation used for the namespace patch: it must also hold
-// for deployments that run as the agent (no service account pinned), where
-// there is no downstream RBAC gating at all. It is the only safeguard against a
-// bundle escalating pod-security enforcement on its target namespace. To set
-// pod-security labels on a namespace, declare them on the Namespace resource in
-// the bundle instead.
-func addLabelsFromOptions(logger logr.Logger, nsLabels map[string]string, optLabels map[string]string) {
+// Labels with the `pod-security.kubernetes.io/` prefix in optLabels are only
+// applied when allowPodSecurity is true. That flag comes from the
+// BundleDeployment options, where the controller sets it from a Policy of the
+// bundle's namespace; it cannot be requested from fleet.yaml. Without it, a
+// bundle could weaken pod-security enforcement on its target namespace, which
+// is not gated by downstream RBAC for deployments running as the agent.
+func addLabelsFromOptions(logger logr.Logger, nsLabels map[string]string, optLabels map[string]string, allowPodSecurity bool) {
 	for k, v := range optLabels {
-		if strings.HasPrefix(k, podSecurityLabelPrefix) {
-			logger.V(1).Info("Ignoring label from options", "label", k)
+		if !allowPodSecurity && strings.HasPrefix(k, podSecurityLabelPrefix) {
+			logger.Info("Ignoring pod-security label from options: no Policy in the bundle's namespace "+
+				"sets allowPodSecurityNamespaceLabels", "label", k)
 			continue
 		}
 		nsLabels[k] = v
@@ -353,7 +354,7 @@ func addLabelsFromOptions(logger logr.Logger, nsLabels map[string]string, optLab
 
 	// Delete labels not defined in the options.
 	// Keep the `kubernetes.io/metadata.name` label as it is added by kubernetes when creating the namespace.
-	// Keep pod-security.kubernetes.io/ labels as they are managed by cluster administrators.
+	// Keep undeclared pod-security.kubernetes.io/ labels as they are managed by cluster administrators.
 	for k := range nsLabels {
 		if strings.HasPrefix(k, podSecurityLabelPrefix) {
 			continue

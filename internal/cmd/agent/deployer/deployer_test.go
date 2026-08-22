@@ -350,9 +350,10 @@ func TestSetNamespaceLabelsAndAnnotations_NoUpdateWhenAlreadyCorrect(t *testing.
 
 func TestAddLabelsFromOptions_PodSecurityLabelsFiltered(t *testing.T) {
 	tests := map[string]struct {
-		nsLabels       map[string]string
-		optLabels      map[string]string
-		expectedLabels map[string]string
+		nsLabels         map[string]string
+		optLabels        map[string]string
+		allowPodSecurity bool
+		expectedLabels   map[string]string
 	}{
 		"pod-security.kubernetes.io labels in optLabels are not applied to namespace": {
 			nsLabels: map[string]string{"kubernetes.io/metadata.name": "ns"},
@@ -409,11 +410,29 @@ func TestAddLabelsFromOptions_PodSecurityLabelsFiltered(t *testing.T) {
 				"safe-label":                  "value",
 			},
 		},
+		"pod-security.kubernetes.io labels are applied when allowed by Policy": {
+			nsLabels: map[string]string{
+				"kubernetes.io/metadata.name":        "ns",
+				"pod-security.kubernetes.io/enforce": "restricted",
+				"pod-security.kubernetes.io/audit":   "restricted",
+			},
+			optLabels: map[string]string{
+				"pod-security.kubernetes.io/enforce": "privileged",
+				"safe-label":                         "value",
+			},
+			allowPodSecurity: true,
+			expectedLabels: map[string]string{
+				"kubernetes.io/metadata.name":        "ns",
+				"pod-security.kubernetes.io/enforce": "privileged",
+				"pod-security.kubernetes.io/audit":   "restricted",
+				"safe-label":                         "value",
+			},
+		},
 	}
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			addLabelsFromOptions(logr.Discard(), test.nsLabels, test.optLabels)
+			addLabelsFromOptions(logr.Discard(), test.nsLabels, test.optLabels, test.allowPodSecurity)
 
 			if len(test.nsLabels) != len(test.expectedLabels) {
 				t.Errorf("expected %d labels, got %d: %v", len(test.expectedLabels), len(test.nsLabels), test.nsLabels)
@@ -474,6 +493,48 @@ func TestSetNamespaceLabelsAndAnnotations_PodSecurityLabelsPreserved(t *testing.
 	}
 	if result.Labels["app-label"] != "value" {
 		t.Errorf("app-label: got %s, want value", result.Labels["app-label"])
+	}
+}
+
+// TestSetNamespaceLabelsAndAnnotations_PodSecurityLabelsAllowed verifies that
+// pod-security labels from namespaceLabels are applied when the controller
+// resolved a Policy allowing them.
+func TestSetNamespaceLabelsAndAnnotations_PodSecurityLabelsAllowed(t *testing.T) {
+	allow := true
+	bd := &fleet.BundleDeployment{Spec: fleet.BundleDeploymentSpec{
+		Options: fleet.BundleDeploymentOptions{
+			AllowPodSecurityNamespaceLabels: &allow,
+			NamespaceLabels: map[string]string{
+				"pod-security.kubernetes.io/enforce": "privileged",
+			},
+		},
+	}}
+	ns := corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "namespace",
+			Labels: map[string]string{
+				"kubernetes.io/metadata.name":        "namespace",
+				"pod-security.kubernetes.io/enforce": "restricted",
+			},
+		},
+	}
+
+	scheme := runtime.NewScheme()
+	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+	client := fake.NewClientBuilder().WithScheme(scheme).WithObjects(&ns).Build()
+	h := Deployer{client: client}
+
+	if err := h.setNamespaceLabelsAndAnnotations(context.Background(), bd, "namespace/foo/bar"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	result := &corev1.Namespace{}
+	if err := client.Get(context.Background(), types.NamespacedName{Name: "namespace"}, result); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Labels["pod-security.kubernetes.io/enforce"] != "privileged" {
+		t.Errorf("pod-security.kubernetes.io/enforce: got %s, want privileged",
+			result.Labels["pod-security.kubernetes.io/enforce"])
 	}
 }
 

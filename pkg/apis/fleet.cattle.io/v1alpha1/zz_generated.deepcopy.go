@@ -221,6 +221,11 @@ func (in *BundleDeploymentOptions) DeepCopyInto(out *BundleDeploymentOptions) {
 			(*out)[key] = val
 		}
 	}
+	if in.AllowPodSecurityNamespaceLabels != nil {
+		in, out := &in.AllowPodSecurityNamespaceLabels, &out.AllowPodSecurityNamespaceLabels
+		*out = new(bool)
+		**out = **in
+	}
 	if in.NamespaceAnnotations != nil {
 		in, out := &in.NamespaceAnnotations, &out.NamespaceAnnotations
 		*out = make(map[string]string, len(*in))

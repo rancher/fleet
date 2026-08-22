@@ -51,6 +51,15 @@ type Policy struct {
 	// +optional
 	AllowNamespaceCreation bool `json:"allowNamespaceCreation,omitempty"`
 
+	// AllowPodSecurityNamespaceLabels, when true, allows namespaceLabels with
+	// the `pod-security.kubernetes.io/` prefix to be applied to the target
+	// namespace on downstream clusters. By default (false) those labels are
+	// dropped, so Pod Security Standards set by cluster administrators cannot
+	// be weakened through fleet.yaml. Set this to true in workspaces where the
+	// Git contents are trusted to manage Pod Security Standards.
+	// +optional
+	AllowPodSecurityNamespaceLabels bool `json:"allowPodSecurityNamespaceLabels,omitempty"`
+
 	// GitRepo contains restrictions and defaults applied only by the GitRepo reconciler.
 	// +optional
 	GitRepo *GitRepoPolicySpec `json:"gitRepo,omitempty"`
