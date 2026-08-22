@@ -48,8 +48,15 @@ func namespaceExists(name string) AsyncAssertion {
 // namespaceIsGone returns an AsyncAssertion that succeeds when no namespace with
 // the given name exists.
 func namespaceIsGone(name string) AsyncAssertion {
+	return objectGone(newNamespace(name))
+}
+
+// objectGone returns an AsyncAssertion that succeeds once obj can no longer be
+// fetched from the API server.
+func objectGone(obj client.Object) AsyncAssertion {
+	key := types.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}
 	return Eventually(func(g Gomega) {
-		err := k8sClient.Get(ctx, types.NamespacedName{Name: name}, &corev1.Namespace{})
+		err := k8sClient.Get(ctx, key, obj)
 		g.Expect(apierrors.IsNotFound(err)).To(BeTrue())
 	})
 }
@@ -113,5 +120,14 @@ func clusterNamespaceName(namespace, name string) string {
 func newBundleDeployment(namespace, name string) *fleet.BundleDeployment {
 	return &fleet.BundleDeployment{
 		ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name},
+	}
+}
+
+// newClusterRegistrationToken returns a minimal ClusterRegistrationToken with
+// the given TTL (nil for no TTL).
+func newClusterRegistrationToken(namespace, name string, ttl *metav1.Duration) *fleet.ClusterRegistrationToken {
+	return &fleet.ClusterRegistrationToken{
+		ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name},
+		Spec:       fleet.ClusterRegistrationTokenSpec{TTL: ttl},
 	}
 }
