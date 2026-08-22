@@ -43,6 +43,15 @@ var (
 				},
 				bundleLabels,
 			),
+			"waiting_for_dependency": promauto.NewGaugeVec(
+				prometheus.GaugeOpts{
+					Namespace: metricPrefix,
+					Subsystem: bundleSubsystem,
+					Name:      "waiting_for_dependency",
+					Help:      "Number of deployments for a specific bundle waiting for a dependency to reach an accepted state.",
+				},
+				bundleLabels,
+			),
 			"out_of_sync": promauto.NewGaugeVec(
 				prometheus.GaugeOpts{
 					Namespace: metricPrefix,
@@ -124,6 +133,8 @@ func collectBundleMetrics(obj any, metrics map[string]prometheus.Collector) {
 		Set(float64(bundle.Status.Summary.WaitApplied))
 	metrics["err_applied"].(*prometheus.GaugeVec).With(labels).
 		Set(float64(bundle.Status.Summary.ErrApplied))
+	metrics["waiting_for_dependency"].(*prometheus.GaugeVec).With(labels).
+		Set(float64(bundle.Status.Summary.WaitingForDependency))
 	metrics["out_of_sync"].(*prometheus.GaugeVec).With(labels).
 		Set(float64(bundle.Status.Summary.OutOfSync))
 	metrics["modified"].(*prometheus.GaugeVec).With(labels).

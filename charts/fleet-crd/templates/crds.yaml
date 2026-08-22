@@ -100,7 +100,11 @@ spec:
                           If the dependency is in one of these states, it will not
                           block the deployment of the dependent bundle.
 
-                          Valid Values should match the StateRank keys.
+                          Valid Values should match the StateRank keys, except for
+                          WaitingForDependency, which is rejected:
+
+                          it would unblock this bundle exactly when its dependency
+                          became blocked on a dependency of its own.
 
                           If not specified, default to ["Ready"]: only fully ready
                           dependencies are accepted
@@ -1829,7 +1833,11 @@ spec:
                           If the dependency is in one of these states, it will not
                           block the deployment of the dependent bundle.
 
-                          Valid Values should match the StateRank keys.
+                          Valid Values should match the StateRank keys, except for
+                          WaitingForDependency, which is rejected:
+
+                          it would unblock this bundle exactly when its dependency
+                          became blocked on a dependency of its own.
 
                           If not specified, default to ["Ready"]: only fully ready
                           dependencies are accepted
@@ -3648,6 +3656,15 @@ spec:
 
                               to be deployed.'
                             type: integer
+                          waitingForDependency:
+                            description: 'WaitingForDependency is the number of bundle
+                              deployments which are
+
+                              not deployed because at least one of the bundles they
+                              depend on has
+
+                              not reached an accepted state.'
+                            type: integer
                         type: object
                       unavailable:
                         description: Unavailable is the number of unavailable clusters
@@ -3869,6 +3886,15 @@ spec:
                         waiting
 
                         to be deployed.'
+                      type: integer
+                    waitingForDependency:
+                      description: 'WaitingForDependency is the number of bundle deployments
+                        which are
+
+                        not deployed because at least one of the bundles they depend
+                        on has
+
+                        not reached an accepted state.'
                       type: integer
                   type: object
                 unavailable:
@@ -4308,6 +4334,15 @@ spec:
                         waiting
 
                         to be deployed.'
+                      type: integer
+                    waitingForDependency:
+                      description: 'WaitingForDependency is the number of bundle deployments
+                        which are
+
+                        not deployed because at least one of the bundles they depend
+                        on has
+
+                        not reached an accepted state.'
                       type: integer
                   type: object
               type: object
@@ -6826,6 +6861,15 @@ spec:
 
                         to be deployed.'
                       type: integer
+                    waitingForDependency:
+                      description: 'WaitingForDependency is the number of bundle deployments
+                        which are
+
+                        not deployed because at least one of the bundles they depend
+                        on has
+
+                        not reached an accepted state.'
+                      type: integer
                   type: object
               type: object
           type: object
@@ -7949,6 +7993,15 @@ spec:
 
                         to be deployed.'
                       type: integer
+                    waitingForDependency:
+                      description: 'WaitingForDependency is the number of bundle deployments
+                        which are
+
+                        not deployed because at least one of the bundles they depend
+                        on has
+
+                        not reached an accepted state.'
+                      type: integer
                   type: object
                 updateGeneration:
                   description: Update generation is the force update generation if
@@ -8170,7 +8223,11 @@ spec:
                           If the dependency is in one of these states, it will not
                           block the deployment of the dependent bundle.
 
-                          Valid Values should match the StateRank keys.
+                          Valid Values should match the StateRank keys, except for
+                          WaitingForDependency, which is rejected:
+
+                          it would unblock this bundle exactly when its dependency
+                          became blocked on a dependency of its own.
 
                           If not specified, default to ["Ready"]: only fully ready
                           dependencies are accepted
@@ -10176,6 +10233,15 @@ spec:
                         waiting
 
                         to be deployed.'
+                      type: integer
+                    waitingForDependency:
+                      description: 'WaitingForDependency is the number of bundle deployments
+                        which are
+
+                        not deployed because at least one of the bundles they depend
+                        on has
+
+                        not reached an accepted state.'
                       type: integer
                   type: object
                 version:
