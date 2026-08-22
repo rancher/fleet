@@ -30,6 +30,34 @@ garbageCollectionInterval: "15m"
 # Whether you want to allow cluster upon registration to specify their labels.
 ignoreClusterRegistrationLabels: false
 
+# Events reporting the deployment state of bundles, on the bundle they are about.
+deploymentEvents:
+  # Turns off events about the deployment state of bundles. Unsetting the whole
+  # block keeps the defaults below, which report.
+  disabled: false
+  # How long to wait for a burst of failures to settle before reporting it, so
+  # that the event describes the whole burst instead of only its first failure.
+  # A bundle failing on 500 clusters over 3s reports once, as "500/500 bundle
+  # deployments failing", instead of first reporting "1/500".
+  debounce: 5s
+  # The minimum time between two events about the same object. It bounds how
+  # often a flapping deployment reports: one failing and recovering every 10s
+  # reports about once a minute, instead of on every transition.
+  minInterval: 1m
+  # Report bundles whose deployments all became ready again after a failure.
+  # Only bundles which were failing report, so healthy ones stay silent.
+  reportRecovery: true
+  # Additionally report each failing bundle deployment, in the namespace of its
+  # cluster. This is more detailed, but produces one event per failing
+  # deployment, of which there is one per cluster a bundle is deployed to: a
+  # bundle failing on 500 clusters reports 501 events instead of 1.
+  perDeployment: false
+  # How many distinct failure causes a single event describes. The bundle's
+  # status.summary.nonReadyResources lists more of them, up to 10, which is
+  # therefore the highest value with an effect. Causes beyond it are reported as
+  # "(+117 more, see status.summary.nonReadyResources)".
+  maxCauses: 3
+
 # Counts from gitrepo are out of sync with bundleDeployment state.
 # Just retry in a number of seconds as there is no great way to trigger an event that doesn't cause a loop.
 # If not set default is 15 seconds.
