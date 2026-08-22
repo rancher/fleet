@@ -28,12 +28,15 @@ func newMigrateCmd() *cobra.Command {
 }
 
 func NewMigrateGitRepoHelmURLRegex() *cobra.Command {
-	return command.Command(&MigrateGitRepoHelmURLRegex{}, cobra.Command{
+	cmd := command.Command(&MigrateGitRepoHelmURLRegex{}, cobra.Command{
 		Use:           "gitrepo-helm-url-regex [flags]",
 		Short:         "Set helmRepoURLRegex on GitRepos that have a Helm secret but no regex",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	})
+
+	registerLoggingAndKubeconfigFlags(cmd)
+	return cmd
 }
 
 type Migrate struct{}
@@ -58,7 +61,10 @@ func (m *MigrateGitRepoHelmURLRegex) Run(cmd *cobra.Command, _ []string) error {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zopts)))
 	ctx := log.IntoContext(cmd.Context(), ctrl.Log)
 
-	cfg := ctrl.GetConfigOrDie()
+	cfg, err := getKubeconfig()
+	if err != nil {
+		return err
+	}
 	cl, err := client.New(cfg, client.Options{Scheme: scheme})
 	if err != nil {
 		return err
