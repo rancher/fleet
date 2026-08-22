@@ -37,7 +37,7 @@ var _ = Describe("Fleet installation with TLS agent modes", func() {
 			"--type=merge",
 			"-p",
 			fmt.Sprintf(
-				`{"data":{"config":"{\"apiServerURL\": \"https://google.com\", \"apiServerCA\": \"\", \"agentTLSMode\": \"%s\"}"}}`,
+				`{"data":{"config":"{\"apiServerURL\": \"https://google.com\", \"apiServerCA\": \"\", \"agentTLSMode\": \"%s\", \"agentCheckinInterval\": \"15m\"}"}}`, // agent check-in interval must be non-zero
 				agentMode,
 			),
 		)
