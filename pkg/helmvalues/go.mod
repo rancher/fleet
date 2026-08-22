@@ -2,7 +2,7 @@ module github.com/rancher/fleet/pkg/helmvalues
 
 go 1.26.0
 
-toolchain go1.26.6
+toolchain go1.27.0
 
 replace github.com/rancher/fleet/pkg/apis => ../apis
 
