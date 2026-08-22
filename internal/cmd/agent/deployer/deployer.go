@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
 	"regexp"
 	"slices"
 	"strings"
@@ -23,6 +22,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	corev1ac "k8s.io/client-go/applyconfigurations/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
@@ -231,7 +231,20 @@ func (d *Deployer) helmdeploy(ctx context.Context, logger logr.Logger, bd *fleet
 	return resourceID, nil
 }
 
-// setNamespaceLabelsAndAnnotations updates the namespace for the release, applying all labels and annotations to that namespace as configured in the bundle spec.
+// setNamespaceLabelsAndAnnotations applies the labels and annotations configured
+// in the bundle spec to the release namespace.
+//
+// It server-side applies with a dedicated Fleet field manager, so Fleet owns
+// exactly the keys it declares. Labels and annotations set by other actors (for
+// example Rancher's field.cattle.io/projectId, added when a namespace is moved
+// into a Project) are left untouched, and a key that Fleet stops declaring is
+// pruned. This replaced an earlier read-modify-write that deleted every key not
+// present in the options and could only preserve a hardcoded allowlist (see
+// issue #4564).
+//
+// Labels and annotations are applied independently: a bundle that sets only
+// namespaceLabels never asserts ownership of (and therefore never prunes)
+// annotations, and vice versa.
 func (d *Deployer) setNamespaceLabelsAndAnnotations(ctx context.Context, bd *fleet.BundleDeployment, releaseID string) error {
 	if bd.Spec.Options.NamespaceLabels == nil && bd.Spec.Options.NamespaceAnnotations == nil {
 		return nil
@@ -247,33 +260,36 @@ func (d *Deployer) setNamespaceLabelsAndAnnotations(ctx context.Context, bd *fle
 		return err
 	}
 
-	ns, err := fetchNamespace(ctx, c, releaseID)
+	name, _, _ := strings.Cut(releaseID, "/")
+
+	// Fleet manages the namespace's metadata but does not create it; creation is
+	// Helm's responsibility (see CreateNamespace). Verify the namespace exists,
+	// and surface a clear RBAC error if the deployment's service account cannot
+	// see it, before attempting the apply.
+	ns, err := fetchExistingNamespace(ctx, c, name)
 	if err != nil {
 		return err
 	}
 
-	desiredLabels := maps.Clone(ns.Labels)
+	// One-time (self-healing, idempotent) migration for namespaces that
+	// predate the switch to server-side apply: absorb ownership of the
+	// labels/annotations keys the old read-modify-write update still holds,
+	// so this apply can actually prune them. No-op once migrated. See
+	// migrateLegacyNamespaceManagedFields for why this is scoped rather than
+	// using k8s.io/client-go/util/csaupgrade directly.
+	if err := migrateLegacyNamespaceManagedFields(ctx, c, ns); err != nil {
+		return err
+	}
+
+	var labels, annotations map[string]string
 	if bd.Spec.Options.NamespaceLabels != nil {
-		if desiredLabels == nil {
-			desiredLabels = make(map[string]string)
-		}
-		addLabelsFromOptions(log.FromContext(ctx), desiredLabels, bd.Spec.Options.NamespaceLabels)
+		labels = filterPodSecurityLabels(log.FromContext(ctx), bd.Spec.Options.NamespaceLabels)
 	}
-	desiredAnnotations := maps.Clone(ns.Annotations)
 	if bd.Spec.Options.NamespaceAnnotations != nil {
-		if desiredAnnotations == nil {
-			desiredAnnotations = make(map[string]string)
-		}
-		addAnnotationsFromOptions(desiredAnnotations, bd.Spec.Options.NamespaceAnnotations)
+		annotations = bd.Spec.Options.NamespaceAnnotations
 	}
 
-	if maps.Equal(desiredLabels, ns.Labels) && maps.Equal(desiredAnnotations, ns.Annotations) {
-		return nil
-	}
-
-	ns.Labels = desiredLabels
-	ns.Annotations = desiredAnnotations
-	return updateNamespace(ctx, c, ns)
+	return applyNamespaceMetadata(ctx, c, name, labels, annotations)
 }
 
 // namespaceClient returns the client to use for namespace label/annotation
@@ -298,13 +314,31 @@ func (d *Deployer) namespaceClient(ctx context.Context, bd *fleet.BundleDeployme
 	return d.client, nil
 }
 
-// updateNamespace updates a namespace resource in the cluster.
-func updateNamespace(ctx context.Context, c client.Client, ns *corev1.Namespace) error {
-	if err := c.Update(ctx, ns); err != nil {
+// namespaceFieldOwner is the server-side apply field manager Fleet uses for the
+// namespace labels/annotations it manages. It must stay stable across reconciles
+// so that dropping a key from the options prunes it (SSA removes fields this
+// manager previously owned but no longer declares).
+const namespaceFieldOwner = "fleet-agent-namespace-metadata"
+
+// applyNamespaceMetadata server-side applies the given labels and annotations to
+// the named namespace. Passing a nil map leaves that field alone; passing a
+// non-nil map makes Fleet the owner of exactly those keys. ForceOwnership adopts
+// keys previously written via the old read-modify-write update so the first
+// apply after upgrade does not conflict.
+func applyNamespaceMetadata(ctx context.Context, c client.Client, name string, labels, annotations map[string]string) error {
+	nsac := corev1ac.Namespace(name)
+	if labels != nil {
+		nsac = nsac.WithLabels(labels)
+	}
+	if annotations != nil {
+		nsac = nsac.WithAnnotations(annotations)
+	}
+
+	if err := c.Apply(ctx, nsac, client.FieldOwner(namespaceFieldOwner), client.ForceOwnership); err != nil {
 		if apierrors.IsForbidden(err) {
-			return fmt.Errorf("the deployment's service account is not allowed to update namespace %q; "+
-				"grant it 'update' on this namespace (scoped via resourceNames) or remove "+
-				"namespaceLabels/namespaceAnnotations: %w", ns.Name, err)
+			return fmt.Errorf("the deployment's service account is not allowed to patch namespace %q; "+
+				"grant it 'patch' on this namespace (scoped via resourceNames) or remove "+
+				"namespaceLabels/namespaceAnnotations: %w", name, err)
 		}
 		return err
 	}
@@ -312,28 +346,27 @@ func updateNamespace(ctx context.Context, c client.Client, ns *corev1.Namespace)
 	return nil
 }
 
-// fetchNamespace gets the namespace matching the release ID. Returns an error if none is found.
-// releaseID is composed of release.Namespace/release.Name/release.Version
-func fetchNamespace(ctx context.Context, c client.Client, releaseID string) (*corev1.Namespace, error) {
-	namespace := strings.Split(releaseID, "/")[0]
+// fetchExistingNamespace returns the namespace if it exists, a NotFound error
+// if it does not, or a wrapped Forbidden error if the deployment's service
+// account is not allowed to see it.
+func fetchExistingNamespace(ctx context.Context, c client.Client, name string) (*corev1.Namespace, error) {
 	ns := &corev1.Namespace{}
-	if err := c.Get(ctx, types.NamespacedName{Name: namespace}, ns); err != nil {
+	if err := c.Get(ctx, types.NamespacedName{Name: name}, ns); err != nil {
 		if apierrors.IsForbidden(err) {
 			return nil, fmt.Errorf("the deployment's service account is not allowed to get namespace %q; "+
 				"grant it 'get' on this namespace (scoped via resourceNames) or remove "+
-				"namespaceLabels/namespaceAnnotations: %w", namespace, err)
+				"namespaceLabels/namespaceAnnotations: %w", name, err)
 		}
 		return nil, err
 	}
+
 	return ns, nil
 }
 
 const podSecurityLabelPrefix = "pod-security.kubernetes.io/"
 
-// addLabelsFromOptions updates nsLabels to contain labels from optLabels, while preserving
-// the `kubernetes.io/metadata.name` label added by Kubernetes when creating the namespace
-// and any existing `pod-security.kubernetes.io/*` labels. Labels with the
-// `pod-security.kubernetes.io/` prefix in optLabels are ignored.
+// filterPodSecurityLabels returns a copy of optLabels with any
+// `pod-security.kubernetes.io/*` labels removed.
 //
 // This filtering is intentionally unconditional and independent of the
 // service-account impersonation used for the namespace patch: it must also hold
@@ -342,38 +375,20 @@ const podSecurityLabelPrefix = "pod-security.kubernetes.io/"
 // bundle escalating pod-security enforcement on its target namespace. To set
 // pod-security labels on a namespace, declare them on the Namespace resource in
 // the bundle instead.
-func addLabelsFromOptions(logger logr.Logger, nsLabels map[string]string, optLabels map[string]string) {
+//
+// Existing pod-security labels on the namespace are preserved automatically:
+// Fleet never declares them, so the server-side apply does not touch them.
+func filterPodSecurityLabels(logger logr.Logger, optLabels map[string]string) map[string]string {
+	filtered := make(map[string]string, len(optLabels))
 	for k, v := range optLabels {
 		if strings.HasPrefix(k, podSecurityLabelPrefix) {
-			logger.V(1).Info("Ignoring label from options", "label", k)
+			logger.V(1).Info("Ignoring pod-security label from options", "label", k)
 			continue
 		}
-		nsLabels[k] = v
+		filtered[k] = v
 	}
 
-	// Delete labels not defined in the options.
-	// Keep the `kubernetes.io/metadata.name` label as it is added by kubernetes when creating the namespace.
-	// Keep pod-security.kubernetes.io/ labels as they are managed by cluster administrators.
-	for k := range nsLabels {
-		if strings.HasPrefix(k, podSecurityLabelPrefix) {
-			continue
-		}
-		if _, ok := optLabels[k]; k != corev1.LabelMetadataName && !ok {
-			delete(nsLabels, k)
-		}
-	}
-}
-
-// addAnnotationsFromOptions updates nsAnnotations so that it only contains all annotations specified in optAnnotations.
-func addAnnotationsFromOptions(nsAnnotations map[string]string, optAnnotations map[string]string) {
-	maps.Copy(nsAnnotations, optAnnotations)
-
-	// Delete Annotations not defined in the options.
-	for k := range nsAnnotations {
-		if _, ok := optAnnotations[k]; !ok {
-			delete(nsAnnotations, k)
-		}
-	}
+	return filtered
 }
 
 // deployErrToStatus converts an error into a status update
