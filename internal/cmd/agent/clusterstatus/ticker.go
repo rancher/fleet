@@ -3,6 +3,7 @@ package clusterstatus
 
 import (
 	"context"
+	"math/rand/v2"
 	"time"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -36,15 +37,36 @@ func Ticker(ctx context.Context, client client.Client, agentNamespace string, cl
 	}
 
 	go func() {
-		time.Sleep(durations.ClusterRegisterDelay)
+		// Fixed registration delay plus jitter to spread startup check-ins when
+		// many agents restart simultaneously (e.g. after a fleet-controller recovery).
+		timer := time.NewTimer(durations.ClusterRegisterDelay + rand.N(checkinInterval))
+		select {
+		case <-timer.C:
+		case <-ctx.Done():
+			if !timer.Stop() {
+				<-timer.C
+			}
+			return
+		}
 		logger.V(1).Info("Reporting cluster status once")
 		if err := h.Update(ctx); err != nil {
 			logger.Error(err, "failed to report initial cluster status")
 		}
 	}()
 	go func() {
-		if checkinInterval == 0 {
+		if checkinInterval <= 0 {
 			checkinInterval = durations.DefaultClusterCheckInterval
+		}
+		// Spread agent check-ins across the interval window to prevent a thundering
+		// herd on the fleet-controller when many agents start at the same time.
+		timer := time.NewTimer(rand.N(checkinInterval))
+		select {
+		case <-timer.C:
+		case <-ctx.Done():
+			if !timer.Stop() {
+				<-timer.C
+			}
+			return
 		}
 		for range ticker.Context(ctx, checkinInterval) {
 			logger.V(1).Info("Reporting cluster status")
