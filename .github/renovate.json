@@ -11,6 +11,7 @@
     "release/v0.13",
     "release/v0.12"
   ],
+  "prHourlyLimit": 6,
   "ignorePaths": [
     "**/assets/**"
   ],
@@ -85,7 +86,6 @@
         "patch",
         "minor"
       ],
-      "enabled": true,
       "automerge": true
     },
     {
@@ -102,7 +102,6 @@
         "patch",
         "minor"
       ],
-      "enabled": true,
       "automerge": true
     }
   ]
