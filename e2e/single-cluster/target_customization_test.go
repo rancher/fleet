@@ -87,9 +87,11 @@ var _ = Describe("Helm deploy options", func() {
 				Eventually(func(g Gomega) {
 					labels, err := k.Get("ns", "ns-1", "-o", "jsonpath={.metadata.labels}")
 					g.Expect(err).ToNot(HaveOccurred())
-					// The `name` label is added by Helm when it creates the release
-					// namespace. Fleet server-side applies only the keys it declares, so
-					// labels owned by other managers survive (see issue #4564).
+					// Helm adds the `name` label when it creates the release namespace,
+					// under the agent's own "fleetagent" field manager. Fleet server-side
+					// applies the options with a separate field manager and owns only the
+					// keys it declares there, so this label is not pruned. Ownership is per
+					// field manager, not per writer. See issue #4564.
 					g.Expect(labels).To(Equal(`{"foo":"bar","kubernetes.io/metadata.name":"ns-1","name":"ns-1","this.is/a":"test"}`))
 
 					ann, err := k.Get("ns", "ns-1", "-o", "jsonpath={.metadata.annotations}")
@@ -156,9 +158,11 @@ var _ = Describe("Helm deploy options", func() {
 				Eventually(func(g Gomega) {
 					labels, err := k.Get("ns", "no-defaults-ns-1", "-o", "jsonpath={.metadata.labels}")
 					g.Expect(err).ToNot(HaveOccurred())
-					// The `name` label is added by Helm when it creates the release
-					// namespace. Fleet server-side applies only the keys it declares, so
-					// labels owned by other managers survive (see issue #4564).
+					// Helm adds the `name` label when it creates the release namespace,
+					// under the agent's own "fleetagent" field manager. Fleet server-side
+					// applies the options with a separate field manager and owns only the
+					// keys it declares there, so this label is not pruned. Ownership is per
+					// field manager, not per writer. See issue #4564.
 					g.Expect(labels).To(Equal(`{"kubernetes.io/metadata.name":"no-defaults-ns-1","name":"no-defaults-ns-1","this.is/a":"test"}`))
 
 					ann, err := k.Get("ns", "no-defaults-ns-1", "-o", "jsonpath={.metadata.annotations}")
