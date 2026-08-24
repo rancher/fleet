@@ -14,6 +14,8 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/Masterminds/semver/v3"
+
 	"github.com/rancher/fleet/internal/cmd"
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/agent"
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/scheduling"
@@ -22,9 +24,11 @@ import (
 	"github.com/rancher/fleet/internal/names"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/version"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/rancher/wrangler/v3/pkg/apply"
+	"github.com/rancher/wrangler/v3/pkg/condition"
 	corecontrollers "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/v3/pkg/relatedresource"
 	"github.com/rancher/wrangler/v3/pkg/yaml"
@@ -141,7 +145,73 @@ func (h *handler) onClusterStatusChange(cluster *fleet.Cluster, status fleet.Clu
 		h.namespaces.Enqueue(cluster.Namespace)
 	}
 
+	setAgentVersionCondition(&status, version.Version)
+
 	return status, nil
+}
+
+// setAgentVersionCondition sets the AgentVersionUpToDate condition by
+// comparing the version reported by the running agent binary against
+// controllerVersion, the version of the running fleet-controller binary.
+// The controller and agent are built and released together, so the
+// controller's own version is the version agents are expected to run,
+// independent of the configured agent image (which may be a moving tag, a
+// custom image, or otherwise not reflect the actual released version).
+//
+// A checked-in agent that reports no version is treated as outdated (False):
+// every version-reporting agent writes its version alongside LastSeen, so an
+// empty version can only mean the agent predates version reporting. An agent
+// that has never checked in stays Unknown, and versions that cannot be parsed
+// as semver ("dev" builds, custom tags) are Unknown as well.
+//
+// The condition is informational only: it is legitimately False for a short
+// window during a rolling upgrade while downstream agents catch up to the
+// controller, and False for outdated agents that predate version reporting. It must not be fed into cluster readiness (Ready is derived
+// solely from the bundle summary, see summary.SetReadyConditions) and its
+// Reason is deliberately left unset: a Reason of "Error" would make Rancher's
+// generic condition summarizer surface routine version skew as a cluster
+// error.
+func setAgentVersionCondition(status *fleet.ClusterStatus, controllerVersion string) {
+	cond := condition.Cond(fleet.ClusterConditionAgentVersionUpToDate)
+	agentVersion := status.Agent.Version
+
+	if agentVersion == "" {
+		if status.Agent.LastSeen.IsZero() {
+			// The agent has never checked in; there is nothing to compare yet.
+			// Detecting an agent that has checked in before but has since gone
+			// silent is the job of the WaitCheckIn state in the cluster
+			// reconciler, not this write-triggered handler.
+			cond.Unknown(status)
+			cond.Message(status, "agent has not reported a version yet")
+			return
+		}
+		// The agent has checked in but reports no version. Every version-
+		// reporting agent writes its version alongside LastSeen in the same
+		// status patch, and version.Version defaults to "dev" rather than "",
+		// so an empty version on a checked-in agent can only mean the agent
+		// predates version reporting and is therefore outdated.
+		cond.False(status)
+		cond.Message(status, "agent is checking in but does not report a version; it predates version reporting and is outdated")
+		return
+	}
+
+	desired, errDesired := semver.NewVersion(controllerVersion)
+	reported, errReported := semver.NewVersion(agentVersion)
+	if errDesired != nil || errReported != nil {
+		// Unstamped builds report "dev"; neither side can be compared then.
+		cond.Unknown(status)
+		cond.Message(status, fmt.Sprintf("cannot compare agent version %q to controller version %q", agentVersion, controllerVersion))
+		return
+	}
+
+	if reported.Equal(desired) {
+		cond.True(status)
+		cond.Message(status, "")
+		return
+	}
+
+	cond.False(status)
+	cond.Message(status, fmt.Sprintf("agent version %s does not match controller version %s", agentVersion, controllerVersion))
 }
 
 func hashStatusField(field any) (string, error) {

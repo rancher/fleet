@@ -3,10 +3,13 @@ package clusterstatus
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"time"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/durations"
+	"github.com/rancher/fleet/pkg/version"
 
 	"github.com/rancher/wrangler/v3/pkg/ticker"
 
@@ -60,6 +63,7 @@ func (h *handler) Update(ctx context.Context) error {
 	agentStatus := fleet.AgentStatus{
 		LastSeen:  metav1.Now(),
 		Namespace: h.agentNamespace,
+		Version:   version.Version,
 	}
 
 	if equality.Semantic.DeepEqual(h.reported, agentStatus) {
@@ -73,15 +77,16 @@ func (h *handler) Update(ctx context.Context) error {
 		},
 	}
 
+	value, err := json.Marshal(agentStatus)
+	if err != nil {
+		return err
+	}
+
 	// Create a patch with the updated status, we avoid Get as that would
 	// need additional RBAC
-	patch := `[{"op":"add","path":"/status/agent","value":{"lastSeen":"` +
-		agentStatus.LastSeen.Format(time.RFC3339) +
-		`","namespace":"` + agentStatus.Namespace +
-		`"}}]`
+	patch := fmt.Sprintf(`[{"op":"add","path":"/status/agent","value":%s}]`, value)
 
-	err := h.client.Status().Patch(ctx, cluster, client.RawPatch(types.JSONPatchType, []byte(patch)))
-	if err != nil {
+	if err := h.client.Status().Patch(ctx, cluster, client.RawPatch(types.JSONPatchType, []byte(patch))); err != nil {
 		return err
 	}
 
