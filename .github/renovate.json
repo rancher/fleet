@@ -22,23 +22,6 @@
       ],
       "extends": [
         "github>rancher/renovate-config//rancher-2.15#main"
-      ],
-      "packageRules": [
-        {
-          "matchJsonata": [
-            "$not($exists(vulnerabilityFixVersion) or $exists(isVulnerabilityAlert))"
-          ],
-          "matchUpdateTypes": ["patch", "minor"],
-          "automerge": true
-        },
-        {
-          "matchDepTypes": ["!devDependencies", "!dev-dependencies", "!test"],
-          "matchJsonata": [
-            "$exists(vulnerabilityFixVersion) or $exists(isVulnerabilityAlert)"
-          ],
-          "matchUpdateTypes": ["patch", "minor"],
-          "automerge": true
-        }
       ]
     },
     {
@@ -47,23 +30,6 @@
       ],
       "extends": [
         "github>rancher/renovate-config//rancher-2.14#main"
-      ],
-      "packageRules": [
-        {
-          "matchJsonata": [
-            "$not($exists(vulnerabilityFixVersion) or $exists(isVulnerabilityAlert))"
-          ],
-          "matchUpdateTypes": ["patch", "minor"],
-          "automerge": true
-        },
-        {
-          "matchDepTypes": ["!devDependencies", "!dev-dependencies", "!test"],
-          "matchJsonata": [
-            "$exists(vulnerabilityFixVersion) or $exists(isVulnerabilityAlert)"
-          ],
-          "matchUpdateTypes": ["patch", "minor"],
-          "automerge": true
-        }
       ]
     },
     {
@@ -72,23 +38,6 @@
       ],
       "extends": [
         "github>rancher/renovate-config//rancher-2.13#main"
-      ],
-      "packageRules": [
-        {
-          "matchJsonata": [
-            "$not($exists(vulnerabilityFixVersion) or $exists(isVulnerabilityAlert))"
-          ],
-          "matchUpdateTypes": ["patch", "minor"],
-          "automerge": true
-        },
-        {
-          "matchDepTypes": ["!devDependencies", "!dev-dependencies", "!test"],
-          "matchJsonata": [
-            "$exists(vulnerabilityFixVersion) or $exists(isVulnerabilityAlert)"
-          ],
-          "matchUpdateTypes": ["patch", "minor"],
-          "automerge": true
-        }
       ]
     },
     {
@@ -97,23 +46,6 @@
       ],
       "extends": [
         "github>rancher/renovate-config//rancher-2.12#main"
-      ],
-      "packageRules": [
-        {
-          "matchJsonata": [
-            "$not($exists(vulnerabilityFixVersion) or $exists(isVulnerabilityAlert))"
-          ],
-          "matchUpdateTypes": ["patch", "minor"],
-          "automerge": true
-        },
-        {
-          "matchDepTypes": ["!devDependencies", "!dev-dependencies", "!test"],
-          "matchJsonata": [
-            "$exists(vulnerabilityFixVersion) or $exists(isVulnerabilityAlert)"
-          ],
-          "matchUpdateTypes": ["patch", "minor"],
-          "automerge": true
-        }
       ]
     },
     {
@@ -122,23 +54,6 @@
       ],
       "extends": [
         "github>rancher/renovate-config//rancher-2.11#main"
-      ],
-      "packageRules": [
-        {
-          "matchJsonata": [
-            "$not($exists(vulnerabilityFixVersion) or $exists(isVulnerabilityAlert))"
-          ],
-          "matchUpdateTypes": ["patch", "minor"],
-          "automerge": true
-        },
-        {
-          "matchDepTypes": ["!devDependencies", "!dev-dependencies", "!test"],
-          "matchJsonata": [
-            "$exists(vulnerabilityFixVersion) or $exists(isVulnerabilityAlert)"
-          ],
-          "matchUpdateTypes": ["patch", "minor"],
-          "automerge": true
-        }
       ]
     },
     {
