@@ -1,0 +1,36 @@
+{{- if .Values.metrics.enabled }}
+{{- $shards := list (dict "id" "" "nodeSelector" dict) -}}
+{{- $uniqueShards := list -}}
+{{- if .Values.shards -}}
+  {{- range .Values.shards -}}
+    {{- if not (has .id $uniqueShards) -}}
+      {{- $shards = append $shards . -}}
+      {{- $uniqueShards = append $uniqueShards .id -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+
+{{ range $shard := $shards }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: "monitoring-fleet-controller{{if  $shard.id  }}-shard-{{  $shard.id   }}{{end}}"
+  labels:
+    app: fleet-controller
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+    name: metrics
+  selector:
+    app: fleet-controller
+    {{- if empty  $shard.id   }}
+    fleet.cattle.io/shard-default: "true"
+    {{- else }}
+    fleet.cattle.io/shard-id: "{{  $shard.id   }}"
+    {{- end }}
+---
+{{- end }}
+{{- end }}
