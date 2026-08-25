@@ -427,3 +427,31 @@ func TestMergeChain_BoolSticky(t *testing.T) {
 	result = options.Merge(result, clearForce)
 	assert.True(t, result.Helm.Force, "Force cannot be unset once true -- OR semantics")
 }
+
+// ---------- DeploymentID ----------
+
+// Namespace metadata is applied to the release namespace by the agent, beside
+// the deployed resources rather than as part of them, so it is excluded from the
+// hash. updateDeploymentFromStaged propagates it instead.
+func TestDeploymentID_IgnoresNamespaceMetadata(t *testing.T) {
+	a := assert.New(t)
+
+	bare, err := options.DeploymentID("manifest", fleet.BundleDeploymentOptions{})
+	a.NoError(err)
+
+	withMetadata, err := options.DeploymentID("manifest", fleet.BundleDeploymentOptions{
+		NamespaceLabels:      map[string]string{"region": "eu-west"},
+		NamespaceAnnotations: map[string]string{"team": "platform"},
+	})
+	a.NoError(err)
+
+	a.Equal(bare, withMetadata)
+
+	// Control: an option that does affect what is deployed still changes the ID.
+	withNamespace, err := options.DeploymentID("manifest", fleet.BundleDeploymentOptions{
+		TargetNamespace: "elsewhere",
+	})
+	a.NoError(err)
+
+	a.NotEqual(bare, withNamespace)
+}

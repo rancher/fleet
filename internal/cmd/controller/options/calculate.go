@@ -46,6 +46,14 @@ func DeploymentID(manifestID string, opts fleet.BundleDeploymentOptions) (string
 	// CorrectDrift governs how drift is reconciled, not what is deployed and it
 	// should not trigger a new DeploymentID.
 	sanitized.CorrectDrift = nil
+	// Namespace metadata is applied to the release namespace by the agent, next
+	// to the deployed resources rather than as part of them, so a change to it
+	// should not redeploy the workload. Keeping it out of the hash also means
+	// upgrading to a Fleet version that resolves it per target does not rewrite
+	// the DeploymentID of every affected bundle. updateDeploymentFromStaged
+	// propagates these two fields instead.
+	sanitized.NamespaceLabels = nil
+	sanitized.NamespaceAnnotations = nil
 	if err := json.NewEncoder(h).Encode(&sanitized); err != nil {
 		return "", err
 	}
