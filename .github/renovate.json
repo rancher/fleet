@@ -57,6 +57,20 @@
       ]
     },
     {
+      "description": "Activate automerge for eligible updates",
+      "matchBaseBranches": [
+        "main",
+        "release/v0.16",
+        "release/v0.15",
+        "release/v0.14",
+        "release/v0.13",
+        "release/v0.12"
+      ],
+      "extends": [
+        "github>rancher/renovate-config//automerge#main"
+      ]
+    },
+    {
       "description": "Update Wrangler in Helm values module",
       "matchManagers": ["gomod"],
       "matchFileNames": ["pkg/helmvalues/go.mod"],
