@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/rancher/fleet/internal/cmd/controller/options"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -437,13 +438,13 @@ func TestDeploymentID_IgnoresNamespaceMetadata(t *testing.T) {
 	a := assert.New(t)
 
 	bare, err := options.DeploymentID("manifest", fleet.BundleDeploymentOptions{})
-	a.NoError(err)
+	require.NoError(t, err)
 
 	withMetadata, err := options.DeploymentID("manifest", fleet.BundleDeploymentOptions{
 		NamespaceLabels:      map[string]string{"region": "eu-west"},
 		NamespaceAnnotations: map[string]string{"team": "platform"},
 	})
-	a.NoError(err)
+	require.NoError(t, err)
 
 	a.Equal(bare, withMetadata)
 
@@ -451,7 +452,7 @@ func TestDeploymentID_IgnoresNamespaceMetadata(t *testing.T) {
 	withNamespace, err := options.DeploymentID("manifest", fleet.BundleDeploymentOptions{
 		TargetNamespace: "elsewhere",
 	})
-	a.NoError(err)
+	require.NoError(t, err)
 
 	a.NotEqual(bare, withNamespace)
 }
