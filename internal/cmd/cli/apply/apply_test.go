@@ -281,28 +281,36 @@ func TestCreateBundlesWritesOtherBundlesAfterWriteError(t *testing.T) {
 	}
 }
 
-func TestCreateBundlesContinuesWalkAfterDirectoryError(t *testing.T) {
+func TestCreateBundlesContinuesAfterWalkError(t *testing.T) {
 	if os.Geteuid() == 0 {
 		t.Skip("cannot restrict directory permissions when running as root")
+	}
+	if err := schemes.Register(fleet.AddToScheme); err != nil {
+		t.Fatal(err)
 	}
 
 	root := t.TempDir()
 	t.Chdir(root)
-	for _, name := range []string{"first", "last"} {
-		if err := os.Mkdir(name, 0o750); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(filepath.Join(name, "configmap.yaml"), []byte("apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: "+name+"\n"), 0o600); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(filepath.Join(name, "fleet.yaml"), []byte("namespace: default\n"), 0o600); err != nil {
-			t.Fatal(err)
-		}
+	if err := os.MkdirAll(filepath.Join("scan", "ignored"), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join("scan", "ignored", "configmap.yaml"), []byte("apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: ignored\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join("scan", "ignored", "fleet.yaml"), []byte("namespace: default\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir("last", 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join("last", "configmap.yaml"), []byte("apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: last\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join("last", "fleet.yaml"), []byte("namespace: default\n"), 0o600); err != nil {
+		t.Fatal(err)
 	}
 
-	// "blocked" sorts before "first" and "last", so the walk must recover
-	// from the error here to reach the remaining bundles.
-	blockedDir := filepath.Join(root, "blocked")
+	blockedDir := filepath.Join(root, "scan", "blocked")
 	if err := os.Mkdir(blockedDir, 0o750); err != nil {
 		t.Fatal(err)
 	}
@@ -315,14 +323,17 @@ func TestCreateBundlesContinuesWalkAfterDirectoryError(t *testing.T) {
 	t.Cleanup(func() { _ = os.Chmod(blockedDir, 0o750) })
 
 	output := &bytes.Buffer{}
-	err := CreateBundles(context.Background(), nil, nil, "repo", []string{"."}, Options{
+	err := CreateBundles(context.Background(), nil, nil, "repo", []string{"scan", "last"}, Options{
 		Output:                       output,
 		BundleCreationMaxConcurrency: 1,
 	})
 	if err == nil || !strings.Contains(err.Error(), "failed walking path") {
 		t.Fatalf("expected a walk error for the blocked directory, got %v", err)
 	}
-	if got := output.String(); !strings.Contains(got, "name: repo-first") || !strings.Contains(got, "name: repo-last") {
-		t.Fatalf("expected output to include bundles found after the blocked directory, got %q", got)
+	if got := output.String(); !strings.Contains(got, "name: repo-last") {
+		t.Fatalf("expected output to include bundle from the path after the walk error, got %q with error %v", got, err)
+	}
+	if strings.Contains(output.String(), "name: repo-scan-ignored") {
+		t.Fatalf("did not expect output from the directory walk that failed, got %q", output.String())
 	}
 }

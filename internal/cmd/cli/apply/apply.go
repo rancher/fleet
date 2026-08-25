@@ -166,11 +166,7 @@ func CreateBundles(ctx context.Context, client client.Client, r record.EventReco
 			for _, baseDir := range matches {
 				if err := filepath.WalkDir(baseDir, func(path string, entry fs.DirEntry, err error) error {
 					if err != nil {
-						readErrorChan <- fmt.Errorf("failed walking path %q: %w", path, err)
-						if entry != nil && entry.IsDir() {
-							return filepath.SkipDir
-						}
-						return nil
+						return fmt.Errorf("failed walking path %q: %w", path, err)
 					}
 					if entry.IsDir() && entry.Name() == ".git" {
 						return filepath.SkipDir
