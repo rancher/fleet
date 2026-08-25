@@ -13,9 +13,8 @@ on:
         default: "fleetrepoci/charts"
         type: string
       charts_branch:
-        description: Branch from which to source Fleet charts
-        required: true
-        default: "dev-v2.14"
+        description: Branch from which to source Fleet charts; if empty, will be computed from the latest Rancher minor release.
+        required: false
         type: string
   push:
     tags: [ 'v*' ]
