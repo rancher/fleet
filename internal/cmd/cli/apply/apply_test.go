@@ -232,6 +232,22 @@ func TestCreateBundlesReturnsReadErrorWhenAllBundlesFail(t *testing.T) {
 	}
 }
 
+func TestCreateBundlesDrivenReturnsOneCancellationError(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := CreateBundlesDriven(ctx, nil, nil, "repo", []string{"first", "last"}, Options{
+		Output:              &bytes.Buffer{},
+		DrivenScanSeparator: ":",
+	})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context cancellation error, got %v", err)
+	}
+	if strings.Count(err.Error(), context.Canceled.Error()) != 1 {
+		t.Fatalf("expected one cancellation error, got %v", err)
+	}
+}
+
 func TestCreateBundlesWritesOtherBundlesAfterWriteError(t *testing.T) {
 	scheme := runtime.NewScheme()
 	if err := fleet.AddToScheme(scheme); err != nil {

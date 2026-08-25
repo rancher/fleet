@@ -291,7 +291,7 @@ func CreateBundlesDriven(ctx context.Context, client client.Client, r record.Eve
 
 			if err := readSemaphore.Acquire(ctx, 1); err != nil {
 				readErrorChan <- fmt.Errorf("%s: %w", baseDir, err)
-				continue
+				return
 			}
 			readWg.Go(func() {
 				defer readSemaphore.Release(1)
