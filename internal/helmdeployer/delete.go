@@ -177,7 +177,7 @@ func deleteHistory(cfg *action.Configuration, logger logr.Logger, bundleID strin
 }
 
 // deleteResourcesCopiedFromUpstream deletes resources referenced through a bundle's `DownstreamResources`
-// field, and copied from downstream.
+// field, and copied from upstream.
 func deleteResourcesCopiedFromUpstream(ctx context.Context, c client.Client, bdName string) error {
 	var merr []error
 
@@ -197,18 +197,18 @@ func deleteResourcesCopiedFromUpstream(ctx context.Context, c client.Client, bdN
 
 	for _, s := range secrets.Items {
 		if err := c.Delete(ctx, &s); err != nil {
-			merr = append(merr, fmt.Errorf("failed to delete outdated secrets copied from downstream: %w", err))
+			merr = append(merr, fmt.Errorf("failed to delete outdated secrets copied from upstream: %w", err))
 		}
 	}
 
 	cms := corev1.ConfigMapList{}
 
 	if err := c.List(ctx, &cms, opts); err != nil {
-		return fmt.Errorf("failed to list copied configmaps from upstream to delete from outdated bundle: %w", err)
+		merr = append(merr, fmt.Errorf("failed to list copied configmaps from upstream to delete from outdated bundle: %w", err))
 	}
 	for _, cm := range cms.Items {
 		if err := c.Delete(ctx, &cm); err != nil {
-			merr = append(merr, fmt.Errorf("failed to delete outdated configmaps copied from downstream: %w", err))
+			merr = append(merr, fmt.Errorf("failed to delete outdated configmaps copied from upstream: %w", err))
 		}
 	}
 
