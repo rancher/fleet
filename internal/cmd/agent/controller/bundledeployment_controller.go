@@ -222,6 +222,15 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	forceDeploy, err := r.copyResourcesFromUpstream(ctx, bd, logger)
 	if err != nil {
+		// A denied downstream write means the deployment's service account is not
+		// allowed to create the target namespace or write the copied resources. Record
+		// it as a controlled requeue (the missing RBAC is not watched, so granting it
+		// would not otherwise re-trigger a reconcile) rather than tight-looping. Other
+		// failures, including a Forbidden from reading the sources upstream, are
+		// returned.
+		if handled, res, rerr := r.requeueIfCopyForbidden(ctx, orig, bd, err); handled {
+			return res, rerr
+		}
 		return ctrl.Result{}, err
 	}
 
@@ -354,14 +363,44 @@ func (r *BundleDeploymentReconciler) copyResourcesFromUpstream(
 
 	destNS := namespaces.GetDeploymentNS(r.DefaultNamespace, bd.Spec.Options)
 
-	ns := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: destNS}}
-	if err := r.LocalClient.Get(ctx, types.NamespacedName{Name: ns.Name}, &ns); apierrors.IsNotFound(err) {
-		if err := r.LocalClient.Create(ctx, &ns); err != nil {
+	// Downstream writes (namespace creation and the copied objects) run as the
+	// deployment's service account so they are gated by the tenant's downstream
+	// RBAC, mirroring the rest of the deploy path. When no service account
+	// resolves, this falls back to the agent client, preserving prior behaviour.
+	// The source reads (in copySecret/copyConfigMap) stay on r.Reader: they read
+	// from the management cluster, where the downstream SA is not a valid identity.
+	dsClient, err := r.Deployer.ImpersonatingClient(ctx, bd)
+	if err != nil {
+		return false, err
+	}
+
+	// Whether the namespace exists is a fact about the cluster, not an action taken
+	// on the deployment's behalf, so it is read with the agent client: the copy does
+	// not require the deployment's service account to hold 'get' on namespaces.
+	// Creating the namespace is a downstream write and does run as that account.
+	var ns corev1.Namespace
+	err = r.LocalClient.Get(ctx, types.NamespacedName{Name: destNS}, &ns)
+	switch {
+	case apierrors.IsNotFound(err):
+		ns = corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: destNS}}
+		if err := dsClient.Create(ctx, &ns); err != nil {
+			if apierrors.IsForbidden(err) {
+				// Marked as a denied copy write, so the caller requeues instead of
+				// failing the reconcile, and still unwraps to the Forbidden underneath.
+				return false, copyForbidden(fmt.Errorf(
+					"deployment namespace %q does not exist and the deployment's service account is not "+
+						"allowed to create it; create the namespace or grant it 'create' on namespaces: %w",
+					destNS,
+					err,
+				))
+			}
 			logger.Info(err.Error())
 			return false, err
 		}
 
-		logger.V(1).Info("Created namespace to copy resources from upstream", "namespace", ns.Name)
+		logger.V(1).Info("Created namespace to copy resources from upstream", "namespace", destNS)
+	case err != nil:
+		return false, fmt.Errorf("failed to look up deployment namespace %q for copying resources from upstream: %w", destNS, err)
 	}
 
 	requiresBDUpdate := false
@@ -372,9 +411,9 @@ func (r *BundleDeploymentReconciler) copyResourcesFromUpstream(
 
 		switch strings.ToLower(rsc.Kind) {
 		case "secret":
-			updated, err = r.copySecret(ctx, bd, rsc.Name, destNS)
+			updated, err = r.copySecret(ctx, bd, rsc.Name, destNS, dsClient)
 		case "configmap":
-			updated, err = r.copyConfigMap(ctx, bd, rsc.Name, destNS)
+			updated, err = r.copyConfigMap(ctx, bd, rsc.Name, destNS, dsClient)
 		default:
 			return false, fmt.Errorf("unknown resource type for copy to downstream cluster: %q", rsc.Kind)
 		}
@@ -394,12 +433,15 @@ func (r *BundleDeploymentReconciler) copyResourcesFromUpstream(
 	return requiresBDUpdate, nil
 }
 
-// copySecret copies a secret from the bundle deployment's namespace to the destination namespace
+// copySecret copies a secret from the bundle deployment's namespace to the destination
+// namespace. The source is read from the management cluster via r.Reader; the downstream
+// write uses dsClient (the deployment's service account, or the agent client as fallback).
 func (r *BundleDeploymentReconciler) copySecret(
 	ctx context.Context,
 	bd *fleetv1.BundleDeployment,
 	name string,
 	destNS string,
+	dsClient client.Client,
 ) (bool, error) {
 	var source corev1.Secret
 	if err := r.Reader.Get(ctx, client.ObjectKey{Namespace: bd.Namespace, Name: name}, &source); err != nil {
@@ -425,7 +467,7 @@ func (r *BundleDeploymentReconciler) copySecret(
 		},
 	}
 
-	op, err := controllerutil.CreateOrUpdate(ctx, r.LocalClient, &s, func() error {
+	op, err := controllerutil.CreateOrUpdate(ctx, dsClient, &s, func() error {
 		s.Type = source.Type // important for e.g. image pull secrets
 		s.Labels = source.Labels
 		s.Annotations = source.Annotations
@@ -440,18 +482,26 @@ func (r *BundleDeploymentReconciler) copySecret(
 		return nil
 	})
 	if err != nil {
-		return false, fmt.Errorf("failed to create or update secret %s/%s downstream: %w", bd.Namespace, name, err)
+		// The write ran as the deployment's service account, so a denial is marked as
+		// such and handled as a controlled requeue by requeueIfCopyForbidden.
+		return false, copyForbidden(
+			fmt.Errorf("failed to create or update secret %s/%s downstream: %w", bd.Namespace, name, err),
+		)
 	}
 
 	return op == controllerutil.OperationResultUpdated, nil
 }
 
-// copyConfigMap copies a configmap from the bundle deployment's namespace to the destination namespace
+// copyConfigMap copies a configmap from the bundle deployment's namespace to the
+// destination namespace. The source is read from the management cluster via r.Reader;
+// the downstream write uses dsClient (the deployment's service account, or the agent
+// client as fallback).
 func (r *BundleDeploymentReconciler) copyConfigMap(
 	ctx context.Context,
 	bd *fleetv1.BundleDeployment,
 	name string,
 	destNS string,
+	dsClient client.Client,
 ) (bool, error) {
 	var source corev1.ConfigMap
 	if err := r.Reader.Get(ctx, client.ObjectKey{Namespace: bd.Namespace, Name: name}, &source); err != nil {
@@ -477,7 +527,7 @@ func (r *BundleDeploymentReconciler) copyConfigMap(
 		},
 	}
 
-	op, err := controllerutil.CreateOrUpdate(ctx, r.LocalClient, &cm, func() error {
+	op, err := controllerutil.CreateOrUpdate(ctx, dsClient, &cm, func() error {
 		cm.Labels = source.Labels
 		cm.Annotations = source.Annotations
 		cm.Data = source.Data
@@ -491,7 +541,11 @@ func (r *BundleDeploymentReconciler) copyConfigMap(
 		return nil
 	})
 	if err != nil {
-		return false, fmt.Errorf("failed to create or update configmap %s/%s downstream: %w", bd.Namespace, name, err)
+		// The write ran as the deployment's service account, so a denial is marked as
+		// such and handled as a controlled requeue by requeueIfCopyForbidden.
+		return false, copyForbidden(
+			fmt.Errorf("failed to create or update configmap %s/%s downstream: %w", bd.Namespace, name, err),
+		)
 	}
 
 	return op == controllerutil.OperationResultUpdated, nil
@@ -545,6 +599,61 @@ func (r *BundleDeploymentReconciler) requeueIfDependenciesNotReady(ctx context.C
 
 	log.FromContext(ctx).V(1).Info("Dependencies not ready, requeuing...", "pending", notReadyDependenciesError.Pending)
 	return true, ctrl.Result{RequeueAfter: durations.WaitForDependenciesReadyRequeueInterval}, nil
+}
+
+// copyForbiddenError marks a denied downstream write made for a bundle deployment's
+// DownstreamResources: creating the deployment namespace, or writing a copied Secret or
+// ConfigMap. Those writes run as the deployment's service account, so a denial is a
+// statement about the tenant's downstream RBAC, and requeueIfCopyForbidden handles it as
+// a controlled requeue.
+//
+// The marker keeps that handling away from the reads from the management cluster in
+// copySecret/copyConfigMap: those run as the agent, so a Forbidden from them points at
+// the agent's own upstream RBAC, which no downstream grant resolves and which must
+// surface as a reconcile error rather than requeue indefinitely. It unwraps to the
+// underlying Forbidden error, so apierrors.IsForbidden still reports true.
+type copyForbiddenError struct {
+	err error
+}
+
+func (e *copyForbiddenError) Error() string { return e.err.Error() }
+
+func (e *copyForbiddenError) Unwrap() error { return e.err }
+
+// copyForbidden marks err as a denied downstream copy write when it is a Forbidden, and
+// returns it unchanged otherwise.
+func copyForbidden(err error) error {
+	if !apierrors.IsForbidden(err) {
+		return err
+	}
+
+	return &copyForbiddenError{err: err}
+}
+
+// requeueIfCopyForbidden handles a denied DownstreamResources copy: the deployment's
+// service account is not allowed to create the target namespace or write the copied
+// Secret/ConfigMap. Nothing has been deployed yet (the copy runs before DeployBundle),
+// so it records not-ready (Ready/Installed=false, without a Deployed condition) and does
+// a controlled requeue rather than a failed reconcile, so it does not tight-loop: the
+// copy converges once the missing namespace/resource RBAC is granted (granting it does
+// not otherwise trigger a reconcile). Returns handled=false when err is not a
+// copyForbiddenError, so a Forbidden raised by anything but those downstream writes is
+// left for the caller to return.
+func (r *BundleDeploymentReconciler) requeueIfCopyForbidden(ctx context.Context, orig, bd *fleetv1.BundleDeployment, err error) (bool, ctrl.Result, error) {
+	var copyErr *copyForbiddenError
+	if !errors.As(err, &copyErr) {
+		return false, ctrl.Result{}, nil
+	}
+
+	bd.Status.Ready = false
+	monitor.Cond(fleetv1.BundleDeploymentConditionReady).SetError(&bd.Status, "", fmt.Errorf("not ready: %w", err))
+	monitor.Cond(fleetv1.BundleDeploymentConditionInstalled).SetError(&bd.Status, "", fmt.Errorf("not installed: %w", err))
+	if err := r.updateStatus(ctx, orig, bd); err != nil {
+		return true, ctrl.Result{}, err
+	}
+
+	log.FromContext(ctx).V(1).Info("Copying downstream resources forbidden, requeuing...", "error", err)
+	return true, ctrl.Result{RequeueAfter: durations.NamespacePermissionRequeueInterval}, nil
 }
 
 // setCondition sets the condition and updates the timestamp, if the condition changed
