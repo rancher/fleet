@@ -36,7 +36,7 @@ func TestCreateBundlesWithOutputNeverUsesClient(t *testing.T) {
 				create = CreateBundlesDriven
 			}
 
-			err := create(context.Background(), nil, nil, "repo", []string{"some"}, opts)
+			err := create(context.Background(), nil, nil, "test-bundle", []string{"some"}, opts)
 			if err != nil {
 				t.Fatalf("expected no error, got %v", err)
 			}

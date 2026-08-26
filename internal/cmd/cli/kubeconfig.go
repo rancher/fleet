@@ -31,9 +31,11 @@ func registerLoggingAndKubeconfigFlags(cmd *cobra.Command) {
 // getKubeconfig.
 //
 // ctrl.RegisterFlags binds --kubeconfig via the stdlib flag package, which has
-// no notion of shorthands. pflag only records a shorthand while adding a flag
-// to a set, in AddFlag, so "k" has to be set on the way in: assigning
-// Shorthand afterwards updates the usage output but leaves -k unparsable.
+// no notion of shorthands, so fs cannot carry "k" itself. pfs is the staging
+// set where it can: pflag only records a shorthand in AddFlag, as the flag
+// enters a set, so setting it on pfs before cmd.Flags().AddFlagSet(pfs) is
+// what registers -k with the command. Assigning Shorthand to a flag already
+// in cmd.Flags() updates the usage output but leaves -k unparsable.
 func addGoFlags(cmd *cobra.Command, fs *flag.FlagSet) {
 	ctrl.RegisterFlags(fs)
 

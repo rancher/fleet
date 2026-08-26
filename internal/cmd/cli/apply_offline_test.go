@@ -82,7 +82,7 @@ func TestApplyOutputWithoutCluster(t *testing.T) {
 			a := newApplyForTest()
 			a.Output = output
 
-			if err := a.Run(testCommand(), []string{"repo", "some"}); err != nil {
+			if err := a.Run(testCommand(), []string{"test-bundle", "some"}); err != nil {
 				t.Fatalf("expected no error, got %v", err)
 			}
 
@@ -113,7 +113,7 @@ func TestApplyDrivenScanOutputWithoutCluster(t *testing.T) {
 	a.DrivenScan = true
 	a.DrivenScanSeparator = ":"
 
-	if err := a.Run(testCommand(), []string{"repo", "some"}); err != nil {
+	if err := a.Run(testCommand(), []string{"test-bundle", "some"}); err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
@@ -134,7 +134,7 @@ func TestApplyWithoutOutputRequiresKubeconfig(t *testing.T) {
 
 	a := newApplyForTest()
 
-	err := a.Run(testCommand(), []string{"repo", "some"})
+	err := a.Run(testCommand(), []string{"test-bundle", "some"})
 	if err == nil {
 		t.Fatal("expected an error, got none")
 	}
