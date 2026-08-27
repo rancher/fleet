@@ -12,11 +12,11 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
-// rejectedPatchOps are values which must never be accepted: typos, wrong case
-// and stray whitespace, plus the two JSON Patch operations Fleet cannot encode.
+// rejectedPatchOps are values which must never be accepted: unknown names, wrong
+// case and stray whitespace, plus the two JSON Patch operations Fleet cannot encode.
 // json-patch implements "copy" and "move", but fleet.Operation has no "from"
 // field, so neither can ever be handed to it in a form it accepts.
-var rejectedPatchOps = []string{"", "Remove", "remove ", "ignroe", "delete", "copy", "move"}
+var rejectedPatchOps = []string{"", "Remove", "remove ", "bogus", "delete", "copy", "move"}
 
 // TestNormalizers_AgreesWithValidation pins validation.IsSupportedPatchOp, which
 // fleet apply rejects a comparePatch operation with, to what the agent can really

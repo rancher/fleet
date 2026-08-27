@@ -306,7 +306,7 @@ func TestReconcile_Validate(t *testing.T) {
 												Name: "my-svc",
 												Operations: []fleet.Operation{
 													{Op: "remove", Path: "/spec/clusterIP"},
-													{Op: "ignroe"},
+													{Op: "bogus"},
 												},
 											},
 										},
@@ -317,7 +317,7 @@ func TestReconcile_Validate(t *testing.T) {
 					},
 				},
 			},
-			err: `spec.targets[0].diff.comparePatches[0].operations[1].op: unsupported operation "ignroe"`,
+			err: `spec.targets[0].diff.comparePatches[0].operations[1].op: unsupported operation "bogus"`,
 		},
 		{
 			name: "error if a comparePatch operation path is not a JSON pointer",
@@ -1538,10 +1538,10 @@ func TestValidateBundleSpec(t *testing.T) {
 			spec: fleet.BundleSpec{
 				BundleDeploymentOptions: diffWith(fleet.ComparePatch{
 					Name:       "my-svc",
-					Operations: []fleet.Operation{{Op: "ignroe"}},
+					Operations: []fleet.Operation{{Op: "bogus"}},
 				}),
 			},
-			err: `spec.diff.comparePatches[0].operations[0].op: unsupported operation "ignroe", valid values are: add, ignore, remove, replace, test`,
+			err: `spec.diff.comparePatches[0].operations[0].op: unsupported operation "bogus", valid values are: add, ignore, remove, replace, test`,
 		},
 		{
 			// The second target, so a walk which only looked at the first would

@@ -1142,7 +1142,7 @@ targetCustomizations:
       operations:
       - op: remove
         path: /spec/clusterIP
-      - op: ignroe
+      - op: bogus
 targets:
 - clusterSelector: {}
 `)}
@@ -1152,7 +1152,7 @@ targets:
 			err := fleetApply(name, dirs, options)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("targetCustomizations[0].diff.comparePatches[0].operations[1].op"))
-			Expect(err.Error()).To(ContainSubstring(`unsupported operation "ignroe"`))
+			Expect(err.Error()).To(ContainSubstring(`unsupported operation "bogus"`))
 			Expect(err.Error()).To(ContainSubstring("add, ignore, remove, replace, test"))
 		})
 	})

@@ -33,7 +33,7 @@ func TestNewNormalizers_DropsUnsupportedOperation(t *testing.T) {
 							Name:       "my-svc",
 							Operations: []fleet.Operation{
 								{Op: "remove", Path: "/spec/clusterIP"},
-								{Op: "ignroe"},
+								{Op: "bogus"},
 							},
 						},
 					},

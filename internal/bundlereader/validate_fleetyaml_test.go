@@ -484,9 +484,9 @@ func TestValidateFleetYAML_InvalidComparePatchOperations(t *testing.T) {
 		expectedError string
 	}{
 		{
-			name:          "typo",
-			diff:          diffWithPatchOps("ignroe"),
-			expectedError: `diff.comparePatches[0].operations[0].op: unsupported operation "ignroe", valid values are: add, ignore, remove, replace, test`,
+			name:          "unknown op",
+			diff:          diffWithPatchOps("bogus"),
+			expectedError: `diff.comparePatches[0].operations[0].op: unsupported operation "bogus", valid values are: add, ignore, remove, replace, test`,
 		},
 		{
 			name:          "trailing space",
@@ -508,8 +508,8 @@ func TestValidateFleetYAML_InvalidComparePatchOperations(t *testing.T) {
 		},
 		{
 			name:          "second operation is the offending one",
-			diff:          diffWithPatchOps("remove", "ignroe"),
-			expectedError: `diff.comparePatches[0].operations[1].op: unsupported operation "ignroe"`,
+			diff:          diffWithPatchOps("remove", "bogus"),
+			expectedError: `diff.comparePatches[0].operations[1].op: unsupported operation "bogus"`,
 		},
 		{
 			// json-patch implements "copy" and "move", but fleet.Operation has no
@@ -559,11 +559,11 @@ func TestValidateFleetYAML_ComparePatchOperationOptionSites(t *testing.T) {
 			fy: &fleet.FleetYAML{
 				BundleSpec: fleet.BundleSpec{
 					BundleDeploymentOptions: fleet.BundleDeploymentOptions{
-						Diff: diffWithPatchOps("ignroe"),
+						Diff: diffWithPatchOps("bogus"),
 					},
 				},
 			},
-			expectedError: `diff.comparePatches[0].operations[0].op: unsupported operation "ignroe"`,
+			expectedError: `diff.comparePatches[0].operations[0].op: unsupported operation "bogus"`,
 		},
 		{
 			name: "targets",
@@ -623,7 +623,7 @@ func TestValidateFleetYAML_ComparePatchOperationIndex(t *testing.T) {
 					ComparePatches: []fleet.ComparePatch{
 						{Name: "first", Operations: []fleet.Operation{{Op: "ignore"}}},
 						{Name: "second", Operations: []fleet.Operation{{Op: "remove", Path: "/spec/replicas"}}},
-						{Name: "third", Operations: []fleet.Operation{{Op: "remove"}, {Op: "ignroe"}}},
+						{Name: "third", Operations: []fleet.Operation{{Op: "remove"}, {Op: "bogus"}}},
 					},
 				},
 			},
@@ -635,7 +635,7 @@ func TestValidateFleetYAML_ComparePatchOperationIndex(t *testing.T) {
 		t.Fatal("validateFleetYAML() expected an error, got nil")
 	}
 
-	expected := `diff.comparePatches[2].operations[1].op: unsupported operation "ignroe"`
+	expected := `diff.comparePatches[2].operations[1].op: unsupported operation "bogus"`
 	if !strings.Contains(err.Error(), expected) {
 		t.Errorf("validateFleetYAML() error = %q, expected to contain %q", err.Error(), expected)
 	}
