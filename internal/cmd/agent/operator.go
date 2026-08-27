@@ -268,6 +268,7 @@ func newReconciler(
 	// Build the clean up, which deletes helm releases
 	cleanup := cleanup.New(
 		upstreamClient,
+		mgr.GetAPIReader(),
 		localClient.RESTMapper(),
 		localDynamic,
 		helmDeployer,
