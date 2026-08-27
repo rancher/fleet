@@ -169,13 +169,18 @@ type ComparePatch struct {
 	// Kind is the kind of the resource to match.
 	// +nullable
 	Kind string `json:"kind,omitempty"`
-	// Name is the name of the resource to match.
+	// Name is the name of the resource to match. Resources are matched by exact
+	// name first and, when the name does not match exactly, by matching it as a
+	// regular expression, so it must always be a valid Go regular expression.
 	// +nullable
 	Name string `json:"name,omitempty"`
 	// Namespace is the namespace of the resource to match.
 	// +nullable
 	Namespace string `json:"namespace,omitempty"`
-	// JSONPointers ignore diffs at a certain JSON path.
+	// JSONPointers ignore diffs at the given JSON pointers, e.g. /spec/replicas.
+	// Each entry must be a non-empty RFC 6901 pointer starting with a slash; a
+	// Kubernetes-style field path such as spec.replicas addresses nothing and is
+	// rejected.
 	// +nullable
 	JsonPointers []string `json:"jsonPointers,omitempty"`
 	// Operations remove a JSON path from the resource.
@@ -187,10 +192,20 @@ type ComparePatch struct {
 // * "remove" to remove a specific path in a resource
 // * "ignore" to remove the entire resource from checks for modifications.
 type Operation struct {
-	// Op is usually "remove" or "ignore"
+	// Op is the operation to perform on the matched resource. It must be one of
+	// the JSON Patch operations "add", "remove", "replace" and "test", or
+	// Fleet's own "ignore", which removes the entire resource from checks for
+	// modifications. The JSON Patch operations "copy" and "move" are not
+	// supported, because an Operation has no "from" field to encode them with.
+	// Any other value, including an empty one, makes the whole patch fail to
+	// apply.
 	// +nullable
-	Op string `json:"op,omitempty"`
-	// Path is the JSON path to remove. Not needed if Op is "ignore".
+	Op string `json:"op,omitempty" jsonschema:"enum=add,enum=ignore,enum=remove,enum=replace,enum=test"`
+	// Path is the JSON pointer the operation applies to, e.g. /spec/replicas.
+	// It must be a non-empty RFC 6901 pointer starting with a slash; a
+	// Kubernetes-style field path such as spec.replicas addresses nothing and is
+	// rejected. Required unless Op is "ignore", which drops the whole resource
+	// from the comparison and never reads the path.
 	// +nullable
 	Path string `json:"path,omitempty"`
 	// Value is usually empty.

@@ -967,3 +967,347 @@ var _ = Describe("Fleet apply with dependsOn and acceptedStates", func() {
 		})
 	})
 })
+
+// bundleConfigMap is a resource to give a generated bundle something to deploy.
+const bundleConfigMap = `apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: test-config
+data:
+  key: value
+`
+
+// writeBundleDir writes fleetYAML and a ConfigMap into a fresh temporary
+// directory and returns its path, so a test can state the fleet.yaml it needs
+// inline instead of adding a near-duplicate directory under assets/.
+func writeBundleDir(fleetYAML string) string {
+	dir := GinkgoT().TempDir()
+
+	Expect(os.WriteFile(path.Join(dir, "fleet.yaml"), []byte(fleetYAML), 0o644)).To(Succeed())
+	Expect(os.WriteFile(path.Join(dir, "configmap.yaml"), []byte(bundleConfigMap), 0o644)).To(Succeed())
+
+	// fleet apply needs a relative path, see globDirs in internal/cmd/cli/apply
+	pwd, err := os.Getwd()
+	Expect(err).NotTo(HaveOccurred())
+	rel, err := filepath.Rel(pwd, dir)
+	Expect(err).NotTo(HaveOccurred())
+
+	return rel
+}
+
+var _ = Describe("Fleet apply with diff comparePatches", func() {
+	var (
+		dirs    []string
+		name    string
+		options apply.Options
+	)
+
+	When("fleet.yaml contains comparePatches names which are valid regular expressions", func() {
+		BeforeEach(func() {
+			name = "comparepatch-name-valid"
+			dirs = []string{writeBundleDir(`defaultNamespace: test-comparepatch
+diff:
+  comparePatches:
+  - apiVersion: v1
+    kind: Service
+    name: app.v1-alpha.svc
+    operations:
+    - op: ignore
+targetCustomizations:
+- name: dev
+  clusterSelector: {}
+  diff:
+    comparePatches:
+    - apiVersion: v1
+      kind: Service
+      name: ".*serv.*"
+      operations:
+      - op: ignore
+targets:
+- clusterSelector: {}
+`)}
+		})
+
+		It("creates a Bundle keeping both the literal and the regex name", func() {
+			err := fleetApply(name, dirs, options)
+			Expect(err).NotTo(HaveOccurred())
+
+			bundle, err := cli.GetBundleFromOutput(buf)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(bundle.Spec.Diff).NotTo(BeNil())
+			Expect(bundle.Spec.Diff.ComparePatches).To(HaveLen(1))
+			Expect(bundle.Spec.Diff.ComparePatches[0].Name).To(Equal("app.v1-alpha.svc"))
+
+			target, _, found := sliceFind(bundle.Spec.Targets, func(t v1alpha1.BundleTarget) bool {
+				return t.Diff != nil
+			})
+			Expect(found).To(BeTrue())
+			Expect(target.Diff.ComparePatches).To(HaveLen(1))
+			Expect(target.Diff.ComparePatches[0].Name).To(Equal(".*serv.*"))
+		})
+	})
+
+	When("fleet.yaml contains a comparePatches name which is not a valid regular expression", func() {
+		BeforeEach(func() {
+			name = "comparepatch-name-invalid"
+			dirs = []string{writeBundleDir(`defaultNamespace: test-comparepatch
+targetCustomizations:
+- name: dev
+  clusterSelector: {}
+  diff:
+    comparePatches:
+    - apiVersion: v1
+      kind: Service
+      name: "foo["
+      operations:
+      - op: ignore
+targets:
+- clusterSelector: {}
+`)}
+		})
+
+		It("returns an error naming the field path and the offending value", func() {
+			err := fleetApply(name, dirs, options)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("targetCustomizations[0].diff.comparePatches[0].name"))
+			Expect(err.Error()).To(ContainSubstring("invalid regular expression"))
+			Expect(err.Error()).To(ContainSubstring(`"foo["`))
+		})
+	})
+
+	When("fleet.yaml contains supported comparePatches operations", func() {
+		BeforeEach(func() {
+			name = "comparepatch-op-valid"
+			dirs = []string{writeBundleDir(`defaultNamespace: test-comparepatch
+diff:
+  comparePatches:
+  - apiVersion: v1
+    kind: Service
+    name: my-svc
+    operations:
+    - op: remove
+      path: /spec/clusterIP
+    - op: replace
+      path: /spec/type
+      value: ClusterIP
+targetCustomizations:
+- name: dev
+  clusterSelector: {}
+  diff:
+    comparePatches:
+    - apiVersion: v1
+      kind: Service
+      name: my-svc
+      operations:
+      - op: ignore
+targets:
+- clusterSelector: {}
+`)}
+		})
+
+		It("creates a Bundle keeping every operation", func() {
+			err := fleetApply(name, dirs, options)
+			Expect(err).NotTo(HaveOccurred())
+
+			bundle, err := cli.GetBundleFromOutput(buf)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(bundle.Spec.Diff).NotTo(BeNil())
+			Expect(bundle.Spec.Diff.ComparePatches).To(HaveLen(1))
+			Expect(bundle.Spec.Diff.ComparePatches[0].Operations).To(HaveLen(2))
+			Expect(bundle.Spec.Diff.ComparePatches[0].Operations[0].Op).To(Equal("remove"))
+			Expect(bundle.Spec.Diff.ComparePatches[0].Operations[1].Op).To(Equal("replace"))
+
+			target, _, found := sliceFind(bundle.Spec.Targets, func(t v1alpha1.BundleTarget) bool {
+				return t.Diff != nil
+			})
+			Expect(found).To(BeTrue())
+			Expect(target.Diff.ComparePatches).To(HaveLen(1))
+			Expect(target.Diff.ComparePatches[0].Operations).To(HaveLen(1))
+			Expect(target.Diff.ComparePatches[0].Operations[0].Op).To(Equal("ignore"))
+		})
+	})
+
+	When("fleet.yaml contains a comparePatches operation which Fleet cannot apply", func() {
+		BeforeEach(func() {
+			name = "comparepatch-op-invalid"
+			dirs = []string{writeBundleDir(`defaultNamespace: test-comparepatch
+targetCustomizations:
+- name: dev
+  clusterSelector: {}
+  diff:
+    comparePatches:
+    - apiVersion: v1
+      kind: Service
+      name: my-svc
+      operations:
+      - op: remove
+        path: /spec/clusterIP
+      - op: ignroe
+targets:
+- clusterSelector: {}
+`)}
+		})
+
+		It("returns an error naming the field path and the offending value", func() {
+			err := fleetApply(name, dirs, options)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("targetCustomizations[0].diff.comparePatches[0].operations[1].op"))
+			Expect(err.Error()).To(ContainSubstring(`unsupported operation "ignroe"`))
+			Expect(err.Error()).To(ContainSubstring("add, ignore, remove, replace, test"))
+		})
+	})
+
+	When("fleet.yaml contains a comparePatches operation without an op", func() {
+		BeforeEach(func() {
+			name = "comparepatch-op-empty"
+			dirs = []string{writeBundleDir(`defaultNamespace: test-comparepatch
+diff:
+  comparePatches:
+  - apiVersion: v1
+    kind: Service
+    name: my-svc
+    operations:
+    - path: /spec/clusterIP
+targets:
+- clusterSelector: {}
+`)}
+		})
+
+		It("returns an error, as an operation without an op never applies", func() {
+			err := fleetApply(name, dirs, options)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("diff.comparePatches[0].operations[0].op"))
+			Expect(err.Error()).To(ContainSubstring(`unsupported operation ""`))
+		})
+	})
+
+	When("fleet.yaml contains comparePatches paths and jsonPointers which resolve", func() {
+		BeforeEach(func() {
+			name = "comparepatch-pointer-valid"
+			dirs = []string{writeBundleDir(`defaultNamespace: test-comparepatch
+diff:
+  comparePatches:
+  - apiVersion: v1
+    kind: Service
+    name: my-svc
+    jsonPointers:
+    - /spec/clusterIP
+    - /spec/a~0b
+    operations:
+    - op: remove
+      path: /spec/externalIPs/0
+    - op: ignore
+targetCustomizations:
+- name: dev
+  clusterSelector: {}
+  diff:
+    comparePatches:
+    - apiVersion: v1
+      kind: Service
+      name: my-svc
+      jsonPointers:
+      - /metadata/labels
+targets:
+- clusterSelector: {}
+`)}
+		})
+
+		It("creates a Bundle keeping every pointer, including the escaped one", func() {
+			err := fleetApply(name, dirs, options)
+			Expect(err).NotTo(HaveOccurred())
+
+			bundle, err := cli.GetBundleFromOutput(buf)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(bundle.Spec.Diff).NotTo(BeNil())
+			Expect(bundle.Spec.Diff.ComparePatches).To(HaveLen(1))
+			Expect(bundle.Spec.Diff.ComparePatches[0].JsonPointers).To(Equal([]string{"/spec/clusterIP", "/spec/a~0b"}))
+			Expect(bundle.Spec.Diff.ComparePatches[0].Operations).To(HaveLen(2))
+			Expect(bundle.Spec.Diff.ComparePatches[0].Operations[0].Path).To(Equal("/spec/externalIPs/0"))
+
+			target, _, found := sliceFind(bundle.Spec.Targets, func(t v1alpha1.BundleTarget) bool {
+				return t.Diff != nil
+			})
+			Expect(found).To(BeTrue())
+			Expect(target.Diff.ComparePatches[0].JsonPointers).To(Equal([]string{"/metadata/labels"}))
+		})
+	})
+
+	When("fleet.yaml contains a comparePatches operation path which is not a JSON pointer", func() {
+		BeforeEach(func() {
+			name = "comparepatch-path-invalid"
+			dirs = []string{writeBundleDir(`defaultNamespace: test-comparepatch
+targetCustomizations:
+- name: dev
+  clusterSelector: {}
+  diff:
+    comparePatches:
+    - apiVersion: v1
+      kind: Service
+      name: my-svc
+      operations:
+      - op: remove
+        path: spec.clusterIP
+targets:
+- clusterSelector: {}
+`)}
+		})
+
+		It("returns an error naming the field path and suggesting the pointer", func() {
+			err := fleetApply(name, dirs, options)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("targetCustomizations[0].diff.comparePatches[0].operations[0].path"))
+			Expect(err.Error()).To(ContainSubstring(`invalid JSON pointer "spec.clusterIP"`))
+			Expect(err.Error()).To(ContainSubstring(`e.g. "/spec/clusterIP"`))
+		})
+	})
+
+	When("fleet.yaml contains a comparePatches operation without a path", func() {
+		BeforeEach(func() {
+			name = "comparepatch-path-empty"
+			dirs = []string{writeBundleDir(`defaultNamespace: test-comparepatch
+diff:
+  comparePatches:
+  - apiVersion: v1
+    kind: Service
+    name: my-svc
+    operations:
+    - op: remove
+targets:
+- clusterSelector: {}
+`)}
+		})
+
+		It("returns an error, as an operation without a path never applies", func() {
+			err := fleetApply(name, dirs, options)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("diff.comparePatches[0].operations[0].path"))
+			Expect(err.Error()).To(ContainSubstring(`invalid JSON pointer "": must not be empty`))
+		})
+	})
+
+	When("fleet.yaml contains a comparePatches jsonPointer which is not a JSON pointer", func() {
+		BeforeEach(func() {
+			name = "comparepatch-jsonpointer-invalid"
+			dirs = []string{writeBundleDir(`defaultNamespace: test-comparepatch
+diff:
+  comparePatches:
+  - apiVersion: v1
+    kind: Service
+    name: my-svc
+    jsonPointers:
+    - /spec/clusterIP
+    - spec.replicas
+targets:
+- clusterSelector: {}
+`)}
+		})
+
+		It("returns an error naming the offending entry, not the first one", func() {
+			err := fleetApply(name, dirs, options)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("diff.comparePatches[0].jsonPointers[1]"))
+			Expect(err.Error()).To(ContainSubstring(`invalid JSON pointer "spec.replicas"`))
+			Expect(err.Error()).To(ContainSubstring(`e.g. "/spec/replicas"`))
+		})
+	})
+})

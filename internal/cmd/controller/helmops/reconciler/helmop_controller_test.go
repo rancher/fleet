@@ -253,6 +253,137 @@ func TestReconcile_Validate(t *testing.T) {
 			},
 			err: "non-tarball chart with an empty repo field",
 		},
+		{
+			// A HelmOp reaches the same diff.comparePatches a fleet.yaml does, but
+			// never goes through bundlereader.validateFleetYAML, so these two cases
+			// pin that the shared rules run here too.
+			name: "error if a comparePatch name is not a valid regular expression",
+			helmop: fleet.HelmOp{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "helmop",
+					Namespace: "default",
+				},
+				Spec: fleet.HelmOpSpec{
+					BundleSpec: fleet.BundleSpec{
+						BundleDeploymentOptions: fleet.BundleDeploymentOptions{
+							Helm: &fleet.HelmOptions{
+								Chart: "chart",
+								Repo:  "https://foo.bar",
+							},
+							Diff: &fleet.DiffOptions{
+								ComparePatches: []fleet.ComparePatch{
+									{Name: "foo["},
+								},
+							},
+						},
+					},
+				},
+			},
+			err: `spec.diff.comparePatches[0].name: invalid regular expression "foo["`,
+		},
+		{
+			name: "error if a comparePatch operation is not supported",
+			helmop: fleet.HelmOp{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "helmop",
+					Namespace: "default",
+				},
+				Spec: fleet.HelmOpSpec{
+					BundleSpec: fleet.BundleSpec{
+						BundleDeploymentOptions: fleet.BundleDeploymentOptions{
+							Helm: &fleet.HelmOptions{
+								Chart: "chart",
+								Repo:  "https://foo.bar",
+							},
+						},
+						Targets: []fleet.BundleTarget{
+							{
+								Name: "dev",
+								BundleDeploymentOptions: fleet.BundleDeploymentOptions{
+									Diff: &fleet.DiffOptions{
+										ComparePatches: []fleet.ComparePatch{
+											{
+												Name: "my-svc",
+												Operations: []fleet.Operation{
+													{Op: "remove", Path: "/spec/clusterIP"},
+													{Op: "ignroe"},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			err: `spec.targets[0].diff.comparePatches[0].operations[1].op: unsupported operation "ignroe"`,
+		},
+		{
+			name: "error if a comparePatch operation path is not a JSON pointer",
+			helmop: fleet.HelmOp{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "helmop",
+					Namespace: "default",
+				},
+				Spec: fleet.HelmOpSpec{
+					BundleSpec: fleet.BundleSpec{
+						BundleDeploymentOptions: fleet.BundleDeploymentOptions{
+							Helm: &fleet.HelmOptions{
+								Chart: "chart",
+								Repo:  "https://foo.bar",
+							},
+							Diff: &fleet.DiffOptions{
+								ComparePatches: []fleet.ComparePatch{
+									{
+										Name: "my-svc",
+										Operations: []fleet.Operation{
+											{Op: "remove", Path: "spec.clusterIP"},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			err: `spec.diff.comparePatches[0].operations[0].path: invalid JSON pointer "spec.clusterIP"`,
+		},
+		{
+			name: "error if a comparePatch jsonPointer is not a JSON pointer",
+			helmop: fleet.HelmOp{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "helmop",
+					Namespace: "default",
+				},
+				Spec: fleet.HelmOpSpec{
+					BundleSpec: fleet.BundleSpec{
+						BundleDeploymentOptions: fleet.BundleDeploymentOptions{
+							Helm: &fleet.HelmOptions{
+								Chart: "chart",
+								Repo:  "https://foo.bar",
+							},
+						},
+						Targets: []fleet.BundleTarget{
+							{
+								Name: "dev",
+								BundleDeploymentOptions: fleet.BundleDeploymentOptions{
+									Diff: &fleet.DiffOptions{
+										ComparePatches: []fleet.ComparePatch{
+											{
+												Name:         "my-svc",
+												JsonPointers: []string{"spec.replicas"},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			err: `spec.targets[0].diff.comparePatches[0].jsonPointers[0]: invalid JSON pointer "spec.replicas"`,
+		},
 	}
 
 	for _, c := range cases {
@@ -1353,4 +1484,199 @@ func expectCABundleLookup(client *mocks.MockK8sClient) {
 	).AnyTimes().DoAndReturn(func(_ context.Context, _ types.NamespacedName, _ *corev1.Secret, _ ...any) error {
 		return k8serrors.NewNotFound(schema.GroupResource{}, "tls-ca-additional")
 	})
+}
+
+// TestValidateBundleSpec covers the rules a HelmOp shares with fleet.yaml through
+// its embedded BundleSpec. A HelmOp never passes through
+// bundlereader.validateFleetYAML, so without these the values would only fail on
+// the agent, where the failure is logged and swallowed.
+func TestValidateBundleSpec(t *testing.T) {
+	diffWith := func(patches ...fleet.ComparePatch) fleet.BundleDeploymentOptions {
+		return fleet.BundleDeploymentOptions{
+			Diff: &fleet.DiffOptions{ComparePatches: patches},
+		}
+	}
+
+	cases := []struct {
+		name string
+		spec fleet.BundleSpec
+		err  string
+	}{
+		{
+			name: "no diff options at all",
+			spec: fleet.BundleSpec{},
+		},
+		{
+			name: "valid name and operations",
+			spec: fleet.BundleSpec{
+				BundleDeploymentOptions: diffWith(fleet.ComparePatch{
+					Name: ".*serv.*",
+					Operations: []fleet.Operation{
+						{Op: "remove", Path: "/spec/clusterIP"},
+						{Op: "ignore"},
+					},
+				}),
+			},
+		},
+		{
+			name: "valid options on a target",
+			spec: fleet.BundleSpec{
+				Targets: []fleet.BundleTarget{
+					{Name: "dev", BundleDeploymentOptions: diffWith(fleet.ComparePatch{Name: "my-svc"})},
+				},
+			},
+		},
+		{
+			name: "invalid name at the spec level",
+			spec: fleet.BundleSpec{
+				BundleDeploymentOptions: diffWith(fleet.ComparePatch{Name: "a(b"}),
+			},
+			err: `spec.diff.comparePatches[0].name: invalid regular expression "a(b"`,
+		},
+		{
+			name: "invalid operation at the spec level",
+			spec: fleet.BundleSpec{
+				BundleDeploymentOptions: diffWith(fleet.ComparePatch{
+					Name:       "my-svc",
+					Operations: []fleet.Operation{{Op: "ignroe"}},
+				}),
+			},
+			err: `spec.diff.comparePatches[0].operations[0].op: unsupported operation "ignroe", valid values are: add, ignore, remove, replace, test`,
+		},
+		{
+			// The second target, so a walk which only looked at the first would
+			// still be caught.
+			name: "invalid name on the second target",
+			spec: fleet.BundleSpec{
+				Targets: []fleet.BundleTarget{
+					{Name: "first"},
+					{Name: "second", BundleDeploymentOptions: diffWith(fleet.ComparePatch{Name: "*x"})},
+				},
+			},
+			err: `spec.targets[1].diff.comparePatches[0].name: invalid regular expression "*x"`,
+		},
+		{
+			name: "invalid operation on a target",
+			spec: fleet.BundleSpec{
+				Targets: []fleet.BundleTarget{
+					{
+						Name: "dev",
+						BundleDeploymentOptions: diffWith(fleet.ComparePatch{
+							Name:       "my-svc",
+							Operations: []fleet.Operation{{Op: "copy", Path: "/spec/foo"}},
+						}),
+					},
+				},
+			},
+			err: `spec.targets[0].diff.comparePatches[0].operations[0].op: unsupported operation "copy"`,
+		},
+		{
+			name: "an operation without an op",
+			spec: fleet.BundleSpec{
+				BundleDeploymentOptions: diffWith(fleet.ComparePatch{
+					Name:       "my-svc",
+					Operations: []fleet.Operation{{Path: "/spec/clusterIP"}},
+				}),
+			},
+			err: `spec.diff.comparePatches[0].operations[0].op: unsupported operation ""`,
+		},
+		{
+			name: "valid jsonPointers and operation paths",
+			spec: fleet.BundleSpec{
+				BundleDeploymentOptions: diffWith(fleet.ComparePatch{
+					Name:         "my-svc",
+					JsonPointers: []string{"/spec/clusterIP", "/spec/a~0b"},
+					Operations: []fleet.Operation{
+						{Op: "remove", Path: "/spec/externalIPs/0"},
+						{Op: "ignore", Path: "ignored, and never read"},
+					},
+				}),
+			},
+		},
+		{
+			name: "operation path which is not a JSON pointer",
+			spec: fleet.BundleSpec{
+				BundleDeploymentOptions: diffWith(fleet.ComparePatch{
+					Name:       "my-svc",
+					Operations: []fleet.Operation{{Op: "remove", Path: "spec.clusterIP"}},
+				}),
+			},
+			err: `spec.diff.comparePatches[0].operations[0].path: invalid JSON pointer "spec.clusterIP": must start with "/", e.g. "/spec/clusterIP"`,
+		},
+		{
+			name: "operation without a path",
+			spec: fleet.BundleSpec{
+				BundleDeploymentOptions: diffWith(fleet.ComparePatch{
+					Name:       "my-svc",
+					Operations: []fleet.Operation{{Op: "remove"}},
+				}),
+			},
+			err: `spec.diff.comparePatches[0].operations[0].path: invalid JSON pointer "": must not be empty`,
+		},
+		{
+			// The second target, so a walk which only looked at the first would
+			// still be caught.
+			name: "operation path on the second target",
+			spec: fleet.BundleSpec{
+				Targets: []fleet.BundleTarget{
+					{Name: "first"},
+					{
+						Name: "second",
+						BundleDeploymentOptions: diffWith(fleet.ComparePatch{
+							Name:       "my-svc",
+							Operations: []fleet.Operation{{Op: "remove", Path: "spec.clusterIP"}},
+						}),
+					},
+				},
+			},
+			err: `spec.targets[1].diff.comparePatches[0].operations[0].path: invalid JSON pointer "spec.clusterIP"`,
+		},
+		{
+			name: "jsonPointer which is not a JSON pointer",
+			spec: fleet.BundleSpec{
+				BundleDeploymentOptions: diffWith(fleet.ComparePatch{
+					Name:         "my-svc",
+					JsonPointers: []string{"/spec/ok", "spec.clusterIP"},
+				}),
+			},
+			err: `spec.diff.comparePatches[0].jsonPointers[1]: invalid JSON pointer "spec.clusterIP"`,
+		},
+		{
+			name: "jsonPointer on the second target",
+			spec: fleet.BundleSpec{
+				Targets: []fleet.BundleTarget{
+					{Name: "first"},
+					{
+						Name: "second",
+						BundleDeploymentOptions: diffWith(fleet.ComparePatch{
+							Name:         "my-svc",
+							JsonPointers: []string{""},
+						}),
+					},
+				},
+			},
+			err: `spec.targets[1].diff.comparePatches[0].jsonPointers[0]: invalid JSON pointer "": must not be empty`,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			err := validateBundleSpec(&c.spec)
+
+			if c.err == "" {
+				if err != nil {
+					t.Errorf("validateBundleSpec() unexpected error: %v", err)
+				}
+				return
+			}
+
+			if err == nil {
+				t.Errorf("validateBundleSpec() expected error containing %q, got nil", c.err)
+				return
+			}
+			if !strings.Contains(err.Error(), c.err) {
+				t.Errorf("validateBundleSpec() error = %q, expected to contain %q", err.Error(), c.err)
+			}
+		})
+	}
 }
