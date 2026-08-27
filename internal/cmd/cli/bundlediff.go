@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -68,10 +67,7 @@ Examples:
 	})
 	cmd.SetOut(os.Stdout)
 
-	fs := flag.NewFlagSet("", flag.ExitOnError)
-	zopts.BindFlags(fs)
-	ctrl.RegisterFlags(fs)
-	cmd.Flags().AddGoFlagSet(fs)
+	registerLoggingAndKubeconfigFlags(cmd)
 	return cmd
 }
 
@@ -110,9 +106,9 @@ func (d *BundleDiff) Run(cmd *cobra.Command, args []string) error {
 		return errors.New("cannot specify both --json and --fleet-yaml")
 	}
 
-	cfg, err := ctrl.GetConfig()
+	cfg, err := getKubeconfig()
 	if err != nil {
-		return fmt.Errorf("failed to get k8s config: %w", err)
+		return err
 	}
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zopts)))
