@@ -29,8 +29,8 @@ func TestStaleCacheRequeueAfter(t *testing.T) {
 }
 
 // TestStaleCacheHits checks that the counter for a BundleDeployment starts at
-// one, grows while its cache entry is missing, and is forgotten once the agent
-// sees the object again.
+// one, grows by one every time a stale cache hit is recorded, and is reset to 0
+// when stale cache hits are forgotten.
 func TestStaleCacheHits(t *testing.T) {
 	r := &BundleDeploymentReconciler{}
 	key := "cluster-ns/bd"

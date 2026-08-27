@@ -52,8 +52,7 @@ const (
 	// StaleCacheRequeueMax.
 	StaleCacheRequeue = time.Second * 30
 	// StaleCacheRequeueMax caps the wait between those attempts, so that a
-	// cache which never catches up stops polling the API server every few
-	// seconds.
+	// cache which never catches up polls the API server with this periodicity.
 	StaleCacheRequeueMax = time.Minute * 10
 )
 
