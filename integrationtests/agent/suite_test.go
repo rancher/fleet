@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -13,8 +14,10 @@ import (
 	"github.com/rancher/wrangler/v3/pkg/genericcondition"
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/discovery"
@@ -138,9 +141,14 @@ var _ = AfterSuite(func() {
 // in the test Fleet namespace, using configuration from the provided manager.
 // Resources are provided by the lookup parameter.
 func newReconciler(ctx context.Context, mgr manager.Manager, lookup *lookup, driftChan chan event.TypedGenericEvent[*v1alpha1.BundleDeployment]) *controller.BundleDeploymentReconciler {
-	upstreamClient := mgr.GetClient()
+	cachedClient := mgr.GetClient()
 	// re-use client, since this is a single cluster test
-	localClient := upstreamClient
+	localClient := cachedClient
+
+	// The agent reads BundleDeployments through the manager's cache. Wrapping
+	// it lets a test make a single BundleDeployment invisible to the agent,
+	// the way a stale informer store does, while the API server still has it.
+	upstreamClient := &staleCacheClient{Client: cachedClient}
 
 	systemNamespace := "cattle-fleet-system"
 	fleetNamespace := clusterNS
@@ -197,6 +205,7 @@ func newReconciler(ctx context.Context, mgr manager.Manager, lookup *lookup, dri
 	// Build the clean up
 	cleanup := cleanup.New(
 		upstreamClient,
+		mgr.GetAPIReader(),
 		mapper,
 		localDynamic,
 		helmDeployer,
@@ -207,6 +216,7 @@ func newReconciler(ctx context.Context, mgr manager.Manager, lookup *lookup, dri
 
 	return &controller.BundleDeploymentReconciler{
 		Client: upstreamClient,
+		Reader: mgr.GetAPIReader(),
 
 		Scheme:      mgr.GetScheme(),
 		LocalClient: localClient,
@@ -221,6 +231,42 @@ func newReconciler(ctx context.Context, mgr manager.Manager, lookup *lookup, dri
 		AgentScope: agentScope,
 		Workers:    50,
 	}
+}
+
+// hiddenBundleDeployments holds the keys of BundleDeployments that
+// staleCacheClient must pretend not to know about, as "namespace/name".
+var hiddenBundleDeployments sync.Map
+
+// hideBundleDeployment makes the agent's cached client report the
+// BundleDeployment as NotFound, without touching the API server. This is what
+// controller-runtime's CacheReader does whenever the object is missing from
+// the local informer store: it returns a plain NotFound, with no check on
+// whether the store is in sync (see pkg/cache/internal/cache_reader.go).
+func hideBundleDeployment(namespace, name string) {
+	hiddenBundleDeployments.Store(namespace+"/"+name, struct{}{})
+}
+
+func unhideBundleDeployment(namespace, name string) {
+	hiddenBundleDeployments.Delete(namespace + "/" + name)
+}
+
+// staleCacheClient is the agent's upstream client, with the ability to
+// simulate a stale cache for individual BundleDeployments.
+type staleCacheClient struct {
+	client.Client
+}
+
+func (c *staleCacheClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+	if _, ok := obj.(*v1alpha1.BundleDeployment); ok {
+		if _, hidden := hiddenBundleDeployments.Load(key.String()); hidden {
+			return apierrors.NewNotFound(
+				schema.GroupResource{Group: v1alpha1.SchemeGroupVersion.Group, Resource: "bundledeployments"},
+				key.Name,
+			)
+		}
+	}
+
+	return c.Client.Get(ctx, key, obj, opts...)
 }
 
 // restClientGetter is needed to create the helm deployer. We just need to return the rest.Config for this test.
