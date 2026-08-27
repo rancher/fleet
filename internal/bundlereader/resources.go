@@ -190,15 +190,30 @@ func generateValues(base string, chart *fleet.HelmOptions) (valuesMap *fleet.Gen
 	if chart.Values != nil {
 		valuesMap = chart.Values
 	}
+	resolvedBase, err := filepath.EvalSymlinks(base)
+	if err != nil {
+		return nil, fmt.Errorf("resolving values base %q: %w", base, err)
+	}
 	for _, value := range chart.ValuesFiles {
-		valuesByte, err := os.ReadFile(base + "/" + value)
+		valuesPath, err := safeJoinSubDir(base, value)
 		if err != nil {
-			return nil, fmt.Errorf("reading values file: %s/%s: %w", base, value, err)
+			return nil, fmt.Errorf("invalid values file %q: %w", value, err)
+		}
+		resolvedValuesPath, err := filepath.EvalSymlinks(valuesPath)
+		if err != nil {
+			return nil, fmt.Errorf("resolving values file %q: %w", valuesPath, err)
+		}
+		if !pathWithinDir(resolvedBase, resolvedValuesPath) {
+			return nil, fmt.Errorf("invalid values file %q: target escapes bundle directory", value)
+		}
+		valuesByte, err := os.ReadFile(resolvedValuesPath)
+		if err != nil {
+			return nil, fmt.Errorf("reading values file %q: %w", resolvedValuesPath, err)
 		}
 		tmpDataOpt := &fleet.GenericMap{}
 		err = yaml.Unmarshal(valuesByte, tmpDataOpt)
 		if err != nil {
-			return nil, fmt.Errorf("reading values file: %s/%s: %w", base, value, err)
+			return nil, fmt.Errorf("reading values file %q: %w", resolvedValuesPath, err)
 		}
 		valuesMap = mergeGenericMap(valuesMap, tmpDataOpt)
 	}
