@@ -1,8 +1,5 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": [
-    "github>rancher/renovate-config//rancher-main#main"
-  ],
   "baseBranchPatterns": [
     "main",
     "release/v0.16",
@@ -15,6 +12,14 @@
     "**/assets/**"
   ],
   "packageRules": [
+    {
+      "matchBaseBranches": [
+        "main"
+      ],
+      "extends": [
+        "github>rancher/renovate-config//rancher-main#main"
+      ]
+    },
     {
       "matchBaseBranches": [
         "release/v0.16"
