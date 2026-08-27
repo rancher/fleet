@@ -178,9 +178,11 @@ type ComparePatch struct {
 	// +nullable
 	Namespace string `json:"namespace,omitempty"`
 	// JSONPointers ignore diffs at the given JSON pointers, e.g. /spec/replicas.
-	// Each entry must be a non-empty RFC 6901 pointer starting with a slash; a
+	// Each entry must be a non-empty pointer starting with a slash; a
 	// Kubernetes-style field path such as spec.replicas addresses nothing and is
-	// rejected.
+	// rejected. Escaping is the one the JSON patch library applies, which is
+	// laxer than RFC 6901: "~0" and "~1" are read as "~" and "/", and any other
+	// "~" sequence is left as written.
 	// +nullable
 	JsonPointers []string `json:"jsonPointers,omitempty"`
 	// Operations remove a JSON path from the resource.
@@ -202,10 +204,11 @@ type Operation struct {
 	// +nullable
 	Op string `json:"op,omitempty" jsonschema:"enum=add,enum=ignore,enum=remove,enum=replace,enum=test"`
 	// Path is the JSON pointer the operation applies to, e.g. /spec/replicas.
-	// It must be a non-empty RFC 6901 pointer starting with a slash; a
-	// Kubernetes-style field path such as spec.replicas addresses nothing and is
-	// rejected. Required unless Op is "ignore", which drops the whole resource
-	// from the comparison and never reads the path.
+	// It must be a non-empty pointer starting with a slash; a Kubernetes-style
+	// field path such as spec.replicas addresses nothing and is rejected. It is
+	// escaped like a JSONPointers entry, which is laxer than RFC 6901. Required
+	// unless Op is "ignore", which drops the whole resource from the comparison
+	// and never reads the path.
 	// +nullable
 	Path string `json:"path,omitempty"`
 	// Value is usually empty.

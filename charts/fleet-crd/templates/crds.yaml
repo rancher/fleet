@@ -378,13 +378,19 @@ spec:
                                 description: 'JSONPointers ignore diffs at the given
                                   JSON pointers, e.g. /spec/replicas.
 
-                                  Each entry must be a non-empty RFC 6901 pointer
-                                  starting with a slash; a
+                                  Each entry must be a non-empty pointer starting
+                                  with a slash; a
 
                                   Kubernetes-style field path such as spec.replicas
                                   addresses nothing and is
 
-                                  rejected.'
+                                  rejected. Escaping is the one the JSON patch library
+                                  applies, which is
+
+                                  laxer than RFC 6901: "~0" and "~1" are read as "~"
+                                  and "/", and any other
+
+                                  "~" sequence is left as written.'
                                 items:
                                   type: string
                                 nullable: true
@@ -446,16 +452,19 @@ spec:
                                       description: 'Path is the JSON pointer the operation
                                         applies to, e.g. /spec/replicas.
 
-                                        It must be a non-empty RFC 6901 pointer starting
-                                        with a slash; a
+                                        It must be a non-empty pointer starting with
+                                        a slash; a Kubernetes-style
 
-                                        Kubernetes-style field path such as spec.replicas
-                                        addresses nothing and is
+                                        field path such as spec.replicas addresses
+                                        nothing and is rejected. It is
 
-                                        rejected. Required unless Op is "ignore",
-                                        which drops the whole resource
+                                        escaped like a JSONPointers entry, which is
+                                        laxer than RFC 6901. Required
 
-                                        from the comparison and never reads the path.'
+                                        unless Op is "ignore", which drops the whole
+                                        resource from the comparison
+
+                                        and never reads the path.'
                                       nullable: true
                                       type: string
                                     value:
@@ -909,13 +918,19 @@ spec:
                                 description: 'JSONPointers ignore diffs at the given
                                   JSON pointers, e.g. /spec/replicas.
 
-                                  Each entry must be a non-empty RFC 6901 pointer
-                                  starting with a slash; a
+                                  Each entry must be a non-empty pointer starting
+                                  with a slash; a
 
                                   Kubernetes-style field path such as spec.replicas
                                   addresses nothing and is
 
-                                  rejected.'
+                                  rejected. Escaping is the one the JSON patch library
+                                  applies, which is
+
+                                  laxer than RFC 6901: "~0" and "~1" are read as "~"
+                                  and "/", and any other
+
+                                  "~" sequence is left as written.'
                                 items:
                                   type: string
                                 nullable: true
@@ -977,16 +992,19 @@ spec:
                                       description: 'Path is the JSON pointer the operation
                                         applies to, e.g. /spec/replicas.
 
-                                        It must be a non-empty RFC 6901 pointer starting
-                                        with a slash; a
+                                        It must be a non-empty pointer starting with
+                                        a slash; a Kubernetes-style
 
-                                        Kubernetes-style field path such as spec.replicas
-                                        addresses nothing and is
+                                        field path such as spec.replicas addresses
+                                        nothing and is rejected. It is
 
-                                        rejected. Required unless Op is "ignore",
-                                        which drops the whole resource
+                                        escaped like a JSONPointers entry, which is
+                                        laxer than RFC 6901. Required
 
-                                        from the comparison and never reads the path.'
+                                        unless Op is "ignore", which drops the whole
+                                        resource from the comparison
+
+                                        and never reads the path.'
                                       nullable: true
                                       type: string
                                     value:
@@ -2015,13 +2033,19 @@ spec:
                             description: 'JSONPointers ignore diffs at the given JSON
                               pointers, e.g. /spec/replicas.
 
-                              Each entry must be a non-empty RFC 6901 pointer starting
-                              with a slash; a
+                              Each entry must be a non-empty pointer starting with
+                              a slash; a
 
                               Kubernetes-style field path such as spec.replicas addresses
                               nothing and is
 
-                              rejected.'
+                              rejected. Escaping is the one the JSON patch library
+                              applies, which is
+
+                              laxer than RFC 6901: "~0" and "~1" are read as "~" and
+                              "/", and any other
+
+                              "~" sequence is left as written.'
                             items:
                               type: string
                             nullable: true
@@ -2082,16 +2106,19 @@ spec:
                                   description: 'Path is the JSON pointer the operation
                                     applies to, e.g. /spec/replicas.
 
-                                    It must be a non-empty RFC 6901 pointer starting
-                                    with a slash; a
+                                    It must be a non-empty pointer starting with a
+                                    slash; a Kubernetes-style
 
-                                    Kubernetes-style field path such as spec.replicas
-                                    addresses nothing and is
+                                    field path such as spec.replicas addresses nothing
+                                    and is rejected. It is
 
-                                    rejected. Required unless Op is "ignore", which
-                                    drops the whole resource
+                                    escaped like a JSONPointers entry, which is laxer
+                                    than RFC 6901. Required
 
-                                    from the comparison and never reads the path.'
+                                    unless Op is "ignore", which drops the whole resource
+                                    from the comparison
+
+                                    and never reads the path.'
                                   nullable: true
                                   type: string
                                 value:
@@ -3112,13 +3139,19 @@ spec:
                                   description: 'JSONPointers ignore diffs at the given
                                     JSON pointers, e.g. /spec/replicas.
 
-                                    Each entry must be a non-empty RFC 6901 pointer
-                                    starting with a slash; a
+                                    Each entry must be a non-empty pointer starting
+                                    with a slash; a
 
                                     Kubernetes-style field path such as spec.replicas
                                     addresses nothing and is
 
-                                    rejected.'
+                                    rejected. Escaping is the one the JSON patch library
+                                    applies, which is
+
+                                    laxer than RFC 6901: "~0" and "~1" are read as
+                                    "~" and "/", and any other
+
+                                    "~" sequence is left as written.'
                                   items:
                                     type: string
                                   nullable: true
@@ -3182,17 +3215,19 @@ spec:
                                         description: 'Path is the JSON pointer the
                                           operation applies to, e.g. /spec/replicas.
 
-                                          It must be a non-empty RFC 6901 pointer
-                                          starting with a slash; a
+                                          It must be a non-empty pointer starting
+                                          with a slash; a Kubernetes-style
 
-                                          Kubernetes-style field path such as spec.replicas
-                                          addresses nothing and is
+                                          field path such as spec.replicas addresses
+                                          nothing and is rejected. It is
 
-                                          rejected. Required unless Op is "ignore",
-                                          which drops the whole resource
+                                          escaped like a JSONPointers entry, which
+                                          is laxer than RFC 6901. Required
 
-                                          from the comparison and never reads the
-                                          path.'
+                                          unless Op is "ignore", which drops the whole
+                                          resource from the comparison
+
+                                          and never reads the path.'
                                         nullable: true
                                         type: string
                                       value:
@@ -8450,13 +8485,19 @@ spec:
                             description: 'JSONPointers ignore diffs at the given JSON
                               pointers, e.g. /spec/replicas.
 
-                              Each entry must be a non-empty RFC 6901 pointer starting
-                              with a slash; a
+                              Each entry must be a non-empty pointer starting with
+                              a slash; a
 
                               Kubernetes-style field path such as spec.replicas addresses
                               nothing and is
 
-                              rejected.'
+                              rejected. Escaping is the one the JSON patch library
+                              applies, which is
+
+                              laxer than RFC 6901: "~0" and "~1" are read as "~" and
+                              "/", and any other
+
+                              "~" sequence is left as written.'
                             items:
                               type: string
                             nullable: true
@@ -8517,16 +8558,19 @@ spec:
                                   description: 'Path is the JSON pointer the operation
                                     applies to, e.g. /spec/replicas.
 
-                                    It must be a non-empty RFC 6901 pointer starting
-                                    with a slash; a
+                                    It must be a non-empty pointer starting with a
+                                    slash; a Kubernetes-style
 
-                                    Kubernetes-style field path such as spec.replicas
-                                    addresses nothing and is
+                                    field path such as spec.replicas addresses nothing
+                                    and is rejected. It is
 
-                                    rejected. Required unless Op is "ignore", which
-                                    drops the whole resource
+                                    escaped like a JSONPointers entry, which is laxer
+                                    than RFC 6901. Required
 
-                                    from the comparison and never reads the path.'
+                                    unless Op is "ignore", which drops the whole resource
+                                    from the comparison
+
+                                    and never reads the path.'
                                   nullable: true
                                   type: string
                                 value:
@@ -9579,13 +9623,19 @@ spec:
                                   description: 'JSONPointers ignore diffs at the given
                                     JSON pointers, e.g. /spec/replicas.
 
-                                    Each entry must be a non-empty RFC 6901 pointer
-                                    starting with a slash; a
+                                    Each entry must be a non-empty pointer starting
+                                    with a slash; a
 
                                     Kubernetes-style field path such as spec.replicas
                                     addresses nothing and is
 
-                                    rejected.'
+                                    rejected. Escaping is the one the JSON patch library
+                                    applies, which is
+
+                                    laxer than RFC 6901: "~0" and "~1" are read as
+                                    "~" and "/", and any other
+
+                                    "~" sequence is left as written.'
                                   items:
                                     type: string
                                   nullable: true
@@ -9649,17 +9699,19 @@ spec:
                                         description: 'Path is the JSON pointer the
                                           operation applies to, e.g. /spec/replicas.
 
-                                          It must be a non-empty RFC 6901 pointer
-                                          starting with a slash; a
+                                          It must be a non-empty pointer starting
+                                          with a slash; a Kubernetes-style
 
-                                          Kubernetes-style field path such as spec.replicas
-                                          addresses nothing and is
+                                          field path such as spec.replicas addresses
+                                          nothing and is rejected. It is
 
-                                          rejected. Required unless Op is "ignore",
-                                          which drops the whole resource
+                                          escaped like a JSONPointers entry, which
+                                          is laxer than RFC 6901. Required
 
-                                          from the comparison and never reads the
-                                          path.'
+                                          unless Op is "ignore", which drops the whole
+                                          resource from the comparison
+
+                                          and never reads the path.'
                                         nullable: true
                                         type: string
                                       value:

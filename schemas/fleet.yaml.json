@@ -165,7 +165,7 @@
             "type": "string"
           },
           "type": "array",
-          "description": "JSONPointers ignore diffs at the given JSON pointers, e.g. /spec/replicas.\nEach entry must be a non-empty RFC 6901 pointer starting with a slash; a\nKubernetes-style field path such as spec.replicas addresses nothing and is\nrejected."
+          "description": "JSONPointers ignore diffs at the given JSON pointers, e.g. /spec/replicas.\nEach entry must be a non-empty pointer starting with a slash; a\nKubernetes-style field path such as spec.replicas addresses nothing and is\nrejected. Escaping is the one the JSON patch library applies, which is\nlaxer than RFC 6901: \"~0\" and \"~1\" are read as \"~\" and \"/\", and any other\n\"~\" sequence is left as written."
         },
         "operations": {
           "items": {
@@ -506,7 +506,7 @@
         },
         "path": {
           "type": "string",
-          "description": "Path is the JSON pointer the operation applies to, e.g. /spec/replicas.\nIt must be a non-empty RFC 6901 pointer starting with a slash; a\nKubernetes-style field path such as spec.replicas addresses nothing and is\nrejected. Required unless Op is \"ignore\", which drops the whole resource\nfrom the comparison and never reads the path."
+          "description": "Path is the JSON pointer the operation applies to, e.g. /spec/replicas.\nIt must be a non-empty pointer starting with a slash; a Kubernetes-style\nfield path such as spec.replicas addresses nothing and is rejected. It is\nescaped like a JSONPointers entry, which is laxer than RFC 6901. Required\nunless Op is \"ignore\", which drops the whole resource from the comparison\nand never reads the path."
         },
         "value": {
           "type": "string",
