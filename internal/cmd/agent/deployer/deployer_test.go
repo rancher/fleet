@@ -5,8 +5,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/go-logr/logr"
-
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	corev1 "k8s.io/api/core/v1"
@@ -305,8 +303,8 @@ func TestSetNamespaceLabelsAndAnnotationsError(t *testing.T) {
 // TestSetNamespaceLabelsAndAnnotations_NoUpdateWhenAlreadyCorrect verifies that
 // updateNamespace is not called when the namespace already reflects the desired state.
 // This guards against the broken reflect.DeepEqual check that compared raw option
-// labels to ns.Labels; ns.Labels always includes kubernetes.io/metadata.name and
-// may include preserved pod-security labels, so a direct equality check never holds.
+// labels to ns.Labels; ns.Labels always includes kubernetes.io/metadata.name, so a
+// direct equality check never holds.
 func TestSetNamespaceLabelsAndAnnotations_NoUpdateWhenAlreadyCorrect(t *testing.T) {
 	bd := &fleet.BundleDeployment{Spec: fleet.BundleDeploymentSpec{
 		Options: fleet.BundleDeploymentOptions{
@@ -347,13 +345,13 @@ func TestSetNamespaceLabelsAndAnnotations_NoUpdateWhenAlreadyCorrect(t *testing.
 	}
 }
 
-func TestAddLabelsFromOptions_PodSecurityLabelsFiltered(t *testing.T) {
+func TestAddLabelsFromOptions_PodSecurityLabels(t *testing.T) {
 	tests := map[string]struct {
 		nsLabels       map[string]string
 		optLabels      map[string]string
 		expectedLabels map[string]string
 	}{
-		"pod-security.kubernetes.io labels in optLabels are not applied to namespace": {
+		"pod-security.kubernetes.io labels in optLabels are applied to the namespace": {
 			nsLabels: map[string]string{"kubernetes.io/metadata.name": "ns"},
 			optLabels: map[string]string{
 				"pod-security.kubernetes.io/enforce": "privileged",
@@ -362,15 +360,17 @@ func TestAddLabelsFromOptions_PodSecurityLabelsFiltered(t *testing.T) {
 				"safe-label":                         "value",
 			},
 			expectedLabels: map[string]string{
-				"kubernetes.io/metadata.name": "ns",
-				"safe-label":                  "value",
+				"kubernetes.io/metadata.name":        "ns",
+				"pod-security.kubernetes.io/enforce": "privileged",
+				"pod-security.kubernetes.io/audit":   "privileged",
+				"pod-security.kubernetes.io/warn":    "privileged",
+				"safe-label":                         "value",
 			},
 		},
-		"existing pod-security.kubernetes.io labels on namespace are preserved": {
+		"existing pod-security.kubernetes.io labels on the namespace are overwritten": {
 			nsLabels: map[string]string{
 				"kubernetes.io/metadata.name":        "ns",
 				"pod-security.kubernetes.io/enforce": "baseline",
-				"pod-security.kubernetes.io/audit":   "baseline",
 			},
 			optLabels: map[string]string{
 				"pod-security.kubernetes.io/enforce": "privileged",
@@ -378,9 +378,21 @@ func TestAddLabelsFromOptions_PodSecurityLabelsFiltered(t *testing.T) {
 			},
 			expectedLabels: map[string]string{
 				"kubernetes.io/metadata.name":        "ns",
-				"pod-security.kubernetes.io/enforce": "baseline",
-				"pod-security.kubernetes.io/audit":   "baseline",
+				"pod-security.kubernetes.io/enforce": "privileged",
 				"app-label":                          "value",
+			},
+		},
+		"pod-security.kubernetes.io labels not in optLabels are removed like any other label": {
+			nsLabels: map[string]string{
+				"kubernetes.io/metadata.name":      "ns",
+				"pod-security.kubernetes.io/audit": "baseline",
+			},
+			optLabels: map[string]string{
+				"app-label": "value",
+			},
+			expectedLabels: map[string]string{
+				"kubernetes.io/metadata.name": "ns",
+				"app-label":                   "value",
 			},
 		},
 		"non-security labels work normally": {
@@ -396,7 +408,7 @@ func TestAddLabelsFromOptions_PodSecurityLabelsFiltered(t *testing.T) {
 				"new-label":                   "new-value",
 			},
 		},
-		"pod-security.kubernetes.io labels with custom suffixes are also filtered": {
+		"pod-security.kubernetes.io labels with version suffixes are applied as well": {
 			nsLabels: map[string]string{"kubernetes.io/metadata.name": "ns"},
 			optLabels: map[string]string{
 				"pod-security.kubernetes.io/enforce-version": "v1.25",
@@ -404,15 +416,17 @@ func TestAddLabelsFromOptions_PodSecurityLabelsFiltered(t *testing.T) {
 				"safe-label": "value",
 			},
 			expectedLabels: map[string]string{
-				"kubernetes.io/metadata.name": "ns",
-				"safe-label":                  "value",
+				"kubernetes.io/metadata.name":                "ns",
+				"pod-security.kubernetes.io/enforce-version": "v1.25",
+				"pod-security.kubernetes.io/audit-version":   "v1.25",
+				"safe-label": "value",
 			},
 		},
 	}
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			addLabelsFromOptions(logr.Discard(), test.nsLabels, test.optLabels)
+			addLabelsFromOptions(test.nsLabels, test.optLabels)
 
 			if len(test.nsLabels) != len(test.expectedLabels) {
 				t.Errorf("expected %d labels, got %d: %v", len(test.expectedLabels), len(test.nsLabels), test.nsLabels)
@@ -426,7 +440,12 @@ func TestAddLabelsFromOptions_PodSecurityLabelsFiltered(t *testing.T) {
 	}
 }
 
-func TestSetNamespaceLabelsAndAnnotations_PodSecurityLabelsPreserved(t *testing.T) {
+// TestSetNamespaceLabelsAndAnnotations_PodSecurityLabelsApplied verifies that
+// pod-security labels declared in namespaceLabels reach the namespace, which is
+// what SURE-5906 (#1484) added the option for. Setting them is gated by the
+// downstream RBAC of the deployment's service account, not by a filter in the
+// agent.
+func TestSetNamespaceLabelsAndAnnotations_PodSecurityLabelsApplied(t *testing.T) {
 	bd := &fleet.BundleDeployment{Spec: fleet.BundleDeploymentSpec{
 		Options: fleet.BundleDeploymentOptions{
 			NamespaceLabels: map[string]string{
@@ -465,14 +484,16 @@ func TestSetNamespaceLabelsAndAnnotations_PodSecurityLabelsPreserved(t *testing.
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if result.Labels["pod-security.kubernetes.io/enforce"] != "restricted" {
-		t.Errorf("pod-security.kubernetes.io/enforce: got %s, want restricted", result.Labels["pod-security.kubernetes.io/enforce"])
+	expected := map[string]string{
+		"pod-security.kubernetes.io/enforce": "privileged",
+		"pod-security.kubernetes.io/audit":   "privileged",
+		"pod-security.kubernetes.io/warn":    "privileged",
+		"app-label":                          "value",
 	}
-	if result.Labels["pod-security.kubernetes.io/audit"] != "restricted" {
-		t.Errorf("pod-security.kubernetes.io/audit: got %s, want restricted", result.Labels["pod-security.kubernetes.io/audit"])
-	}
-	if result.Labels["app-label"] != "value" {
-		t.Errorf("app-label: got %s, want value", result.Labels["app-label"])
+	for k, v := range expected {
+		if result.Labels[k] != v {
+			t.Errorf("%s: got %s, want %s", k, result.Labels[k], v)
+		}
 	}
 }
 func TestIsStateAccepted(t *testing.T) {
