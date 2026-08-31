@@ -11,7 +11,45 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
+
+// ImpersonatedClient returns a controller-runtime client that impersonates the
+// service account resolved for the given deployment, to be used for namespace
+// label/annotation mutations. Performing those mutations as the same identity
+// the deployment runs as ensures they are gated by the same downstream RBAC,
+// rather than by the agent's own (cluster-admin) credentials.
+//
+// Service account resolution is identical to the Helm install path
+// (getServiceAccount): an explicitly pinned account is used as-is, otherwise it
+// falls back to "fleet-default" when present. It returns a nil client only when
+// no service account is resolved at all (none pinned and no "fleet-default"); in
+// that case the deployment runs as the agent itself, and callers should fall
+// back to their own client to preserve the existing behaviour.
+func (h *Helm) ImpersonatedClient(ctx context.Context, serviceAccountName string) (client.Client, error) {
+	saNamespace, saName, err := h.getServiceAccount(ctx, serviceAccountName)
+	if err != nil {
+		return nil, err
+	}
+	if saName == "" {
+		return nil, nil
+	}
+
+	getter, err := newImpersonatingGetter(saNamespace, saName, h.getter)
+	if err != nil {
+		return nil, err
+	}
+	restConfig, err := getter.ToRESTConfig()
+	if err != nil {
+		return nil, err
+	}
+	mapper, err := getter.ToRESTMapper()
+	if err != nil {
+		return nil, err
+	}
+
+	return client.New(restConfig, client.Options{Scheme: h.client.Scheme(), Mapper: mapper})
+}
 
 // getServiceAccount is called with an empty name, unless the user specified a
 // service account in their git repo.

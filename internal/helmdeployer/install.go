@@ -151,7 +151,7 @@ func (h *Helm) install(ctx context.Context, bundleID string, manifest *manifest.
 		u.Replace = true
 		u.Atomic = options.Helm.Atomic
 		u.ReleaseName = releaseName
-		u.CreateNamespace = true
+		u.CreateNamespace = options.CreateNamespace == nil || *options.CreateNamespace
 		u.Namespace = defaultNamespace
 		u.Timeout = timeout
 		u.DryRun = dryRunCfg.DryRun
