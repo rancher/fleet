@@ -51,14 +51,18 @@ func TestGetSummaryState(t *testing.T) {
 	// Pending:              3,
 	// NotReady:             2,
 	// Ready:                1,
+	//
+	// The winning state is deliberately placed at a different index in each
+	// case below, so that an implementation picking the first or the last
+	// element instead of the highest ranked one fails here.
 	s.NonReadyResources = []fleet.NonReadyResource{
 		{
 			Name:  "test",
-			State: fleet.Pending,
+			State: fleet.WaitApplied,
 		},
 		{
 			Name:  "test",
-			State: fleet.WaitApplied,
+			State: fleet.Pending,
 		},
 	}
 	bundleState = summary.GetSummaryState(s)
@@ -77,6 +81,10 @@ func TestGetSummaryState(t *testing.T) {
 			Name:  "test",
 			State: fleet.WaitingForDependency,
 		},
+		{
+			Name:  "test",
+			State: fleet.NotReady,
+		},
 	}
 	bundleState = summary.GetSummaryState(s)
 	if bundleState != fleet.WaitingForDependency {
@@ -88,16 +96,38 @@ func TestGetSummaryState(t *testing.T) {
 	s.NonReadyResources = []fleet.NonReadyResource{
 		{
 			Name:  "test",
-			State: fleet.WaitingForDependency,
+			State: fleet.ErrApplied,
 		},
 		{
 			Name:  "test",
-			State: fleet.ErrApplied,
+			State: fleet.WaitingForDependency,
 		},
 	}
 	bundleState = summary.GetSummaryState(s)
 	if bundleState != fleet.ErrApplied {
 		t.Errorf("Expected ErrApplied, got %s", bundleState)
+	}
+
+	// The single Modified case above is unavoidably both first and last, so
+	// pin the ranking once more with Modified surrounded by lower ranked
+	// states.
+	s.NonReadyResources = []fleet.NonReadyResource{
+		{
+			Name:  "test",
+			State: fleet.OutOfSync,
+		},
+		{
+			Name:  "test",
+			State: fleet.Modified,
+		},
+		{
+			Name:  "test",
+			State: fleet.Pending,
+		},
+	}
+	bundleState = summary.GetSummaryState(s)
+	if bundleState != fleet.Modified {
+		t.Errorf("Expected Modified, got %s", bundleState)
 	}
 }
 

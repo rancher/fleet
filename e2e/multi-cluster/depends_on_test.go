@@ -226,6 +226,35 @@ var _ = Describe("Bundle Depends On", func() {
 				}
 				return out
 			}, duration, interval).Should(Equal(string(fleet.WaitingForDependency)))
+
+			By("restoring the ConfigMap, which makes the dependency acceptable again")
+			_, err = k.Namespace(namespace).Run(
+				"patch", "configmap", "root-will-be-modified",
+				"--type=merge", "-p", `{"data":{"value":"original"}}`,
+			)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("waiting for the required bundle to be ready again")
+			Eventually(func() string {
+				out, err := k.Namespace(env.Namespace).Get("bundle", required, "-o=jsonpath={.status.display}")
+				if err != nil {
+					return ""
+				}
+				var d fleet.BundleDisplay
+				_ = json.Unmarshal([]byte(out), &d)
+				return d.ReadyClusters
+			}, 2*time.Minute, interval).Should(Equal("1/1"))
+
+			By("verifying the dependent bundle leaves WaitingForDependency and deploys")
+			Eventually(func() string {
+				out, err := k.Namespace(env.Namespace).Get("bundle", dependsOn, "-o=jsonpath={.status.display}")
+				if err != nil {
+					return ""
+				}
+				var d fleet.BundleDisplay
+				_ = json.Unmarshal([]byte(out), &d)
+				return d.ReadyClusters
+			}, 5*time.Minute, interval).Should(Equal("1/1"))
 		})
 	})
 })
