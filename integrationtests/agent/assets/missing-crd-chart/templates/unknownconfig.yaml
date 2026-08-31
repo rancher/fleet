@@ -1,0 +1,6 @@
+apiVersion: stable.example.com/v1
+kind: UnknownConfig
+metadata:
+  name: unknown-config
+spec:
+  value: {{ .Values.value | quote }}
