@@ -662,8 +662,7 @@ func setConditionWithReason(newStatus fleetv1.BundleDeploymentStatus, err error,
 // reason, so the bundledeployment is reported as WaitingForDependency instead
 // of the misleading ErrApplied. Any other error keeps the default "Error".
 func deployedConditionReason(err error) string {
-	var notReadyDependenciesError *deployer.NotReadyDependenciesError
-	if errors.As(err, &notReadyDependenciesError) {
+	if _, ok := errors.AsType[*deployer.NotReadyDependenciesError](err); ok {
 		return fleetv1.BundleDeploymentReasonWaitingForDependency
 	}
 
