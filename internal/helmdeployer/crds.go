@@ -40,7 +40,7 @@ func isMissingOwnCRDsError(err error, chart *chartv2.Chart) bool {
 // noKindMatchErrors collects all the NoKindMatchErrors contained in err.
 // Errors reported while building a resource list are wrapped into an aggregate
 // when more than one resource fails, and aggregates cannot be traversed by
-// errors.As, hence the explicit recursion.
+// errors.AsType, hence the explicit recursion.
 func noKindMatchErrors(err error) []*meta.NoKindMatchError {
 	var result []*meta.NoKindMatchError
 
@@ -50,14 +50,12 @@ func noKindMatchErrors(err error) []*meta.NoKindMatchError {
 			return
 		}
 
-		var noKindMatch *meta.NoKindMatchError
-		if errors.As(err, &noKindMatch) {
+		if noKindMatch, ok := errors.AsType[*meta.NoKindMatchError](err); ok {
 			result = append(result, noKindMatch)
 			return
 		}
 
-		var aggregate utilerrors.Aggregate
-		if errors.As(err, &aggregate) {
+		if aggregate, ok := errors.AsType[utilerrors.Aggregate](err); ok {
 			for _, e := range aggregate.Errors() {
 				collect(e)
 			}
