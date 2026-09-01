@@ -39,8 +39,21 @@ func validateBundleRef(index int, dep fleet.BundleRef) error {
 	return nil
 }
 
-// isValidBundleState checks if a BundleState is valid by checking against StateRank
+// statesRejectedAsAccepted lists states which are ranked in StateRank, but which
+// must not be used as an acceptedState. WaitingForDependency describes a bundle
+// which is itself blocked on one of its own dependencies, so accepting it would
+// unblock the dependent bundle precisely when its dependency stopped making
+// progress, which defeats the point of declaring the dependency.
+var statesRejectedAsAccepted = map[fleet.BundleState]struct{}{
+	fleet.WaitingForDependency: {},
+}
+
+// isValidBundleState checks if a BundleState may be used as an acceptedState. A
+// state is valid if it is ranked in StateRank and is not rejected explicitly.
 func isValidBundleState(state fleet.BundleState) bool {
+	if _, rejected := statesRejectedAsAccepted[state]; rejected {
+		return false
+	}
 	_, exists := fleet.StateRank[state]
 	return exists
 }
@@ -51,6 +64,9 @@ func isValidBundleState(state fleet.BundleState) bool {
 func validBundleStatesList() []fleet.BundleState {
 	states := make([]fleet.BundleState, 0, len(fleet.StateRank))
 	for state := range fleet.StateRank {
+		if !isValidBundleState(state) {
+			continue
+		}
 		states = append(states, state)
 	}
 	sort.Slice(states, func(i, j int) bool {

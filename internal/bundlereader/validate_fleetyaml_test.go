@@ -78,6 +78,11 @@ func TestValidateFleetYAML_InvalidAcceptedStates(t *testing.T) {
 			states:        []fleet.BundleState{""},
 			expectedError: `dependsOn[0].acceptedStates[0]: invalid state ""`,
 		},
+		{
+			name:          "WaitingForDependency is ranked, but rejected as an accepted state",
+			states:        []fleet.BundleState{fleet.Ready, fleet.WaitingForDependency},
+			expectedError: `dependsOn[0].acceptedStates[1]: invalid state "WaitingForDependency"`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -171,6 +176,10 @@ func TestIsValidBundleState(t *testing.T) {
 		"READY",
 		"",
 		"Foo",
+		// Ranked in StateRank, but rejected as an acceptedState: it would
+		// unblock the dependent bundle as soon as the dependency became
+		// blocked itself.
+		fleet.WaitingForDependency,
 	}
 
 	for _, state := range invalidStates {
@@ -183,9 +192,17 @@ func TestIsValidBundleState(t *testing.T) {
 func TestValidBundleStatesList_SortedByRank(t *testing.T) {
 	states := validBundleStatesList()
 
-	// Verify all states from StateRank are present
-	if len(states) != len(fleet.StateRank) {
-		t.Errorf("validBundleStatesList() returned %d states, expected %d", len(states), len(fleet.StateRank))
+	// Verify all states from StateRank are present, minus the ones rejected
+	// as acceptedStates
+	if want := len(fleet.StateRank) - len(statesRejectedAsAccepted); len(states) != want {
+		t.Errorf("validBundleStatesList() returned %d states, expected %d", len(states), want)
+	}
+
+	// Verify no rejected state leaks into the list suggested to users
+	for _, state := range states {
+		if _, rejected := statesRejectedAsAccepted[state]; rejected {
+			t.Errorf("validBundleStatesList() contains rejected state %q", state)
+		}
 	}
 
 	// Verify states are sorted by rank (ascending)
