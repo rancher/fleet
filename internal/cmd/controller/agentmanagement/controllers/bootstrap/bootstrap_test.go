@@ -1,5 +1,5 @@
-//go:generate mockgen --build_flags=--mod=mod -destination=../../../../mocks/wrangler_apply_mock.go -package=mocks github.com/rancher/wrangler/v3/pkg/apply Apply
-//go:generate mockgen --build_flags=--mod=mod -destination=../../../../mocks/clientcmd_config.go -package=mocks k8s.io/client-go/tools/clientcmd ClientConfig
+//go:generate mockgen --build_flags=--mod=mod -destination=../../../../../mocks/wrangler_apply_mock.go -package=mocks github.com/rancher/wrangler/v3/pkg/apply Apply
+//go:generate mockgen --build_flags=--mod=mod -destination=../../../../../mocks/clientcmd_config.go -package=mocks k8s.io/client-go/tools/clientcmd ClientConfig
 package bootstrap
 
 import (

@@ -3,7 +3,6 @@ package cli
 import (
 	"context"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"os"
 	"time"
@@ -226,12 +225,7 @@ Examples:
 	})
 	cmd.SetOut(os.Stdout)
 
-	// add command line flags from zap and controller-runtime, which use
-	// goflags and convert them to pflags
-	fs := flag.NewFlagSet("", flag.ExitOnError)
-	zopts.BindFlags(fs)
-	ctrl.RegisterFlags(fs)
-	cmd.Flags().AddGoFlagSet(fs)
+	registerLoggingAndKubeconfigFlags(cmd)
 	return cmd
 }
 
@@ -239,7 +233,10 @@ func (m *Monitor) Run(cmd *cobra.Command, args []string) error {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zopts)))
 	ctx := log.IntoContext(cmd.Context(), ctrl.Log)
 
-	cfg := ctrl.GetConfigOrDie()
+	cfg, err := getKubeconfig()
+	if err != nil {
+		return err
+	}
 	c, err := client.New(cfg, client.Options{Scheme: scheme})
 	if err != nil {
 		return err

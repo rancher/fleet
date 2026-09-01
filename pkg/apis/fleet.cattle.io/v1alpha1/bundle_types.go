@@ -23,6 +23,12 @@ const (
 	// the downstream cluster, but there were some errors when deploying
 	// the Bundle.
 	ErrApplied BundleState = "ErrApplied"
+	// WaitingForDependency: Bundles have been synced from the Fleet
+	// controller and the downstream cluster, but are not deployed yet
+	// because at least one of the bundles they depend on has not reached
+	// an accepted state. Unlike ErrApplied this is not a deployment error:
+	// it resolves on its own once the dependency progresses.
+	WaitingForDependency BundleState = "WaitingForDependency"
 	// OutOfSync: Bundles have been synced from Fleet controller, but
 	// downstream agent hasn't synced the change yet.
 	OutOfSync BundleState = "OutOfSync"
@@ -49,13 +55,14 @@ var (
 	// StateRank ranks the state, e.g. so the highest ranked non-ready
 	// state can be reported in a summary.
 	StateRank = map[BundleState]int{
-		ErrApplied:  7,
-		WaitApplied: 6,
-		Modified:    5,
-		OutOfSync:   4,
-		Pending:     3,
-		NotReady:    2,
-		Ready:       1,
+		ErrApplied:           8,
+		WaitingForDependency: 7,
+		WaitApplied:          6,
+		Modified:             5,
+		OutOfSync:            4,
+		Pending:              3,
+		NotReady:             2,
+		Ready:                1,
 	}
 )
 
@@ -155,7 +162,8 @@ type BundleRef struct {
 	Selector *metav1.LabelSelector `json:"selector,omitempty"`
 	// AcceptedStates is a list of BundleDeployment state that are considered acceptable for this dependency.
 	// If the dependency is in one of these states, it will not block the deployment of the dependent bundle.
-	// Valid Values should match the StateRank keys.
+	// Valid Values should match the StateRank keys, except for WaitingForDependency, which is rejected:
+	// it would unblock this bundle exactly when its dependency became blocked on a dependency of its own.
 	// If not specified, default to ["Ready"]: only fully ready dependencies are accepted
 	// Example: ["Ready", "Modified"] will accept dependencies that are either ready or have drifted from their desired state.
 	// +nullable
@@ -305,6 +313,10 @@ type BundleSummary struct {
 	// from the Fleet controller and the downstream cluster, but with some
 	// errors when deploying the bundle.
 	ErrApplied int `json:"errApplied,omitempty"`
+	// WaitingForDependency is the number of bundle deployments which are
+	// not deployed because at least one of the bundles they depend on has
+	// not reached an accepted state.
+	WaitingForDependency int `json:"waitingForDependency,omitempty"`
 	// OutOfSync is the number of bundle deployments that have been synced
 	// from Fleet controller, but not yet by the downstream agent.
 	OutOfSync int `json:"outOfSync,omitempty"`
@@ -377,6 +389,13 @@ const (
 	// succeeded.
 	BundleDeploymentConditionDeployed  = "Deployed"
 	BundleDeploymentConditionMonitored = "Monitored"
+
+	// BundleDeploymentReasonWaitingForDependency is the reason set on the
+	// Deployed condition when the bundledeployment is not deployed because
+	// one of its dependencies has not reached an accepted state. It
+	// distinguishes that temporary wait from an actual deployment error,
+	// which uses the default "Error" reason.
+	BundleDeploymentReasonWaitingForDependency = "WaitingForDependency"
 )
 
 type BundleStatus struct {

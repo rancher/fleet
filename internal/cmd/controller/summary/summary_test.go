@@ -43,26 +43,193 @@ func TestGetSummaryState(t *testing.T) {
 
 	// It is supposed to return the highest priority state if there are multiple
 	// non-ready resources. Rank depends on v1alpha1.StateRank.
-	// ErrApplied:  7,
-	// WaitApplied: 6,
-	// Modified:    5,
-	// OutOfSync:   4,
-	// Pending:     3,
-	// NotReady:    2,
-	// Ready:       1,
+	// ErrApplied:           8,
+	// WaitingForDependency: 7,
+	// WaitApplied:          6,
+	// Modified:             5,
+	// OutOfSync:            4,
+	// Pending:              3,
+	// NotReady:             2,
+	// Ready:                1,
+	//
+	// The winning state is deliberately placed at a different index in each
+	// case below, so that an implementation picking the first or the last
+	// element instead of the highest ranked one fails here.
 	s.NonReadyResources = []fleet.NonReadyResource{
 		{
 			Name:  "test",
-			State: fleet.Pending,
+			State: fleet.WaitApplied,
 		},
 		{
 			Name:  "test",
-			State: fleet.WaitApplied,
+			State: fleet.Pending,
 		},
 	}
 	bundleState = summary.GetSummaryState(s)
 	if bundleState != fleet.WaitApplied {
 		t.Errorf("Expected WaitApplied, got %s", bundleState)
+	}
+
+	// WaitingForDependency outranks the generic WaitApplied, because it says
+	// why the deployment is waiting.
+	s.NonReadyResources = []fleet.NonReadyResource{
+		{
+			Name:  "test",
+			State: fleet.WaitApplied,
+		},
+		{
+			Name:  "test",
+			State: fleet.WaitingForDependency,
+		},
+		{
+			Name:  "test",
+			State: fleet.NotReady,
+		},
+	}
+	bundleState = summary.GetSummaryState(s)
+	if bundleState != fleet.WaitingForDependency {
+		t.Errorf("Expected WaitingForDependency, got %s", bundleState)
+	}
+
+	// An actual deployment error still outranks a dependency wait, so it is
+	// not hidden in summaries covering several clusters.
+	s.NonReadyResources = []fleet.NonReadyResource{
+		{
+			Name:  "test",
+			State: fleet.ErrApplied,
+		},
+		{
+			Name:  "test",
+			State: fleet.WaitingForDependency,
+		},
+	}
+	bundleState = summary.GetSummaryState(s)
+	if bundleState != fleet.ErrApplied {
+		t.Errorf("Expected ErrApplied, got %s", bundleState)
+	}
+
+	// The single Modified case above is unavoidably both first and last, so
+	// pin the ranking once more with Modified surrounded by lower ranked
+	// states.
+	s.NonReadyResources = []fleet.NonReadyResource{
+		{
+			Name:  "test",
+			State: fleet.OutOfSync,
+		},
+		{
+			Name:  "test",
+			State: fleet.Modified,
+		},
+		{
+			Name:  "test",
+			State: fleet.Pending,
+		},
+	}
+	bundleState = summary.GetSummaryState(s)
+	if bundleState != fleet.Modified {
+		t.Errorf("Expected Modified, got %s", bundleState)
+	}
+}
+
+func TestGetDeploymentState(t *testing.T) {
+	// deployed builds a bundledeployment which has not applied its
+	// deployment ID yet, with the given Deployed condition.
+	notApplied := func(status, reason string) *fleet.BundleDeployment {
+		bd := &fleet.BundleDeployment{}
+		bd.Spec.DeploymentID = "id2"
+		bd.Status.AppliedDeploymentID = "id1"
+		if status != "" {
+			c := condition.Cond(fleet.BundleDeploymentConditionDeployed)
+			c.SetStatus(bd, status)
+			c.Reason(bd, reason)
+		}
+		return bd
+	}
+
+	tests := map[string]struct {
+		bd   *fleet.BundleDeployment
+		want fleet.BundleState
+	}{
+		"waiting on a dependency is not an error": {
+			bd:   notApplied("False", fleet.BundleDeploymentReasonWaitingForDependency),
+			want: fleet.WaitingForDependency,
+		},
+		"a failed deployment is still ErrApplied": {
+			bd:   notApplied("False", "Error"),
+			want: fleet.ErrApplied,
+		},
+		"a failed deployment without a reason is still ErrApplied": {
+			bd:   notApplied("False", ""),
+			want: fleet.ErrApplied,
+		},
+		"no Deployed condition yet": {
+			bd:   notApplied("", ""),
+			want: fleet.WaitApplied,
+		},
+		"Deployed is true, but the deployment ID is not applied yet": {
+			bd:   notApplied("True", ""),
+			want: fleet.WaitApplied,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			if got := summary.GetDeploymentState(tc.bd); got != tc.want {
+				t.Errorf("GetDeploymentState() = %s, want %s", got, tc.want)
+			}
+		})
+	}
+
+	// A stale WaitingForDependency reason must not survive a successful
+	// deployment: once the deployment ID is applied, the state is derived
+	// from the resources.
+	t.Run("reason is ignored once the deployment ID is applied", func(t *testing.T) {
+		bd := notApplied("False", fleet.BundleDeploymentReasonWaitingForDependency)
+		bd.Status.AppliedDeploymentID = bd.Spec.DeploymentID
+		bd.Spec.StagedDeploymentID = bd.Spec.DeploymentID
+		bd.Status.Ready = true
+		bd.Status.NonModified = true
+
+		if got := summary.GetDeploymentState(bd); got != fleet.Ready {
+			t.Errorf("GetDeploymentState() = %s, want Ready", got)
+		}
+	})
+}
+
+func TestReadyMessage_WaitingForDependency(t *testing.T) {
+	s := fleet.BundleSummary{
+		WaitingForDependency: 1,
+		NonReadyResources: []fleet.NonReadyResource{
+			{
+				Name:    "fleet-local/local",
+				State:   fleet.WaitingForDependency,
+				Message: "waiting for dependent bundle(s) to reach an accepted state: dep (state: NotReady, accepted: Ready)",
+			},
+		},
+	}
+
+	msg := summary.ReadyMessage(s, "Cluster")
+	want := "WaitingForDependency(1) [Cluster fleet-local/local: waiting for dependent bundle(s) to reach an accepted state: dep (state: NotReady, accepted: Ready)]"
+	if msg != want {
+		t.Errorf("ReadyMessage() = %q, want %q", msg, want)
+	}
+}
+
+func TestIncrementState_WaitingForDependency(t *testing.T) {
+	s := &fleet.BundleSummary{}
+	summary.IncrementState(s, "bd", fleet.WaitingForDependency, "waiting", nil, nil)
+
+	if s.WaitingForDependency != 1 {
+		t.Errorf("expected WaitingForDependency count 1, got %d", s.WaitingForDependency)
+	}
+	if len(s.NonReadyResources) != 1 || s.NonReadyResources[0].State != fleet.WaitingForDependency {
+		t.Errorf("expected the bundledeployment to be listed as non-ready, got %+v", s.NonReadyResources)
+	}
+
+	other := fleet.BundleSummary{WaitingForDependency: 2}
+	summary.Increment(s, other)
+	if s.WaitingForDependency != 3 {
+		t.Errorf("expected WaitingForDependency count 3 after Increment, got %d", s.WaitingForDependency)
 	}
 }
 
