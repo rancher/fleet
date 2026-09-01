@@ -323,7 +323,7 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		}
 
 		// do not use the returned status, instead set the condition and possibly a timestamp
-		bd.Status = setCondition(bd.Status, err, monitor.Cond(fleetv1.BundleDeploymentConditionDeployed))
+		bd.Status = setConditionWithReason(bd.Status, err, deployedConditionReason(err), monitor.Cond(fleetv1.BundleDeploymentConditionDeployed))
 
 		if handled, res, err := r.requeueIfDependenciesNotReady(ctx, orig, bd, err); handled {
 			return res, err
@@ -640,14 +640,33 @@ func (r *BundleDeploymentReconciler) requeueIfDependenciesNotReady(ctx context.C
 		return true, ctrl.Result{}, err
 	}
 
-	log.FromContext(ctx).V(1).Info("Dependencies not ready, requeuing...", "pending", notReadyDependenciesError.Pending)
+	log.FromContext(ctx).V(1).Info("Dependencies not ready, requeuing...", "pending", notReadyDependenciesError.PendingDescriptions())
 	return true, ctrl.Result{RequeueAfter: durations.WaitForDependenciesReadyRequeueInterval}, nil
 }
 
 // setCondition sets the condition and updates the timestamp, if the condition changed
 func setCondition(newStatus fleetv1.BundleDeploymentStatus, err error, cond monitor.Cond) fleetv1.BundleDeploymentStatus {
-	cond.SetError(&newStatus, "", ignoreConflict(err))
+	return setConditionWithReason(newStatus, err, "", cond)
+}
+
+// setConditionWithReason sets the condition with an explicit reason and updates
+// the timestamp, if the condition changed. An empty reason means "Error" for a
+// non-nil error, and clears the reason otherwise.
+func setConditionWithReason(newStatus fleetv1.BundleDeploymentStatus, err error, reason string, cond monitor.Cond) fleetv1.BundleDeploymentStatus {
+	cond.SetError(&newStatus, reason, ignoreConflict(err))
 	return newStatus
+}
+
+// deployedConditionReason returns the reason to record on the Deployed
+// condition for a failed deployment. Waiting on a dependency gets a dedicated
+// reason, so the bundledeployment is reported as WaitingForDependency instead
+// of the misleading ErrApplied. Any other error keeps the default "Error".
+func deployedConditionReason(err error) string {
+	if _, ok := errors.AsType[*deployer.NotReadyDependenciesError](err); ok {
+		return fleetv1.BundleDeploymentReasonWaitingForDependency
+	}
+
+	return ""
 }
 
 func ignoreConflict(err error) error {

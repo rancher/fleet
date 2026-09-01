@@ -1,0 +1,29 @@
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: Bundle
+metadata:
+  labels:
+    role: leaf-unaccepted-state
+  name: {{.Name}}
+  namespace: {{.ClusterRegistrationNamespace}}
+spec:
+  defaultNamespace: {{.ProjectNamespace}}
+  dependsOn:
+  # The dependency is Modified, which is not in this list, so this bundle
+  # stays blocked.
+  - selector:
+      matchLabels:
+        role: root-modified
+    acceptedStates:
+    - Ready
+  resources:
+  - content: |
+      kind: ConfigMap
+      apiVersion: v1
+      metadata:
+        name: dependent-node-blocked
+      data:
+        value: dependent-node-blocked
+    name: cm.yaml
+  targets:
+  - clusterSelector: {}

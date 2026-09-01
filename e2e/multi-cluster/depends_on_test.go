@@ -162,4 +162,99 @@ var _ = Describe("Bundle Depends On", func() {
 			}, 5*time.Minute, interval).Should(Equal("1/1"))
 		})
 	})
+
+	When("bundle depends on a bundle which is not in an accepted state", func() {
+		BeforeEach(func() {
+			required = "required-unaccepted"
+			dependsOn = "depends-on-unaccepted-state"
+			namespace = testenv.NewNamespaceName("bnm-unaccepted", r)
+		})
+
+		It("reports WaitingForDependency, not ErrApplied", func() {
+			By("deploying the required bundle first")
+			err := testenv.ApplyTemplate(k.Namespace(env.Namespace), testenv.AssetPath("multi-cluster/bundle-cm-modified.yaml"),
+				TemplateData{required, env.Namespace, namespace})
+			Expect(err).ToNot(HaveOccurred())
+
+			By("waiting for ConfigMap to be deployed")
+			Eventually(func() error {
+				_, err := k.Namespace(namespace).Get("configmap", "root-will-be-modified")
+				return err
+			}, 2*time.Minute, interval).Should(Succeed())
+
+			By("modifying the deployed ConfigMap to trigger drift")
+			_, err = k.Namespace(namespace).Run(
+				"patch", "configmap", "root-will-be-modified",
+				"--type=merge", "-p", `{"data":{"value":"modified-externally"}}`,
+			)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("waiting for required bundle to enter Modified state")
+			Eventually(func() string {
+				out, err := k.Namespace(env.Namespace).Get("bundle", required, "-o=jsonpath={.status.display.state}")
+				if err != nil {
+					return ""
+				}
+				return out
+			}, 2*time.Minute, interval).Should(Equal("Modified"))
+
+			By("deploying a dependent bundle which only accepts Ready")
+			err = testenv.ApplyTemplate(k.Namespace(env.Namespace), testenv.AssetPath("multi-cluster/bundle-depends-on-unaccepted-state.yaml"),
+				TemplateData{dependsOn, env.Namespace, namespace})
+			Expect(err).ToNot(HaveOccurred())
+
+			By("waiting for the dependent bundle to report WaitingForDependency")
+			Eventually(func() []fleet.NonReadyResource {
+				out, err := k.Namespace(env.Namespace).Get("bundle", dependsOn, "-o=jsonpath={.status.summary}")
+				if err != nil {
+					return []fleet.NonReadyResource{}
+				}
+				var sum fleet.BundleSummary
+				_ = json.Unmarshal([]byte(out), &sum)
+				return sum.NonReadyResources
+			}, 2*time.Minute, interval).Should(ContainElement(fleet.NonReadyResource{
+				State:   fleet.WaitingForDependency,
+				Message: "waiting for dependent bundle(s) to reach an accepted state: " + required + " (state: Modified, accepted: Ready)",
+				Name:    "fleet-local/local",
+			}))
+
+			By("keeping that state instead of falling back to ErrApplied")
+			Consistently(func() string {
+				out, err := k.Namespace(env.Namespace).Get("bundle", dependsOn, "-o=jsonpath={.status.summary.nonReadyResources[0].bundleState}")
+				if err != nil {
+					return ""
+				}
+				return out
+			}, duration, interval).Should(Equal(string(fleet.WaitingForDependency)))
+
+			By("restoring the ConfigMap, which makes the dependency acceptable again")
+			_, err = k.Namespace(namespace).Run(
+				"patch", "configmap", "root-will-be-modified",
+				"--type=merge", "-p", `{"data":{"value":"original"}}`,
+			)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("waiting for the required bundle to be ready again")
+			Eventually(func() string {
+				out, err := k.Namespace(env.Namespace).Get("bundle", required, "-o=jsonpath={.status.display}")
+				if err != nil {
+					return ""
+				}
+				var d fleet.BundleDisplay
+				_ = json.Unmarshal([]byte(out), &d)
+				return d.ReadyClusters
+			}, 2*time.Minute, interval).Should(Equal("1/1"))
+
+			By("verifying the dependent bundle leaves WaitingForDependency and deploys")
+			Eventually(func() string {
+				out, err := k.Namespace(env.Namespace).Get("bundle", dependsOn, "-o=jsonpath={.status.display}")
+				if err != nil {
+					return ""
+				}
+				var d fleet.BundleDisplay
+				_ = json.Unmarshal([]byte(out), &d)
+				return d.ReadyClusters
+			}, 5*time.Minute, interval).Should(Equal("1/1"))
+		})
+	})
 })

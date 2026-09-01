@@ -28,7 +28,7 @@
             "type": "string"
           },
           "type": "array",
-          "description": "AcceptedStates is a list of BundleDeployment state that are considered acceptable for this dependency.\nIf the dependency is in one of these states, it will not block the deployment of the dependent bundle.\nValid Values should match the StateRank keys.\nIf not specified, default to [\"Ready\"]: only fully ready dependencies are accepted\nExample: [\"Ready\", \"Modified\"] will accept dependencies that are either ready or have drifted from their desired state."
+          "description": "AcceptedStates is a list of BundleDeployment state that are considered acceptable for this dependency.\nIf the dependency is in one of these states, it will not block the deployment of the dependent bundle.\nValid Values should match the StateRank keys, except for WaitingForDependency, which is rejected:\nit would unblock this bundle exactly when its dependency became blocked on a dependency of its own.\nIf not specified, default to [\"Ready\"]: only fully ready dependencies are accepted\nExample: [\"Ready\", \"Modified\"] will accept dependencies that are either ready or have drifted from their desired state."
         }
       },
       "additionalProperties": false,
