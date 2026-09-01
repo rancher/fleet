@@ -3,8 +3,8 @@
 set -euxo pipefail
 
 # renovate: datasource=go depName=sigs.k8s.io/controller-runtime
-SETUP_ENVTEST_VER=${SETUP_ENVTEST_VER-v0.24.0}
-ENVTEST_K8S_VERSION=${ENVTEST_K8S_VERSION-1.37}
+SETUP_ENVTEST_VER=${SETUP_ENVTEST_VER:-v0.24.0}
+ENVTEST_K8S_VERSION=${ENVTEST_K8S_VERSION:-1.37}
 
 # install and prepare setup-envtest
 go install sigs.k8s.io/controller-runtime/tools/setup-envtest@"$SETUP_ENVTEST_VER"
