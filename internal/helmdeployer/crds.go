@@ -22,14 +22,15 @@ import (
 // Kubernetes objects for the rendered manifest. The actual install installs
 // the contents of crds/ first, so it does not suffer from this limitation.
 func isMissingOwnCRDsError(err error, chart *chartv2.Chart) bool {
-	missing := noKindMatchErrors(err)
-	if len(missing) == 0 {
+	leaves := leafErrors(err)
+	if len(leaves) == 0 {
 		return false
 	}
 
 	declared := chartCRDGroupKinds(chart)
-	for _, m := range missing {
-		if !declared.Has(m.GroupKind) {
+	for _, leaf := range leaves {
+		noKindMatch, ok := errors.AsType[*meta.NoKindMatchError](leaf)
+		if !ok || !declared.Has(noKindMatch.GroupKind) {
 			return false
 		}
 	}
@@ -37,31 +38,24 @@ func isMissingOwnCRDsError(err error, chart *chartv2.Chart) bool {
 	return true
 }
 
-// noKindMatchErrors collects all the NoKindMatchErrors contained in err.
-// Errors reported while building a resource list are wrapped into an aggregate
-// when more than one resource fails, and aggregates cannot be traversed by
-// errors.AsType, hence the explicit recursion.
-func noKindMatchErrors(err error) []*meta.NoKindMatchError {
-	var result []*meta.NoKindMatchError
-
-	var collect func(error)
-	collect = func(err error) {
-		if err == nil {
-			return
-		}
-
-		if noKindMatch, ok := errors.AsType[*meta.NoKindMatchError](err); ok {
-			result = append(result, noKindMatch)
-			return
-		}
-
-		if aggregate, ok := errors.AsType[utilerrors.Aggregate](err); ok {
-			for _, e := range aggregate.Errors() {
-				collect(e)
-			}
-		}
+// leafErrors returns the leaf errors contained in err, expanding aggregates
+// recursively. Errors reported while building a resource list are wrapped into
+// an aggregate when more than one resource fails, and aggregates cannot be
+// traversed by errors.AsType, hence the explicit recursion.
+func leafErrors(err error) []error {
+	if err == nil {
+		return nil
 	}
-	collect(err)
+
+	aggregate, ok := errors.AsType[utilerrors.Aggregate](err)
+	if !ok {
+		return []error{err}
+	}
+
+	var result []error
+	for _, e := range aggregate.Errors() {
+		result = append(result, leafErrors(e)...)
+	}
 
 	return result
 }

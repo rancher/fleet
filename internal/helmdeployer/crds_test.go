@@ -74,46 +74,40 @@ func buildError(errs ...error) error {
 	return fmt.Errorf("unable to build kubernetes objects from release manifest: %w", err)
 }
 
-func TestNoKindMatchErrors(t *testing.T) {
+func TestLeafErrors(t *testing.T) {
 	appConfig := noKindMatchFor("stable.example.com", "AppConfig", "frontend-config")
 	backend := noKindMatchFor("stable.example.com", "Backend", "frontend-backend")
+	unrelated := errors.New("something else went wrong")
 
 	testCases := []struct {
-		name          string
-		err           error
-		expectedKinds []schema.GroupKind
+		name           string
+		err            error
+		expectedLeaves []string
 	}{
 		{
-			name:          "nil error",
-			err:           nil,
-			expectedKinds: nil,
+			name:           "nil error",
+			err:            nil,
+			expectedLeaves: nil,
 		},
 		{
-			name:          "unrelated error",
-			err:           errors.New("something else went wrong"),
-			expectedKinds: nil,
+			name:           "unrelated error",
+			err:            unrelated,
+			expectedLeaves: []string{unrelated.Error()},
 		},
 		{
-			name: "single wrapped error",
-			err:  buildError(appConfig),
-			expectedKinds: []schema.GroupKind{
-				{Group: "stable.example.com", Kind: "AppConfig"},
-			},
+			name:           "single wrapped error",
+			err:            buildError(appConfig),
+			expectedLeaves: []string{buildError(appConfig).Error()},
 		},
 		{
-			name: "aggregated errors",
-			err:  buildError(appConfig, backend),
-			expectedKinds: []schema.GroupKind{
-				{Group: "stable.example.com", Kind: "AppConfig"},
-				{Group: "stable.example.com", Kind: "Backend"},
-			},
+			name:           "aggregated errors",
+			err:            buildError(appConfig, backend),
+			expectedLeaves: []string{appConfig.Error(), backend.Error()},
 		},
 		{
-			name: "aggregate mixing unrelated errors",
-			err:  buildError(errors.New("something else went wrong"), appConfig),
-			expectedKinds: []schema.GroupKind{
-				{Group: "stable.example.com", Kind: "AppConfig"},
-			},
+			name:           "aggregate mixing unrelated errors",
+			err:            buildError(unrelated, appConfig),
+			expectedLeaves: []string{unrelated.Error(), appConfig.Error()},
 		},
 	}
 
@@ -121,12 +115,12 @@ func TestNoKindMatchErrors(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			assert := assert.New(t)
 
-			var kinds []schema.GroupKind
-			for _, err := range noKindMatchErrors(tc.err) {
-				kinds = append(kinds, err.GroupKind)
+			var leaves []string
+			for _, err := range leafErrors(tc.err) {
+				leaves = append(leaves, err.Error())
 			}
 
-			assert.Equal(tc.expectedKinds, kinds)
+			assert.Equal(tc.expectedLeaves, leaves)
 		})
 	}
 }
@@ -184,6 +178,15 @@ func TestIsMissingOwnCRDsError(t *testing.T) {
 			err: buildError(
 				noKindMatchFor("stable.example.com", "AppConfig", "frontend-config"),
 				noKindMatchFor("stable.example.com", "Backend", "frontend-backend"),
+			),
+			expectedResult: false,
+		},
+		{
+			name: "kind defined by the chart mixed with another error",
+			crds: []*common.File{{Name: "crds/appconfig.yaml", Data: []byte(appConfigCRD)}},
+			err: buildError(
+				noKindMatchFor("stable.example.com", "AppConfig", "frontend-config"),
+				errors.New("connection refused"),
 			),
 			expectedResult: false,
 		},
