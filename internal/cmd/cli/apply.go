@@ -3,14 +3,12 @@ package cli
 import (
 	"bytes"
 	"errors"
-	"flag"
 	"fmt"
 	"os"
 
 	gogit "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/spf13/cobra"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -39,9 +37,8 @@ func NewApply() *cobra.Command {
 		Short: "Create bundles from directories, and output them or apply them on a cluster",
 	})
 
-	fs := flag.NewFlagSet("", flag.ExitOnError)
-	ctrl.RegisterFlags(fs)
-	cmd.Flags().AddGoFlagSet(fs)
+	registerKubeconfigFlags(cmd)
+
 	return cmd
 }
 
@@ -170,20 +167,37 @@ func (a *Apply) run(cmd *cobra.Command, args []string) error {
 	}
 
 	ctx := cmd.Context()
-	cfg := ctrl.GetConfigOrDie()
-	client, err := client.New(cfg, client.Options{Scheme: scheme})
-	if err != nil {
-		return err
-	}
-	recorder, err := getEventRecorder(cfg, "fleet-apply")
-	if err != nil {
-		return err
+
+	// When an output is set the bundles are rendered locally and the cluster
+	// is never contacted: CreateBundles and CreateBundlesDriven skip pruning
+	// and writeBundle returns right after printing, so the client and the
+	// recorder are left nil. Building a client here unconditionally made
+	// `fleet apply --output` fail with an empty kubeconfig, even though it has
+	// nothing to talk to a cluster about.
+	//
+	// The condition is on opts.Output, the very field the apply package
+	// branches on, so this gate cannot drift from the one used there.
+	var c client.Client
+	var recorder record.EventRecorder
+	if opts.Output == nil {
+		cfg, err := getKubeconfig()
+		if err != nil {
+			return fmt.Errorf("%w (use --output to render bundles without a cluster)", err)
+		}
+		c, err = client.New(cfg, client.Options{Scheme: scheme})
+		if err != nil {
+			return err
+		}
+		recorder, err = getEventRecorder(cfg, "fleet-apply")
+		if err != nil {
+			return err
+		}
 	}
 
 	if opts.DrivenScan {
-		return apply.CreateBundlesDriven(ctx, client, recorder, name, args, opts)
+		return apply.CreateBundlesDriven(ctx, c, recorder, name, args, opts)
 	}
-	return apply.CreateBundles(ctx, client, recorder, name, args, opts)
+	return apply.CreateBundles(ctx, c, recorder, name, args, opts)
 }
 
 // addAuthToOpts adds auth if provided as arguments. It will look first for HelmCredentialsByPathFile. If HelmCredentialsByPathFile

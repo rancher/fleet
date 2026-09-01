@@ -1,8 +1,5 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": [
-    "github>rancher/renovate-config//rancher-main#main"
-  ],
   "baseBranchPatterns": [
     "main",
     "release/v0.16",
@@ -11,11 +8,18 @@
     "release/v0.13",
     "release/v0.12"
   ],
-  "prHourlyLimit": 6,
   "ignorePaths": [
     "**/assets/**"
   ],
   "packageRules": [
+    {
+      "matchBaseBranches": [
+        "main"
+      ],
+      "extends": [
+        "github>rancher/renovate-config//rancher-main#main"
+      ]
+    },
     {
       "matchBaseBranches": [
         "release/v0.16"
@@ -57,6 +61,20 @@
       ]
     },
     {
+      "description": "Activate automerge for eligible updates",
+      "matchBaseBranches": [
+        "main",
+        "release/v0.16",
+        "release/v0.15",
+        "release/v0.14",
+        "release/v0.13",
+        "release/v0.12"
+      ],
+      "extends": [
+        "github>rancher/renovate-config//automerge#main"
+      ]
+    },
+    {
       "description": "Update Wrangler in Helm values module",
       "matchManagers": ["gomod"],
       "matchFileNames": ["pkg/helmvalues/go.mod"],
@@ -76,33 +94,6 @@
       "enabled": true,
       "groupName": "Kubernetes dependencies",
       "minimumGroupSize": 2
-    },
-    {
-      "description": "Automerge patch and minor updates",
-      "matchJsonata": [
-        "$not($exists(vulnerabilityFixVersion) or $exists(isVulnerabilityAlert))"
-      ],
-      "matchUpdateTypes": [
-        "patch",
-        "minor"
-      ],
-      "automerge": true
-    },
-    {
-      "description": "Automerge security updates",
-      "matchDepTypes": [
-        "!devDependencies",
-        "!dev-dependencies",
-        "!test"
-      ],
-      "matchJsonata": [
-        "$exists(vulnerabilityFixVersion) or $exists(isVulnerabilityAlert)"
-      ],
-      "matchUpdateTypes": [
-        "patch",
-        "minor"
-      ],
-      "automerge": true
     }
   ]
 }

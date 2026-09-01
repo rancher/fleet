@@ -27,10 +27,13 @@ fleet dump check
 
 // NewDump returns a subcommand to dump Fleet's state
 func NewDump() *cobra.Command {
-	return command.Command(&Dump{}, cobra.Command{
+	cmd := command.Command(&Dump{}, cobra.Command{
 		Use:   "dump [flags]",
 		Short: "Dump state of upstream Fleet-managed resources into an archive",
 	})
+
+	registerLoggingAndKubeconfigFlags(cmd)
+	return cmd
 }
 
 type Dump struct {
@@ -93,9 +96,9 @@ func (d *Dump) Run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	cfg, err := ctrl.GetConfig()
+	cfg, err := getKubeconfig()
 	if err != nil {
-		return fmt.Errorf("failed to get k8s config: %w", err)
+		return err
 	}
 
 	fmt.Fprintln(os.Stderr, "dump path: ", d.DumpPath)

@@ -34,7 +34,10 @@ type HelmDeployer interface {
 }
 
 type Cleanup struct {
-	client           client.Client
+	client client.Client
+	// reader reads from the upstream cluster without going through the cache,
+	// so that a stale cache cannot make us uninstall a live release.
+	reader           client.Reader
 	fleetNamespace   string
 	defaultNamespace string
 	helmDeployer     HelmDeployer
@@ -49,6 +52,7 @@ type Cleanup struct {
 
 func New(
 	upstream client.Client,
+	upstreamReader client.Reader,
 	mapper meta.RESTMapper,
 	localDynamicClient *dynamic.DynamicClient,
 	deployer HelmDeployer,
@@ -62,6 +66,7 @@ func New(
 
 	return &Cleanup{
 		client:                    upstream,
+		reader:                    upstreamReader,
 		mapper:                    mapper,
 		localDynamicClient:        localDynamicClient,
 		helmDeployer:              deployer,
@@ -126,9 +131,29 @@ func (c *Cleanup) cleanup(ctx context.Context, logger logr.Logger) error {
 	}
 
 	for _, deployed := range deployed {
+		nsn := types.NamespacedName{Namespace: c.fleetNamespace, Name: deployed.BundleID}
 		bundleDeployment := &fleet.BundleDeployment{}
-		err := c.client.Get(ctx, types.NamespacedName{Namespace: c.fleetNamespace, Name: deployed.BundleID}, bundleDeployment)
+		err := c.client.Get(ctx, nsn, bundleDeployment)
 		if apierror.IsNotFound(err) {
+			// The cache answers NotFound both for a BundleDeployment that was
+			// really deleted and for one that is only missing from a stale
+			// local store. Uninstalling deletes live resources, so confirm
+			// with the API server first.
+			liveErr := c.reader.Get(ctx, nsn, bundleDeployment)
+			if liveErr == nil {
+				logger.Info(
+					"Bundle ID is missing from the agent's cache but still exists upstream, not uninstalling",
+					"bundleID", deployed.BundleID,
+					"release", deployed.ReleaseName,
+				)
+
+				continue
+			}
+			if !apierror.IsNotFound(liveErr) {
+				// Never uninstall on the strength of a read we could not confirm.
+				return fmt.Errorf("cannot confirm deletion of bundledeployment %s: %w", nsn, liveErr)
+			}
+
 			// found a helm secret, but no bundle deployment, so uninstall the release
 			logger.Info("Deleting orphan bundle ID, helm uninstall", "bundleID", deployed.BundleID, "release", deployed.ReleaseName)
 			if err := c.helmDeployer.DeleteRelease(ctx, deployed); err != nil {

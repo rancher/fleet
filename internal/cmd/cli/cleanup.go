@@ -2,7 +2,6 @@ package cli
 
 import (
 	"errors"
-	"flag"
 	"fmt"
 	"math"
 	"strconv"
@@ -40,10 +39,7 @@ func NewClusterRegistration() *cobra.Command {
 		SilenceErrors: true,
 	})
 
-	fs := flag.NewFlagSet("", flag.ExitOnError)
-	zopts.BindFlags(fs)
-	ctrl.RegisterFlags(fs)
-	cmd.Flags().AddGoFlagSet(fs)
+	registerLoggingAndKubeconfigFlags(cmd)
 	return cmd
 }
 
@@ -55,10 +51,7 @@ func NewGitjob() *cobra.Command {
 		SilenceErrors: true,
 	})
 
-	fs := flag.NewFlagSet("", flag.ExitOnError)
-	zopts.BindFlags(fs)
-	ctrl.RegisterFlags(fs)
-	cmd.Flags().AddGoFlagSet(fs)
+	registerLoggingAndKubeconfigFlags(cmd)
 	return cmd
 }
 
@@ -132,7 +125,10 @@ func (a *ClusterRegistration) Run(cmd *cobra.Command, args []string) error {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zopts)))
 	ctx := log.IntoContext(cmd.Context(), ctrl.Log)
 
-	cfg := ctrl.GetConfigOrDie()
+	cfg, err := getKubeconfig()
+	if err != nil {
+		return err
+	}
 	client, err := client.New(cfg, client.Options{Scheme: scheme})
 	if err != nil {
 		return err
@@ -164,7 +160,10 @@ func (r *Gitjob) Run(cmd *cobra.Command, args []string) error {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zopts)))
 	ctx := log.IntoContext(cmd.Context(), ctrl.Log)
 
-	cfg := ctrl.GetConfigOrDie()
+	cfg, err := getKubeconfig()
+	if err != nil {
+		return err
+	}
 	client, err := client.New(cfg, client.Options{Scheme: scheme})
 	if err != nil {
 		return err

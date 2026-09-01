@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/rancher/fleet/internal/cmd/agent/deployer"
@@ -64,6 +65,12 @@ type BundleDeploymentReconciler struct {
 	AgentScope string
 
 	Workers int
+
+	// staleCacheHits counts, per BundleDeployment key, how many reconciles in
+	// a row found the object missing from the agent's cache while it was still
+	// present upstream. Entries are dropped as soon as the cache catches up or
+	// the deletion is confirmed.
+	staleCacheHits sync.Map
 }
 
 var DefaultRetry = wait.Backoff{
@@ -109,6 +116,87 @@ func (r *BundleDeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
+// cleanupMissingBundleDeployment uninstalls the helm releases of a
+// BundleDeployment which the agent's cache no longer holds.
+//
+// The cache answers NotFound both for a BundleDeployment that was really
+// deleted and for one that is merely missing from a stale local store, and
+// there is nothing in the error to tell those apart. Since the cleanup deletes
+// the resources the bundle deployed, it is only safe once the API server has
+// confirmed the object is gone.
+func (r *BundleDeploymentReconciler) cleanupMissingBundleDeployment(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	logger := log.FromContext(ctx)
+	key := req.String()
+
+	switch err := r.Reader.Get(ctx, req.NamespacedName, &fleetv1.BundleDeployment{}); {
+	case err == nil:
+		// Wait for the cache to catch up. It usually does within a resync, so
+		// only the first attempt is worth reporting at the default verbosity:
+		// a cache which never recovers would otherwise log forever.
+		hits := r.recordStaleCacheHit(key)
+		if hits == 1 {
+			logger.Info(
+				"BundleDeployment is missing from the agent's cache but still exists upstream, not cleaning up",
+				"key", key,
+			)
+		} else {
+			logger.V(1).Info(
+				"BundleDeployment is still missing from the agent's cache",
+				"key", key,
+				"attempts", hits,
+			)
+		}
+
+		return ctrl.Result{RequeueAfter: staleCacheRequeueAfter(hits)}, nil
+	case !apierrors.IsNotFound(err):
+		// Never delete anything on the strength of a read we could not confirm.
+		return ctrl.Result{}, fmt.Errorf("cannot confirm deletion of bundledeployment %s: %w", key, err)
+	}
+
+	r.forgetStaleCacheHits(key)
+
+	// This actually deletes the helm releases if a bundledeployment is deleted or orphaned
+	logger.V(1).Info("BundleDeployment deleted, cleaning up helm releases")
+	if err := r.Cleanup.CleanupReleases(ctx, key, nil); err != nil {
+		logger.Error(err, "Failed to clean up missing bundledeployment", "key", key)
+	}
+
+	return ctrl.Result{}, nil
+}
+
+// recordStaleCacheHit counts one more reconcile in which key was missing from
+// the cache but present upstream, and returns the new count. Reconciles for a
+// single key never overlap, so the read-modify-write needs no extra locking.
+func (r *BundleDeploymentReconciler) recordStaleCacheHit(key string) int {
+	hits := 1
+	if previous, ok := r.staleCacheHits.Load(key); ok {
+		hits = previous.(int) + 1
+	}
+	r.staleCacheHits.Store(key, hits)
+
+	return hits
+}
+
+// forgetStaleCacheHits drops the stale cache counter for key, either because
+// the cache caught up or because the deletion has been confirmed.
+func (r *BundleDeploymentReconciler) forgetStaleCacheHits(key string) {
+	r.staleCacheHits.Delete(key)
+}
+
+// staleCacheRequeueAfter backs the retry off exponentially, so that a cache
+// which never recovers does not keep polling the API server every few seconds.
+func staleCacheRequeueAfter(hits int) time.Duration {
+	requeue := durations.StaleCacheRequeue
+	for i := 1; i < hits; i++ {
+		requeue *= 2
+		if requeue >= durations.StaleCacheRequeueMax {
+			return durations.StaleCacheRequeueMax
+		}
+	}
+
+	return requeue
+}
+
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=bundledeployments,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=bundledeployments/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=bundledeployments/finalizers,verbs=update
@@ -131,16 +219,11 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	bd := &fleetv1.BundleDeployment{}
 	err := r.Get(ctx, req.NamespacedName, bd)
 	if apierrors.IsNotFound(err) {
-		// This actually deletes the helm releases if a bundledeployment is deleted or orphaned
-		logger.V(1).Info("BundleDeployment deleted, cleaning up helm releases")
-		if err := r.Cleanup.CleanupReleases(ctx, key, nil); err != nil {
-			logger.Error(err, "Failed to clean up missing bundledeployment", "key", key)
-		}
-
-		return ctrl.Result{}, nil
+		return r.cleanupMissingBundleDeployment(ctx, req)
 	} else if err != nil {
 		return ctrl.Result{}, err
 	}
+	r.forgetStaleCacheHits(key)
 	orig := bd.DeepCopy()
 
 	if bd.Spec.Paused {
@@ -240,7 +323,7 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		}
 
 		// do not use the returned status, instead set the condition and possibly a timestamp
-		bd.Status = setCondition(bd.Status, err, monitor.Cond(fleetv1.BundleDeploymentConditionDeployed))
+		bd.Status = setConditionWithReason(bd.Status, err, deployedConditionReason(err), monitor.Cond(fleetv1.BundleDeploymentConditionDeployed))
 
 		if handled, res, err := r.requeueIfDependenciesNotReady(ctx, orig, bd, err); handled {
 			return res, err
@@ -557,14 +640,33 @@ func (r *BundleDeploymentReconciler) requeueIfDependenciesNotReady(ctx context.C
 		return true, ctrl.Result{}, err
 	}
 
-	log.FromContext(ctx).V(1).Info("Dependencies not ready, requeuing...", "pending", notReadyDependenciesError.Pending)
+	log.FromContext(ctx).V(1).Info("Dependencies not ready, requeuing...", "pending", notReadyDependenciesError.PendingDescriptions())
 	return true, ctrl.Result{RequeueAfter: durations.WaitForDependenciesReadyRequeueInterval}, nil
 }
 
 // setCondition sets the condition and updates the timestamp, if the condition changed
 func setCondition(newStatus fleetv1.BundleDeploymentStatus, err error, cond monitor.Cond) fleetv1.BundleDeploymentStatus {
-	cond.SetError(&newStatus, "", ignoreConflict(err))
+	return setConditionWithReason(newStatus, err, "", cond)
+}
+
+// setConditionWithReason sets the condition with an explicit reason and updates
+// the timestamp, if the condition changed. An empty reason means "Error" for a
+// non-nil error, and clears the reason otherwise.
+func setConditionWithReason(newStatus fleetv1.BundleDeploymentStatus, err error, reason string, cond monitor.Cond) fleetv1.BundleDeploymentStatus {
+	cond.SetError(&newStatus, reason, ignoreConflict(err))
 	return newStatus
+}
+
+// deployedConditionReason returns the reason to record on the Deployed
+// condition for a failed deployment. Waiting on a dependency gets a dedicated
+// reason, so the bundledeployment is reported as WaitingForDependency instead
+// of the misleading ErrApplied. Any other error keeps the default "Error".
+func deployedConditionReason(err error) string {
+	if _, ok := errors.AsType[*deployer.NotReadyDependenciesError](err); ok {
+		return fleetv1.BundleDeploymentReasonWaitingForDependency
+	}
+
+	return ""
 }
 
 func ignoreConflict(err error) error {
