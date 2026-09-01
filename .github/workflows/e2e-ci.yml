@@ -47,6 +47,9 @@ jobs:
         with:
           go-version-file: 'go.mod'
       -
+        name: Free Disk Space
+        run: ./.github/scripts/free-disk-space.sh
+      -
         name: Install Ginkgo CLI
         run: go install github.com/onsi/ginkgo/v2/ginkgo
       -
