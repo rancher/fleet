@@ -3,7 +3,9 @@ package agent_test
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -448,6 +450,12 @@ data:
 				Name:    "fleet.yaml",
 			},
 		},
+		// A chart which defines a CRD in crds/, deploys a custom resource of
+		// that kind and uses the lookup function in one of its templates.
+		"crdsAndLookup": chartResources("crd-chart"),
+		// The same, but the CRD for the deployed custom resource is missing
+		// from the chart.
+		"missingCRDAndLookup": chartResources("missing-crd-chart"),
 		"capabilitiesv2": []v1alpha1.BundleResource{
 			{
 				Content: "apiVersion: v2\nname: config-chart\ndescription: A test chart that verifies its config\ntype: application\nversion: 0.1.0\nappVersion: \"1.16.0\"\nkubeVersion: '>= 920.920.0-0'\n",
@@ -463,4 +471,37 @@ data:
 			},
 		},
 	}
+}
+
+// chartResources reads a chart from the assets directory and turns it into
+// bundle resources, named after their path relative to the assets directory.
+func chartResources(chartDir string) []v1alpha1.BundleResource {
+	var resources []v1alpha1.BundleResource
+
+	root := filepath.Join(assetsPath, chartDir)
+	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil || entry.IsDir() {
+			return err
+		}
+
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+
+		name, err := filepath.Rel(assetsPath, path)
+		if err != nil {
+			return err
+		}
+
+		resources = append(resources, v1alpha1.BundleResource{
+			Name:    name,
+			Content: string(content),
+		})
+
+		return nil
+	})
+	Expect(err).ToNot(HaveOccurred())
+
+	return resources
 }

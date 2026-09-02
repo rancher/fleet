@@ -1,0 +1,6 @@
+apiVersion: v2
+name: missing-crd-chart
+description: A test chart using lookup and a custom resource whose CRD is not part of the chart
+type: application
+version: 0.1.0
+appVersion: "1.16.0"
