@@ -1,0 +1,6 @@
+apiVersion: stable.example.com/v1
+kind: AppConfig
+metadata:
+  name: frontend-config
+spec:
+  value: {{ .Values.value | quote }}

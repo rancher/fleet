@@ -1,0 +1,6 @@
+apiVersion: v2
+name: crd-chart
+description: A test chart defining a CRD, a custom resource and a template using lookup
+type: application
+version: 0.1.0
+appVersion: "1.16.0"
