@@ -27,6 +27,7 @@ var (
 		fleet.Modified,
 		fleet.WaitApplied,
 		fleet.ErrApplied,
+		fleet.WaitingForDependency,
 	}
 
 	objMetrics = []prometheus.Collector{}

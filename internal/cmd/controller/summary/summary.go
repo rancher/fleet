@@ -24,6 +24,8 @@ func IncrementState(summary *fleet.BundleSummary, name string, state fleet.Bundl
 		summary.WaitApplied++
 	case fleet.ErrApplied:
 		summary.ErrApplied++
+	case fleet.WaitingForDependency:
+		summary.WaitingForDependency++
 	case fleet.NotReady:
 		summary.NotReady++
 	case fleet.OutOfSync:
@@ -52,6 +54,7 @@ func Increment(left *fleet.BundleSummary, right fleet.BundleSummary) {
 	left.NotReady += right.NotReady
 	left.WaitApplied += right.WaitApplied
 	left.ErrApplied += right.ErrApplied
+	left.WaitingForDependency += right.WaitingForDependency
 	left.OutOfSync += right.OutOfSync
 	left.Modified += right.Modified
 	left.Ready += right.Ready
@@ -89,7 +92,14 @@ func GetSummaryState(summary fleet.BundleSummary) fleet.BundleState {
 func GetDeploymentState(bundleDeployment *fleet.BundleDeployment) fleet.BundleState {
 	switch {
 	case bundleDeployment.Status.AppliedDeploymentID != bundleDeployment.Spec.DeploymentID:
-		if condition.Cond(fleet.BundleDeploymentConditionDeployed).IsFalse(bundleDeployment) {
+		deployed := condition.Cond(fleet.BundleDeploymentConditionDeployed)
+		if deployed.IsFalse(bundleDeployment) {
+			// The agent blocks on dependencies before deploying. That is
+			// a temporary wait, not a deployment error, and it gets its
+			// own state so users are not sent looking for a failed apply.
+			if deployed.GetReason(bundleDeployment) == fleet.BundleDeploymentReasonWaitingForDependency {
+				return fleet.WaitingForDependency
+			}
 			return fleet.ErrApplied
 		}
 		return fleet.WaitApplied
@@ -154,12 +164,13 @@ func MessageFromDeployment(deployment *fleet.BundleDeployment) string {
 func ReadyMessage(summary fleet.BundleSummary, referencedKind string) string {
 	var messages []string
 	for msg, count := range map[fleet.BundleState]int{
-		fleet.OutOfSync:   summary.OutOfSync,
-		fleet.NotReady:    summary.NotReady,
-		fleet.WaitApplied: summary.WaitApplied,
-		fleet.ErrApplied:  summary.ErrApplied,
-		fleet.Pending:     summary.Pending,
-		fleet.Modified:    summary.Modified,
+		fleet.OutOfSync:            summary.OutOfSync,
+		fleet.NotReady:             summary.NotReady,
+		fleet.WaitApplied:          summary.WaitApplied,
+		fleet.ErrApplied:           summary.ErrApplied,
+		fleet.WaitingForDependency: summary.WaitingForDependency,
+		fleet.Pending:              summary.Pending,
+		fleet.Modified:             summary.Modified,
 	} {
 		if count <= 0 {
 			continue
