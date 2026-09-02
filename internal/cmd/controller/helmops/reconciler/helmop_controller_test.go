@@ -1489,7 +1489,7 @@ func expectCABundleLookup(client *mocks.MockK8sClient) {
 // TestValidateBundleSpec covers the rules a HelmOp shares with fleet.yaml through
 // its embedded BundleSpec. A HelmOp never passes through
 // bundlereader.validateFleetYAML, so without these the values would only fail on
-// the agent, where the failure is logged and swallowed.
+// the agent, where the failure is logged and not surfaced to the user.
 func TestValidateBundleSpec(t *testing.T) {
 	diffWith := func(patches ...fleet.ComparePatch) fleet.BundleDeploymentOptions {
 		return fleet.BundleDeploymentOptions{

@@ -388,7 +388,7 @@ spec:
                                   applies, which is
 
                                   laxer than RFC 6901: "~0" and "~1" are read as "~"
-                                  and "/", and any other
+                                  and "/", respectively, and any other
 
                                   "~" sequence is left as written.'
                                 items:
@@ -928,7 +928,7 @@ spec:
                                   applies, which is
 
                                   laxer than RFC 6901: "~0" and "~1" are read as "~"
-                                  and "/", and any other
+                                  and "/", respectively, and any other
 
                                   "~" sequence is left as written.'
                                 items:
@@ -2043,7 +2043,7 @@ spec:
                               applies, which is
 
                               laxer than RFC 6901: "~0" and "~1" are read as "~" and
-                              "/", and any other
+                              "/", respectively, and any other
 
                               "~" sequence is left as written.'
                             items:
@@ -3149,7 +3149,7 @@ spec:
                                     applies, which is
 
                                     laxer than RFC 6901: "~0" and "~1" are read as
-                                    "~" and "/", and any other
+                                    "~" and "/", respectively, and any other
 
                                     "~" sequence is left as written.'
                                   items:
@@ -8495,7 +8495,7 @@ spec:
                               applies, which is
 
                               laxer than RFC 6901: "~0" and "~1" are read as "~" and
-                              "/", and any other
+                              "/", respectively, and any other
 
                               "~" sequence is left as written.'
                             items:
@@ -9633,7 +9633,7 @@ spec:
                                     applies, which is
 
                                     laxer than RFC 6901: "~0" and "~1" are read as
-                                    "~" and "/", and any other
+                                    "~" and "/", respectively, and any other
 
                                     "~" sequence is left as written.'
                                   items:

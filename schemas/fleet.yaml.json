@@ -165,7 +165,7 @@
             "type": "string"
           },
           "type": "array",
-          "description": "JSONPointers ignore diffs at the given JSON pointers, e.g. /spec/replicas.\nEach entry must be a non-empty pointer starting with a slash; a\nKubernetes-style field path such as spec.replicas addresses nothing and is\nrejected. Escaping is the one the JSON patch library applies, which is\nlaxer than RFC 6901: \"~0\" and \"~1\" are read as \"~\" and \"/\", and any other\n\"~\" sequence is left as written."
+          "description": "JSONPointers ignore diffs at the given JSON pointers, e.g. /spec/replicas.\nEach entry must be a non-empty pointer starting with a slash; a\nKubernetes-style field path such as spec.replicas addresses nothing and is\nrejected. Escaping is the one the JSON patch library applies, which is\nlaxer than RFC 6901: \"~0\" and \"~1\" are read as \"~\" and \"/\", respectively, and any other\n\"~\" sequence is left as written."
         },
         "operations": {
           "items": {

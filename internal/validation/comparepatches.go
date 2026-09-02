@@ -53,7 +53,7 @@ var BundleDeploymentOptionChecks = []func(path string, opts *fleet.BundleDeploym
 // ValidateComparePatchNames checks that every diff.comparePatches[].name in opts compiles
 // as a regular expression. The agent matches a patch by exact name first and falls
 // back to matching the name as a regex, so a name which does not compile is dead
-// config: it is dropped by the agent instead of being reported to the user.
+// config: without this validation, it would fail to compile on the agent and have no effect.
 func ValidateComparePatchNames(path string, opts *fleet.BundleDeploymentOptions) error {
 	if opts.Diff == nil {
 		return nil

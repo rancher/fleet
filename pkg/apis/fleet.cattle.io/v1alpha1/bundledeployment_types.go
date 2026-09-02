@@ -181,7 +181,7 @@ type ComparePatch struct {
 	// Each entry must be a non-empty pointer starting with a slash; a
 	// Kubernetes-style field path such as spec.replicas addresses nothing and is
 	// rejected. Escaping is the one the JSON patch library applies, which is
-	// laxer than RFC 6901: "~0" and "~1" are read as "~" and "/", and any other
+	// laxer than RFC 6901: "~0" and "~1" are read as "~" and "/", respectively, and any other
 	// "~" sequence is left as written.
 	// +nullable
 	JsonPointers []string `json:"jsonPointers,omitempty"`

@@ -1,6 +1,7 @@
 package validation
 
 import (
+	"strings"
 	"testing"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -103,9 +104,148 @@ func TestInvalidJSONPointerError(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if got := InvalidJSONPointerError(c.value).Error(); got != c.want {
-				t.Errorf("InvalidJSONPointerError(%q) = %q, want %q", c.value, got, c.want)
-			}
+			assertErrorExact(t, InvalidJSONPointerError(c.value), c.want)
+		})
+	}
+}
+
+func TestComparePatchNames(t *testing.T) {
+	cases := []struct {
+		name string
+		path string
+		opts *fleet.BundleDeploymentOptions
+		want string // empty means no error
+	}{
+		{
+			name: "no diff options",
+			opts: &fleet.BundleDeploymentOptions{},
+		},
+		{
+			name: "no compare patches",
+			opts: &fleet.BundleDeploymentOptions{Diff: &fleet.DiffOptions{}},
+		},
+		{
+			name: "valid regex names",
+			opts: withPatches(
+				fleet.ComparePatch{Name: "my-service"},
+				fleet.ComparePatch{Name: ".*-svc$"},
+				fleet.ComparePatch{Name: "prefix-.*"},
+			),
+		},
+		{
+			name: "empty name matches everything",
+			opts: withPatches(fleet.ComparePatch{Name: ""}),
+		},
+		{
+			name: "invalid regex - unclosed bracket",
+			opts: withPatches(fleet.ComparePatch{Name: "foo["}),
+			want: `diff.comparePatches[0].name: invalid regular expression "foo["`,
+		},
+		{
+			name: "invalid regex - unclosed paren",
+			opts: withPatches(fleet.ComparePatch{Name: "a(b"}),
+			want: `diff.comparePatches[0].name: invalid regular expression "a(b"`,
+		},
+		{
+			name: "invalid regex - invalid repetition",
+			opts: withPatches(fleet.ComparePatch{Name: "*x"}),
+			want: `diff.comparePatches[0].name: invalid regular expression "*x"`,
+		},
+		{
+			name: "indices identify the offending patch",
+			path: "targets[1].",
+			opts: withPatches(
+				fleet.ComparePatch{Name: "valid"},
+				fleet.ComparePatch{Name: "also-valid"},
+				fleet.ComparePatch{Name: "(?P<invalid)"},
+			),
+			want: `targets[1].diff.comparePatches[2].name: invalid regular expression "(?P<invalid)"`,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			assertError(t, ValidateComparePatchNames(c.path, c.opts), c.want)
+		})
+	}
+}
+
+func TestComparePatchOperations(t *testing.T) {
+	cases := []struct {
+		name string
+		path string
+		opts *fleet.BundleDeploymentOptions
+		want string // empty means no error
+	}{
+		{
+			name: "no diff options",
+			opts: &fleet.BundleDeploymentOptions{},
+		},
+		{
+			name: "no compare patches",
+			opts: &fleet.BundleDeploymentOptions{Diff: &fleet.DiffOptions{}},
+		},
+		{
+			name: "valid operations",
+			opts: withPatches(fleet.ComparePatch{
+				Operations: []fleet.Operation{
+					{Op: "add", Path: "/spec/foo", Value: "bar"},
+					{Op: "remove", Path: "/spec/clusterIP"},
+					{Op: "replace", Path: "/spec/type", Value: "NodePort"},
+					{Op: "test", Path: "/spec/replicas", Value: "3"},
+					{Op: fleet.IgnoreOp},
+				},
+			}),
+		},
+		{
+			name: "empty op is rejected",
+			opts: withPatches(fleet.ComparePatch{
+				Operations: []fleet.Operation{{Op: "", Path: "/spec/replicas"}},
+			}),
+			want: `diff.comparePatches[0].operations[0].op: unsupported operation ""`,
+		},
+		{
+			name: "copy operation is not supported",
+			opts: withPatches(fleet.ComparePatch{
+				Operations: []fleet.Operation{{Op: "copy", Path: "/spec/foo"}},
+			}),
+			want: `diff.comparePatches[0].operations[0].op: unsupported operation "copy"`,
+		},
+		{
+			name: "move operation is not supported",
+			opts: withPatches(fleet.ComparePatch{
+				Operations: []fleet.Operation{{Op: "move", Path: "/spec/foo"}},
+			}),
+			want: `diff.comparePatches[0].operations[0].op: unsupported operation "move"`,
+		},
+		{
+			name: "bogus operation",
+			opts: withPatches(fleet.ComparePatch{
+				Operations: []fleet.Operation{{Op: "bogus", Path: "/spec/foo"}},
+			}),
+			want: `diff.comparePatches[0].operations[0].op: unsupported operation "bogus"`,
+		},
+		{
+			name: "indices identify the offending operation",
+			path: "targetCustomizations[0].",
+			opts: withPatches(
+				fleet.ComparePatch{
+					Operations: []fleet.Operation{{Op: "remove", Path: "/spec/ok"}},
+				},
+				fleet.ComparePatch{
+					Operations: []fleet.Operation{
+						{Op: "remove", Path: "/spec/clusterIP"},
+						{Op: "invalid"},
+					},
+				},
+			),
+			want: `targetCustomizations[0].diff.comparePatches[1].operations[1].op: unsupported operation "invalid"`,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			assertError(t, ValidateComparePatchOperations(c.path, c.opts), c.want)
 		})
 	}
 }
@@ -263,6 +403,19 @@ func withPatches(patches ...fleet.ComparePatch) *fleet.BundleDeploymentOptions {
 }
 
 func assertError(t *testing.T, err error, want string) {
+	t.Helper()
+
+	switch {
+	case want == "" && err != nil:
+		t.Errorf("unexpected error: %v", err)
+	case want != "" && err == nil:
+		t.Errorf("expected error containing %q, got none", want)
+	case want != "" && !strings.Contains(err.Error(), want):
+		t.Errorf("error = %q, want to contain %q", err.Error(), want)
+	}
+}
+
+func assertErrorExact(t *testing.T, err error, want string) {
 	t.Helper()
 
 	switch {
