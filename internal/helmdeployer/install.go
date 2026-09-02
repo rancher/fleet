@@ -66,8 +66,20 @@ func (h *Helm) Deploy(ctx context.Context, bundleID string, manifest *manifest.M
 		chart.Metadata.Annotations[CommitAnnotation] = manifest.Commit
 	}
 
-	if release, err := h.install(ctx, bundleID, manifest, chart, options, getDryRunConfig(chart, true)); err != nil {
-		return nil, err
+	release, err := h.install(ctx, bundleID, manifest, chart, options, getDryRunConfig(chart, true))
+	if err != nil {
+		// A server-side dry run, which is needed for charts using the lookup
+		// function, cannot install the CRDs contained in the chart. Custom
+		// resources defined by those CRDs then have no REST mapping yet and the
+		// dry run fails. The install below installs crds/ first, hence it
+		// validates the manifest without hitting this chicken and egg problem.
+		if h.template || !isMissingOwnCRDsError(err, chart) {
+			return nil, err
+		}
+		log.FromContext(ctx).WithName("helm-deployer").Info(
+			"Skipping dry run validation, the CRDs defining resources from this chart are not installed yet",
+			"error", err,
+		)
 	} else if h.template {
 		return release, nil
 	}

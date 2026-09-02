@@ -16,6 +16,7 @@ import (
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/merr"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/normalizers"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/objectset"
+	"github.com/rancher/fleet/internal/validation"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -30,7 +31,7 @@ func Diff(logger logr.Logger, plan Plan, bd *fleet.BundleDeployment, ns string, 
 	desired := objectset.NewObjectSet(objs...).ObjectsByGVK()
 	live := objectset.NewObjectSet(plan.Objects...).ObjectsByGVK()
 
-	norms, err := newNormalizers(live, bd)
+	norms, err := newNormalizers(logger, live, bd)
 	if err != nil {
 		return plan, err
 	}
@@ -58,9 +59,11 @@ func Diff(logger logr.Logger, plan Plan, bd *fleet.BundleDeployment, ns string, 
 
 				re, err := regexp.Compile(key.Name)
 				if err != nil {
-					// XXX: enable detection of such issues earlier, for instance through CLI validating
-					// fleet.yaml syntax; see fleet#4533.
-					logger.V(1).Error(
+					// fleet apply rejects a name which does not compile (see
+					// validation.ValidateComparePatchNames), but BundleDeployments
+					// created by an older Fleet version, or from a HelmOp, still reach
+					// this point, hence the check and the error log.
+					logger.Error(
 						err,
 						"Cannot compile bundle diff ignore regex, will discard it",
 						"namespace", key.Namespace,
@@ -181,7 +184,7 @@ func Diff(logger logr.Logger, plan Plan, bd *fleet.BundleDeployment, ns string, 
 //   - normalizers.NewIgnoreNormalizer (patch.JsonPointers)
 //   - normalizers.NewKnownTypesNormalizer (rollout.argoproj.io)
 //   - patch.Operations
-func newNormalizers(live objectset.ObjectByGVK, bd *fleet.BundleDeployment) (diff.Normalizer, error) {
+func newNormalizers(logger logr.Logger, live objectset.ObjectByGVK, bd *fleet.BundleDeployment) (diff.Normalizer, error) {
 	var ignore []resource.ResourceIgnoreDifferences
 	jsonPatchNorm := &normalizers.JSONPatchNormalizer{}
 
@@ -191,26 +194,94 @@ func newNormalizers(live objectset.ObjectByGVK, bd *fleet.BundleDeployment) (dif
 			if err != nil {
 				return nil, err
 			}
+
+			pointers := make([]string, 0, len(patch.JsonPointers))
+			for _, pointer := range patch.JsonPointers {
+				if !validation.IsJSONPointer(pointer) {
+					// fleet apply rejects a malformed pointer (see
+					// validation.ValidateComparePatchJSONPointers), but BundleDeployments created
+					// by an older Fleet version, or from a HelmOp, still reach this point.
+					// Dropping the entry here makes the failure visible: the normalizer
+					// only logs it at V(1) info level, which the agent's default
+					// verbosity filters out entirely. The user-visible diff is unchanged
+					// either way — a pointer which resolves to nothing is a no-op, and a
+					// two-segment slashless one such as "x/status", which json-patch does
+					// resolve to a root key (see validation.IsJSONPointer), is normalized
+					// out of the live, desired and original objects alike.
+					logger.Error(
+						validation.InvalidJSONPointerError(pointer),
+						"Cannot ignore bundle diff JSON pointer, will discard it",
+						"namespace", patch.Namespace,
+						"name", patch.Name,
+						"gvk", groupVersion.WithKind(patch.Kind).String(),
+					)
+					continue
+				}
+
+				pointers = append(pointers, pointer)
+			}
+
 			ignore = append(ignore, resource.ResourceIgnoreDifferences{
 				Namespace:    patch.Namespace,
 				Name:         patch.Name,
 				Kind:         patch.Kind,
 				Group:        groupVersion.Group,
-				JSONPointers: patch.JsonPointers,
+				JSONPointers: pointers,
 			})
 
 			for _, op := range patch.Operations {
+				// "ignore" is Fleet's own operation, applied in Diff; it never
+				// becomes a JSON patch.
+				if op.Op == fleet.IgnoreOp {
+					continue
+				}
+
+				gvk := schema.FromAPIVersionAndKind(patch.APIVersion, patch.Kind)
+
+				if !validation.IsSupportedPatchOp(op.Op) {
+					// fleet apply rejects an unsupported operation (see
+					// validation.ValidateComparePatchOperations), but BundleDeployments
+					// created by an older Fleet version, or from a HelmOp, still reach this
+					// point. Dropping the operation here keeps the other patches for the
+					// same resource working: json-patch fails on an unknown operation at
+					// apply time, and JSONPatchNormalizer then discards every patch it holds
+					// for that object, not just this one.
+					logger.Error(
+						validation.UnsupportedPatchOpError(op.Op),
+						"Cannot apply bundle diff patch operation, will discard it",
+						"namespace", patch.Namespace,
+						"name", patch.Name,
+						"gvk", gvk.String(),
+					)
+					continue
+				}
+
+				if !validation.IsJSONPointer(op.Path) {
+					// fleet apply rejects a malformed path (see
+					// validation.ValidateComparePatchOperationPaths), but BundleDeployments created
+					// by an older Fleet version, or from a HelmOp, still reach this point.
+					// Dropping the operation here keeps the other patches for the same
+					// resource working: json-patch fails to resolve such a path at apply
+					// time, and JSONPatchNormalizer then discards every patch it holds for
+					// that object, not just this one. A path json-patch does resolve, but
+					// not to what the user wrote, is dropped here as well, before it can
+					// silently rewrite the wrong field.
+					logger.Error(
+						validation.InvalidJSONPointerError(op.Path),
+						"Cannot apply bundle diff patch operation, will discard it",
+						"namespace", patch.Namespace,
+						"name", patch.Name,
+						"gvk", gvk.String(),
+					)
+					continue
+				}
+
 				// compile each operation by itself so that one failing operation doesn't block the others
 				patchData, err := json.Marshal([]any{op})
 				if err != nil {
 					return nil, err
 				}
 
-				if op.Op == fleet.IgnoreOp {
-					continue
-				}
-
-				gvk := schema.FromAPIVersionAndKind(patch.APIVersion, patch.Kind)
 				key := objectset.ObjectKey{
 					Name:      patch.Name,
 					Namespace: patch.Namespace,

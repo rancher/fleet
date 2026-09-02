@@ -35,6 +35,7 @@ import (
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	ctrlquartz "github.com/rancher/fleet/internal/cmd/controller/quartz"
 	"github.com/rancher/fleet/internal/metrics"
+	"github.com/rancher/fleet/internal/validation"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/cert"
 	"github.com/rancher/fleet/pkg/durations"
@@ -588,6 +589,9 @@ func jobKey(h fleet.HelmOp) *quartz.JobKey {
 // * tarball URL in Chart, empty Repo, empty Version
 // * OCI reference in the Repo field, empty Chart, optional Version
 // * non-empty Repo URL, non-empty Chart name, optional Version
+//
+// It then hands the BundleSpec a HelmOp embeds to validateBundleSpec, so the
+// options a HelmOp shares with a fleet.yaml are checked here as well.
 func validate(h fleet.HelmOp) error {
 	if h.Spec.Helm == nil {
 		return errors.New("helm options are empty in the HelmOp's spec")
@@ -617,6 +621,25 @@ func validate(h fleet.HelmOp) error {
 
 		if len(h.Spec.Helm.Repo) == 0 {
 			return fail("non-tarball chart with an empty repo field")
+		}
+	}
+
+	return validateBundleSpec(&h.Spec.BundleSpec)
+}
+
+// validateBundleSpec runs the rules which apply to the BundleSpec a HelmOp embeds.
+// A HelmOp reaches the same BundleDeploymentOptions a fleet.yaml does, but never
+// goes through bundlereader.validateFleetYAML, so without this the values would
+// only fail on the agent, silently. The rules themselves live in
+// internal/validation so that both entry points enforce one copy of each.
+//
+// Paths are reported from the HelmOp spec, e.g.
+// "spec.targets[0].diff.comparePatches[1].name", because that is where the user
+// wrote the value; the message reaches them on the Accepted condition.
+func validateBundleSpec(spec *fleet.BundleSpec) error {
+	for _, check := range validation.BundleDeploymentOptionChecks {
+		if err := validation.ForEachBundleSpecOptions("spec.", spec, check); err != nil {
+			return err
 		}
 	}
 

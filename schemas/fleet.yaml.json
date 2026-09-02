@@ -154,7 +154,7 @@
         },
         "name": {
           "type": "string",
-          "description": "Name is the name of the resource to match."
+          "description": "Name is the name of the resource to match. Resources are matched by exact\nname first and, when the name does not match exactly, by matching it as a\nregular expression, so it must always be a valid Go regular expression."
         },
         "namespace": {
           "type": "string",
@@ -165,7 +165,7 @@
             "type": "string"
           },
           "type": "array",
-          "description": "JSONPointers ignore diffs at a certain JSON path."
+          "description": "JSONPointers ignore diffs at the given JSON pointers, e.g. /spec/replicas.\nEach entry must be a non-empty pointer starting with a slash; a\nKubernetes-style field path such as spec.replicas addresses nothing and is\nrejected. Escaping is the one the JSON patch library applies, which is\nlaxer than RFC 6901: \"~0\" and \"~1\" are read as \"~\" and \"/\", respectively, and any other\n\"~\" sequence is left as written."
         },
         "operations": {
           "items": {
@@ -495,11 +495,18 @@
       "properties": {
         "op": {
           "type": "string",
-          "description": "Op is usually \"remove\" or \"ignore\""
+          "enum": [
+            "add",
+            "ignore",
+            "remove",
+            "replace",
+            "test"
+          ],
+          "description": "Op is the operation to perform on the matched resource. It must be one of\nthe JSON Patch operations \"add\", \"remove\", \"replace\" and \"test\", or\nFleet's own \"ignore\", which removes the entire resource from checks for\nmodifications. The JSON Patch operations \"copy\" and \"move\" are not\nsupported, because an Operation has no \"from\" field to encode them with.\nAny other value, including an empty one, makes the whole patch fail to\napply."
         },
         "path": {
           "type": "string",
-          "description": "Path is the JSON path to remove. Not needed if Op is \"ignore\"."
+          "description": "Path is the JSON pointer the operation applies to, e.g. /spec/replicas.\nIt must be a non-empty pointer starting with a slash; a Kubernetes-style\nfield path such as spec.replicas addresses nothing and is rejected. It is\nescaped like a JSONPointers entry, which is laxer than RFC 6901. Required\nunless Op is \"ignore\", which drops the whole resource from the comparison\nand never reads the path."
         },
         "value": {
           "type": "string",

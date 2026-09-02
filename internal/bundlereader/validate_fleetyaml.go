@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/rancher/fleet/internal/validation"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
@@ -13,6 +14,38 @@ func validateFleetYAML(fy *fleet.FleetYAML) error {
 	// Validate DependsOn entries at the bundle level
 	for i, dep := range fy.DependsOn {
 		if err := validateBundleRef(i, dep); err != nil {
+			return err
+		}
+	}
+
+	// Rules shared with HelmOp, which reaches the same options through its own
+	// embedded BundleSpec. They live in internal/validation so both entry points
+	// enforce one copy of each rule; see validation.ForEachBundleSpecOptions.
+	for _, check := range validation.BundleDeploymentOptionChecks {
+		if err := forEachOptions(fy, check); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// forEachOptions calls fn for every BundleDeploymentOptions reachable from
+// fleet.yaml, with the field path prefix which identifies it to the user.
+//
+// BundleDeploymentOptions is embedded in three places, and validateFleetYAML runs
+// before targetCustomizations are merged into targets, so all three have to be
+// walked explicitly.
+func forEachOptions(fy *fleet.FleetYAML, fn func(path string, opts *fleet.BundleDeploymentOptions) error) error {
+	// The bundle-level options and the targets are the two sites a HelmOp has as
+	// well, so they are walked by the shared helper rather than a second time here.
+	if err := validation.ForEachBundleSpecOptions("", &fy.BundleSpec, fn); err != nil {
+		return err
+	}
+
+	for i := range fy.TargetCustomizations {
+		path := fmt.Sprintf("targetCustomizations[%d].", i)
+		if err := fn(path, &fy.TargetCustomizations[i].BundleDeploymentOptions); err != nil {
 			return err
 		}
 	}
