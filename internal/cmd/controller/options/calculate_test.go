@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/rancher/fleet/internal/cmd/controller/options"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -96,6 +97,58 @@ func TestMerge_DownstreamResources_EmptyBase(t *testing.T) {
 
 	result := options.Merge(fleet.BundleDeploymentOptions{}, custom)
 	a.Equal(custom.DownstreamResources, result.DownstreamResources)
+}
+
+// ---------- Namespace metadata ----------
+
+func TestMerge_NamespaceMetadata_MergesAndOverrides(t *testing.T) {
+	a := assert.New(t)
+
+	base := fleet.BundleDeploymentOptions{
+		NamespaceLabels:      map[string]string{"base": "keep"},
+		NamespaceAnnotations: map[string]string{"base-ann": "keep"},
+	}
+	custom := fleet.BundleDeploymentOptions{
+		NamespaceLabels:      map[string]string{"region": "eu-west", "base": "override"},
+		NamespaceAnnotations: map[string]string{"team": "platform"},
+	}
+
+	result := options.Merge(base, custom)
+
+	a.Equal(map[string]string{"base": "override", "region": "eu-west"}, result.NamespaceLabels)
+	a.Equal(map[string]string{"base-ann": "keep", "team": "platform"}, result.NamespaceAnnotations)
+
+	// Pure function: inputs must not be modified.
+	a.Equal(map[string]string{"base": "keep"}, base.NamespaceLabels)
+	a.Equal(map[string]string{"base-ann": "keep"}, base.NamespaceAnnotations)
+}
+
+func TestMerge_NamespaceMetadata_EmptyBase(t *testing.T) {
+	a := assert.New(t)
+
+	custom := fleet.BundleDeploymentOptions{
+		NamespaceLabels:      map[string]string{"region": "eu-west"},
+		NamespaceAnnotations: map[string]string{"team": "platform"},
+	}
+
+	result := options.Merge(fleet.BundleDeploymentOptions{}, custom)
+
+	a.Equal(custom.NamespaceLabels, result.NamespaceLabels)
+	a.Equal(custom.NamespaceAnnotations, result.NamespaceAnnotations)
+}
+
+func TestMerge_NamespaceMetadata_EmptyCustom(t *testing.T) {
+	a := assert.New(t)
+
+	base := fleet.BundleDeploymentOptions{
+		NamespaceLabels:      map[string]string{"base": "keep"},
+		NamespaceAnnotations: map[string]string{"base-ann": "keep"},
+	}
+
+	result := options.Merge(base, fleet.BundleDeploymentOptions{})
+
+	a.Equal(base.NamespaceLabels, result.NamespaceLabels)
+	a.Equal(base.NamespaceAnnotations, result.NamespaceAnnotations)
 }
 
 // ---------- ValuesFrom ----------
@@ -374,4 +427,32 @@ func TestMergeChain_BoolSticky(t *testing.T) {
 	result := options.Merge(base, setForce)
 	result = options.Merge(result, clearForce)
 	assert.True(t, result.Helm.Force, "Force cannot be unset once true -- OR semantics")
+}
+
+// ---------- DeploymentID ----------
+
+// Namespace metadata is applied to the release namespace by the agent, beside
+// the deployed resources rather than as part of them, so it is excluded from the
+// hash. updateDeploymentFromStaged propagates it instead.
+func TestDeploymentID_IgnoresNamespaceMetadata(t *testing.T) {
+	a := assert.New(t)
+
+	bare, err := options.DeploymentID("manifest", fleet.BundleDeploymentOptions{})
+	require.NoError(t, err)
+
+	withMetadata, err := options.DeploymentID("manifest", fleet.BundleDeploymentOptions{
+		NamespaceLabels:      map[string]string{"region": "eu-west"},
+		NamespaceAnnotations: map[string]string{"team": "platform"},
+	})
+	require.NoError(t, err)
+
+	a.Equal(bare, withMetadata)
+
+	// Control: an option that does affect what is deployed still changes the ID.
+	withNamespace, err := options.DeploymentID("manifest", fleet.BundleDeploymentOptions{
+		TargetNamespace: "elsewhere",
+	})
+	require.NoError(t, err)
+
+	a.NotEqual(bare, withNamespace)
 }
