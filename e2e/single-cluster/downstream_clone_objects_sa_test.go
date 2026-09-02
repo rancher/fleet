@@ -103,7 +103,11 @@ var _ = Describe("Downstream objects cloning gated by service account RBAC", Ord
 		_, _ = k.Delete("secret", srcSecret)
 		_, _ = k.Delete("configmap", srcCM)
 		_, _ = k.Namespace(agentNamespace).Delete("serviceaccount", saName)
-		// The Role and RoleBinding live in deployNS and go with it.
+		// The copy Role and RoleBinding live in deployNS and go with it. The
+		// namespace ClusterRole and its binding are cluster scoped, so they
+		// outlive the namespace and have to be removed by name.
+		_, _ = k.Delete("clusterrolebinding", nsRole)
+		_, _ = k.Delete("clusterrole", nsRole)
 		_, _ = k.Delete("namespace", deployNS, "--wait=false")
 	})
 
@@ -128,9 +132,9 @@ var _ = Describe("Downstream objects cloning gated by service account RBAC", Ord
 
 		By("granting the service account access to the deployment namespace")
 		// The copy gets, creates and updates; the release applies the chart's own
-		// resources server-side, which needs patch; uninstalling it purges the Helm
-		// release storage, which is kept in Secrets in this namespace and is written
-		// through the same impersonated identity, so that needs delete. Removing the
+		// resources, which needs patch; uninstalling it purges the Helm release
+		// storage, which is kept in Secrets in this namespace and is written through
+		// the same impersonated identity, so that needs delete. Removing the
 		// resources copied from upstream is done by the agent, so the account needs
 		// no list or delete access of its own for those.
 		out, err := k.Namespace(deployNS).Create(
@@ -146,19 +150,21 @@ var _ = Describe("Downstream objects cloning gated by service account RBAC", Ord
 		)
 		Expect(err).ToNot(HaveOccurred(), out)
 
-		// The deploy path also runs as the SA, and applying the release patches the
-		// deployment namespace itself server-side. A namespaced Role covers that:
-		// a request to a namespace is attributed to that namespace, so the account
-		// needs no cluster-scoped access.
-		out, err = k.Namespace(deployNS).Create(
-			"role", nsRole,
-			"--verb=patch",
+		// The deploy path also runs as the SA, and Helm creates the release
+		// namespace before installing. On Helm v3 that is a plain create against
+		// the collection, which is cluster scoped and needs a ClusterRole: the
+		// namespace already existing does not help, because authorization is
+		// decided before the request reaches the existence check, so the account
+		// is refused rather than told the namespace is already there.
+		out, err = k.Create(
+			"clusterrole", nsRole,
+			"--verb=create",
 			"--resource=namespaces",
 		)
 		Expect(err).ToNot(HaveOccurred(), out)
-		out, err = k.Namespace(deployNS).Create(
-			"rolebinding", nsRole,
-			"--role="+nsRole,
+		out, err = k.Create(
+			"clusterrolebinding", nsRole,
+			"--clusterrole="+nsRole,
 			"--serviceaccount="+agentNamespace+":"+saName,
 		)
 		Expect(err).ToNot(HaveOccurred(), out)
