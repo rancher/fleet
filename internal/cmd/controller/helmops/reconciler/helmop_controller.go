@@ -27,13 +27,13 @@ import (
 	"github.com/Masterminds/semver/v3"
 	"github.com/go-logr/logr"
 	"github.com/rancher/wrangler/v3/pkg/condition"
-	"github.com/rancher/wrangler/v3/pkg/genericcondition"
 	"github.com/reugn/go-quartz/quartz"
 
 	"github.com/rancher/fleet/internal/bundlereader"
 	fleetutil "github.com/rancher/fleet/internal/cmd/controller/errorutil"
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	ctrlquartz "github.com/rancher/fleet/internal/cmd/controller/quartz"
+	"github.com/rancher/fleet/internal/cmd/controller/status"
 	"github.com/rancher/fleet/internal/metrics"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/cert"
@@ -90,6 +90,11 @@ func (r *HelmOpReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, nil
 	}
 
+	// The status as read, before this reconcile computes anything from it. Status
+	// updates below merge against it, so that conditions written by the polling
+	// job while this reconcile runs are not reverted to what was read here.
+	baseStatus := helmop.Status.DeepCopy()
+
 	if userID := helmop.Labels[fleet.CreatedByUserIDLabel]; userID != "" {
 		logger = logger.WithValues("userID", userID)
 	}
@@ -130,7 +135,7 @@ func (r *HelmOpReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		if delErr := r.deletePollingJob(*helmop); delErr != nil {
 			err = errutil.NewAggregate([]error{err, delErr})
 		}
-		return ctrl.Result{}, updateErrorStatusHelm(ctx, r.Client, req.NamespacedName, helmop, err)
+		return ctrl.Result{}, updateErrorStatusHelm(ctx, r.Client, req.NamespacedName, helmop, baseStatus, err)
 	}
 
 	// Policy restrictions: validate and apply defaults before producing the Bundle.
@@ -144,7 +149,7 @@ func (r *HelmOpReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			"%v",
 			err,
 		)
-		return ctrl.Result{}, updateErrorStatusHelm(ctx, r.Client, req.NamespacedName, helmop, err)
+		return ctrl.Result{}, updateErrorStatusHelm(ctx, r.Client, req.NamespacedName, helmop, baseStatus, err)
 	}
 
 	// Reconciling
@@ -154,15 +159,15 @@ func (r *HelmOpReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	logger.V(1).Info("Reconciling HelmOp")
 
 	if _, err := r.createUpdateBundle(ctx, helmop); err != nil {
-		return ctrl.Result{}, updateErrorStatusHelm(ctx, r.Client, req.NamespacedName, helmop, err)
+		return ctrl.Result{}, updateErrorStatusHelm(ctx, r.Client, req.NamespacedName, helmop, baseStatus, err)
 	}
 
 	// Running this logic after creating/updating the bundle to avoid scheduling a job if the bundle has not been created.
 	if err := r.managePollingJob(logger, *helmop); err != nil {
-		return ctrl.Result{}, updateErrorStatusHelm(ctx, r.Client, req.NamespacedName, helmop, err)
+		return ctrl.Result{}, updateErrorStatusHelm(ctx, r.Client, req.NamespacedName, helmop, baseStatus, err)
 	}
 
-	err := updateStatus(ctx, r.Client, req.NamespacedName, helmop, nil)
+	err := updateStatus(ctx, r.Client, req.NamespacedName, helmop, baseStatus, nil)
 	if err != nil {
 		logger.Error(err, "Reconcile failed final update to HelmOp status", "status", helmop.Status)
 
@@ -441,12 +446,30 @@ func usesPolling(helmop fleet.HelmOp) bool {
 // updateStatus updates the status for the HelmOp resource. It retries on
 // conflict. If the status was updated successfully, it also collects (as in
 // updates) metrics for the HelmOp resource.
-func updateStatus(ctx context.Context, c client.Client, req types.NamespacedName, helmop *fleet.HelmOp, orgErr error) error {
+//
+// base is the HelmOp status as the caller first read it, used to tell the
+// conditions this reconciler computed apart from the ones it merely carried
+// over from that read. See status.MergeConditions.
+func updateStatus(
+	ctx context.Context,
+	c client.Client,
+	req types.NamespacedName,
+	helmop *fleet.HelmOp,
+	base *fleet.HelmOpStatus,
+	orgErr error,
+) error {
 	if helmop == nil {
 		return errors.New("the HelmOp provided for a status update is nil; this should not happen")
 	}
 
-	objToPatchFrom := helmop.DeepCopy()
+	// The status this reconciler wants to publish. It is only a source of values:
+	// the patch is always computed against a copy read inside the retry loop, so
+	// this stale copy can never serve as the patch base.
+	desired := helmop.DeepCopy()
+
+	if base == nil {
+		base = &desired.Status
+	}
 
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		t := &fleet.HelmOp{}
@@ -454,45 +477,40 @@ func updateStatus(ctx context.Context, c client.Client, req types.NamespacedName
 			return err
 		}
 
+		orig := t.DeepCopy()
+
 		// selectively update the status fields this reconciler is responsible for
-		if t.Status.Version != objToPatchFrom.Status.Version && objToPatchFrom.Status.Version != "" {
-			t.Status.Version = objToPatchFrom.Status.Version
-			// (#3883)
-			// If orig.Status.Version is, for example, equal to 1.0.0, when
-			// assigning the Version to t.Status.Version both will be 1.0.0.
-			// When calculating the Patch data, Status.Version will be ignored because
-			// both objects have the same value.
-			// The following cleanup prevents that so Status.Version is taken into
-			// account when calculating the patch data.
-			objToPatchFrom.Status.Version = ""
+		if desired.Status.Version != "" {
+			t.Status.Version = desired.Status.Version
 		}
 
-		// only keep the Ready condition from live status, it's calculated by the status reconciler
-		conds := []genericcondition.GenericCondition{}
-		for _, c := range t.Status.Conditions {
-			if c.Type == "Ready" {
-				conds = append(conds, c)
-				break
-			}
-		}
-		for _, c := range objToPatchFrom.Status.Conditions {
-			if c.Type == "Ready" {
-				continue
-			}
-			conds = append(conds, c)
-		}
-		t.Status.Conditions = conds
+		// Merge rather than replace: the Ready condition belongs to the status
+		// reconciler, and the polling job owns Polled and the kstatus conditions,
+		// which it may well have written since desired was read.
+		t.Status.Conditions = status.MergeConditions(
+			t.Status.Conditions,
+			base.Conditions,
+			desired.Status.Conditions,
+			"Ready",
+		)
 
 		setAcceptedConditionHelm(&t.Status, orgErr)
 
-		statusPatch := client.MergeFrom(objToPatchFrom)
-		if patchData, err := statusPatch.Data(t); err == nil && string(patchData) == "{}" {
+		if equality.Semantic.DeepEqual(orig.Status, t.Status) {
 			metrics.HelmCollector.Collect(ctx, t)
-			// skip update if patch is empty
+			// skip update if nothing changed
 			return nil
 		}
 
-		if err := c.Status().Patch(ctx, t, statusPatch); err != nil {
+		// Patch under an optimistic lock, against a base read in this same attempt.
+		// A merge patch replaces the whole conditions array, so patching from a
+		// stale base drops conditions written concurrently by the status
+		// reconciler. RetryOnConflict re-reads and recomputes on conflict.
+		if err := c.Status().Patch(
+			ctx,
+			t,
+			client.MergeFromWithOptions(orig, client.MergeFromWithOptimisticLock{}),
+		); err != nil {
 			return err
 		}
 
@@ -503,8 +521,15 @@ func updateStatus(ctx context.Context, c client.Client, req types.NamespacedName
 }
 
 // updateErrorStatusHelm sets the condition in the status and tries to update the resource
-func updateErrorStatusHelm(ctx context.Context, c client.Client, req types.NamespacedName, helmOp *fleet.HelmOp, orgErr error) error {
-	if statusErr := updateStatus(ctx, c, req, helmOp, orgErr); statusErr != nil {
+func updateErrorStatusHelm(
+	ctx context.Context,
+	c client.Client,
+	req types.NamespacedName,
+	helmOp *fleet.HelmOp,
+	base *fleet.HelmOpStatus,
+	orgErr error,
+) error {
+	if statusErr := updateStatus(ctx, c, req, helmOp, base, orgErr); statusErr != nil {
 		merr := []error{orgErr, fmt.Errorf("failed to update the status: %w", statusErr)}
 		return errutil.NewAggregate(merr)
 	}
