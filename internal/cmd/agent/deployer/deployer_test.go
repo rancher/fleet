@@ -265,16 +265,14 @@ func TestSetNamespaceLabelsAndAnnotations_ForbiddenSurfaces(t *testing.T) {
 }
 
 // TestNamespaceForbiddenError verifies that the typed error DeployBundle
-// returns for a denied namespace patch is both detectable via errors.As (so the
-// controller can do a controlled requeue) and still unwraps to a Forbidden
-// error.
+// returns for a denied namespace patch is both detectable via errors.AsType (so the controller can do a controlled
+// requeue) and still unwraps to a Forbidden error.
 func TestNamespaceForbiddenError(t *testing.T) {
 	forbidden := apierrors.NewForbidden(
 		schema.GroupResource{Resource: "namespaces"}, "namespace", errors.New("nope"))
 	err := error(&NamespaceForbiddenError{err: forbidden})
 
-	var nsErr *NamespaceForbiddenError
-	if !errors.As(err, &nsErr) {
+	if _, ok := errors.AsType[*NamespaceForbiddenError](err); !ok {
 		t.Errorf("expected error to be detectable as *NamespaceForbiddenError, got %v", err)
 	}
 	if !apierrors.IsForbidden(err) {

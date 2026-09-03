@@ -350,7 +350,11 @@ func updateNamespace(ctx context.Context, c client.Client, ns *corev1.Namespace)
 // fetchNamespace gets the namespace matching the release ID. Returns an error if none is found.
 // releaseID is composed of release.Namespace/release.Name/release.Version
 func fetchNamespace(ctx context.Context, c client.Client, releaseID string) (*corev1.Namespace, error) {
-	namespace := strings.Split(releaseID, "/")[0]
+	namespace, _, found := strings.Cut(releaseID, "/")
+	if !found {
+		return nil, fmt.Errorf("malformed release ID, without slash separator after namespace: %q", releaseID)
+	}
+
 	ns := &corev1.Namespace{}
 	if err := c.Get(ctx, types.NamespacedName{Name: namespace}, ns); err != nil {
 		if apierrors.IsForbidden(err) {

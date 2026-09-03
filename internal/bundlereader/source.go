@@ -316,8 +316,7 @@ func redactSensitiveText(src string) string {
 // the error is wrapped into a message and logged. Other errors are returned
 // unchanged.
 func redactParseError(err error) error {
-	var ue *url.Error
-	if errors.As(err, &ue) {
+	if ue, ok := errors.AsType[*url.Error](err); ok {
 		return ue.Err
 	}
 	return err
