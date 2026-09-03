@@ -292,7 +292,7 @@ func (d *Deployer) setNamespaceLabelsAndAnnotations(ctx context.Context, bd *fle
 		if desiredLabels == nil {
 			desiredLabels = make(map[string]string)
 		}
-		addLabelsFromOptions(log.FromContext(ctx), desiredLabels, bd.Spec.Options.NamespaceLabels)
+		addLabelsFromOptions(desiredLabels, bd.Spec.Options.NamespaceLabels)
 	}
 	desiredAnnotations := maps.Clone(ns.Annotations)
 	if bd.Spec.Options.NamespaceAnnotations != nil {
@@ -363,36 +363,21 @@ func fetchNamespace(ctx context.Context, c client.Client, releaseID string) (*co
 	return ns, nil
 }
 
-const podSecurityLabelPrefix = "pod-security.kubernetes.io/"
-
-// addLabelsFromOptions updates nsLabels to contain labels from optLabels, while preserving
-// the `kubernetes.io/metadata.name` label added by Kubernetes when creating the namespace
-// and any existing `pod-security.kubernetes.io/*` labels. Labels with the
-// `pod-security.kubernetes.io/` prefix in optLabels are ignored.
+// addLabelsFromOptions updates nsLabels to contain the labels from optLabels, while preserving
+// the `kubernetes.io/metadata.name` label added by Kubernetes when creating the namespace.
 //
-// This filtering is intentionally unconditional and independent of the
-// service-account impersonation used for the namespace patch: it must also hold
-// for deployments that run as the agent (no service account pinned), where
-// there is no downstream RBAC gating at all. It is the only safeguard against a
-// bundle escalating pod-security enforcement on its target namespace. To set
-// pod-security labels on a namespace, declare them on the Namespace resource in
-// the bundle instead.
-func addLabelsFromOptions(logger logr.Logger, nsLabels map[string]string, optLabels map[string]string) {
-	for k, v := range optLabels {
-		if strings.HasPrefix(k, podSecurityLabelPrefix) {
-			logger.V(1).Info("Ignoring label from options", "label", k)
-			continue
-		}
-		nsLabels[k] = v
-	}
+// Security-sensitive labels such as `pod-security.kubernetes.io/*` are not
+// filtered here. The namespace is patched as the deployment's service account
+// (see namespaceClient), so which labels a bundle may set on its target
+// namespace is gated by the downstream RBAC of that account. Deployments that
+// resolve to no service account still run as the agent, so restricting them
+// requires pinning a service account, either in the bundle or through a Policy.
+func addLabelsFromOptions(nsLabels map[string]string, optLabels map[string]string) {
+	maps.Copy(nsLabels, optLabels)
 
 	// Delete labels not defined in the options.
 	// Keep the `kubernetes.io/metadata.name` label as it is added by kubernetes when creating the namespace.
-	// Keep pod-security.kubernetes.io/ labels as they are managed by cluster administrators.
 	for k := range nsLabels {
-		if strings.HasPrefix(k, podSecurityLabelPrefix) {
-			continue
-		}
 		if _, ok := optLabels[k]; k != corev1.LabelMetadataName && !ok {
 			delete(nsLabels, k)
 		}
