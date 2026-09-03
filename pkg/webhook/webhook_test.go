@@ -477,6 +477,67 @@ func TestGitHubWrongSecret(t *testing.T) {
 	}
 }
 
+func TestNoWebhookSecretDoesNotMutateSpec(t *testing.T) {
+	// No webhookSecretName Secret exists, and the GitRepo has no Spec.WebhookSecret set —
+	// this is Fleet's default, out-of-the-box configuration.
+	gitRepo := &v1alpha1.GitRepo{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test",
+			Namespace: "default",
+		},
+		Spec: v1alpha1.GitRepoSpec{
+			Repo:   "https://github.com/example/repo",
+			Branch: "main",
+		},
+	}
+
+	sch := scheme.Scheme
+	if err := v1alpha1.AddToScheme(sch); err != nil {
+		t.Fatalf("unable to add to scheme: %v", err)
+	}
+	client := cfake.NewClientBuilder().WithScheme(sch).WithRuntimeObjects(gitRepo).WithStatusSubresource(gitRepo).Build()
+
+	w := &Webhook{
+		client:    client,
+		namespace: "default",
+	}
+
+	const commit = "af69d162de5a276abc86e0686b2b44033cd3f442"
+	jsonBody := []byte(`
+	{
+	  "ref":"refs/heads/main",
+	  "after":"` + commit + `",
+	  "repository":{
+		"html_url":"https://github.com/example/repo"
+      }
+    }`)
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "/", bytes.NewReader(jsonBody))
+	if err != nil {
+		t.Fatalf("Failed to create HTTP request: %v", err)
+	}
+	req.Header.Set("X-Github-Event", "push")
+	// Deliberately no X-Hub-Signature-256 header: an unauthenticated forged request.
+
+	rr := httptest.NewRecorder()
+	w.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusOK {
+		t.Fatalf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
+	}
+
+	updatedGitRepo := &v1alpha1.GitRepo{}
+	if err := client.Get(context.TODO(), types.NamespacedName{Name: gitRepo.Name, Namespace: gitRepo.Namespace}, updatedGitRepo); err != nil {
+		t.Fatalf("unexpected err %v", err)
+	}
+	if updatedGitRepo.Status.WebhookCommit != commit {
+		t.Errorf("expected webhook commit %v, but got %v", commit, updatedGitRepo.Status.WebhookCommit)
+	}
+	if updatedGitRepo.Spec.PollingInterval != nil {
+		t.Errorf("unauthenticated webhook request must not mutate Spec.PollingInterval, got %v", updatedGitRepo.Spec.PollingInterval)
+	}
+}
+
 func TestGitHubSecretAndCommitUpdated(t *testing.T) {
 	expectedCommit := "af69d162de5a276abc86e0686b2b44033cd3f442"
 	gitrepoSecretName := "gitrepoSecret"
@@ -491,6 +552,10 @@ func TestGitHubSecretAndCommitUpdated(t *testing.T) {
 		setSecretInGitrepo   bool
 		expectedResCode      int
 		expectedCommitUpdate bool
+		// expectedSpecPatch is true only when the request was verified against an
+		// actually configured secret; Spec.PollingInterval must never be mutated
+		// by an unverified/unauthenticated request.
+		expectedSpecPatch bool
 	}{
 		"global-secret-ok-no-gitrepo-secret": {
 			secretValueInRequest: "supersecretvalue",
@@ -503,6 +568,7 @@ func TestGitHubSecretAndCommitUpdated(t *testing.T) {
 			setSecretInGitrepo:   false,
 			expectedResCode:      http.StatusOK,
 			expectedCommitUpdate: true,
+			expectedSpecPatch:    true,
 		},
 		"global-secret-wrong-no-gitrepo-secret": {
 			secretValueInRequest: "supersecretvalue",
@@ -527,6 +593,7 @@ func TestGitHubSecretAndCommitUpdated(t *testing.T) {
 			setSecretInGitrepo:   true,
 			expectedResCode:      http.StatusOK,
 			expectedCommitUpdate: true,
+			expectedSpecPatch:    true,
 		},
 		// does not matter that global secret is wrong because
 		// gitrepo secret takes preference
@@ -541,6 +608,7 @@ func TestGitHubSecretAndCommitUpdated(t *testing.T) {
 			setSecretInGitrepo:   true,
 			expectedResCode:      http.StatusOK,
 			expectedCommitUpdate: true,
+			expectedSpecPatch:    true,
 		},
 		// does not matter that global secret is correct because
 		// gitrepo secret takes preference
@@ -579,6 +647,7 @@ func TestGitHubSecretAndCommitUpdated(t *testing.T) {
 			setSecretInGitrepo:   true,
 			expectedResCode:      http.StatusOK,
 			expectedCommitUpdate: true,
+			expectedSpecPatch:    true,
 		},
 		"global-secret-wrong-key-no-gitrepo-secret": {
 			secretValueInRequest: "supersecretvalue",
@@ -618,6 +687,7 @@ func TestGitHubSecretAndCommitUpdated(t *testing.T) {
 			setSecretInGitrepo:   false,
 			expectedResCode:      http.StatusOK,
 			expectedCommitUpdate: true,
+			expectedSpecPatch:    false, // no secret at all: request is unverified, must not mutate Spec
 		},
 
 		// when a referenced secret does not exist, we throw an error
@@ -719,14 +789,19 @@ func TestGitHubSecretAndCommitUpdated(t *testing.T) {
 					}
 				},
 			).Times(1)
-			// PollingInterval is nil on the GitRepo fixture, so a separate spec Patch() must follow
-			mockClient.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any()).Do(
-				func(ctx context.Context, repo *v1alpha1.GitRepo, _ client.Patch, opts ...any) {
-					if repo.Spec.PollingInterval == nil || repo.Spec.PollingInterval.Duration != time.Hour {
-						t.Errorf("expecting polling interval 1h in spec patch, got %v", repo.Spec.PollingInterval)
-					}
-				},
-			).Times(1)
+			// PollingInterval is nil on the GitRepo fixture; a separate spec Patch() must
+			// follow only when the request was verified against an actually configured secret.
+			if tt.expectedSpecPatch {
+				mockClient.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any()).Do(
+					func(ctx context.Context, repo *v1alpha1.GitRepo, _ client.Patch, opts ...any) {
+						if repo.Spec.PollingInterval == nil || repo.Spec.PollingInterval.Duration != time.Hour {
+							t.Errorf("expecting polling interval 1h in spec patch, got %v", repo.Spec.PollingInterval)
+						}
+					},
+				).Times(1)
+			} else {
+				mockClient.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+			}
 		}
 
 		w := &Webhook{
@@ -847,14 +922,8 @@ func TestGitRepoURLMatch(t *testing.T) {
 			}
 		},
 	).Times(1)
-	// PollingInterval is nil on both GitRepo fixtures, so a spec Patch() must follow for the matching one
-	mockClient.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any()).Do(
-		func(ctx context.Context, repo *v1alpha1.GitRepo, _ client.Patch, opts ...any) {
-			if repo.Spec.PollingInterval == nil || repo.Spec.PollingInterval.Duration != time.Hour {
-				t.Errorf("expecting polling interval 1h in spec patch, got %v", repo.Spec.PollingInterval)
-			}
-		},
-	).Times(1)
+	// No webhook secret is configured, so request is unverified and must not mutate Spec.
+	mockClient.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
 
 	// we set only the values that we're going to use in the push event to make things simple
 	jsonBody := fmt.Appendf(nil, `
