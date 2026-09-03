@@ -16,6 +16,7 @@ import (
 	"github.com/rancher/wrangler/v3/pkg/kstatus"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	errutil "k8s.io/apimachinery/pkg/util/errors"
@@ -67,7 +68,15 @@ func (j *gitPollingJob) Execute(ctx context.Context) error {
 	}
 	defer j.sem.Release(1)
 
-	return j.pollGitRepo(ctx)
+	err := j.pollGitRepo(ctx)
+	if err != nil {
+		// Quartz schedulers are built with the default logger.NoOpLogger and no
+		// job retries, so an error returned from here is discarded. Log it
+		// before handing it back, or polling failures are invisible.
+		logger.Error(err, "GitRepo polling job failed, retrying on the next poll")
+	}
+
+	return err
 }
 
 // Description returns a description for the job.
@@ -126,20 +135,35 @@ func (j *gitPollingJob) pollGitRepo(ctx context.Context) error {
 			return fmt.Errorf("could not get GitRepo to update its status: %w", err)
 		}
 
+		orig := t.DeepCopy()
+
 		t.Status.LastPollingTime = metav1.Time{Time: pollingTimestamp}
 		t.Status.PollingCommit = commit
 
 		condition.Cond(gitPollingCondition).SetError(&t.Status, "", nil)
 
-		statusPatch := client.MergeFrom(gitrepo)
-		if patchData, err := statusPatch.Data(t); err == nil && string(patchData) == "{}" {
-			// skip update if patch is empty
+		if equality.Semantic.DeepEqual(orig.Status, t.Status) {
+			// skip update if nothing changed
 			return nil
 		}
-		return j.client.Status().Patch(ctx, t, statusPatch)
+
+		// Patch under an optimistic lock, against a base read in this same attempt.
+		// A merge patch replaces the whole conditions array, so patching from a
+		// stale base drops conditions written concurrently by the gitjob
+		// reconciler. RetryOnConflict re-reads and recomputes on conflict.
+		return j.client.Status().Patch(
+			ctx,
+			t,
+			client.MergeFromWithOptions(orig, client.MergeFromWithOptimisticLock{}),
+		)
 	})
 	if err != nil {
-		return fail(fmt.Errorf("could not update GitRepo status with polling timestamp: %w", err))
+		// The commit check itself succeeded here; only the status write lost a
+		// race. Reporting that through fail() would emit a FailedToCheckCommit
+		// event and mark the GitRepo stalled over a transient conflict. Return
+		// the error instead, for Execute to log: the next scheduled poll
+		// recomputes the status from a fresh read.
+		return fmt.Errorf("could not update GitRepo status with polling timestamp: %w", err)
 	}
 
 	return nil
@@ -162,6 +186,8 @@ func (j *gitPollingJob) updateErrorStatus(
 			return fmt.Errorf("could not get GitRepo to update its status: %w", err)
 		}
 
+		orig := t.DeepCopy()
+
 		condition.Cond(gitPollingCondition).SetError(&t.Status, "", orgErr)
 		kstatus.SetError(t, orgErr.Error())
 
@@ -169,8 +195,17 @@ func (j *gitPollingJob) updateErrorStatus(
 			t.Status.LastPollingTime = metav1.Time{Time: pollingTimestamp}
 		}
 
-		statusPatch := client.MergeFrom(gitrepo)
-		return j.client.Status().Patch(ctx, t, statusPatch)
+		if equality.Semantic.DeepEqual(orig.Status, t.Status) {
+			return nil
+		}
+
+		// See pollGitRepo: patch under an optimistic lock against a base read in
+		// this same attempt, so a stale base cannot drop foreign conditions.
+		return j.client.Status().Patch(
+			ctx,
+			t,
+			client.MergeFromWithOptions(orig, client.MergeFromWithOptimisticLock{}),
+		)
 	})
 	if err != nil {
 		merr = append(merr, err)
