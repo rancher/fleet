@@ -142,16 +142,22 @@ func TestMergeConditionsDoesNotAliasInputs(t *testing.T) {
 
 	merged := MergeConditions(live, nil, desired)
 
-	accepted, ok := find(merged, "Accepted")
-	if !ok {
+	idx := -1
+	for i, c := range merged {
+		if c.Type == "Accepted" {
+			idx = i
+			break
+		}
+	}
+	if idx == -1 {
 		t.Fatal("expected the newly computed Accepted condition to be merged in")
 	}
-	accepted.Message = "mutated"
+	merged[idx].Message = "mutated"
 
 	if desired[0].Message != "computed" {
 		t.Errorf("mutating the merged result changed the desired input: %+v", desired[0])
 	}
-	if len(live) != 1 {
-		t.Errorf("merging appended to the live slice: %+v", live)
+	if live[0].Message != "fresh" {
+		t.Errorf("mutating the merged result changed the live input: %+v", live[0])
 	}
 }
