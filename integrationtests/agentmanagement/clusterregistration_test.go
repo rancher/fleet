@@ -45,7 +45,7 @@ func consistently(body func(Gomega)) AsyncAssertion {
 // second as an older one would silently fail to supersede it. In practice the
 // wait is already over before it is called, but the spec must not rest on that.
 func waitPastCreationSecond(ts metav1.Time) {
-	if d := time.Until(ts.Time.Add(time.Second)); d > 0 {
+	if d := time.Until(ts.Add(time.Second)); d > 0 {
 		time.Sleep(d)
 	}
 }
