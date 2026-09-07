@@ -19,15 +19,6 @@ func types(conds []genericcondition.GenericCondition) []string {
 	return out
 }
 
-func find(conds []genericcondition.GenericCondition, condType string) (genericcondition.GenericCondition, bool) {
-	for _, c := range conds {
-		if c.Type == condType {
-			return c, true
-		}
-	}
-	return genericcondition.GenericCondition{}, false
-}
-
 func TestMergeConditions(t *testing.T) {
 	cases := []struct {
 		name     string
