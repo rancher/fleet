@@ -61,6 +61,17 @@ func objectGone(obj client.Object) AsyncAssertion {
 	})
 }
 
+// objectAbsent returns an assertion body, for use with Consistently, that
+// holds while obj cannot be fetched. Unlike a bare NotTo(Succeed()) it accepts
+// only NotFound, so a connection or authorization error fails the spec instead
+// of reading as "the controller never created it".
+func objectAbsent(obj client.Object) func(Gomega) {
+	key := types.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}
+	return func(g Gomega) {
+		g.Expect(apierrors.IsNotFound(k8sClient.Get(ctx, key, obj))).To(BeTrue())
+	}
+}
+
 // deleteNamespace removes a namespace for good. envtest runs no namespace
 // controller, so a deleted namespace stays Terminating forever unless the
 // kubernetes finalizer is cleared through the finalize subresource.
@@ -130,4 +141,40 @@ func newClusterRegistrationToken(namespace, name string, ttl *metav1.Duration) *
 		ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name},
 		Spec:       fleet.ClusterRegistrationTokenSpec{TTL: ttl},
 	}
+}
+
+// newClusterRegistration returns a ClusterRegistration identifying itself with
+// the given client ID and client random.
+func newClusterRegistration(namespace, name, clientID, clientRandom string) *fleet.ClusterRegistration {
+	return &fleet.ClusterRegistration{
+		ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name},
+		Spec: fleet.ClusterRegistrationSpec{
+			ClientID:     clientID,
+			ClientRandom: clientRandom,
+		},
+	}
+}
+
+// populateServiceAccountTokenSecret waits for the "<saName>-token" Secret to
+// appear in namespace and fills in tokenValue, standing in for the token
+// controller that populates it in a real cluster (envtest runs no
+// controller-manager to do this on its own). Handlers that ask for a service
+// account token block until the Secret carries one.
+func populateServiceAccountTokenSecret(namespace, saName, tokenValue string) {
+	GinkgoHelper()
+
+	key := types.NamespacedName{Namespace: namespace, Name: saName + "-token"}
+	// Get and update must share the retry, or a resourceVersion conflict
+	// between them fails the spec instead of being retried. Only the token
+	// key is set, so the rest of a service account token Secret's data
+	// (ca.crt, namespace) survives if anything ever populates it.
+	Eventually(func(g Gomega) {
+		secret := &corev1.Secret{}
+		g.Expect(k8sClient.Get(ctx, key, secret)).To(Succeed())
+		if secret.Data == nil {
+			secret.Data = map[string][]byte{}
+		}
+		secret.Data[corev1.ServiceAccountTokenKey] = []byte(tokenValue)
+		g.Expect(k8sClient.Update(ctx, secret)).To(Succeed())
+	}).Should(Succeed())
 }
