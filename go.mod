@@ -55,7 +55,7 @@ require (
 	github.com/go-git/go-git/v5 v5.19.2
 	github.com/go-logr/logr v1.4.4
 	github.com/go-playground/webhooks/v6 v6.4.0
-	github.com/gobwas/glob v0.2.3
+	github.com/gobwas/glob v1.0.0
 	github.com/gogits/go-gogs-client v0.0.0-20210131175652-1d7215cd8d85
 	github.com/google/go-cmp v0.7.0
 	github.com/google/go-containerregistry v0.22.0
