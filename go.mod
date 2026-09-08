@@ -25,20 +25,20 @@ replace (
 	k8s.io/cri-client => k8s.io/cri-client v0.36.4
 	k8s.io/cri-streaming => k8s.io/cri-streaming v0.36.4
 	k8s.io/csi-translation-lib => k8s.io/csi-translation-lib v0.36.4
-	k8s.io/dynamic-resource-allocation => k8s.io/dynamic-resource-allocation v0.36.3
-	k8s.io/endpointslice => k8s.io/endpointslice v0.36.3
+	k8s.io/dynamic-resource-allocation => k8s.io/dynamic-resource-allocation v0.36.4
+	k8s.io/endpointslice => k8s.io/endpointslice v0.36.4
 	k8s.io/externaljwt => k8s.io/externaljwt v0.36.4
 	k8s.io/kms => k8s.io/kms v0.36.4
 	k8s.io/kube-aggregator => k8s.io/kube-aggregator v0.36.4
 	k8s.io/kube-controller-manager => k8s.io/kube-controller-manager v0.36.4
 	k8s.io/kube-proxy => k8s.io/kube-proxy v0.36.4
-	k8s.io/kube-scheduler => k8s.io/kube-scheduler v0.36.3
-	k8s.io/kubectl => k8s.io/kubectl v0.36.3
+	k8s.io/kube-scheduler => k8s.io/kube-scheduler v0.36.4
+	k8s.io/kubectl => k8s.io/kubectl v0.36.4
 	k8s.io/kubelet => k8s.io/kubelet v0.36.4
 	k8s.io/kubernetes => k8s.io/kubernetes v1.36.4
 	k8s.io/metrics => k8s.io/metrics v0.36.4
 	k8s.io/mount-utils => k8s.io/mount-utils v0.36.4
-	k8s.io/pod-security-admission => k8s.io/pod-security-admission v0.36.3
+	k8s.io/pod-security-admission => k8s.io/pod-security-admission v0.36.4
 	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.36.4
 	k8s.io/streaming => k8s.io/streaming v0.36.4
 )
@@ -97,7 +97,7 @@ require (
 	k8s.io/client-go v0.36.4
 	k8s.io/klog/v2 v2.140.0
 	k8s.io/kube-openapi v0.0.0-20260427204847-8949caaa1199
-	k8s.io/kubectl v0.36.3
+	k8s.io/kubectl v0.36.4
 	k8s.io/kubernetes v1.36.4
 	k8s.io/streaming v0.36.4
 	oras.land/oras-go/v2 v2.6.2
