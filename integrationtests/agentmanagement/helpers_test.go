@@ -57,7 +57,7 @@ func objectGone(obj client.Object) AsyncAssertion {
 	key := types.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}
 	return Eventually(func(g Gomega) {
 		err := k8sClient.Get(ctx, key, obj)
-		g.Expect(apierrors.IsNotFound(err)).To(BeTrue())
+		g.Expect(apierrors.IsNotFound(err)).To(BeTrue(), "expected %s to be gone, got err: %v", key, err)
 	})
 }
 
@@ -68,7 +68,8 @@ func objectGone(obj client.Object) AsyncAssertion {
 func objectAbsent(obj client.Object) func(Gomega) {
 	key := types.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}
 	return func(g Gomega) {
-		g.Expect(apierrors.IsNotFound(k8sClient.Get(ctx, key, obj))).To(BeTrue())
+		err := k8sClient.Get(ctx, key, obj)
+		g.Expect(apierrors.IsNotFound(err)).To(BeTrue(), "expected %s to be absent, got err: %v", key, err)
 	}
 }
 
