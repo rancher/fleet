@@ -149,6 +149,13 @@ func ready() fleet.BundleSummary {
 	return fleet.BundleSummary{DesiredReady: targets, Ready: targets}
 }
 
+// deploying is the state in between a failure and a recovery: the agent has
+// been handed new content, so nothing is failing any more, but nothing is ready
+// yet either.
+func deploying() fleet.BundleSummary {
+	return fleet.BundleSummary{DesiredReady: targets, Pending: targets}
+}
+
 func failing(errApplied int, messages ...string) fleet.BundleSummary {
 	s := fleet.BundleSummary{
 		DesiredReady: targets,
@@ -187,7 +194,7 @@ func TestBurstIsReportedAsOneEventWithFinalCounts(t *testing.T) {
 	}
 
 	event := events[0]
-	if event.Type != corev1.EventTypeWarning || event.Reason != ReasonDeployFailed || event.Action != actionDeploy {
+	if event.Type != corev1.EventTypeWarning || event.Reason != ReasonBundleDeployFailed || event.Action != actionDeploy {
 		t.Errorf("unexpected type/reason/action: %s/%s/%s", event.Type, event.Reason, event.Action)
 	}
 	if event.Namespace != "fleet-default" || event.Regarding.Kind != "Bundle" || event.Regarding.Name != "my-repo-app" {
@@ -204,6 +211,25 @@ func TestBurstIsReportedAsOneEventWithFinalCounts(t *testing.T) {
 	}
 	if event.Series != nil {
 		t.Errorf("expected a standalone event, got a series: %+v", event.Series)
+	}
+}
+
+func TestBurstWithinOneMagnitudeBucketCarriesTheSettledCounts(t *testing.T) {
+	f := newFixture(t, nil)
+
+	few := failing(2, renderError)
+	many := failing(5, renderError)
+
+	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(few))
+	f.emitter.ObserveBundle(context.TODO(), bundle(few), bundle(many))
+	f.flush(t)
+
+	events := f.events(t)
+	if len(events) != 1 {
+		t.Fatalf("expected the burst to collapse into 1 event, got %d", len(events))
+	}
+	if !strings.HasPrefix(events[0].Note, "5/500 bundle deployments failing.") {
+		t.Errorf("expected the note to carry the settled counts, got %q", events[0].Note)
 	}
 }
 
@@ -299,11 +325,91 @@ func TestRecoveryIsReported(t *testing.T) {
 	if len(events) != 2 {
 		t.Fatalf("expected the recovery to be reported once, got %d events", len(events))
 	}
-	if events[1].Type != corev1.EventTypeNormal || events[1].Reason != ReasonReady {
+	if events[1].Type != corev1.EventTypeNormal || events[1].Reason != ReasonBundleReady {
 		t.Errorf("unexpected type/reason: %s/%s", events[1].Type, events[1].Reason)
 	}
 	if events[1].Note != "500/500 bundle deployments ready" {
 		t.Errorf("unexpected note: %q", events[1].Note)
+	}
+}
+
+func TestRecoveryIsOnlyReportedOnceTheBundleIsReady(t *testing.T) {
+	f := newFixture(t, nil)
+
+	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)))
+	f.flush(t)
+
+	// Fixing the bundle redeploys it, so it stops failing before it is ready.
+	f.clock.advance(f.opts.MinInterval)
+	f.emitter.ObserveBundle(context.TODO(), bundle(failing(500, renderError)), bundle(deploying()))
+	f.flush(t)
+
+	if got := f.events(t); len(got) != 1 {
+		t.Fatalf("expected no event while the bundle is being deployed, got %d", len(got))
+	}
+
+	f.clock.advance(f.opts.MinInterval)
+	f.emitter.ObserveBundle(context.TODO(), bundle(deploying()), bundle(ready()))
+	f.flush(t)
+
+	events := f.events(t)
+	if len(events) != 2 {
+		t.Fatalf("expected the recovery to be reported once ready, got %d events", len(events))
+	}
+	if events[1].Reason != ReasonBundleReady {
+		t.Fatalf("unexpected reason: %s", events[1].Reason)
+	}
+	if events[1].Note != "500/500 bundle deployments ready" {
+		t.Errorf("expected the note to describe the ready bundle, got %q", events[1].Note)
+	}
+}
+
+func TestBundleFailingAgainWhileDeployingIsReportedAgain(t *testing.T) {
+	f := newFixture(t, nil)
+
+	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)))
+	f.flush(t)
+
+	// The redeploy hits the same failure again, without ever being ready in
+	// between, so no recovery is reported and the failure is.
+	f.clock.advance(f.opts.MinInterval)
+	f.emitter.ObserveBundle(context.TODO(), bundle(failing(500, renderError)), bundle(deploying()))
+	f.flush(t)
+
+	f.clock.advance(f.opts.MinInterval)
+	f.emitter.ObserveBundle(context.TODO(), bundle(deploying()), bundle(failing(500, renderError)))
+	f.flush(t)
+
+	events := f.events(t)
+	if len(events) != 2 {
+		t.Fatalf("expected the recurring failure to be reported, got %d events", len(events))
+	}
+	for _, event := range events {
+		if event.Reason != ReasonBundleDeployFailed {
+			t.Errorf("expected only failures to be reported, got %q", event.Reason)
+		}
+	}
+}
+
+func TestBundleWhichLosesItsTargetsIsNotReportedAsRecovered(t *testing.T) {
+	f := newFixture(t, nil)
+
+	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)))
+	f.flush(t)
+
+	// The bundle stops targeting any cluster, which leaves no deployment to
+	// call ready.
+	none := fleet.BundleSummary{}
+	f.clock.advance(f.opts.MinInterval)
+	f.emitter.ObserveBundle(context.TODO(), bundle(failing(500, renderError)), bundle(none))
+	f.flush(t)
+
+	f.clock.advance(f.opts.MinInterval)
+	f.emitter.ObserveBundle(context.TODO(), bundle(none), bundle(none))
+	f.flush(t)
+
+	if got := f.events(t); len(got) != 1 {
+		t.Fatalf("expected no recovery for a bundle without targets, got %d events", len(got))
 	}
 }
 
@@ -327,7 +433,7 @@ func TestFailureRecurringAfterARecoveryIsReportedAgain(t *testing.T) {
 		t.Fatalf("expected the recurring failure to be reported, got %d events", len(events))
 	}
 	for _, event := range events {
-		if event.Reason != ReasonDeployFailed {
+		if event.Reason != ReasonBundleDeployFailed {
 			t.Errorf("expected only failures to be reported, got %q", event.Reason)
 		}
 	}
@@ -484,8 +590,52 @@ func TestBundleDeploymentsAreOnlyReportedWhenEnabled(t *testing.T) {
 	if events[0].Namespace != "cluster-fleet-default-cluster-002-c3d4" || events[0].Regarding.Kind != "BundleDeployment" {
 		t.Errorf("unexpected namespace or regarding object: %s, %+v", events[0].Namespace, events[0].Regarding)
 	}
+	if events[0].Reason != ReasonBundleDeploymentFailed {
+		t.Errorf("expected a deployment-scoped reason, got %q", events[0].Reason)
+	}
 	if !strings.HasPrefix(events[0].Note, "bundle my-repo-app: ErrApplied") {
 		t.Errorf("unexpected note: %q", events[0].Note)
+	}
+}
+
+func TestBundleDeploymentRecoveryIsReportedAcrossTransientStates(t *testing.T) {
+	f := newFixture(t, nil)
+	f.opts.PerDeployment = true
+
+	f.emitter.ObserveBundleDeployment(context.TODO(), deployment(fleet.Pending), deployment(fleet.ErrApplied))
+	f.flush(t)
+
+	// Redeploying takes the deployment through Pending, so it does not
+	// reach Ready straight from the failing state.
+	f.clock.advance(f.opts.MinInterval)
+	f.emitter.ObserveBundleDeployment(context.TODO(), deployment(fleet.ErrApplied), deployment(fleet.Pending))
+	f.flush(t)
+
+	f.clock.advance(f.opts.MinInterval)
+	f.emitter.ObserveBundleDeployment(context.TODO(), deployment(fleet.Pending), deployment(fleet.Ready))
+	f.flush(t)
+
+	events := f.events(t)
+	if len(events) != 2 {
+		t.Fatalf("expected the failure and its recovery to be reported, got %d events", len(events))
+	}
+	if events[1].Type != corev1.EventTypeNormal || events[1].Reason != ReasonBundleDeploymentReady {
+		t.Errorf("unexpected type/reason: %s/%s", events[1].Type, events[1].Reason)
+	}
+	if events[1].Note != "bundle my-repo-app: Ready" {
+		t.Errorf("unexpected note: %q", events[1].Note)
+	}
+}
+
+func TestBundleDeploymentReadyWithoutAFailureIsNotReported(t *testing.T) {
+	f := newFixture(t, nil)
+	f.opts.PerDeployment = true
+
+	f.emitter.ObserveBundleDeployment(context.TODO(), deployment(fleet.Pending), deployment(fleet.Ready))
+	f.flush(t)
+
+	if got := f.events(t); len(got) != 0 {
+		t.Fatalf("expected no event for a deployment which never failed, got %d", len(got))
 	}
 }
 
@@ -498,6 +648,29 @@ func TestBundleDeploymentInAnUnchangedStateIsNotReported(t *testing.T) {
 
 	if got := f.events(t); len(got) != 0 {
 		t.Fatalf("expected no event without a state change, got %d", len(got))
+	}
+}
+
+func TestReasonsAreScopedToTheKindTheyAreReportedOn(t *testing.T) {
+	f := newFixture(t, nil)
+	f.opts.PerDeployment = true
+
+	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)))
+	f.emitter.ObserveBundleDeployment(context.TODO(), deployment(fleet.Ready), deployment(fleet.NotReady))
+	f.flush(t)
+
+	byKind := map[string]string{}
+	for _, event := range f.events(t) {
+		byKind[event.Regarding.Kind] = event.Reason
+	}
+
+	// A reason names the kind its event is about, so that alerting can
+	// select on the reason alone.
+	if byKind["Bundle"] != ReasonBundleDeployFailed {
+		t.Errorf("unexpected reason on the bundle: %q", byKind["Bundle"])
+	}
+	if byKind["BundleDeployment"] != ReasonBundleDeploymentNotReady {
+		t.Errorf("unexpected reason on the deployment: %q", byKind["BundleDeployment"])
 	}
 }
 

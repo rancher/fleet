@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/rancher/fleet/internal/cmd/controller/summary"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
@@ -37,13 +38,34 @@ func failureCounts(s fleet.BundleSummary) (int, fleet.BundleState) {
 	return 0, fleet.Ready
 }
 
-// failureReason is the reason to report for a failure state.
-func failureReason(state fleet.BundleState) string {
+// isFailure reports whether a state is one this package reports as a failure.
+func isFailure(state fleet.BundleState) bool {
+	return state == fleet.ErrApplied || state == fleet.NotReady
+}
+
+// recovered reports whether every bundle deployment of a bundle is ready. A
+// bundle without targets has no deployments to report as recovered.
+func recovered(s fleet.BundleSummary) bool {
+	return s.DesiredReady > 0 && summary.IsReady(s)
+}
+
+// bundleFailureReason is the reason to report for a bundle in a failure state.
+func bundleFailureReason(state fleet.BundleState) string {
 	if state == fleet.NotReady {
-		return ReasonNotReady
+		return ReasonBundleNotReady
 	}
 
-	return ReasonDeployFailed
+	return ReasonBundleDeployFailed
+}
+
+// deploymentFailureReason is the reason to report for a single bundle
+// deployment in a failure state.
+func deploymentFailureReason(state fleet.BundleState) string {
+	if state == fleet.NotReady {
+		return ReasonBundleDeploymentNotReady
+	}
+
+	return ReasonBundleDeploymentFailed
 }
 
 // failureFingerprint describes the failures of a summary: how many deployments
@@ -55,7 +77,7 @@ func failureFingerprint(s fleet.BundleSummary) (int, string, fingerprint) {
 		return 0, "", fingerprint{}
 	}
 
-	reason := failureReason(state)
+	reason := bundleFailureReason(state)
 
 	return failing, reason, fingerprintOf("failing", reason, magnitude(failing), causeKeys(s))
 }
@@ -65,7 +87,7 @@ func failureFingerprint(s fleet.BundleSummary) (int, string, fingerprint) {
 func failureCauses(s fleet.BundleSummary) []fleet.NonReadyResource {
 	causes := make([]fleet.NonReadyResource, 0, len(s.NonReadyResources))
 	for _, r := range s.NonReadyResources {
-		if r.State == fleet.ErrApplied || r.State == fleet.NotReady {
+		if isFailure(r.State) {
 			causes = append(causes, r)
 		}
 	}

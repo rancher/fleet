@@ -36,14 +36,28 @@ import (
 )
 
 const (
-	// ReasonDeployFailed reports bundle deployments which failed to apply their resources.
-	ReasonDeployFailed = "BundleDeployFailed"
+	// Reasons are scoped to the kind they are reported on, so that an event
+	// can be selected by its reason alone: the bundle-level reasons describe
+	// a bundle across all of its deployments, the deployment-level ones a
+	// single deployment on one cluster.
 
-	// ReasonNotReady reports bundle deployments which applied their resources, but those are not ready.
-	ReasonNotReady = "BundleNotReady"
+	// ReasonBundleDeployFailed reports a bundle with deployments which failed to apply their resources.
+	ReasonBundleDeployFailed = "BundleDeployFailed"
 
-	// ReasonReady reports a bundle whose deployments are all ready again.
-	ReasonReady = "BundleDeploymentsReady"
+	// ReasonBundleNotReady reports a bundle with deployments which applied their resources, but those are not ready.
+	ReasonBundleNotReady = "BundleNotReady"
+
+	// ReasonBundleReady reports a bundle whose deployments are all ready again.
+	ReasonBundleReady = "BundleReady"
+
+	// ReasonBundleDeploymentFailed reports a single bundle deployment which failed to apply its resources.
+	ReasonBundleDeploymentFailed = "BundleDeploymentFailed"
+
+	// ReasonBundleDeploymentNotReady reports a single bundle deployment which applied its resources, but those are not ready.
+	ReasonBundleDeploymentNotReady = "BundleDeploymentNotReady"
+
+	// ReasonBundleDeploymentReady reports a single bundle deployment which is ready again.
+	ReasonBundleDeploymentReady = "BundleDeploymentReady"
 
 	// actionDeploy is the operation all events reported here relate to.
 	actionDeploy = "Deploy"
@@ -114,6 +128,14 @@ type entry struct {
 
 	// attempts is how often creating the pending event has failed.
 	attempts int
+
+	// awaitingRecovery records that the object was seen failing, so that
+	// its recovery is reported once it is ready again. Between a failure
+	// and a recovery an object is neither: it goes through transient
+	// states, in which nothing is failing but nothing is ready either.
+	// Remembering the failure is what lets the recovery be reported from
+	// there, instead of on merely leaving the failing state.
+	awaitingRecovery bool
 
 	// touched is when the object was last observed, used to forget it again.
 	touched time.Time
@@ -208,13 +230,34 @@ func (e *Emitter) ObserveBundle(ctx context.Context, old, cur *fleet.Bundle) {
 	failing, reason, fp := failureFingerprint(cur.Status.Summary)
 	wasFailing, _, previous := failureFingerprint(old.Status.Summary)
 
-	switch {
-	case failing > 0:
+	if failing > 0 {
+		// Remember the failure, so that the recovery is reported once the
+		// bundle is ready again, however many transient states it passes
+		// through on the way.
+		e.awaitRecovery(cur.UID, opts)
+
 		if wasFailing > 0 && previous == fp {
 			// The same failures were already part of the previously
 			// persisted status, so this is not a state change. Comparing
 			// persisted statuses, instead of remembering the last event,
 			// keeps this true across restarts of the controller.
+			//
+			// An event queued earlier in the burst is still refreshed,
+			// though. How many deployments are failing is bucketed, so
+			// agents reporting one after another mostly fingerprint the
+			// same, and the note would otherwise describe the counts as
+			// they were when the first agent reported.
+			if e.hasPending(cur.UID) {
+				e.schedule(ctx, cur.UID, e.snapshotFor(
+					ctx,
+					cur,
+					corev1.EventTypeWarning,
+					reason,
+					failureNote(cur.Status.Summary, opts.MaxCauses),
+					fp,
+				), opts)
+			}
+
 			return
 		}
 
@@ -227,21 +270,40 @@ func (e *Emitter) ObserveBundle(ctx context.Context, old, cur *fleet.Bundle) {
 			fp,
 		), opts)
 
-	case wasFailing > 0 && opts.ReportRecovery:
-		e.schedule(ctx, cur.UID, e.snapshotFor(
-			ctx,
-			cur,
-			corev1.EventTypeNormal,
-			ReasonReady,
-			readyNote(cur.Status.Summary),
-			fingerprintOf("ready", ReasonReady),
-		), opts)
-
-	default:
-		// Nothing to report. Forget which event was last created for this
-		// bundle, so that a failure recurring later is reported again.
-		e.clearEmitted(cur.UID)
+		return
 	}
+
+	// Nothing is failing. Forget which event was last created for this
+	// bundle, so that a failure recurring later is reported again.
+	e.clearEmitted(cur.UID)
+
+	if !opts.ReportRecovery {
+		e.stopAwaitingRecovery(cur.UID)
+		return
+	}
+
+	// wasFailing covers the failure and the recovery landing in one status
+	// update, which is the only form a restart can still detect.
+	if !e.awaitingRecovery(cur.UID) && wasFailing == 0 {
+		return
+	}
+
+	if !recovered(cur.Status.Summary) {
+		// Not failing, but not ready either: the bundle is still being
+		// deployed. Reporting here would call deployments ready which are
+		// not, so keep waiting for the state the event describes.
+		return
+	}
+
+	e.stopAwaitingRecovery(cur.UID)
+	e.schedule(ctx, cur.UID, e.snapshotFor(
+		ctx,
+		cur,
+		corev1.EventTypeNormal,
+		ReasonBundleReady,
+		readyNote(cur.Status.Summary),
+		fingerprintOf("ready", ReasonBundleReady),
+	), opts)
 }
 
 // ObserveBundleDeployment reports a single bundle deployment, if per-deployment
@@ -258,15 +320,22 @@ func (e *Emitter) ObserveBundleDeployment(ctx context.Context, old, cur *fleet.B
 
 	state := fleet.BundleState(cur.Status.Display.State)
 	previous := fleet.BundleState(old.Status.Display.State)
+
+	if isFailure(state) {
+		// As for bundles, remember the failure, so that the recovery is
+		// reported from whichever state the deployment reaches Ready.
+		e.awaitRecovery(cur.UID, opts)
+	}
+
 	if state == previous {
 		return
 	}
 
 	bundle := cur.Labels[fleet.BundleLabel]
 
-	switch state {
-	case fleet.ErrApplied, fleet.NotReady:
-		reason := failureReason(state)
+	switch {
+	case isFailure(state):
+		reason := deploymentFailureReason(state)
 		message := summary.MessageFromDeployment(cur)
 
 		e.schedule(ctx, cur.UID, e.snapshotFor(
@@ -278,19 +347,74 @@ func (e *Emitter) ObserveBundleDeployment(ctx context.Context, old, cur *fleet.B
 			fingerprintOf("failing", reason, string(state), []string{message}),
 		), opts)
 
-	case fleet.Ready:
-		if !opts.ReportRecovery || (previous != fleet.ErrApplied && previous != fleet.NotReady) {
+	case state == fleet.Ready:
+		if !opts.ReportRecovery {
+			e.stopAwaitingRecovery(cur.UID)
+			return
+		}
+		if !e.awaitingRecovery(cur.UID) && !isFailure(previous) {
 			return
 		}
 
+		e.stopAwaitingRecovery(cur.UID)
 		e.schedule(ctx, cur.UID, e.snapshotFor(
 			ctx,
 			cur,
 			corev1.EventTypeNormal,
-			ReasonReady,
+			ReasonBundleDeploymentReady,
 			deploymentNote(bundle, fleet.Ready, ""),
-			fingerprintOf("ready", ReasonReady),
+			fingerprintOf("ready", ReasonBundleDeploymentReady),
 		), opts)
+	}
+}
+
+// awaitRecovery remembers that an object is failing, so that its recovery is
+// reported once it is ready again. It records the wait; it does not block.
+func (e *Emitter) awaitRecovery(uid types.UID, opts Options) {
+	now := e.now()
+
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	ent, ok := e.entries[uid]
+	if !ok {
+		ent = &entry{touched: now}
+		e.entries[uid] = ent
+		e.evict(opts.MaxTracked, uid)
+	}
+	ent.touched = now
+	ent.awaitingRecovery = true
+}
+
+// hasPending reports whether an event for the object is waiting to be created.
+func (e *Emitter) hasPending(uid types.UID) bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	ent, ok := e.entries[uid]
+
+	return ok && ent.pending != nil
+}
+
+// awaitingRecovery reports whether a failure is waiting to be reported as
+// recovered.
+func (e *Emitter) awaitingRecovery(uid types.UID) bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	ent, ok := e.entries[uid]
+
+	return ok && ent.awaitingRecovery
+}
+
+// stopAwaitingRecovery forgets a failure, either because its recovery has just
+// been reported or because it is not going to be.
+func (e *Emitter) stopAwaitingRecovery(uid types.UID) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	if ent, ok := e.entries[uid]; ok {
+		ent.awaitingRecovery = false
 	}
 }
 
@@ -359,7 +483,18 @@ func (e *Emitter) queue(uid types.UID, snap *snapshot, opts Options) bool {
 		return false
 
 	case ent.pending != nil && ent.pending.fp == snap.fp:
-		// Already queued, keep the earlier due time.
+		// The same event, but a newer description of it. Replacing the
+		// queued snapshot is what lets a burst collapse into one event
+		// carrying the settled counts: the fingerprint buckets how many
+		// deployments are failing, so most of a burst fingerprints the
+		// same and would otherwise leave the note describing the state
+		// the burst started from.
+		//
+		// The due time is kept, so this does not delay the event, and so
+		// is the attempt budget: it is still the same event, and a state
+		// which keeps being re-observed must not keep buying retries.
+		ent.pending = snap
+
 		return false
 	}
 
