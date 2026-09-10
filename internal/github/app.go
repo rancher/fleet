@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
@@ -27,13 +28,17 @@ func NewApp(repo string, appID, installID int64, pem []byte) *GitHubApp {
 // GetToken retrieves a GitHub App installation token using the provided app ID,
 // installation ID, and private key (PEM format). It returns the token as a string
 // or an error if the process fails.
-func (app *GitHubApp) GetToken(ctx context.Context) (string, error) {
+func (app *GitHubApp) GetToken(ctx context.Context, caBundle []byte) (string, error) {
 	err := app.checkIfPrivateKeyIsValid()
 	if err != nil {
 		return "", err
 	}
 
-	tr := http.DefaultTransport
+	tr, err := transportWithCABundle(caBundle)
+	if err != nil {
+		return "", err
+	}
+
 	itr, err := newGithubApp(tr, app.repoURL, app.appID, app.installID, app.pem)
 	if err != nil {
 		return "", err
@@ -45,6 +50,25 @@ func (app *GitHubApp) GetToken(ctx context.Context) (string, error) {
 	}
 
 	return token, nil
+}
+
+func transportWithCABundle(caBundle []byte) (http.RoundTripper, error) {
+	if len(caBundle) == 0 {
+		return http.DefaultTransport, nil
+	}
+	pool, err := x509.SystemCertPool()
+	if err != nil || pool == nil {
+		pool = x509.NewCertPool()
+	}
+	if ok := pool.AppendCertsFromPEM(caBundle); !ok {
+		return nil, fmt.Errorf("githubapp: failed to append custom CA bundle to cert pool")
+	}
+
+	base := http.DefaultTransport.(*http.Transport).Clone()
+	base.TLSClientConfig = &tls.Config{
+		RootCAs: pool,
+	}
+	return base, nil
 }
 
 func (app *GitHubApp) checkIfPrivateKeyIsValid() error {
