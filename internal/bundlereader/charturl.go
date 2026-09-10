@@ -200,8 +200,7 @@ func GetOCITag(ctx context.Context, r *remote.Repository, v string) (string, err
 
 	availableTags, err := registry.Tags(ctx, r)
 	if err != nil {
-		var regErr errcode.Error
-		if errors.As(err, &regErr) {
+		if regErr, ok := errors.AsType[errcode.Error](err); ok {
 			err = regErr
 
 			if regErr.Code == errcode.ErrorCodeNameUnknown {

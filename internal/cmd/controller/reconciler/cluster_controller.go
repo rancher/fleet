@@ -144,7 +144,7 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	if patched, err := r.normalizeAgentSchedulingCustomization(ctx, cluster); err != nil {
 		return ctrl.Result{}, err
 	} else if patched {
-		return ctrl.Result{Requeue: true}, nil
+		return ctrl.Result{RequeueAfter: durations.DefaultRequeueAfter}, nil
 	}
 
 	if cluster.Status.Namespace == "" {
