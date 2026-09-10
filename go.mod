@@ -2,7 +2,7 @@ module github.com/rancher/fleet
 
 go 1.26.0
 
-toolchain go1.27.0
+toolchain go1.27.1
 
 replace (
 	github.com/imdario/mergo => github.com/imdario/mergo v1.0.2
@@ -61,7 +61,7 @@ require (
 	github.com/google/go-containerregistry v0.22.0
 	github.com/invopop/jsonschema v0.14.0
 	github.com/jpillora/backoff v1.0.0
-	github.com/klauspost/compress v1.19.2
+	github.com/klauspost/compress v1.20.0
 	github.com/moby/moby/api v1.55.0
 	github.com/onsi/ginkgo/v2 v2.32.1
 	github.com/onsi/gomega v1.43.0
