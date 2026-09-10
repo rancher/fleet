@@ -10,6 +10,7 @@ import (
 	"github.com/reugn/go-quartz/quartz"
 
 	"github.com/rancher/fleet/internal/cmd"
+	"github.com/rancher/fleet/internal/cmd/controller/bundleevents"
 	"github.com/rancher/fleet/internal/cmd/controller/reconciler"
 	"github.com/rancher/fleet/internal/cmd/controller/target"
 	"github.com/rancher/fleet/internal/config"
@@ -117,11 +118,26 @@ func start(
 	if shardID != "" {
 		shardIDSuffix = "-" + shardID
 	}
+
+	// Reports the deployment state of bundles, and of their bundle
+	// deployments, as events.
+	bundleEvents := bundleevents.New(
+		mgr.GetClient(),
+		mgr.GetScheme(),
+		"fleet-bundle-ctrl"+shardIDSuffix,
+		bundleevents.OptionsFromGlobalConfig,
+	)
+	if err := mgr.Add(bundleEvents); err != nil {
+		setupLog.Error(err, "unable to add runnable", "runnable", "BundleEvents")
+		return err
+	}
+
 	if err = (&reconciler.BundleReconciler{
 		Client:    mgr.GetClient(),
 		Scheme:    mgr.GetScheme(),
 		Recorder:  mgr.GetEventRecorder("fleet-bundle-ctrl" + shardIDSuffix),
 		APIReader: mgr.GetAPIReader(),
+		Events:    bundleEvents,
 
 		Builder: builder,
 		Store:   store,
@@ -155,6 +171,7 @@ func start(
 		Client:  mgr.GetClient(),
 		Scheme:  mgr.GetScheme(),
 		ShardID: shardID,
+		Events:  bundleEvents,
 
 		Workers: workersOpts.BundleDeployment,
 	}).SetupWithManager(mgr); err != nil {
