@@ -44,33 +44,9 @@ var _ = Describe("ClusterRegistrationToken", func() {
 		return saName
 	}
 
-	// unblockServiceAccountTokenSecret waits for the "<sa>-token" Secret the
-	// handler creates for saName and fills in fake token data, standing in
-	// for the token controller that would populate it in a real cluster
-	// (envtest runs no controller-manager to do this on its own). Without
-	// this, the handler blocks indefinitely waiting for the token to appear.
-	unblockServiceAccountTokenSecret := func(namespace, saName, tokenValue string) {
-		GinkgoHelper()
-
-		key := types.NamespacedName{Namespace: namespace, Name: saName + "-token"}
-		// Get and update must share the retry, or a resourceVersion conflict
-		// between them fails the spec instead of being retried. Only the token
-		// key is set, so the rest of a service account token Secret's data
-		// (ca.crt, namespace) survives if anything ever populates it.
-		Eventually(func(g Gomega) {
-			secret := &corev1.Secret{}
-			g.Expect(k8sClient.Get(ctx, key, secret)).To(Succeed())
-			if secret.Data == nil {
-				secret.Data = map[string][]byte{}
-			}
-			secret.Data[corev1.ServiceAccountTokenKey] = []byte(tokenValue)
-			g.Expect(k8sClient.Update(ctx, secret)).To(Succeed())
-		}).Should(Succeed())
-	}
-
 	// createTokenWithPopulatedSecret creates a token with the given TTL,
 	// unblocks the ServiceAccount token Secret the handler waits on (see
-	// unblockServiceAccountTokenSecret), and drives the token's own
+	// populateServiceAccountTokenSecret), and drives the token's own
 	// reconciliation until the resulting cluster-registration-values Secret
 	// reflects that token data. Returns the created token and the
 	// ServiceAccount name.
@@ -81,7 +57,7 @@ var _ = Describe("ClusterRegistrationToken", func() {
 		Expect(k8sClient.Create(ctx, token)).To(Succeed())
 
 		saName := waitForServiceAccount(token)
-		unblockServiceAccountTokenSecret(regNamespace, saName, tokenValue)
+		populateServiceAccountTokenSecret(regNamespace, saName, tokenValue)
 
 		// The handler only re-reads the SA token Secret through its cache the
 		// instant it first observes a populated live Secret, and nothing
