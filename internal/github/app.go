@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -61,7 +62,7 @@ func transportWithCABundle(caBundle []byte) (http.RoundTripper, error) {
 		pool = x509.NewCertPool()
 	}
 	if ok := pool.AppendCertsFromPEM(caBundle); !ok {
-		return nil, fmt.Errorf("githubapp: failed to append custom CA bundle to cert pool")
+		return nil, errors.New("githubapp: failed to append custom CA bundle to cert pool")
 	}
 
 	base := http.DefaultTransport.(*http.Transport).Clone()
