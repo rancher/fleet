@@ -13,9 +13,8 @@ on:
         default: "fleetrepoci/charts"
         type: string
       charts_branch:
-        description: Branch from which to source Fleet charts
-        required: true
-        default: "dev-v2.14"
+        description: Branch from which to source Fleet charts; if empty, will be computed from the latest Rancher minor release.
+        required: false
         type: string
   push:
     tags: [ 'v*' ]
@@ -131,9 +130,9 @@ jobs:
         run: |
           mkdir -p ~/.local/bin
           # renovate: datasource=github-releases depName=rancher/cli
-          RANCHER_CLI_VERSION="v2.15.0"
-          # renovate: datasource=github-release-attachments depName=rancher/cli digestVersion=v2.15.0
-          RANCHER_CLI_SUM_amd64="5c7cea9ea36ba192d83a3a4c8a0deb3e58d762719a49640c4bd6d3555dce1700"
+          RANCHER_CLI_VERSION="v2.15.1"
+          # renovate: datasource=github-release-attachments depName=rancher/cli digestVersion=v2.15.1
+          RANCHER_CLI_SUM_amd64="0d2bdce13a55204e97134d894adafdb3be43d3a70290cfb0d56db6c61b913be3"
           curl -fsSL -o "rancher-linux-amd64-${RANCHER_CLI_VERSION}.tar.gz" \
             "https://github.com/rancher/cli/releases/download/${RANCHER_CLI_VERSION}/rancher-linux-amd64-${RANCHER_CLI_VERSION}.tar.gz"
           echo "${RANCHER_CLI_SUM_amd64}  rancher-linux-amd64-${RANCHER_CLI_VERSION}.tar.gz" | sha256sum -c -

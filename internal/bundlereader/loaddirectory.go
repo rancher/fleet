@@ -300,9 +300,7 @@ func GetContent(ctx context.Context, base, source, version string, auth Auth, di
 			if err != nil {
 				return fmt.Errorf("GetContent: resolving symlink %q: %w", name, err)
 			}
-			cleanRoot := filepath.Clean(temp)
-			rel, relErr := filepath.Rel(cleanRoot, resolved)
-			if relErr != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+			if !pathWithinDir(filepath.Clean(temp), resolved) {
 				return fmt.Errorf("GetContent: symlink %q: target escapes bundle directory", name)
 			}
 			// Target is within bundle; fall through to os.ReadFile which follows the link.
@@ -426,6 +424,11 @@ func safeJoinSubDir(base, sub string) (string, error) {
 		return "", fmt.Errorf("subdir %q escapes base directory", sub)
 	}
 	return joined, nil
+}
+
+func pathWithinDir(base, path string) bool {
+	rel, err := filepath.Rel(base, path)
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator))
 }
 
 // fetchToDir resolves source (relative to pwd), downloads or copies it, and

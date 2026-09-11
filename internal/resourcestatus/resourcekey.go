@@ -75,7 +75,8 @@ func resourceId(namespace, name string) string {
 }
 
 func toType(apiVersion, kind string) string {
-	group := strings.Split(apiVersion, "/")[0]
+	group, _, _ := strings.Cut(apiVersion, "/")
+
 	if group == "v1" {
 		group = ""
 	} else if len(group) > 0 {

@@ -3,9 +3,8 @@ on:
   workflow_dispatch:
     inputs:
       charts_base_branch:
-        description: "Use the following rancher/charts branch as a base (e.g. dev-v2.7)"
+        description: "Use the following rancher/charts branch as a base (e.g. dev-v2.15)"
         required: false
-        default: "dev-v2.14"
         type: string
       charts_repo:
         description: "Push to the following Rancher charts repo (which must exist)"
@@ -19,9 +18,8 @@ on:
     # Variables to set when calling this reusable workflow
     inputs:
       charts_base_branch:
-        description: "Use the following rancher/charts branch as a base (e.g. dev-v2.7)"
+        description: "Use the following rancher/charts branch as a base (e.g. dev-v2.15)"
         required: false
-        default: "dev-v2.14"
         type: string
       charts_repo:
         description: "Push to the following Rancher charts repo (which must exist)"
@@ -60,7 +58,14 @@ jobs:
           INPUT_CHARTS_BASE_BRANCH: ${{ inputs.charts_base_branch }}
           INPUT_CHARTS_REPO: ${{ inputs.charts_repo }}
         run: |
-          charts_base_branch="${INPUT_CHARTS_BASE_BRANCH:-dev-v2.14}"
+          charts_base_branch="${INPUT_CHARTS_BASE_BRANCH}"
+
+          if [ -z "$charts_base_branch" ]; then
+            helm repo add rancher-latest https://releases.rancher.com/server-charts/latest
+            latest_rancher_minor_chart="$(helm search repo rancher-latest/rancher --fail-on-no-result --devel -o=json | jq '.[0]["app_version"]' | grep -oE 'v[0-9]+\.[0-9]+')"
+            charts_base_branch="dev-$latest_rancher_minor_chart"
+          fi
+
           charts_repo="${INPUT_CHARTS_REPO:-fleetrepoci/charts}"
 
           echo "charts_base_branch=$charts_base_branch" >> "$GITHUB_OUTPUT"

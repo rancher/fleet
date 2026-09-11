@@ -326,14 +326,14 @@ including all the necessary tools to run both single and multi-cluster tests of
 fleet.
 
 ```Dockerfile
-FROM ubuntu:22.04
+FROM ubuntu:26.04
 
 ARG BUILDARCH=amd64
-ARG NVM_VERSION=v0.39.7
-ARG NODE_VERSION=20
+ARG NVM_VERSION=v0.40.7
+ARG NODE_VERSION=24.19.0
 
 RUN apt update && apt upgrade -y
-RUN apt install -y wget curl git jq zstd
+RUN apt install -y wget curl git jq zstd make file
 
 WORKDIR /tmp
 

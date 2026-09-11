@@ -34,7 +34,7 @@ kubectl get secret tls-rancher -n cattle-system -o jsonpath='{.data.tls\.crt}' |
 # Log into the 4th project listed by `rancher login`, which should be the local cluster's default project.
 echo -e "4\n" | $rancher_cli login "https://$public_hostname" --token "$token" --cacert "${TMPCRT}"
 
-$rancher_cli clusters create second --import
+$rancher_cli clusters create second
 until $rancher_cli cluster ls --format json | jq -r 'select(.Name=="second") | .ID' | grep -Eq "c-[a-z0-9]" ; do sleep 1; done
 id=$( $rancher_cli cluster ls --format json | jq -r 'select(.Name=="second") | .ID' )
 

@@ -199,7 +199,10 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 				// if PollingInterval is not set, set it to 1 hour to reduce polling load
 				// now that a webhook handles commit notifications. Use a separate spec
 				// patch because Status().Patch() only applies status subresource changes.
-				if orig.Spec.PollingInterval == nil {
+				// Only do this once the request's signature has been verified: without a
+				// verified secret, an unauthenticated caller must not be able to mutate
+				// GitRepo.Spec.
+				if secret != nil && orig.Spec.PollingInterval == nil {
 					specOrig := gitRepoFromCluster.DeepCopy()
 					gitRepoFromCluster.Spec.PollingInterval = &metav1.Duration{
 						Duration: webhookDefaultSyncInterval * time.Second,
@@ -406,7 +409,7 @@ func parsePayload(payload any) (revision, branch, tag string, repoURLs []string)
 				continue
 			}
 			if strings.HasSuffix(parsed.Hostname(), ".visualstudio.com") {
-				org := strings.SplitN(parsed.Hostname(), ".", 2)[0]
+				org, _, _ := strings.Cut(parsed.Hostname(), ".")
 				parsed.Host = "dev.azure.com"
 				// parsed.Path is prefixed with a slash, hence no need to add it to the formatting
 				// string.
