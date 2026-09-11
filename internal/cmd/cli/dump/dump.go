@@ -513,48 +513,62 @@ func addMetricsToArchive(ctx context.Context, c client.Client, logger logr.Logge
 
 	// XXX: how about HelmOps? report missing svc?
 	for _, svc := range monitoringSvcs {
-		closeFn, port, httpCli, err := forwardPorts(ctx, cfg, logger, c, &svc, opt)
-		if err != nil {
-			return fmt.Errorf("failed to forward ports: %w", err)
+		if err := addMetricsForService(ctx, c, logger, cfg, w, opt, &svc); err != nil {
+			return err
 		}
+	}
 
-		defer closeFn()
+	return nil
+}
 
-		req, err := http.NewRequestWithContext(
-			ctx,
-			http.MethodGet,
-			fmt.Sprintf("http://localhost:%d/metrics", port),
-			nil,
-		)
-		if err != nil {
-			return fmt.Errorf("failed to create request to metrics service: %w", err)
+func addMetricsForService(
+	ctx context.Context,
+	c client.Client,
+	logger logr.Logger,
+	cfg *rest.Config,
+	w *tar.Writer,
+	opt Options,
+	svc *corev1.Service,
+) error {
+	closeFn, port, httpCli, err := forwardPorts(ctx, cfg, logger, c, svc, opt)
+	if err != nil {
+		return fmt.Errorf("failed to forward ports: %w", err)
+	}
+	defer closeFn()
+
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodGet,
+		fmt.Sprintf("http://localhost:%d/metrics", port),
+		nil,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create request to metrics service: %w", err)
+	}
+
+	resp, err := httpCli.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to get response from metrics service: %w", err)
+	}
+	defer func() {
+		if resp.Body != nil {
+			resp.Body.Close()
 		}
+	}()
 
-		resp, err := httpCli.Do(req)
-		if err != nil {
-			return fmt.Errorf("failed to get response from metrics service: %w", err)
-		}
+	if resp.Body == nil {
+		return fmt.Errorf("received empty response body from service %s/%s", svc.Namespace, svc.Name)
+	}
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body from metrics service: %w", err)
+	}
 
-		defer func() {
-			if resp.Body != nil {
-				resp.Body.Close()
-			}
-		}()
+	logger.Info("Extracted metrics", "service", svc.Name)
 
-		if resp.Body == nil {
-			return fmt.Errorf("received empty response body from service %s/%s", svc.Namespace, svc.Name)
-		}
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return fmt.Errorf("failed to read response body from metrics service: %w", err)
-		}
-
-		logger.Info("Extracted metrics", "service", svc.Name)
-
-		fileName := fmt.Sprintf("metrics_%s_%s", svc.Namespace, svc.Name)
-		if err := addFileToArchive(body, fileName, w); err != nil {
-			return fmt.Errorf("failed to write metrics to archive from service %s: %w", svc.Name, err)
-		}
+	fileName := fmt.Sprintf("metrics_%s_%s", svc.Namespace, svc.Name)
+	if err := addFileToArchive(data, fileName, w); err != nil {
+		return fmt.Errorf("failed to write metrics to archive from service %s: %w", svc.Name, err)
 	}
 
 	return nil
@@ -930,7 +944,9 @@ func CreateWithClients(ctx context.Context, cfg *rest.Config, d dynamic.Interfac
 	defer tgz.Close()
 
 	gz := gzip.NewWriter(tgz)
+	defer gz.Close()
 	w := tar.NewWriter(gz)
+	defer w.Close()
 
 	// Determine filtering configuration
 	filterCfg, err := determineFilterConfig(ctx, d, logger, opt)
