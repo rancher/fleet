@@ -2,6 +2,9 @@ package controller
 
 import (
 	"bytes"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"net/http"
 	"net/http/httptest"
 	"time"
@@ -9,6 +12,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -19,8 +23,11 @@ import (
 // webhookTestRepo is a unique URL that won't match any GitRepo created by other tests.
 const webhookTestRepo = "https://github.com/rancher/fleet-webhook-integration-test"
 
-// sendGitHubPush fires a simulated GitHub push event for the given commit against
-// the integration test's k8sClient (backed by the envtest API server).
+// webhookSecretName mirrors the unexported webhookSecretName constant in pkg/webhook.
+const webhookSecretName = "gitjob-webhook"
+
+// sendGitHubPush fires a simulated, unauthenticated GitHub push event for the given
+// commit against the integration test's k8sClient (backed by the envtest API server).
 func sendGitHubPush(commit string) {
 	w, err := webhook.New(gitRepoNamespace, k8sClient)
 	Expect(err).ToNot(HaveOccurred())
@@ -30,6 +37,27 @@ func sendGitHubPush(commit string) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "/", bytes.NewReader(body))
 	Expect(err).ToNot(HaveOccurred())
 	req.Header.Set("X-GitHub-Event", "push")
+
+	rr := httptest.NewRecorder()
+	w.ServeHTTP(rr, req)
+	Expect(rr.Code).To(Equal(http.StatusOK))
+}
+
+// sendGitHubPushSigned fires a GitHub push event signed with secretValue, simulating a
+// properly configured, verified webhook delivery.
+func sendGitHubPushSigned(commit, secretValue string) {
+	w, err := webhook.New(gitRepoNamespace, k8sClient)
+	Expect(err).ToNot(HaveOccurred())
+
+	body := []byte(`{"ref":"refs/heads/main","after":"` + commit +
+		`","repository":{"html_url":"` + webhookTestRepo + `"}}`)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "/", bytes.NewReader(body))
+	Expect(err).ToNot(HaveOccurred())
+	req.Header.Set("X-GitHub-Event", "push")
+
+	mac := hmac.New(sha256.New, []byte(secretValue))
+	mac.Write(body)
+	req.Header.Set("X-Hub-Signature-256", "sha256="+hex.EncodeToString(mac.Sum(nil)))
 
 	rr := httptest.NewRecorder()
 	w.ServeHTTP(rr, req)
@@ -63,11 +91,42 @@ var _ = Describe("Webhook handler", func() {
 		waitDeleteGitrepo(gitRepo)
 	})
 
-	When("no PollingInterval is configured", func() {
+	When("no PollingInterval is configured and the request is unauthenticated", func() {
 		const pushCommit = "aaaa1111bbbb2222cccc3333dddd4444eeee5555"
 
-		It("sets WebhookCommit and PollingInterval to 1h", func() {
+		It("sets WebhookCommit but does not mutate PollingInterval", func() {
 			sendGitHubPush(pushCommit)
+
+			var updated v1alpha1.GitRepo
+			Expect(k8sClient.Get(ctx, types.NamespacedName{
+				Name: gitRepo.Name, Namespace: gitRepo.Namespace,
+			}, &updated)).To(Succeed())
+
+			Expect(updated.Status.WebhookCommit).To(Equal(pushCommit))
+			Expect(updated.Spec.PollingInterval).To(BeNil())
+		})
+	})
+
+	When("no PollingInterval is configured and the request is verified against a secret", func() {
+		const pushCommit = "aaaa2222bbbb3333cccc4444dddd5555eeee6666"
+		const secretValue = "test-webhook-secret"
+
+		BeforeEach(func() {
+			secret := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      webhookSecretName,
+					Namespace: gitRepoNamespace,
+				},
+				Data: map[string][]byte{"github": []byte(secretValue)},
+			}
+			Expect(k8sClient.Create(ctx, secret)).To(Succeed())
+			DeferCleanup(func() {
+				Expect(k8sClient.Delete(ctx, secret)).To(Succeed())
+			})
+		})
+
+		It("sets WebhookCommit and PollingInterval to 1h", func() {
+			sendGitHubPushSigned(pushCommit, secretValue)
 
 			var updated v1alpha1.GitRepo
 			Expect(k8sClient.Get(ctx, types.NamespacedName{
