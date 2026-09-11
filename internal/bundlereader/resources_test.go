@@ -2,6 +2,8 @@ package bundlereader
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/sirupsen/logrus"
@@ -98,6 +100,82 @@ func TestValueMerge(t *testing.T) {
 			t.Fatalf("unable to find key replicas in values for service %s", serviceName)
 		}
 	}
+}
+
+func TestGenerateValuesRejectsPathOutsideBase(t *testing.T) {
+	dir := t.TempDir()
+	base := filepath.Join(dir, "bundle")
+	require.NoError(t, os.MkdirAll(base, 0755))
+
+	outsidePath := filepath.Join(dir, "outside-secret.yaml")
+	require.NoError(t, os.WriteFile(outsidePath, []byte("leaked: true"), 0644))
+
+	chart := &fleet.HelmOptions{
+		GitOpsHelmOptions: fleet.GitOpsHelmOptions{
+			ValuesFiles: []string{"../outside-secret.yaml"},
+		},
+	}
+
+	_, err := generateValues(base, chart)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid values file")
+}
+
+func TestGenerateValuesRejectsSymlinkPointingOutsideBase(t *testing.T) {
+	dir := t.TempDir()
+	base := filepath.Join(dir, "bundle")
+	require.NoError(t, os.MkdirAll(base, 0755))
+
+	outsidePath := filepath.Join(dir, "outside-secret.yaml")
+	require.NoError(t, os.WriteFile(outsidePath, []byte("leaked: true"), 0644))
+	require.NoError(t, os.Symlink(outsidePath, filepath.Join(base, "values.yaml")))
+
+	chart := &fleet.HelmOptions{
+		GitOpsHelmOptions: fleet.GitOpsHelmOptions{
+			ValuesFiles: []string{"values.yaml"},
+		},
+	}
+
+	_, err := generateValues(base, chart)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "escapes bundle directory")
+}
+
+func TestGenerateValuesReadsFileWithinBase(t *testing.T) {
+	base := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(base, "values.yaml"), []byte("foo: bar"), 0644))
+
+	chart := &fleet.HelmOptions{
+		GitOpsHelmOptions: fleet.GitOpsHelmOptions{
+			ValuesFiles: []string{"values.yaml"},
+		},
+	}
+
+	valuesMap, err := generateValues(base, chart)
+	require.NoError(t, err)
+	assert.Equal(t, "bar", valuesMap.Data["foo"])
+}
+
+// A relative base (the common case: gitjob invokes fleet apply with base ".")
+// combined with a values file that is an absolute symlink resolving inside
+// that base must still be accepted.
+func TestGenerateValuesAllowsAbsoluteSymlinkWithinRelativeBase(t *testing.T) {
+	base := t.TempDir()
+	target := filepath.Join(base, "actual-values.yaml")
+	require.NoError(t, os.WriteFile(target, []byte("foo: bar"), 0644))
+	require.NoError(t, os.Symlink(target, filepath.Join(base, "values.yaml")))
+
+	t.Chdir(base)
+
+	chart := &fleet.HelmOptions{
+		GitOpsHelmOptions: fleet.GitOpsHelmOptions{
+			ValuesFiles: []string{"values.yaml"},
+		},
+	}
+
+	valuesMap, err := generateValues(".", chart)
+	require.NoError(t, err)
+	assert.Equal(t, "bar", valuesMap.Data["foo"])
 }
 
 func TestShouldAddAuthToRequest(t *testing.T) {
