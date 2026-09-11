@@ -150,6 +150,26 @@ func TestGenerateValuesReadsFileWithinBase(t *testing.T) {
 	assert.Equal(t, "bar", valuesMap.Data["foo"])
 }
 
+// A relative base (the common case: gitjob invokes fleet apply with base ".")
+// combined with a values file that is an absolute symlink resolving inside
+// that base must still be accepted.
+func TestGenerateValuesAllowsAbsoluteSymlinkWithinRelativeBase(t *testing.T) {
+	base := t.TempDir()
+	target := filepath.Join(base, "actual-values.yaml")
+	require.NoError(t, os.WriteFile(target, []byte("foo: bar"), 0644))
+	require.NoError(t, os.Symlink(target, filepath.Join(base, "values.yaml")))
+
+	t.Chdir(base)
+
+	chart := &fleet.HelmOptions{
+		ValuesFiles: []string{"values.yaml"},
+	}
+
+	valuesMap, err := generateValues(".", chart)
+	require.NoError(t, err)
+	assert.Equal(t, "bar", valuesMap.Data["foo"])
+}
+
 func TestShouldAddAuthToRequest(t *testing.T) {
 	cases := []struct {
 		name             string
