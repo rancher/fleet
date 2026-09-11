@@ -1,6 +1,6 @@
 module github.com/rancher/fleet
 
-go 1.26.0
+go 1.27.0
 
 toolchain go1.27.1
 
@@ -58,11 +58,11 @@ require (
 	github.com/gobwas/glob v1.0.0
 	github.com/gogits/go-gogs-client v0.0.0-20210131175652-1d7215cd8d85
 	github.com/google/go-cmp v0.7.0
-	github.com/google/go-containerregistry v0.22.0
+	github.com/google/go-containerregistry v0.22.1
 	github.com/invopop/jsonschema v0.14.0
 	github.com/jpillora/backoff v1.0.0
 	github.com/klauspost/compress v1.20.0
-	github.com/moby/moby/api v1.55.0
+	github.com/moby/moby/api v1.56.0
 	github.com/onsi/ginkgo/v2 v2.32.1
 	github.com/onsi/gomega v1.43.0
 	github.com/opencontainers/go-digest v1.0.0
@@ -72,7 +72,7 @@ require (
 	github.com/prometheus/client_golang v1.24.1
 	github.com/prometheus/client_model v0.6.3
 	github.com/prometheus/common v0.71.0
-	github.com/rancher/fleet/pkg/apis v0.16.0
+	github.com/rancher/fleet/pkg/apis v0.16.1
 	github.com/rancher/fleet/pkg/helmvalues v0.0.0-00010101000000-000000000000
 	github.com/rancher/lasso v0.2.9
 	github.com/rancher/wrangler/v3 v3.7.1
