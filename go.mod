@@ -47,7 +47,7 @@ require (
 	github.com/testcontainers/testcontainers-go v0.43.0
 	go.uber.org/mock v0.5.2
 	go.uber.org/zap v1.27.0
-	golang.org/x/crypto v0.55.0
+	golang.org/x/crypto v0.56.0
 	golang.org/x/sync v0.22.0
 	gonum.org/v1/gonum v0.17.0
 	gopkg.in/go-playground/webhooks.v5 v5.17.0
