@@ -110,6 +110,7 @@ func (f matchStringOnly) StartCPUProfile(w io.Writer) error           { return e
 func (f matchStringOnly) StopCPUProfile()                             {}
 func (f matchStringOnly) WriteProfileTo(string, io.Writer, int) error { return errMain }
 func (f matchStringOnly) ImportPath() string                          { return "" }
+func (f matchStringOnly) ModulePath() string                          { return "" }
 func (f matchStringOnly) StartTestLog(io.Writer)                      {}
 func (f matchStringOnly) StopTestLog() error                          { return errMain }
 func (f matchStringOnly) SetPanicOnExit0(bool)                        {}
