@@ -21,7 +21,7 @@ type fakeGetter struct {
 	err  error
 }
 
-func (f fakeGetter) Get(_ string, appID, instID int64, pem []byte) (*httpgit.BasicAuth, error) {
+func (f fakeGetter) Get(_ string, appID, instID int64, pem []byte, _ []byte) (*httpgit.BasicAuth, error) {
 	return f.auth, f.err
 }
 
@@ -34,11 +34,11 @@ var _ = Describe("git's GetAuthFromSecret tests", func() {
 
 	Context("Nil secret", func() {
 		It("returns no error and no auth when known hosts are empty", func() {
-			auth, err := git.GetAuthFromSecret("ssh://foo.bar", nil, "")
+			auth, err := git.GetAuthFromSecret("ssh://foo.bar", nil, "", nil)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(auth).To(BeNil())
 
-			auth, err = git.GetAuthFromSecret("http://foo.bar", nil, "")
+			auth, err = git.GetAuthFromSecret("http://foo.bar", nil, "", nil)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(auth).To(BeNil())
 		})
@@ -51,7 +51,7 @@ var _ = Describe("git's GetAuthFromSecret tests", func() {
 			}
 		})
 		It("returns no error and no auth", func() {
-			auth, err := git.GetAuthFromSecret("test-url.com", secret, "")
+			auth, err := git.GetAuthFromSecret("test-url.com", secret, "", nil)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(auth).To(BeNil())
 		})
@@ -65,7 +65,7 @@ var _ = Describe("git's GetAuthFromSecret tests", func() {
 		})
 
 		It("returns no error and no auth", func() {
-			auth, err := git.GetAuthFromSecret("test-url.com", secret, "")
+			auth, err := git.GetAuthFromSecret("test-url.com", secret, "", nil)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(auth).To(BeNil())
 		})
@@ -87,7 +87,7 @@ var _ = Describe("git's GetAuthFromSecret tests", func() {
 		})
 
 		It("returns no error and no auth", func() {
-			auth, err := git.GetAuthFromSecret("test-url.com", secret, "")
+			auth, err := git.GetAuthFromSecret("test-url.com", secret, "", nil)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(auth).To(BeNil())
 		})
@@ -141,7 +141,7 @@ YcwLYudAztZeA/A4aM5Y0MA6PlNIeoHohuMkSZNOBcvkNEWdzGBpKb34yLfMarNm
 		})
 		AfterEach(func() { git.GitHubAppGetter = origGetter })
 		It("returns the basic auth Auth and no error", func() {
-			auth, err := git.GetAuthFromSecret("test-url.com", secret, "")
+			auth, err := git.GetAuthFromSecret("test-url.com", secret, "", nil)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(auth).To(Equal(&httpgit.BasicAuth{
 				Username: "x-access-token",
@@ -167,7 +167,7 @@ YcwLYudAztZeA/A4aM5Y0MA6PlNIeoHohuMkSZNOBcvkNEWdzGBpKb34yLfMarNm
 			}
 		})
 		It("returns an error and no auth", func() {
-			auth, err := git.GetAuthFromSecret("test-url.com", secret, "")
+			auth, err := git.GetAuthFromSecret("test-url.com", secret, "", nil)
 			Expect(err).To(HaveOccurred())
 			Expect(auth).To(BeNil())
 			Expect(err.Error()).To(ContainSubstring("pem decode failed for app"))
@@ -217,7 +217,7 @@ YcwLYudAztZeA/A4aM5Y0MA6PlNIeoHohuMkSZNOBcvkNEWdzGBpKb34yLfMarNm
 			}
 		})
 		It("returns an error and no auth", func() {
-			auth, err := git.GetAuthFromSecret("test-url.com", secret, "")
+			auth, err := git.GetAuthFromSecret("test-url.com", secret, "", nil)
 			Expect(err).To(HaveOccurred())
 			Expect(auth).To(BeNil())
 			Expect(err.Error()).To(ContainSubstring("parsing \"abc\": invalid syntax"))
@@ -239,7 +239,7 @@ YcwLYudAztZeA/A4aM5Y0MA6PlNIeoHohuMkSZNOBcvkNEWdzGBpKb34yLfMarNm
 			}
 		})
 		It("returns the basic auth Auth and no error", func() {
-			auth, err := git.GetAuthFromSecret("test-url.com", secret, "")
+			auth, err := git.GetAuthFromSecret("test-url.com", secret, "", nil)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(auth).To(Equal(&httpgit.BasicAuth{
 				Username: string(username),
@@ -255,7 +255,7 @@ YcwLYudAztZeA/A4aM5Y0MA6PlNIeoHohuMkSZNOBcvkNEWdzGBpKb34yLfMarNm
 			}
 		})
 		It("returns an error and no auth", func() {
-			auth, err := git.GetAuthFromSecret("notavalidurl", secret, "")
+			auth, err := git.GetAuthFromSecret("notavalidurl", secret, "", nil)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("failed to parse \"notavalidurl\""))
 			Expect(auth).To(BeNil())
@@ -269,7 +269,7 @@ YcwLYudAztZeA/A4aM5Y0MA6PlNIeoHohuMkSZNOBcvkNEWdzGBpKb34yLfMarNm
 			}
 		})
 		It("returns an error and no auth", func() {
-			auth, err := git.GetAuthFromSecret("git@github.com:rancher/fleet.git", secret, "")
+			auth, err := git.GetAuthFromSecret("git@github.com:rancher/fleet.git", secret, "", nil)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(Equal("ssh: no key found"))
 			Expect(auth).To(BeNil())
@@ -321,7 +321,7 @@ YcwLYudAztZeA/A4aM5Y0MA6PlNIeoHohuMkSZNOBcvkNEWdzGBpKb34yLfMarNm
 			_, _, publicKey, _, _, err := ssh.ParseKnownHosts([]byte(knownHosts))
 			Expect(err).ToNot(HaveOccurred())
 
-			auth, err := git.GetAuthFromSecret("git@github.com:rancher/fleet.git", secret, "")
+			auth, err := git.GetAuthFromSecret("git@github.com:rancher/fleet.git", secret, "", nil)
 			Expect(err).ToNot(HaveOccurred())
 			expectedSigner, err := ssh.ParsePrivateKey(privateKey)
 			Expect(err).ToNot(HaveOccurred())
@@ -340,7 +340,7 @@ YcwLYudAztZeA/A4aM5Y0MA6PlNIeoHohuMkSZNOBcvkNEWdzGBpKb34yLfMarNm
 			Expect(err).ToNot(HaveOccurred())
 
 			url := "git@foo.bar:rancher/fleet.git"
-			auth, err := git.GetAuthFromSecret(url, secret, knownHosts)
+			auth, err := git.GetAuthFromSecret(url, secret, knownHosts, nil)
 			Expect(err).ToNot(HaveOccurred())
 
 			expectedSigner, err := ssh.ParsePrivateKey(privateKey)
@@ -399,7 +399,7 @@ YcwLYudAztZeA/A4aM5Y0MA6PlNIeoHohuMkSZNOBcvkNEWdzGBpKb34yLfMarNm
 		})
 
 		It("returns no error and the ssh auth", func() {
-			auth, err := git.GetAuthFromSecret("git@github.com:rancher/fleet.git", secret, "")
+			auth, err := git.GetAuthFromSecret("git@github.com:rancher/fleet.git", secret, "", nil)
 			Expect(err).ToNot(HaveOccurred())
 			expectedSigner, err := ssh.ParsePrivateKey(privateKey)
 			Expect(err).ToNot(HaveOccurred())
@@ -419,7 +419,7 @@ YcwLYudAztZeA/A4aM5Y0MA6PlNIeoHohuMkSZNOBcvkNEWdzGBpKb34yLfMarNm
 
 		It("ignores known hosts provided separately", func() {
 			knownHosts := "foo.bar ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl"
-			auth, err := git.GetAuthFromSecret("git@github.com:rancher/fleet.git", secret, knownHosts)
+			auth, err := git.GetAuthFromSecret("git@github.com:rancher/fleet.git", secret, knownHosts, nil)
 			Expect(err).ToNot(HaveOccurred())
 			expectedSigner, err := ssh.ParsePrivateKey(privateKey)
 			Expect(err).ToNot(HaveOccurred())
@@ -478,7 +478,7 @@ YcwLYudAztZeA/A4aM5Y0MA6PlNIeoHohuMkSZNOBcvkNEWdzGBpKb34yLfMarNm
 			}
 		})
 		It("returns an error and no auth", func() {
-			auth, err := git.GetAuthFromSecret("git@github.com:rancher/fleet.git", secret, "")
+			auth, err := git.GetAuthFromSecret("git@github.com:rancher/fleet.git", secret, "", nil)
 			Expect(err).To(HaveOccurred())
 			Expect(auth).To(BeNil())
 			Expect(err.Error()).To(ContainSubstring("knownhosts: missing host pattern"))

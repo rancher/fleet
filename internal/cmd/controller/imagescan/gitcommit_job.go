@@ -317,7 +317,7 @@ func readAuth(ctx context.Context, logger logr.Logger, c client.Client, gitrepo 
 		}
 		return publicKey, nil
 	default:
-		auth, err := fleetgithub.GetGithubAppAuthFromSecret(gitrepo.Spec.Repo, secret, fleetgithub.DefaultAppAuthGetter{})
+		auth, err := fleetgithub.GetGithubAppAuthFromSecret(gitrepo.Spec.Repo, secret, fleetgithub.DefaultAppAuthGetter{}, gitrepo.Spec.CABundle)
 		if err != nil {
 			return nil, err
 		}
