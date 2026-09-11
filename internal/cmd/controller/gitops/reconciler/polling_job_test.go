@@ -10,9 +10,12 @@ import (
 	gitmocks "github.com/rancher/fleet/pkg/git/mocks"
 	"github.com/rancher/wrangler/v3/pkg/genericcondition"
 	"go.uber.org/mock/gomock"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/events"
+	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -28,7 +31,8 @@ func TestPollGitRepo(t *testing.T) {
 		name            string
 		gitrepo         *v1alpha1.GitRepo
 		setupMocks      func(*mocks.MockK8sClient, *mocks.MockStatusWriter, *gitmocks.MockGitFetcher, *events.FakeRecorder)
-		patchErr        string
+		patchErr        error
+		patchTimes      int // number of expected Status().Patch() calls; 0 means 1
 		expectedErr     string
 		expectedEvents  []string
 		validateGitRepo func(*testing.T, *v1alpha1.GitRepo)
@@ -130,7 +134,7 @@ func TestPollGitRepo(t *testing.T) {
 			},
 			setupMocks: func(c *mocks.MockK8sClient, sw *mocks.MockStatusWriter, gf *gitmocks.MockGitFetcher, r *events.FakeRecorder) {
 				nsName := types.NamespacedName{Name: name, Namespace: namespace}
-				c.EXPECT().Get(gomock.Any(), nsName, gomock.Any()).Times(3).DoAndReturn(func(_ context.Context, _ client.ObjectKey, obj *v1alpha1.GitRepo, _ ...client.GetOption) error {
+				c.EXPECT().Get(gomock.Any(), nsName, gomock.Any()).Times(2).DoAndReturn(func(_ context.Context, _ client.ObjectKey, obj *v1alpha1.GitRepo, _ ...client.GetOption) error {
 					obj.Name = name
 					obj.Namespace = namespace
 					obj.Spec.Repo = repoURL
@@ -139,10 +143,47 @@ func TestPollGitRepo(t *testing.T) {
 					return nil
 				})
 				gf.EXPECT().LatestCommit(gomock.Any(), gomock.Any(), gomock.Any()).Return("new-commit", nil)
-				c.EXPECT().Status().Return(sw).Times(2)
+				c.EXPECT().Status().Return(sw)
 			},
-			patchErr:    "update error",
+			patchErr:    errors.New("update error"),
 			expectedErr: "could not update GitRepo status with polling timestamp: update error",
+			// Only the commit event: a failed status write must not additionally be
+			// reported as a failed commit check.
+			expectedEvents: []string{"Normal GotNewCommit new-commit"},
+		},
+		{
+			// The status patch is made under an optimistic lock, so a concurrent
+			// writer makes it conflict. Losing that race says nothing about the
+			// commit check, which already succeeded, so it must not emit a
+			// FailedToCheckCommit event or mark the GitRepo as stalled.
+			name: "Status update conflict",
+			gitrepo: &v1alpha1.GitRepo{
+				ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
+				Spec:       v1alpha1.GitRepoSpec{Repo: repoURL, Branch: branch},
+			},
+			setupMocks: func(c *mocks.MockK8sClient, sw *mocks.MockStatusWriter, gf *gitmocks.MockGitFetcher, r *events.FakeRecorder) {
+				nsName := types.NamespacedName{Name: name, Namespace: namespace}
+				// One read up front, then one per retry attempt.
+				c.EXPECT().Get(gomock.Any(), nsName, gomock.Any()).Times(1 + retry.DefaultRetry.Steps).DoAndReturn(func(_ context.Context, _ client.ObjectKey, obj *v1alpha1.GitRepo, _ ...client.GetOption) error {
+					obj.Name = name
+					obj.Namespace = namespace
+					obj.Spec.Repo = repoURL
+					obj.Spec.Branch = branch
+					obj.Status.Commit = "commit"
+					return nil
+				})
+				gf.EXPECT().LatestCommit(gomock.Any(), gomock.Any(), gomock.Any()).Return("new-commit", nil)
+				c.EXPECT().Status().Return(sw).Times(retry.DefaultRetry.Steps)
+			},
+			patchErr: apierrors.NewConflict(
+				schema.GroupResource{Group: "fleet.cattle.io", Resource: "gitrepos"},
+				name,
+				errors.New("the object has been modified"),
+			),
+			patchTimes: retry.DefaultRetry.Steps,
+			expectedErr: "could not update GitRepo status with polling timestamp: " +
+				`Operation cannot be fulfilled on gitrepos.fleet.cattle.io "test-repo": the object has been modified`,
+			expectedEvents: []string{"Normal GotNewCommit new-commit"},
 		},
 	}
 
@@ -167,22 +208,16 @@ func TestPollGitRepo(t *testing.T) {
 			// The patch function in the mock will be our capture point.
 			var finalGitRepo *v1alpha1.GitRepo
 
+			patchTimes := tc.patchTimes
+			if patchTimes == 0 {
+				patchTimes = 1
+			}
+
 			mockStatusWriter.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
 				func(_ context.Context, obj *v1alpha1.GitRepo, _ client.Patch, _ ...client.PatchOption) error {
 					finalGitRepo = obj.DeepCopy()
-					if tc.patchErr != "" {
-						return errors.New(tc.patchErr)
-					}
-					return nil
-				}).Times(1)
-			if tc.patchErr != "" {
-				// this second call is to set the error in the condition
-				mockStatusWriter.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-					func(_ context.Context, obj *v1alpha1.GitRepo, _ client.Patch, _ ...client.PatchOption) error {
-						finalGitRepo = obj.DeepCopy()
-						return nil
-					}).Times(1)
-			}
+					return tc.patchErr
+				}).Times(patchTimes)
 
 			err := job.pollGitRepo(context.Background())
 
@@ -195,14 +230,12 @@ func TestPollGitRepo(t *testing.T) {
 			}
 
 			close(recorder.Events)
-			if len(tc.expectedEvents) > 0 {
-				if len(recorder.Events) != len(tc.expectedEvents) {
-					t.Errorf("expected %d events, got %d", len(tc.expectedEvents), len(recorder.Events))
-				}
-				for i, expectedEvent := range tc.expectedEvents {
-					if event, ok := <-recorder.Events; ok && event != expectedEvent {
-						t.Errorf("expected event %d to be '%q', got '%q'", i, expectedEvent, event)
-					}
+			if len(recorder.Events) != len(tc.expectedEvents) {
+				t.Errorf("expected %d events, got %d", len(tc.expectedEvents), len(recorder.Events))
+			}
+			for i, expectedEvent := range tc.expectedEvents {
+				if event, ok := <-recorder.Events; ok && event != expectedEvent {
+					t.Errorf("expected event %d to be '%q', got '%q'", i, expectedEvent, event)
 				}
 			}
 

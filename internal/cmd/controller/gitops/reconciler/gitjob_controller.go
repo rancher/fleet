@@ -21,6 +21,7 @@ import (
 	"github.com/rancher/fleet/internal/cmd/controller/imagescan"
 	ctrlquartz "github.com/rancher/fleet/internal/cmd/controller/quartz"
 	"github.com/rancher/fleet/internal/cmd/controller/reconciler"
+	fleetstatus "github.com/rancher/fleet/internal/cmd/controller/status"
 	"github.com/rancher/fleet/internal/config"
 	"github.com/rancher/fleet/internal/metrics"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -218,7 +219,7 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			err,
 		)
 
-		return ctrl.Result{}, updateErrorStatus(ctx, r.Client, req.NamespacedName, *oldStatus, err)
+		return ctrl.Result{}, updateErrorStatus(ctx, r.Client, req.NamespacedName, *oldStatus, *oldStatus, err)
 	}
 	// Persist any spec defaults injected by AuthorizeAndAssignDefaults (e.g. defaultServiceAccount).
 	// The spec update bumps the generation and triggers a fresh reconcile.
@@ -259,7 +260,7 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	if gitrepo.Spec.Repo == "" {
 		if err := r.deletePollingJob(*gitrepo); err != nil {
-			return ctrl.Result{}, updateErrorStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status, err)
+			return ctrl.Result{}, updateErrorStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status, *oldStatus, err)
 		}
 		// TODO: return an error here, similar to what we already do for HelmOps
 		return ctrl.Result{}, nil
@@ -267,7 +268,7 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	jobUpdatedOrCreated, err := r.managePollingJob(logger, *gitrepo)
 	if err != nil {
-		return ctrl.Result{}, updateErrorStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status, err)
+		return ctrl.Result{}, updateErrorStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status, *oldStatus, err)
 	}
 
 	if jobUpdatedOrCreated {
@@ -294,7 +295,7 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		gitrepo.Status.Commit = oldCommit
 		gitrepo.Status.UpdateGeneration = oldUpdateGeneration
 		gitrepo.Status.ObservedGeneration = oldObservedGeneration
-		return res, updateErrorStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status, err)
+		return res, updateErrorStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status, *oldStatus, err)
 	}
 
 	// Update secret data hash annotations after successful job management
@@ -305,7 +306,7 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	reconciler.SetCondition(v1alpha1.GitRepoAcceptedCondition, &gitrepo.Status, nil)
 
-	err = updateStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status)
+	err = updateStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status, *oldStatus)
 	if err != nil {
 		logger.Error(err, "Reconcile failed final update to git repo status", "status", gitrepo.Status)
 
@@ -1267,11 +1268,26 @@ func setStatusFromGitjob(ctx context.Context, c client.Client, gitRepo *v1alpha1
 	return nil
 }
 
-// updateErrorStatus sets the condition in the status and tries to update the resource
-func updateErrorStatus(ctx context.Context, c client.Client, req types.NamespacedName, status v1alpha1.GitRepoStatus, orgErr error) error {
+// updateErrorStatus sets the condition in the status and tries to update the resource.
+//
+// base is the GitRepo status as this reconcile first read it; see updateStatus.
+func updateErrorStatus(
+	ctx context.Context,
+	c client.Client,
+	req types.NamespacedName,
+	status v1alpha1.GitRepoStatus,
+	base v1alpha1.GitRepoStatus,
+	orgErr error,
+) error {
+	// SetCondition edits conditions in place, and status is a struct copy which
+	// may share its conditions backing array with base (and with the caller's
+	// GitRepo). Detach it, so that base keeps describing the status as read and
+	// the merge below can still tell what this reconciler computed.
+	status.Conditions = append([]genericcondition.GenericCondition(nil), status.Conditions...)
+
 	reconciler.SetCondition(v1alpha1.GitRepoAcceptedCondition, &status, orgErr)
 
-	if statusErr := updateStatus(ctx, c, req, status); statusErr != nil {
+	if statusErr := updateStatus(ctx, c, req, status, base); statusErr != nil {
 		merr := []error{orgErr, fmt.Errorf("failed to update the status: %w", statusErr)}
 		return errutil.NewAggregate(merr)
 	}
@@ -1281,7 +1297,17 @@ func updateErrorStatus(ctx context.Context, c client.Client, req types.Namespace
 // updateStatus updates the status for the GitRepo resource. It retries on
 // conflict. If the status was updated successfully, it also collects (as in
 // updates) metrics for the resource GitRepo resource.
-func updateStatus(ctx context.Context, c client.Client, req types.NamespacedName, status v1alpha1.GitRepoStatus) error {
+//
+// base is the GitRepo status as this reconcile first read it, used to tell the
+// conditions and polling fields this reconciler computed apart from the ones it
+// merely carried over from that read. See status.MergeConditions.
+func updateStatus(
+	ctx context.Context,
+	c client.Client,
+	req types.NamespacedName,
+	status v1alpha1.GitRepoStatus,
+	base v1alpha1.GitRepoStatus,
+) error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		t := &v1alpha1.GitRepo{}
 		err := c.Get(ctx, req, t)
@@ -1294,26 +1320,36 @@ func updateStatus(ctx context.Context, c client.Client, req types.NamespacedName
 		// selectively update the status fields this reconciler is responsible for
 		t.Status.Commit = status.Commit
 		t.Status.GitJobStatus = status.GitJobStatus
-		t.Status.PollingCommit = status.PollingCommit
-		t.Status.LastPollingTime = status.LastPollingTime
 		t.Status.ObservedGeneration = status.ObservedGeneration
 		t.Status.UpdateGeneration = status.UpdateGeneration
 
-		// only keep the Ready condition from live status, it's calculated by the status reconciler
-		conds := []genericcondition.GenericCondition{}
-		for _, c := range t.Status.Conditions {
-			if c.Type == "Ready" {
-				conds = append(conds, c)
-				break
-			}
+		// LastPollingTime and PollingCommit belong to the polling job. This
+		// reconciler never computes LastPollingTime, and computes PollingCommit
+		// only on the fetchLatestCommit paths, so assigning either from the
+		// reconcile-start snapshot would revert whatever the polling job wrote
+		// while this reconcile was running. That matters most with polling
+		// enabled: PollingCommit is then the only channel by which a new commit
+		// reaches getNextCommit, so reverting it hides the commit until the next
+		// poll, and the revert itself re-triggers this reconciler through
+		// commitChangedPredicate.
+		//
+		// base tells the two apart. Unlike the conditions below, a value the
+		// reconciler recomputed to what base already held needs no special care:
+		// live then holds either that same value or something newer from the
+		// polling job, and keeping live is right either way.
+		if status.PollingCommit != base.PollingCommit {
+			t.Status.PollingCommit = status.PollingCommit
 		}
-		for _, c := range status.Conditions {
-			if c.Type == "Ready" {
-				continue
-			}
-			conds = append(conds, c)
-		}
-		t.Status.Conditions = conds
+
+		// Merge rather than replace: the Ready condition belongs to the status
+		// reconciler, and the polling job owns GitPolling and the kstatus
+		// conditions, which it may well have written since base was read.
+		t.Status.Conditions = fleetstatus.MergeConditions(
+			t.Status.Conditions,
+			base.Conditions,
+			status.Conditions,
+			"Ready",
+		)
 
 		if commit != "" && status.Commit == "" {
 			// we could incur in a race condition between the poller job
