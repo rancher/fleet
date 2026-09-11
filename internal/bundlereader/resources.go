@@ -184,12 +184,16 @@ func generateValues(base string, chart *fleet.HelmOptions) (valuesMap *fleet.Gen
 	if chart.Values != nil {
 		valuesMap = chart.Values
 	}
-	resolvedBase, err := filepath.EvalSymlinks(base)
+	absBase, err := filepath.Abs(base)
+	if err != nil {
+		return nil, fmt.Errorf("resolving values base %q: %w", base, err)
+	}
+	resolvedBase, err := filepath.EvalSymlinks(absBase)
 	if err != nil {
 		return nil, fmt.Errorf("resolving values base %q: %w", base, err)
 	}
 	for _, value := range chart.ValuesFiles {
-		valuesPath, err := safeJoinSubDir(base, value)
+		valuesPath, err := safeJoinSubDir(absBase, value)
 		if err != nil {
 			return nil, fmt.Errorf("invalid values file %q: %w", value, err)
 		}
