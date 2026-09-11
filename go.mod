@@ -58,7 +58,7 @@ require (
 	github.com/gobwas/glob v1.0.0
 	github.com/gogits/go-gogs-client v0.0.0-20210131175652-1d7215cd8d85
 	github.com/google/go-cmp v0.7.0
-	github.com/google/go-containerregistry v0.22.0
+	github.com/google/go-containerregistry v0.22.1
 	github.com/invopop/jsonschema v0.14.0
 	github.com/jpillora/backoff v1.0.0
 	github.com/klauspost/compress v1.20.0
