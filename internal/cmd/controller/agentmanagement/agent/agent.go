@@ -99,7 +99,7 @@ func AgentWithConfig(
 	objs = append(objs, agentConfig...)
 
 	// get a fresh config from the API
-	cfg, err := config.Lookup(ctx, controllerNamespace, config.ManagerConfigName, client.Core.ConfigMap())
+	cfg, _, err := config.Lookup(ctx, controllerNamespace, config.ManagerConfigName, client.Core.ConfigMap())
 	if err != nil {
 		return objs, err
 	}
