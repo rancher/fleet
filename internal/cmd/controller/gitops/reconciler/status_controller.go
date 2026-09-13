@@ -14,6 +14,7 @@ import (
 	"github.com/rancher/fleet/pkg/sharding"
 	"github.com/rancher/wrangler/v3/pkg/genericcondition"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -146,7 +147,18 @@ func (r *StatusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	if err := r.updateStatus(ctx, orig, gitrepo); err != nil {
+		if errors.IsConflict(err) {
+			// Expected under the optimistic lock: another controller wrote the
+			// status first. Requeuing recomputes it from a fresh read, so this
+			// is not worth reporting as an error. Come back sooner than the
+			// status delay, which exists to wait for a write that has by
+			// definition already happened here.
+			logger.V(1).Info("Conflict updating git repo status, retrying", "error", err)
+			return ctrl.Result{RequeueAfter: durations.StatusConflictRequeue}, nil
+		}
+
 		logger.Error(err, "Reconcile failed update to git repo status", "status", gitrepo.Status)
+
 		return ctrl.Result{RequeueAfter: durations.GitRepoStatusDelay}, nil
 	}
 
@@ -154,12 +166,21 @@ func (r *StatusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 }
 
 func (r *StatusReconciler) updateStatus(ctx context.Context, orig *fleet.GitRepo, obj *fleet.GitRepo) error {
-	statusPatch := client.MergeFrom(orig)
-	if patchData, err := statusPatch.Data(obj); err == nil && string(patchData) == "{}" {
-		// skip update if patch is empty
+	if equality.Semantic.DeepEqual(orig.Status, obj.Status) {
+		// skip update if nothing changed
 		return nil
 	}
-	return r.Client.Status().Patch(ctx, obj, statusPatch)
+
+	// Patch under an optimistic lock. A merge patch replaces the whole conditions
+	// array, so without the lock a stale read here silently drops conditions owned
+	// by the gitjob reconciler (Accepted in particular). That reconciler ignores
+	// status-only changes, so a dropped condition is never restored.
+	// On conflict the caller requeues and recomputes from a fresh read.
+	return r.Client.Status().Patch(
+		ctx,
+		obj,
+		client.MergeFromWithOptions(orig, client.MergeFromWithOptimisticLock{}),
+	)
 }
 
 func setStatus(list *fleet.BundleDeploymentList, gitrepo *fleet.GitRepo) error {
