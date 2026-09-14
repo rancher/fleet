@@ -1,0 +1,24 @@
+kind: Bundle
+apiVersion: fleet.cattle.io/v1alpha1
+metadata:
+  name: namespace-metadata
+spec:
+  namespace: {{.TargetNamespace}}
+  namespaceLabels:
+    fleet.e2e/keep: one
+    fleet.e2e/prune: two
+  namespaceAnnotations:
+    fleet.e2e/keep: one
+    fleet.e2e/prune: two
+  resources:
+  - content: |
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: app-config
+      data:
+        test: "value"
+  targets:
+  - clusterGroup: default
+    ignore: {}
+    name: default
