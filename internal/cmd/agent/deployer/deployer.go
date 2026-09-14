@@ -214,7 +214,7 @@ func (d *Deployer) setNamespaceLabelsAndAnnotations(ctx context.Context, bd *fle
 	// rather than by the agent's cluster-admin credentials. When the deployment
 	// resolves to no service account, fall back to the agent client, preserving
 	// the previous behaviour.
-	c, err := d.namespaceClient(ctx, bd)
+	c, err := d.ImpersonatingClient(ctx, bd)
 	if err != nil {
 		return err
 	}
@@ -248,13 +248,14 @@ func (d *Deployer) setNamespaceLabelsAndAnnotations(ctx context.Context, bd *fle
 	return updateNamespace(ctx, c, ns)
 }
 
-// namespaceClient returns the client to use for namespace label/annotation
-// mutations. When the deployment resolves to a service account (pinned, or the
-// "fleet-default" fallback), it returns a client impersonating that account, so
-// the mutation is authorized against the downstream RBAC of the tenant rather
-// than the agent's cluster-admin credentials. Otherwise it returns the agent
-// client, preserving the previous behaviour.
-func (d *Deployer) namespaceClient(ctx context.Context, bd *fleet.BundleDeployment) (client.Client, error) {
+// ImpersonatingClient returns the downstream client to use for mutations that
+// must be authorized against the deployment's identity (namespace label/annotation
+// mutations, DownstreamResources copies). When the deployment resolves to a service
+// account (pinned, or the "fleet-default" fallback), it returns a client impersonating
+// that account, so the mutation is gated by the tenant's downstream RBAC rather than
+// the agent's cluster-admin credentials. Otherwise it returns the agent client,
+// preserving the previous behaviour.
+func (d *Deployer) ImpersonatingClient(ctx context.Context, bd *fleet.BundleDeployment) (client.Client, error) {
 	if bd == nil {
 		return nil, errors.New("bundledeployment is nil")
 	}
