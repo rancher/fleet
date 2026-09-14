@@ -12,9 +12,13 @@
         {
           "type": "integer",
           "enum": [0]
+        },
+        {
+          "type": "string",
+          "const": ""
         }
       ],
-      "description": "A Go duration string. Valid units: ns, us, µs, ms, s, m, h (e.g. 15s, 5m, 2h, 1h30m). Units like d (days) or w (weeks) are NOT supported by Go's time.ParseDuration and will be dropped; use 0 to fall back to the built-in default."
+      "description": "A Go duration string. Valid units: ns, us, µs, ms, s, m, h (e.g. 15s, 5m, 2h, 1h30m). Units like d (days) or w (weeks) are NOT supported by Go's time.ParseDuration and will be dropped; use 0, or the empty string, to fall back to the built-in default."
     }
   },
   "properties": {
@@ -29,6 +33,30 @@
     },
     "clusterEnqueueDelay": {
       "$ref": "#/definitions/goDuration"
+    },
+    "deploymentEvents": {
+      "type": "object",
+      "properties": {
+        "disabled": {
+          "type": "boolean"
+        },
+        "debounce": {
+          "$ref": "#/definitions/goDuration"
+        },
+        "minInterval": {
+          "$ref": "#/definitions/goDuration"
+        },
+        "reportRecovery": {
+          "type": "boolean"
+        },
+        "perDeployment": {
+          "type": "boolean"
+        },
+        "maxCauses": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
     },
     "gitops": {
       "type": "object",
