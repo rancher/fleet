@@ -310,22 +310,22 @@ func (d *Deployer) setNamespaceLabelsAndAnnotations(ctx context.Context, bd *fle
 		return err
 	}
 
-	// One-time (self-healing, idempotent) migration for namespaces that
-	// predate the switch to server-side apply: absorb ownership of the
-	// labels/annotations keys the old read-modify-write update still holds,
-	// so this apply can actually prune them. No-op once migrated. See
-	// migrateLegacyNamespaceManagedFields for why this is scoped rather than
-	// using k8s.io/client-go/util/csaupgrade directly.
-	if err := migrateLegacyNamespaceManagedFields(ctx, c, ns); err != nil {
-		return err
-	}
-
 	var labels, annotations map[string]string
 	if bd.Spec.Options.NamespaceLabels != nil {
 		labels = bd.Spec.Options.NamespaceLabels
 	}
 	if bd.Spec.Options.NamespaceAnnotations != nil {
 		annotations = bd.Spec.Options.NamespaceAnnotations
+	}
+
+	// One-time (self-healing, idempotent) migration for namespaces that
+	// predate the switch to server-side apply: absorb ownership of the
+	// declared keys the old read-modify-write update still holds, so this
+	// apply can actually prune them once they are dropped. No-op once
+	// migrated. See migrateLegacyNamespaceManagedFields for why this is
+	// scoped rather than using k8s.io/client-go/util/csaupgrade directly.
+	if err := migrateLegacyNamespaceManagedFields(ctx, c, ns, labels, annotations); err != nil {
+		return err
 	}
 
 	return applyNamespaceMetadata(ctx, c, name, labels, annotations)

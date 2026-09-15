@@ -14,6 +14,7 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
+	"sigs.k8s.io/structured-merge-diff/v6/fieldpath"
 )
 
 // TestSetNamespaceLabelsAndAnnotations_ServerSideApply exercises the namespace
@@ -154,10 +155,27 @@ func TestSetNamespaceLabelsAndAnnotations_ServerSideApply(t *testing.T) {
 			t.Fatalf("first sync: %v", err)
 		}
 
+		// The legacy entry may survive: the migration only takes the keys the
+		// bundle declares, so anything else it owns (here the annotations map
+		// itself) stays with it. What must be gone is its ownership of the
+		// declared keys, because that is what would block pruning.
 		got = get("legacy-migration")
 		for _, mf := range got.ManagedFields {
-			if mf.Manager == legacyNamespaceFieldManager && mf.Operation == metav1.ManagedFieldsOperationUpdate {
-				t.Errorf("legacy fleetagent Update entry was not migrated away: %v", got.ManagedFields)
+			if mf.Manager != legacyNamespaceFieldManager || mf.Operation != metav1.ManagedFieldsOperationUpdate {
+				continue
+			}
+			set, err := decodeFieldsV1(mf.FieldsV1)
+			if err != nil {
+				t.Fatalf("decode legacy fields: %v", err)
+			}
+			for _, p := range []fieldpath.Path{
+				{fieldpath.FieldNameElement("metadata"), fieldpath.FieldNameElement("annotations"), fieldpath.FieldNameElement("fleet-a")},
+				{fieldpath.FieldNameElement("metadata"), fieldpath.FieldNameElement("annotations"), fieldpath.FieldNameElement("fleet-b")},
+				{fieldpath.FieldNameElement("metadata"), fieldpath.FieldNameElement("labels"), fieldpath.FieldNameElement("team")},
+			} {
+				if set.Has(p) {
+					t.Errorf("legacy fleetagent Update entry still owns %v: %v", p, got.ManagedFields)
+				}
 			}
 		}
 

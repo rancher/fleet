@@ -32,7 +32,7 @@ func TestBuildManagedFieldsMigrationPatch_NoLegacyEntry(t *testing.T) {
 		},
 	}
 
-	patch, err := buildManagedFieldsMigrationPatch(ns)
+	patch, err := buildManagedFieldsMigrationPatch(ns, map[string]string{"team": "blue"}, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -52,7 +52,7 @@ func TestBuildManagedFieldsMigrationPatch_LegacyEntryWithoutLabelsOrAnnotations(
 		},
 	}}
 
-	patch, err := buildManagedFieldsMigrationPatch(ns)
+	patch, err := buildManagedFieldsMigrationPatch(ns, map[string]string{"team": "blue"}, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -61,14 +61,20 @@ func TestBuildManagedFieldsMigrationPatch_LegacyEntryWithoutLabelsOrAnnotations(
 	}
 }
 
-func TestBuildManagedFieldsMigrationPatch_ScopesToLabelsAndAnnotationsOnly(t *testing.T) {
-	// The legacy manager owns an annotation, a label, AND an unrelated field
-	// (finalizers). Only the annotation/label paths must move to the SSA
-	// manager; finalizers must stay with the legacy manager untouched.
+func TestBuildManagedFieldsMigrationPatch_ScopesToDeclaredKeysOnly(t *testing.T) {
+	// The legacy manager owns a declared annotation, a declared label, the
+	// labels map itself, a label the bundle does not declare (Helm's "name",
+	// written under the same manager name when it created the namespace) AND
+	// an unrelated field (finalizers).
+	//
+	// Only the declared annotation/label paths must move to the SSA manager.
+	// Everything else stays with the legacy manager untouched.
 	fields := fieldsV1FromPaths(
 		t,
 		fieldpath.Path{pe("metadata"), pe("annotations"), pe("fleet-a")},
+		fieldpath.Path{pe("metadata"), pe("labels")},
 		fieldpath.Path{pe("metadata"), pe("labels"), pe("team")},
+		fieldpath.Path{pe("metadata"), pe("labels"), pe("name")},
 		fieldpath.Path{pe("metadata"), pe("finalizers")},
 	)
 	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{
@@ -79,7 +85,11 @@ func TestBuildManagedFieldsMigrationPatch_ScopesToLabelsAndAnnotationsOnly(t *te
 		},
 	}}
 
-	patch, err := buildManagedFieldsMigrationPatch(ns)
+	patch, err := buildManagedFieldsMigrationPatch(
+		ns,
+		map[string]string{"team": "blue"},
+		map[string]string{"fleet-a": "yes"},
+	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -126,6 +136,12 @@ func TestBuildManagedFieldsMigrationPatch_ScopesToLabelsAndAnnotationsOnly(t *te
 	if !legacySet.Has(fieldpath.Path{pe("metadata"), pe("finalizers")}) {
 		t.Errorf("legacy entry must keep ownership of unrelated fields like finalizers")
 	}
+	if !legacySet.Has(fieldpath.Path{pe("metadata"), pe("labels"), pe("name")}) {
+		t.Errorf("legacy entry must keep ownership of labels the bundle does not declare, such as Helm's 'name'")
+	}
+	if !legacySet.Has(fieldpath.Path{pe("metadata"), pe("labels")}) {
+		t.Errorf("legacy entry must keep ownership of the labels map itself")
+	}
 
 	if ssaEntry == nil {
 		t.Fatalf("expected a new/updated SSA manager entry: %+v", newEntries)
@@ -146,10 +162,43 @@ func TestBuildManagedFieldsMigrationPatch_ScopesToLabelsAndAnnotationsOnly(t *te
 	if ssaSet.Has(fieldpath.Path{pe("metadata"), pe("finalizers")}) {
 		t.Errorf("SSA entry must never absorb unrelated fields like finalizers")
 	}
+	if ssaSet.Has(fieldpath.Path{pe("metadata"), pe("labels"), pe("name")}) {
+		t.Errorf("SSA entry must never absorb a label the bundle does not declare; it would prune it on the next apply")
+	}
+}
+
+// Fleet does not create the release namespace, Helm does, and Helm labels it
+// "name: <namespace>". client-go and Helm both derive the field manager from
+// the binary name, so that write is recorded under the same manager as the
+// legacy read-modify-write update and the two cannot be told apart. Scoping
+// the migration to the declared keys is what stops Fleet from absorbing, and
+// then pruning, a label it never declared. See issue #4564 and PR #5460.
+func TestBuildManagedFieldsMigrationPatch_LeavesHelmNamespaceLabelsAlone(t *testing.T) {
+	fields := fieldsV1FromPaths(
+		t,
+		fieldpath.Path{pe("metadata"), pe("labels")},
+		fieldpath.Path{pe("metadata"), pe("labels"), pe("name")},
+		fieldpath.Path{pe("metadata"), pe("labels"), pe("kubernetes.io/metadata.name")},
+	)
+	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{
+		Name:            "test",
+		ResourceVersion: "1",
+		ManagedFields: []metav1.ManagedFieldsEntry{
+			{Manager: legacyNamespaceFieldManager, Operation: metav1.ManagedFieldsOperationUpdate, APIVersion: "v1", FieldsV1: fields},
+		},
+	}}
+
+	patch, err := buildManagedFieldsMigrationPatch(ns, map[string]string{"team": "blue"}, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if patch != nil {
+		t.Errorf("expected no patch at all on a freshly Helm-created namespace, got %s", patch)
+	}
 }
 
 func TestBuildManagedFieldsMigrationPatch_DropsLegacyEntryWhenFullyMigrated(t *testing.T) {
-	// The legacy manager owns only labels/annotations; once migrated, its
+	// The legacy manager owns nothing but declared keys; once migrated, its
 	// entry should be removed entirely rather than left behind empty.
 	fields := fieldsV1FromPaths(
 		t,
@@ -162,7 +211,7 @@ func TestBuildManagedFieldsMigrationPatch_DropsLegacyEntryWhenFullyMigrated(t *t
 		},
 	}}
 
-	patch, err := buildManagedFieldsMigrationPatch(ns)
+	patch, err := buildManagedFieldsMigrationPatch(ns, nil, map[string]string{"fleet-a": "yes"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
