@@ -1,12 +1,12 @@
 module github.com/rancher/fleet/pkg/helmvalues
 
-go 1.26.0
+go 1.27.0
 
 toolchain go1.27.1
 
 replace github.com/rancher/fleet/pkg/apis => ../apis
 
-require github.com/rancher/fleet/pkg/apis v0.16.0
+require github.com/rancher/fleet/pkg/apis v0.16.1
 
 require (
 	github.com/fxamacker/cbor/v2 v2.9.0 // indirect
