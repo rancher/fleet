@@ -618,6 +618,83 @@ func TestOnClusterChangeHostNetwork(t *testing.T) {
 	}
 }
 
+func TestOnClusterChangePullSecrets(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	namespaces := fake.NewMockNonNamespacedControllerInterface[*corev1.Namespace, *corev1.NamespaceList](ctrl)
+	h := &handler{namespaces: namespaces}
+
+	pullSecrets := []corev1.LocalObjectReference{{Name: "secret1"}}
+	pullSecretsHash, _ := hashStatusField(&pullSecrets)
+
+	emptyPullSecrets := []corev1.LocalObjectReference{}
+	emptyPullSecretsHash, _ := hashStatusField(&emptyPullSecrets)
+
+	for _, tt := range []struct {
+		name           string
+		cluster        *fleet.Cluster
+		status         fleet.ClusterStatus
+		expectedStatus fleet.ClusterStatus
+		enqueues       int
+	}{
+		{
+			name:           "Empty PullSecrets",
+			cluster:        &fleet.Cluster{},
+			status:         fleet.ClusterStatus{},
+			expectedStatus: fleet.ClusterStatus{},
+			enqueues:       0,
+		},
+		{
+			name:           "Equal PullSecrets",
+			cluster:        &fleet.Cluster{Spec: fleet.ClusterSpec{AgentPullSecrets: &pullSecrets}},
+			status:         fleet.ClusterStatus{AgentPullSecretsHash: pullSecretsHash},
+			expectedStatus: fleet.ClusterStatus{AgentPullSecretsHash: pullSecretsHash},
+			enqueues:       0,
+		},
+		{
+			name:           "Added PullSecrets",
+			cluster:        &fleet.Cluster{Spec: fleet.ClusterSpec{AgentPullSecrets: &pullSecrets}},
+			status:         fleet.ClusterStatus{AgentPullSecretsHash: ""},
+			expectedStatus: fleet.ClusterStatus{AgentPullSecretsHash: pullSecretsHash},
+			enqueues:       1,
+		},
+		{
+			// Removing a cluster-level override must be detected, so that the agent falls back to
+			// the pull secrets from the global config. See issue 5438.
+			name:           "Removed PullSecrets",
+			cluster:        &fleet.Cluster{Spec: fleet.ClusterSpec{}},
+			status:         fleet.ClusterStatus{AgentPullSecretsHash: pullSecretsHash},
+			expectedStatus: fleet.ClusterStatus{AgentPullSecretsHash: ""},
+			enqueues:       1,
+		},
+		{
+			// An empty slice means "explicitly no pull secrets", which GetAgentPullSecrets treats
+			// differently from nil, so it must not hash as unset.
+			name:           "Empty slice differs from nil",
+			cluster:        &fleet.Cluster{Spec: fleet.ClusterSpec{AgentPullSecrets: &emptyPullSecrets}},
+			status:         fleet.ClusterStatus{AgentPullSecretsHash: ""},
+			expectedStatus: fleet.ClusterStatus{AgentPullSecretsHash: emptyPullSecretsHash},
+			enqueues:       1,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			namespaces.EXPECT().Enqueue(gomock.Any()).Times(tt.enqueues)
+
+			status, err := h.onClusterStatusChange(tt.cluster, tt.status)
+			if err != nil {
+				t.Error(err)
+			}
+
+			if status.AgentPullSecretsHash != tt.expectedStatus.AgentPullSecretsHash {
+				t.Fatalf(
+					"agent pull secrets hash is not equal: %v vs %v",
+					status.AgentPullSecretsHash,
+					tt.expectedStatus.AgentPullSecretsHash,
+				)
+			}
+		})
+	}
+}
+
 // Table-driven tests covering all comparator fields used by sortTolerations
 func TestSortTolerations(t *testing.T) {
 	five := int64(5)
