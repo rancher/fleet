@@ -240,6 +240,10 @@ type ClusterStatus struct {
 	// configuration, used to detect changes.
 	// +nullable
 	AgentTolerationsHash string `json:"agentTolerationsHash,omitempty"`
+	// AgentPullSecretsHash is a hash of the agent's image pull secret
+	// configuration, used to detect changes.
+	// +nullable
+	AgentPullSecretsHash string `json:"agentPullSecretsHash,omitempty"`
 	// AgentConfigChanged is set to true if any of the agent configuration
 	// changed, like the API server URL or CA. Setting it to true will
 	// trigger a re-import of the cluster.

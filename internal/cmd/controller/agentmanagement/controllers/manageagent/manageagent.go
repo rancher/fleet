@@ -167,6 +167,11 @@ func hashChanged(field any, statusHash string) (bool, string, error) {
 			return field == nil
 		case []corev1.Toleration:
 			return len(field) == 0
+		case *[]corev1.LocalObjectReference:
+			// Only a nil pointer counts as unset here: an empty slice means
+			// "explicitly no pull secrets" and must hash differently, as
+			// GetAgentPullSecrets treats the two cases differently.
+			return field == nil
 		default:
 			return false
 		}
@@ -254,6 +259,13 @@ func (h *handler) updateClusterStatus(cluster *fleet.Cluster, status fleet.Clust
 		return status, changed, err
 	} else if c {
 		status.AgentTolerationsHash = hash
+		changed = c
+	}
+
+	if c, hash, err := hashChanged(cluster.Spec.AgentPullSecrets, status.AgentPullSecretsHash); err != nil {
+		return status, changed, err
+	} else if c {
+		status.AgentPullSecretsHash = hash
 		changed = c
 	}
 
