@@ -65,9 +65,15 @@ func transportWithCABundle(caBundle []byte) (http.RoundTripper, error) {
 		return nil, errors.New("githubapp: failed to append custom CA bundle to cert pool")
 	}
 
-	base := http.DefaultTransport.(*http.Transport).Clone()
+	base, ok := http.DefaultTransport.(*http.Transport)
+	if !ok {
+		base = &http.Transport{}
+	} else {
+		base = base.Clone()
+	}
 	base.TLSClientConfig = &tls.Config{
-		RootCAs: pool,
+		RootCAs:    pool,
+		MinVersion: tls.VersionTLS12,
 	}
 	return base, nil
 }

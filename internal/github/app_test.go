@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"crypto/tls"
 	"io"
 	"net/http"
 	"regexp"
@@ -34,6 +35,25 @@ MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQg3rAS658JOtxkOQ4L
 7n8EebUpsbeV9Kx/iFGXwxjHPUOhRANCAAQCidzm5b6x5dXdMuq3b7sL52FdqkWx
 ytV/UsL9lo9CSv5UTTAnRAjZkyFjDO3cieDA322H+5VQKI7moiKsfz6p
 -----END PRIVATE KEY-----`
+	testCACertPEM = `-----BEGIN CERTIFICATE-----
+MIIDETCCAfmgAwIBAgIURQq4nwvZGxDntkJ+eqn/+pP3DfIwDQYJKoZIhvcNAQEL
+BQAwGDEWMBQGA1UEAwwNZmxlZXQtdGVzdC1jYTAeFw0yNjA5MTUwNTUyMTVaFw0z
+NjA5MTIwNTUyMTVaMBgxFjAUBgNVBAMMDWZsZWV0LXRlc3QtY2EwggEiMA0GCSqG
+SIb3DQEBAQUAA4IBDwAwggEKAoIBAQDMMntHIC0HyWtEyvySoY7kkogXhhECKwYl
+2LAzxs/0gkNZREGu0lw65OavJ/+OdAmwO/X4GEwOLgoJGitXJc8QUgzNsVDZ5//y
+COrG4lltddl6QIY/jf1Tp2xWJOH8gbEmhAQ509nE2gBGM8zTrEPfmkLDJgeIXBTH
+OHXxdaiFEtO9X/tErc9MeaLZtP+krOIoG+CDAySAkZ/UmdhWCscGtDfUggt9FIZ2
+hiKVpSPJGzL7eFJhpksFm6ZrH30TMVKkAmEPxydH1tQTNQs+eFCEjEAweou81RII
+nWEQOUkfIUwB/LlyMd5sDp2dGTwS2T1uLFUtHGIh5xtnjtYKYwgRAgMBAAGjUzBR
+MB0GA1UdDgQWBBRbRL/zgrx+cXx7eNbfKUoZrgiSkjAfBgNVHSMEGDAWgBRbRL/z
+grx+cXx7eNbfKUoZrgiSkjAPBgNVHRMBAf8EBTADAQH/MA0GCSqGSIb3DQEBCwUA
+A4IBAQCzwO59PvKSngjg0mynuoXRUuIlOYlsTEQkwkqk9bdVnjTEuRHu9jCqkqbB
+wEXvkUXyMXk/4TXUgqH+Kd/7+DIrr7QNdIaUcacYu4UCb6kazLu9SbE8dQtmqL0C
+8yIzqZ6IyE8pf3JqzKhV/i3JegzSvr+H1aY3CPkwYxDWFBl2sdScI8YolNPGiReW
+oac5sboVzKO3K4sRKarL3991RXLDX1U6PUMMSCXkloIxV4p+MjERck5MLRlpL3gl
+J93I4ANMzOvoXJZ8wTMLKVseolKKbaGDOL7DqpzxpEqhFJCU3kasqLxr1tbtgj5u
+UixxouFflOm/k5xi79QB9jFoQa9U
+-----END CERTIFICATE-----`
 )
 
 type fakeRT struct {
@@ -157,5 +177,54 @@ func TestGitHubApp_GetToken_InvalidRSA(t *testing.T) {
 	const want = "invalid RSA key for app"
 	if !strings.Contains(err.Error(), want) {
 		t.Fatalf("error %q does not contain %q", err, want)
+	}
+}
+
+func TestTransportWithCABundle_EmptyBundle_ReturnsDefaultTransportUnchanged(t *testing.T) {
+	tr, err := transportWithCABundle(nil)
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if tr != http.DefaultTransport {
+		t.Fatal("expected http.DefaultTransport to be returned unchanged for empty caBundle")
+	}
+}
+
+func TestTransportWithCABundle_InvalidPEM_ReturnsError(t *testing.T) {
+	_, err := transportWithCABundle([]byte("this is not a valid PEM certificate"))
+	if err == nil {
+		t.Fatal("expected error for invalid CA bundle PEM, got nil")
+	}
+}
+
+func TestTransportWithCABundle_ValidBundle_BuildsTransportWithPoolAndMinVersion(t *testing.T) {
+	tr, err := transportWithCABundle([]byte(testCACertPEM))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	httpTr, ok := tr.(*http.Transport)
+	if !ok {
+		t.Fatalf("expected *http.Transport, got %T", tr)
+	}
+	if httpTr.TLSClientConfig == nil {
+		t.Fatal("expected TLSConfig to be set")
+	}
+	if httpTr.TLSClientConfig.RootCAs == nil {
+		t.Fatal("expected RootCAs pool to be set")
+	}
+	if httpTr.TLSClientConfig.MinVersion != tls.VersionTLS12 {
+		t.Fatalf("expected MinVersion TLS 1.2, got %v", httpTr.TLSClientConfig.MinVersion)
+	}
+}
+
+func TestTransportWithCABundle_NonHTTPTransportDefault_DoesNotPanic(t *testing.T) {
+	orig := http.DefaultTransport
+	http.DefaultTransport = &fakeRT{}
+	t.Cleanup(func() { http.DefaultTransport = orig })
+
+	_, err := transportWithCABundle([]byte(testCACertPEM))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
