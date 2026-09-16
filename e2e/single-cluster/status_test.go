@@ -24,24 +24,22 @@ var _ = Describe("Checks status updates happen for a simple deployment", Ordered
 	var (
 		k               kubectl.Command
 		targetNamespace string
-		deleteNamespace bool
+		gitrepoName     string
 	)
-
-	type TemplateData struct {
-		TargetNamespace string
-		DeleteNamespace bool
-	}
 
 	BeforeEach(func() {
 		k = env.Kubectl.Namespace(env.Namespace)
-		deleteNamespace = false
 	})
 
 	JustBeforeEach(func() {
-		err := testenv.ApplyTemplate(k, testenv.AssetPath("single-cluster/delete-namespace/gitrepo.yaml"),
-			TemplateData{targetNamespace, deleteNamespace})
-
+		err := testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo-template.yaml"), testenv.GitRepoData{
+			Name:            gitrepoName,
+			Branch:          "master",
+			Paths:           []string{"helm-verify"},
+			TargetNamespace: targetNamespace, // to avoid conflicts with other tests
+		})
 		Expect(err).ToNot(HaveOccurred())
+
 		Eventually(func() error {
 			out, err := k.Namespace(targetNamespace).Get("configmaps")
 			if err != nil {
@@ -57,25 +55,26 @@ var _ = Describe("Checks status updates happen for a simple deployment", Ordered
 	})
 
 	AfterAll(func() {
-		_, _ = k.Delete("gitrepo", "my-gitrepo")
-		_, _ = k.Delete("ns", "my-custom-namespace", "--wait=false")
+		_, _ = k.Delete("gitrepo", gitrepoName)
+		_, _ = k.Delete("ns", targetNamespace, "--wait=false")
 	})
 
 	When("deployment is successful", func() {
 		BeforeEach(func() {
 			targetNamespace = "my-custom-namespace"
+			gitrepoName = "my-gitrepo"
 		})
 
 		It("correctly sets status values", func() {
 			By("correctly updating status values for GitRepos")
 			Eventually(func(g Gomega) {
-				out, err := k.Get("gitrepo", "my-gitrepo", "-n", "fleet-local", "-o", "jsonpath='{.status.summary}'")
+				out, err := k.Get("gitrepo", gitrepoName, "-n", "fleet-local", "-o", "jsonpath='{.status.summary}'")
 				g.Expect(err).ToNot(HaveOccurred(), out)
 
 				g.Expect(out).Should(ContainSubstring("\"desiredReady\":1"))
 				g.Expect(out).Should(ContainSubstring("\"ready\":1"))
 
-				out, err = k.Get("gitrepo", "my-gitrepo", "-n", "fleet-local", "-o", "jsonpath='{.status.display}'")
+				out, err = k.Get("gitrepo", gitrepoName, "-n", "fleet-local", "-o", "jsonpath='{.status.display}'")
 				g.Expect(err).ToNot(HaveOccurred(), out)
 				g.Expect(out).Should(ContainSubstring("\"readyBundleDeployments\":\"1/1\""))
 			}).Should(Succeed())
@@ -112,7 +111,6 @@ var _ = Describe("Checks status updates happen for a simple deployment", Ordered
 				g.Expect(err).ToNot(HaveOccurred(), out)
 				g.Expect(out).Should(ContainSubstring("\"readyClusters\":\"1/1\""))
 			}).Should(Succeed())
-
 		})
 	})
 })
