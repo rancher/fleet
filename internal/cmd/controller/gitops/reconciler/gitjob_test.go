@@ -1779,7 +1779,7 @@ func TestNewJob(t *testing.T) {
 									continue
 								}
 								vmFound = true
-								if vm != eVM {
+								if !cmp.Equal(vm, eVM) {
 									t.Fatalf("expected volume mount %v in container %s, got %v", eVM, eCont.Name, vm)
 								}
 							}
@@ -1813,7 +1813,7 @@ func TestNewJob(t *testing.T) {
 						for _, expMount := range expCont.VolumeMounts {
 							foundMount := false
 							for _, mount := range cont.VolumeMounts {
-								if mount == expMount {
+								if cmp.Equal(mount, expMount) {
 									foundMount = true
 								}
 							}

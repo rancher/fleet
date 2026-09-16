@@ -158,7 +158,7 @@ func controllerFactory(rest *rest.Config) (controller.SharedControllerFactory, e
 		DefaultRateLimiter:     rateLimit,
 		DefaultWorkers:         50,
 		SyncOnlyChangedObjects: true,
-		KindRateLimiter: map[schema.GroupVersionKind]workqueue.RateLimiter{ //nolint:staticcheck // rancher/lasso needs to migrate to typed rate limiters
+		KindRateLimiter: map[schema.GroupVersionKind]workqueue.TypedRateLimiter[any]{
 			v1alpha1.SchemeGroupVersion.WithKind("Cluster"): clusterRateLimiter,
 		},
 	}), nil
