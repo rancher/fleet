@@ -64,6 +64,7 @@ func (h *Helm) Deploy(ctx context.Context, bundleID string, manifest *manifest.M
 	chart.Metadata.Annotations[BundleIDAnnotation] = bundleID
 	chart.Metadata.Annotations[AgentNamespaceAnnotation] = h.agentNamespace
 	chart.Metadata.Annotations[KeepResourcesAnnotation] = strconv.FormatBool(options.KeepResources)
+	chart.Metadata.Annotations[DeleteNamespaceAnnotation] = strconv.FormatBool(options.DeleteNamespace)
 
 	if manifest.Commit != "" {
 		chart.Metadata.Annotations[CommitAnnotation] = manifest.Commit
