@@ -29,6 +29,7 @@ const (
 	AgentNamespaceAnnotation     = "fleet.cattle.io/agent-namespace"
 	ServiceAccountNameAnnotation = "fleet.cattle.io/service-account"
 	DefaultServiceAccount        = "fleet-default"
+	DeleteNamespaceAnnotation    = "fleet.cattle.io/delete-namespace"
 	KeepResourcesAnnotation      = "fleet.cattle.io/keep-resources"
 	HelmUpgradeInterruptedError  = "another operation (install/upgrade/rollback) is in progress"
 	MaxHelmHistory               = 2
@@ -66,8 +67,10 @@ type DeployedBundle struct {
 	BundleID string
 	// ReleaseName is actually in the form "namespace/release name"
 	ReleaseName string
-	// KeepResources indicate if resources should be kept when deleting a GitRepo or Bundle
+	// KeepResources indicates if resources should be kept when deleting a Bundle
 	KeepResources bool
+	// DeleteNamespace indicates whether the target namespace should be deleted when deleting a Bundle
+	DeleteNamespace bool
 }
 
 // New returns a new helm deployer
