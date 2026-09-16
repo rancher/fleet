@@ -31,7 +31,7 @@ env:
 
 jobs:
   release-against-test-charts:
-    uses: ./.github/workflows/release-against-test-charts.yml
+    uses: $/.github/workflows/release-against-test-charts.yml
     with:
       charts_repo: ${{ github.event.inputs.charts_repo }}
       charts_base_branch: ${{ github.event.inputs.charts_branch }}
