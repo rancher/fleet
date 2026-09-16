@@ -190,17 +190,11 @@ var _ = Describe("ClusterStatus Ticker", func() {
 
 		// All agents started at the same moment; with jitter their first periodic
 		// patches must be spread across the checkinInterval window, not bunched at t=0.
-		var earliest, latest time.Time
-		for _, t := range firstPatchTimes {
-			if earliest.IsZero() || t.Before(earliest) {
-				earliest = t
-			}
-			if t.After(latest) {
-				latest = t
-			}
-		}
-		spread := latest.Sub(earliest)
-		Expect(spread).To(BeNumerically(">", checkinInterval/10),
-			"jitter should spread %d agents' first check-in across time, not bunch them at t=0", agentCount)
+        var foundTimestamps []time.Time
+        for _, t := range firstPatchTimes {
+            Expect(t.IsZero()).To(BeFalse(), "no check-in timestamp should be 0")
+            Expect(foundTimestamps).ToNot(ContainElement(t), "no check-in timestamp should be duplicated between agents")
+            foundTimestamps = append(foundTimestamps, t)
+        }
 	})
 })

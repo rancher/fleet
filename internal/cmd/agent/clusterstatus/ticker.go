@@ -39,6 +39,11 @@ func Ticker(ctx context.Context, client client.Client, agentNamespace string, cl
 		client:           client,
 	}
 
+	// Guard before both goroutines — rand.N panics on non-positive values.
+	if checkinInterval <= 0 {
+		checkinInterval = durations.DefaultClusterCheckInterval
+	}
+
 	go func() {
 		// Fixed registration delay plus jitter to spread startup check-ins when
 		// many agents restart simultaneously (e.g. after a fleet-controller recovery).
@@ -57,9 +62,6 @@ func Ticker(ctx context.Context, client client.Client, agentNamespace string, cl
 		}
 	}()
 	go func() {
-		if checkinInterval <= 0 {
-			checkinInterval = durations.DefaultClusterCheckInterval
-		}
 		// Spread agent check-ins across the interval window to prevent a thundering
 		// herd on the fleet-controller when many agents start at the same time.
 		timer := time.NewTimer(rand.N(checkinInterval))
