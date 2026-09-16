@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/go-logr/logr"
@@ -16,6 +17,8 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	errutil "k8s.io/apimachinery/pkg/util/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -23,13 +26,20 @@ import (
 
 // DeleteRelease deletes the release for the DeployedBundle.
 func (h *Helm) DeleteRelease(ctx context.Context, deployment DeployedBundle) error {
-	return h.deleteByRelease(ctx, deployment.BundleID, deployment.ReleaseName, deployment.KeepResources)
+	return h.deleteByRelease(
+		ctx,
+		deployment.BundleID,
+		deployment.ReleaseName,
+		deployment.KeepResources,
+		deployment.DeleteNamespace,
+	)
 }
 
 // Delete the release for the given bundleID. The bundleID is the name of the
 // bundledeployment.
 func (h *Helm) Delete(ctx context.Context, bundleID string) error {
 	releaseName := ""
+	deleteNamespace := false
 	keepResources := false
 	deployments, err := h.ListDeployments(h.NewListAction())
 	if err != nil {
@@ -39,6 +49,7 @@ func (h *Helm) Delete(ctx context.Context, bundleID string) error {
 		if deployment.BundleID == bundleID {
 			releaseName = deployment.ReleaseName
 			keepResources = deployment.KeepResources
+			deleteNamespace = deployment.DeleteNamespace
 			break
 		}
 	}
@@ -46,10 +57,16 @@ func (h *Helm) Delete(ctx context.Context, bundleID string) error {
 		// Never found anything to delete
 		return nil
 	}
-	return h.deleteByRelease(ctx, bundleID, releaseName, keepResources)
+	return h.deleteByRelease(ctx, bundleID, releaseName, keepResources, deleteNamespace)
 }
 
-func (h *Helm) deleteByRelease(ctx context.Context, bundleID, releaseName string, keepResources bool) error {
+func (h *Helm) deleteByRelease(
+	ctx context.Context,
+	bundleID,
+	releaseName string,
+	keepResources,
+	deleteNamespace bool,
+) error {
 	logger := log.FromContext(ctx).WithName("delete-by-release").WithValues("releaseName", releaseName, "keepResources", keepResources)
 	releaseNamespace, releaseName := kv.Split(releaseName, "/")
 	rels, err := listReleases(h.globalCfg.Releases, func(r *releasev1.Release) bool {
@@ -96,6 +113,12 @@ func (h *Helm) deleteByRelease(ctx context.Context, bundleID, releaseName string
 	u.WaitStrategy = kube.HookOnlyStrategy
 	if _, err := u.Run(releaseName); err != nil {
 		return fmt.Errorf("failed to delete release %s: %w", releaseName, err)
+	}
+
+	// Clean up once the release has been uninstalled, to prevent removal of release metadata which could interfere
+	// with Helm operations.
+	if deleteNamespace && !keepResources {
+		purgeReleaseNamespace(ctx, h.client, logger, releaseNamespace)
 	}
 
 	return deleteResourcesCopiedFromUpstream(ctx, h.client, bundleID)
@@ -213,4 +236,25 @@ func deleteResourcesCopiedFromUpstream(ctx context.Context, c client.Client, bdN
 	}
 
 	return errutil.NewAggregate(merr)
+}
+
+// purgeReleaseNamespace attempts to delete the release namespace if that namespace is not a Kubernetes nor a Fleet
+// system namespace.
+// Failures to delete a namespace are logged, but not reported as failures to uninstall a release.
+func purgeReleaseNamespace(ctx context.Context, c client.Client, logger logr.Logger, ns string) {
+	// Ignore default namespaces
+	defaultNamespaces := []string{"cattle-fleet-system", "default"}
+	if slices.Contains(defaultNamespaces, ns) {
+		return
+	}
+
+	// Ignore system namespaces
+	if _, isKubeNamespace := strings.CutPrefix(ns, "kube-"); isKubeNamespace {
+		return
+	}
+
+	err := c.Delete(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})
+	if err != nil && !apierrors.IsNotFound(err) {
+		logger.Info("failed to delete release namespace", "namespace", ns)
+	}
 }
