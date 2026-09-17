@@ -62,9 +62,11 @@ jobs:
           tag_objects=()
           for module_tag in "${module_tags[@]}"; do
             ref="refs/tags/${module_tag}"
+            # Check whether a previous attempt already published this tag ref.
             existing_ref=$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${module_tag}" 2>/dev/null || true)
             if [[ -n "${existing_ref}" ]]; then
               existing_sha=$(jq -r '.object.sha' <<< "${existing_ref}")
+              # Retrieve the annotated tag object referenced by the tag ref.
               existing_tag=$(gh api "repos/${GITHUB_REPOSITORY}/git/tags/${existing_sha}")
               if [[ "$(jq -r '.tag' <<< "${existing_tag}")" != "${module_tag}" || \
                 "$(jq -r '.object.sha' <<< "${existing_tag}")" != "${GITHUB_SHA}" || \
@@ -77,6 +79,7 @@ jobs:
               continue
             fi
 
+            # Create a signed annotated tag object targeting the release commit.
             tag_object=$(gh api "repos/${GITHUB_REPOSITORY}/git/tags" \
               --method POST \
               --field "tag=${module_tag}" \
@@ -93,6 +96,7 @@ jobs:
 
           for index in "${!module_tags[@]}"; do
             ref="refs/tags/${module_tags[index]}"
+            # Recheck the ref so a partial previous attempt can be resumed.
             existing_ref=$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${module_tags[index]}" 2>/dev/null || true)
             if [[ -n "${existing_ref}" ]]; then
               existing_sha=$(jq -r '.object.sha' <<< "${existing_ref}")
@@ -103,6 +107,7 @@ jobs:
               echo "Ref ${ref} already points to expected tag object; continuing"
               continue
             fi
+            # Publish the tag ref, making the annotated tag object reachable.
             gh api "repos/${GITHUB_REPOSITORY}/git/refs" \
               --method POST \
               --field "ref=${ref}" \
