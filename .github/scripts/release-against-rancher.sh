@@ -26,6 +26,12 @@ bump_fleet_module() {
         return 0
     fi
 
+    if ! git -C ../fleet tag -l "${tag}" | grep -q .; then
+        printf 'ERROR: %s tag not found in the fleet repo\n' "${tag}" >&2
+        printf 'Automatic tag creation may have failed; refusing to bump %s\n' "${module}" >&2
+        exit 1
+    fi
+
     # Guard against a tag that predates the module being split out of the main
     # Fleet module: without its own go.mod, `go get` silently falls back to
     # resolving the root `github.com/rancher/fleet` module instead.
@@ -101,16 +107,11 @@ sed -i "s/fleetVersion: .*$/fleetVersion: ${TARGET_VERSION}/" build.yaml
 go generate
 git add build.yaml pkg/buildconfig/constants.go
 
-# Bump the Fleet API when a pkg/apis tag for this exact version exists in the fleet repo.
-if git -C ../fleet tag -l "pkg/apis/v${NEW_FLEET_VERSION}" | grep -q .; then
-    bump_fleet_module pkg/apis
-fi
+# Bump the Fleet API when rancher/rancher consumes it.
+bump_fleet_module pkg/apis
 
-# Bump the Fleet helmvalues module when a pkg/helmvalues tag for this exact version
-# exists in the fleet repo.
-if git -C ../fleet tag -l "pkg/helmvalues/v${NEW_FLEET_VERSION}" | grep -q .; then
-    bump_fleet_module pkg/helmvalues
-fi
+# Bump the Fleet helmvalues module when rancher/rancher consumes it.
+bump_fleet_module pkg/helmvalues
 
 git commit -m "Updating to Fleet v${NEW_FLEET_VERSION}"
 

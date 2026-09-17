@@ -85,8 +85,8 @@ jobs:
               if ! git -C fleet tag -l "${tag}" | grep -q .; then
                 {
                   printf 'ERROR: %s tag not found in the fleet repo!\n' "${tag}"
-                  printf 'For a new final minor version, %s must be bumped first.\n' "${mod}"
-                  printf 'Please create the tag: git tag %s\n' "${tag}"
+                  printf 'Automatic tag creation may have failed for this release.\n'
+                  printf 'Inspect the release workflow and verify tag %s.\n' "${tag}"
                 } >&2
                 exit 1
               fi
@@ -110,7 +110,7 @@ jobs:
             if [[ "${RANCHER_FLEET_API_VERSION:-}" =~ - ]]; then
               {
                 printf 'ERROR: rancher/rancher uses pre-release Fleet API %s, but pkg/apis/v%s tag not found\n' "${RANCHER_FLEET_API_VERSION}" "${NEW_FLEET}"
-                printf 'Please create the tag: git tag pkg/apis/v%s\n' "${NEW_FLEET}"
+                printf 'Automatic tag creation may have failed; inspect the release workflow and verify pkg/apis/v%s.\n' "${NEW_FLEET}"
               } >&2
               exit 1
             fi
@@ -128,7 +128,7 @@ jobs:
               {
                 printf 'ERROR: rancher/rancher uses pre-release Fleet helmvalues, but pkg/helmvalues/v%s tag not found\n' "${NEW_FLEET}"
                 printf 'Referenced pre-release version(s): %s\n' "$(echo "${RANCHER_FLEET_HELMVALUES_PRERELEASES}" | tr '\n' ' ')"
-                printf 'Please create the tag: git tag pkg/helmvalues/v%s\n' "${NEW_FLEET}"
+                printf 'Automatic tag creation may have failed; inspect the release workflow and verify pkg/helmvalues/v%s.\n' "${NEW_FLEET}"
               } >&2
               exit 1
             fi
