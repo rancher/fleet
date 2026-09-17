@@ -40,6 +40,80 @@ jobs:
           REPO: ${{ github.repository }}
         run: ./.github/scripts/verify-ci-on-commit.sh
 
+      - name: Tag Go modules
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          RELEASE_TAG: ${{ env.RELEASE_TAG }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! "${RELEASE_TAG}" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)([.-].*)?$ ]]; then
+            echo "ERROR: unexpected release tag format '${RELEASE_TAG}'; expected v<major>.<minor>.<patch>" >&2
+            exit 1
+          fi
+
+          module_tags=("pkg/apis/${RELEASE_TAG}")
+          if [[ -f pkg/helmvalues/go.mod ]]; then
+            module_tags+=("pkg/helmvalues/${RELEASE_TAG}")
+          fi
+
+          tag_objects=()
+          for module_tag in "${module_tags[@]}"; do
+            ref="refs/tags/${module_tag}"
+            # Check whether a previous attempt already published this tag ref.
+            existing_ref=$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${module_tag}" 2>/dev/null || true)
+            if [[ -n "${existing_ref}" ]]; then
+              existing_sha=$(jq -r '.object.sha' <<< "${existing_ref}")
+              # Retrieve the annotated tag object referenced by the tag ref.
+              existing_tag=$(gh api "repos/${GITHUB_REPOSITORY}/git/tags/${existing_sha}")
+              if [[ "$(jq -r '.tag' <<< "${existing_tag}")" != "${module_tag}" || \
+                "$(jq -r '.object.sha' <<< "${existing_tag}")" != "${GITHUB_SHA}" || \
+                "$(jq -r '.verification.verified' <<< "${existing_tag}")" != "true" ]]; then
+                echo "ERROR: existing ${ref} does not point to the expected verified tag object" >&2
+                jq -r '{tag, object, verification}' <<< "${existing_tag}" >&2
+                exit 1
+              fi
+              tag_objects+=("${existing_sha}")
+              continue
+            fi
+
+            # Create a signed annotated tag object targeting the release commit.
+            tag_object=$(gh api "repos/${GITHUB_REPOSITORY}/git/tags" \
+              --method POST \
+              --field "tag=${module_tag}" \
+              --field "message=Release ${RELEASE_TAG}" \
+              --field "object=${GITHUB_SHA}" \
+              --field "type=commit")
+            if [[ "$(jq -r '.verification.verified' <<< "${tag_object}")" != "true" ]]; then
+              echo "ERROR: GitHub did not create a verified signature for ${module_tag}" >&2
+              jq -r '.verification' <<< "${tag_object}" >&2
+              exit 1
+            fi
+            tag_objects+=("$(jq -r '.sha' <<< "${tag_object}")")
+          done
+
+          for index in "${!module_tags[@]}"; do
+            ref="refs/tags/${module_tags[index]}"
+            # Recheck the ref so a partial previous attempt can be resumed.
+            existing_ref=$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${module_tags[index]}" 2>/dev/null || true)
+            if [[ -n "${existing_ref}" ]]; then
+              existing_sha=$(jq -r '.object.sha' <<< "${existing_ref}")
+              if [[ "${existing_sha}" != "${tag_objects[index]}" ]]; then
+                echo "ERROR: ${ref} already points to ${existing_sha}, expected ${tag_objects[index]}" >&2
+                exit 1
+              fi
+              echo "Ref ${ref} already points to expected tag object; continuing"
+              continue
+            fi
+            # Publish the tag ref, making the annotated tag object reachable.
+            gh api "repos/${GITHUB_REPOSITORY}/git/refs" \
+              --method POST \
+              --field "ref=${ref}" \
+              --field "sha=${tag_objects[index]}" >/dev/null
+          done
+
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
