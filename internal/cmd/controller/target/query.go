@@ -24,6 +24,7 @@ func (m *Manager) BundlesForCluster(ctx context.Context, cluster *fleet.Cluster)
 		return nil, nil, err
 	}
 
+	cgLabelMap := ClusterGroupsToLabelMap(cgs)
 	logger := log.FromContext(ctx).WithName("target")
 	for _, bundle := range bundles {
 		bm, err := matcher.New(bundle)
@@ -32,7 +33,7 @@ func (m *Manager) BundlesForCluster(ctx context.Context, cluster *fleet.Cluster)
 			continue
 		}
 
-		match := bm.Match(cluster.Name, ClusterGroupsToLabelMap(cgs), cluster.Labels)
+		match := bm.Match(cluster.Name, cgLabelMap, cluster.Labels)
 		if match != nil {
 			bundlesToRefresh = append(bundlesToRefresh, bundle)
 		} else {
@@ -99,6 +100,7 @@ func (m *Manager) clusterGroupsForCluster(ctx context.Context, cluster *fleet.Cl
 			continue
 		}
 		// Cache key includes ResourceVersion so the selector is recompiled when the ClusterGroup changes.
+		// TODO: evict stale entries (deleted ClusterGroups or obsolete ResourceVersions) to bound memory growth.
 		cacheKey := cg.Namespace + "/" + cg.Name + "@" + cg.ResourceVersion
 		var sel labels.Selector
 		if cached, ok := m.selectorCache.Load(cacheKey); ok {
