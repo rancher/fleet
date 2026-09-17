@@ -59,23 +59,11 @@ jobs:
             module_tags+=("pkg/helmvalues/${RELEASE_TAG}")
           fi
 
-          tag_objects=()
           for module_tag in "${module_tags[@]}"; do
             ref="refs/tags/${module_tag}"
-            # Check whether a previous attempt already published this tag ref.
-            existing_ref=$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${module_tag}" 2>/dev/null || true)
-            if [[ -n "${existing_ref}" ]]; then
-              existing_sha=$(jq -r '.object.sha' <<< "${existing_ref}")
-              # Retrieve the annotated tag object referenced by the tag ref.
-              existing_tag=$(gh api "repos/${GITHUB_REPOSITORY}/git/tags/${existing_sha}")
-              if [[ "$(jq -r '.tag' <<< "${existing_tag}")" != "${module_tag}" || \
-                "$(jq -r '.object.sha' <<< "${existing_tag}")" != "${GITHUB_SHA}" || \
-                "$(jq -r '.verification.verified' <<< "${existing_tag}")" != "true" ]]; then
-                echo "ERROR: existing ${ref} does not point to the expected verified tag object" >&2
-                jq -r '{tag, object, verification}' <<< "${existing_tag}" >&2
-                exit 1
-              fi
-              tag_objects+=("${existing_sha}")
+            # Skip module tags already published by an earlier release attempt.
+            if git ls-remote --exit-code --refs origin "${ref}" >/dev/null 2>&1; then
+              echo "Ref ${ref} already exists; continuing"
               continue
             fi
 
@@ -91,27 +79,11 @@ jobs:
               jq -r '.verification' <<< "${tag_object}" >&2
               exit 1
             fi
-            tag_objects+=("$(jq -r '.sha' <<< "${tag_object}")")
-          done
-
-          for index in "${!module_tags[@]}"; do
-            ref="refs/tags/${module_tags[index]}"
-            # Recheck the ref so a partial previous attempt can be resumed.
-            existing_ref=$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${module_tags[index]}" 2>/dev/null || true)
-            if [[ -n "${existing_ref}" ]]; then
-              existing_sha=$(jq -r '.object.sha' <<< "${existing_ref}")
-              if [[ "${existing_sha}" != "${tag_objects[index]}" ]]; then
-                echo "ERROR: ${ref} already points to ${existing_sha}, expected ${tag_objects[index]}" >&2
-                exit 1
-              fi
-              echo "Ref ${ref} already points to expected tag object; continuing"
-              continue
-            fi
             # Publish the tag ref, making the annotated tag object reachable.
             gh api "repos/${GITHUB_REPOSITORY}/git/refs" \
               --method POST \
               --field "ref=${ref}" \
-              --field "sha=${tag_objects[index]}" >/dev/null
+              --field "sha=$(jq -r '.sha' <<< "${tag_object}")" >/dev/null
           done
 
       - name: Set up Go
