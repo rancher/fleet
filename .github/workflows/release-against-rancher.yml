@@ -85,8 +85,8 @@ jobs:
               if ! git -C fleet tag -l "${tag}" | grep -q .; then
                 {
                   printf 'ERROR: %s tag not found in the fleet repo!\n' "${tag}"
-                  printf 'For a new final minor version, %s must be bumped first.\n' "${mod}"
-                  printf 'Please create the tag: git tag %s\n' "${tag}"
+                  printf 'Automatic tag creation may have failed for this release.\n'
+                  printf 'Inspect the release workflow and verify tag %s.\n' "${tag}"
                 } >&2
                 exit 1
               fi
@@ -102,37 +102,30 @@ jobs:
             done
           fi
 
-          # For any final version, rancher/rancher must not reference a pre-release Fleet API
-          # so there must be a Fleet `pkg/apis/v<VERSION>` tag that the api is bumped in this action
-          if ! git -C fleet tag -l "pkg/apis/v${NEW_FLEET}" | grep -q .; then
-            # Tag doesn't exist; check if rancher/rancher has a pre-release version that does not need to be bumped.
-            RANCHER_FLEET_API_VERSION=$(grep 'github.com/rancher/fleet/pkg/apis' rancher/pkg/apis/go.mod | awk '{print $NF}')
-            if [[ "${RANCHER_FLEET_API_VERSION:-}" =~ - ]]; then
-              {
-                printf 'ERROR: rancher/rancher uses pre-release Fleet API %s, but pkg/apis/v%s tag not found\n' "${RANCHER_FLEET_API_VERSION}" "${NEW_FLEET}"
-                printf 'Please create the tag: git tag pkg/apis/v%s\n' "${NEW_FLEET}"
-              } >&2
-              exit 1
+          # For any final version, rancher/rancher must not reference a pre-release Fleet module.
+          # Check each module separately because pkg/apis is consumed from a known go.mod while
+          # pkg/helmvalues may be referenced from multiple module files.
+          for module in pkg/apis pkg/helmvalues; do
+            if git -C fleet tag -l "${module}/v${NEW_FLEET}" | grep -q .; then
+              continue
             fi
-          fi
 
-          # Same guard for the pkg/helmvalues module. Rancher may reference it from a different
-          # go.mod than pkg/apis, and potentially from more than one, so scan all of rancher's
-          # module files and consider every match (not just the first) to avoid missing a
-          # pre-release reference in a later file.
-          # -o restricts the match to "<module> <version>" so a trailing " // indirect" is
-          # excluded; otherwise awk would read "indirect" as the version and drop the match.
-          if ! git -C fleet tag -l "pkg/helmvalues/v${NEW_FLEET}" | grep -q .; then
-            RANCHER_FLEET_HELMVALUES_PRERELEASES=$(grep -rhsoE 'github.com/rancher/fleet/pkg/helmvalues[[:space:]]+v[0-9][^[:space:]]*' rancher --include=go.mod | awk '{print $NF}' | grep -- - | sort -u || true)
-            if [ -n "${RANCHER_FLEET_HELMVALUES_PRERELEASES}" ]; then
+            if [[ "${module}" == pkg/apis ]]; then
+              RANCHER_FLEET_PRERELEASE_VERSIONS=$(grep 'github.com/rancher/fleet/pkg/apis' rancher/pkg/apis/go.mod | awk '{print $NF}' | grep -- - || true)
+            else
+              # -o restricts matches to "<module> <version>", excluding trailing " // indirect".
+              RANCHER_FLEET_PRERELEASE_VERSIONS=$(grep -rhsoE 'github.com/rancher/fleet/pkg/helmvalues[[:space:]]+v[0-9][^[:space:]]*' rancher --include=go.mod | awk '{print $NF}' | grep -- - | sort -u || true)
+            fi
+
+            if [ -n "${RANCHER_FLEET_PRERELEASE_VERSIONS}" ]; then
               {
-                printf 'ERROR: rancher/rancher uses pre-release Fleet helmvalues, but pkg/helmvalues/v%s tag not found\n' "${NEW_FLEET}"
-                printf 'Referenced pre-release version(s): %s\n' "$(echo "${RANCHER_FLEET_HELMVALUES_PRERELEASES}" | tr '\n' ' ')"
-                printf 'Please create the tag: git tag pkg/helmvalues/v%s\n' "${NEW_FLEET}"
+                printf 'ERROR: rancher/rancher uses pre-release Fleet %s, but %s/v%s tag not found\n' "${module##*/}" "${module}" "${NEW_FLEET}"
+                printf 'Referenced pre-release version(s): %s\n' "$(echo "${RANCHER_FLEET_PRERELEASE_VERSIONS}" | tr '\n' ' ')"
+                printf 'Automatic tag creation may have failed; inspect the release workflow and verify %s/v%s.\n' "${module}" "${NEW_FLEET}"
               } >&2
               exit 1
             fi
-          fi
+          done
 
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
