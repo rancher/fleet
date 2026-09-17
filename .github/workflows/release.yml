@@ -59,15 +59,24 @@ jobs:
             module_tags+=("pkg/helmvalues/${RELEASE_TAG}")
           fi
 
-          for module_tag in "${module_tags[@]}"; do
-            if git ls-remote --exit-code --tags origin "refs/tags/${module_tag}" >/dev/null 2>&1; then
-              echo "ERROR: tag ${module_tag} already exists on origin" >&2
-              exit 1
-            fi
-          done
-
           tag_objects=()
           for module_tag in "${module_tags[@]}"; do
+            ref="refs/tags/${module_tag}"
+            existing_ref=$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${module_tag}" 2>/dev/null || true)
+            if [[ -n "${existing_ref}" ]]; then
+              existing_sha=$(jq -r '.object.sha' <<< "${existing_ref}")
+              existing_tag=$(gh api "repos/${GITHUB_REPOSITORY}/git/tags/${existing_sha}")
+              if [[ "$(jq -r '.tag' <<< "${existing_tag}")" != "${module_tag}" || \
+                "$(jq -r '.object.sha' <<< "${existing_tag}")" != "${GITHUB_SHA}" || \
+                "$(jq -r '.verification.verified' <<< "${existing_tag}")" != "true" ]]; then
+                echo "ERROR: existing ${ref} does not point to the expected verified tag object" >&2
+                jq -r '{tag, object, verification}' <<< "${existing_tag}" >&2
+                exit 1
+              fi
+              tag_objects+=("${existing_sha}")
+              continue
+            fi
+
             tag_object=$(gh api "repos/${GITHUB_REPOSITORY}/git/tags" \
               --method POST \
               --field "tag=${module_tag}" \
@@ -83,9 +92,20 @@ jobs:
           done
 
           for index in "${!module_tags[@]}"; do
+            ref="refs/tags/${module_tags[index]}"
+            existing_ref=$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${module_tags[index]}" 2>/dev/null || true)
+            if [[ -n "${existing_ref}" ]]; then
+              existing_sha=$(jq -r '.object.sha' <<< "${existing_ref}")
+              if [[ "${existing_sha}" != "${tag_objects[index]}" ]]; then
+                echo "ERROR: ${ref} already points to ${existing_sha}, expected ${tag_objects[index]}" >&2
+                exit 1
+              fi
+              echo "Ref ${ref} already points to expected tag object; continuing"
+              continue
+            fi
             gh api "repos/${GITHUB_REPOSITORY}/git/refs" \
               --method POST \
-              --field "ref=refs/tags/${module_tags[index]}" \
+              --field "ref=${ref}" \
               --field "sha=${tag_objects[index]}" >/dev/null
           done
 
