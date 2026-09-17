@@ -40,6 +40,55 @@ jobs:
           REPO: ${{ github.repository }}
         run: ./.github/scripts/verify-ci-on-commit.sh
 
+      - name: Tag Go modules
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          RELEASE_TAG: ${{ env.RELEASE_TAG }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! "${RELEASE_TAG}" =~ ^v([0-9]+)\.([0-9]+)([.-].*)?$ ]]; then
+            echo "ERROR: unexpected release tag format '${RELEASE_TAG}'" >&2
+            exit 1
+          fi
+
+          module_tags=("pkg/apis/${RELEASE_TAG}")
+          if [[ -f pkg/helmvalues/go.mod ]]; then
+            module_tags+=("pkg/helmvalues/${RELEASE_TAG}")
+          fi
+
+          for module_tag in "${module_tags[@]}"; do
+            if git ls-remote --exit-code --tags origin "refs/tags/${module_tag}" >/dev/null 2>&1; then
+              echo "ERROR: tag ${module_tag} already exists on origin" >&2
+              exit 1
+            fi
+          done
+
+          tag_objects=()
+          for module_tag in "${module_tags[@]}"; do
+            tag_object=$(gh api "repos/${GITHUB_REPOSITORY}/git/tags" \
+              --method POST \
+              --field "tag=${module_tag}" \
+              --field "message=Release ${RELEASE_TAG}" \
+              --field "object=${GITHUB_SHA}" \
+              --field "type=commit")
+            if [[ "$(jq -r '.verification.verified' <<< "${tag_object}")" != "true" ]]; then
+              echo "ERROR: GitHub did not create a verified signature for ${module_tag}" >&2
+              jq -r '.verification' <<< "${tag_object}" >&2
+              exit 1
+            fi
+            tag_objects+=("$(jq -r '.sha' <<< "${tag_object}")")
+          done
+
+          for index in "${!module_tags[@]}"; do
+            gh api "repos/${GITHUB_REPOSITORY}/git/refs" \
+              --method POST \
+              --field "ref=refs/tags/${module_tags[index]}" \
+              --field "sha=${tag_objects[index]}" >/dev/null
+          done
+
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
