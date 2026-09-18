@@ -245,8 +245,17 @@ func addRemoteCharts(ctx context.Context, directories []directory, base string, 
 			auth := auth // loop-scoped variable
 			strippedCredentialsForEmptyRegex := false
 			if !shouldAddAuthToRequest {
-				if helmRepoURLRegex == "" && (auth.Username != "" || auth.Password != "" || len(auth.SSHPrivateKey) > 0) {
+				hasCredentials := auth.Username != "" || auth.Password != "" || len(auth.SSHPrivateKey) > 0
+				if helmRepoURLRegex == "" && hasCredentials {
 					strippedCredentialsForEmptyRegex = true
+				} else if helmRepoURLRegex != "" && hasCredentials {
+					// A non-empty regex that does not match this chart's URL also
+					// strips credentials, but silently: the resulting download
+					// failure is a registry-side 401 that looks like an
+					// authentication problem. Say why credentials were dropped.
+					log.Log.Info(fmt.Sprintf(
+						"helmRepoURLRegex %q does not match chart %s: Helm credentials will not be forwarded to this repository",
+						helmRepoURLRegex, downloadChartError(*chart)))
 				}
 				if !warnedOnce && strippedCredentialsForEmptyRegex {
 					log.Log.Info("helmRepoURLRegex is empty: Helm credentials will not be forwarded to any repository; set spec.helmRepoURLRegex to enable credential forwarding")
