@@ -9,6 +9,7 @@ import (
 )
 
 func GUnzip(content []byte) ([]byte, error) {
+	//gohawk:ignore resourcelifetime this reader wraps memory and ReadAll validates the gzip checksum
 	r, err := gzip.NewReader(bytes.NewBuffer(content))
 	if err != nil {
 		return nil, err
