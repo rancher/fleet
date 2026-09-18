@@ -146,6 +146,13 @@ type postRender struct {
 	chart       *chartv2.Chart
 	mapper      meta.RESTMapper
 	opts        fleet.BundleDeploymentOptions
+
+	// bdLabels are the labels of the BundleDeployment being deployed. They
+	// carry the identity of the Fleet source (GitRepo, HelmOp or Bundle) that
+	// this deployment originates from, which is not otherwise derivable here:
+	// bundleID is the BundleDeployment's name and encodes neither the source
+	// kind nor the workspace.
+	bdLabels map[string]string
 }
 
 func (p *postRender) Run(renderedManifests *bytes.Buffer) (modifiedManifests *bytes.Buffer, err error) {
