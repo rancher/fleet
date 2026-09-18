@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/rancher/fleet/internal/cmd/controller/bundleevents"
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
 	"github.com/rancher/fleet/internal/metrics"
@@ -32,6 +33,11 @@ type BundleDeploymentReconciler struct {
 	client.Client
 	Scheme  *runtime.Scheme
 	ShardID string
+
+	// Events reports the deployment state of this bundle deployment, if
+	// per-deployment reporting is enabled. It may be nil, in which case no
+	// such events are created.
+	Events bundleevents.Notifier
 
 	Workers int
 }
@@ -72,6 +78,12 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	// The bundle reconciler takes care of adding the finalizer when creating a bundle deployment
 	if !bd.DeletionTimestamp.IsZero() {
+		// The state of a bundle deployment which is going away is not
+		// worth reporting any more.
+		if r.Events != nil {
+			r.Events.Forget(bd.UID)
+		}
+
 		if controllerutil.ContainsFinalizer(bd, finalize.BundleDeploymentFinalizer) {
 			err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
 				err := r.Get(ctx, req.NamespacedName, bd)
@@ -121,12 +133,22 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		// skip update if patch is empty
 		return ctrl.Result{}, nil
 	}
-	if err := r.Status().Patch(ctx, bd, statusPatch); client.IgnoreNotFound(err) != nil {
-		logger.V(1).Info("Reconcile failed update to bundledeployment status, requeuing", "status", bd.Status, "error", err)
+	patchErr := r.Status().Patch(ctx, bd, statusPatch)
+	if client.IgnoreNotFound(patchErr) != nil {
+		logger.V(1).Info("Reconcile failed update to bundledeployment status, requeuing", "status", bd.Status, "error", patchErr)
 		// Use explicit requeue timing instead of error backoff for predictable retry behavior
 		// Status patch failures are often transient (conflicts) and don't need exponential backoff
 		//nolint:nilerr // Intentionally using fixed requeue interval instead of error backoff
 		return ctrl.Result{RequeueAfter: durations.DefaultRequeueAfter}, nil
+	}
+
+	// The display state is only reported once it is persisted, and against
+	// the previously persisted one, so that the state change is detected even
+	// if the controller restarted in between. A NotFound patch persisted
+	// nothing: the bundle deployment was deleted while it was reconciled, so
+	// there is no state change to report.
+	if r.Events != nil && patchErr == nil {
+		r.Events.ObserveBundleDeployment(ctx, orig, bd)
 	}
 
 	metrics.BundleDeploymentCollector.Collect(ctx, bd)

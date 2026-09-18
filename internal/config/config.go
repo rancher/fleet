@@ -4,6 +4,7 @@ package config
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"sync"
 	"time"
 
@@ -166,6 +167,40 @@ type Config struct {
 	// ImagePullSecrets references secrets located in the same namespace as the Fleet controller deployment, to be
 	// propagated to downstream clusters and used as image pull secrets for Fleet agent images.
 	ImagePullSecrets []v1.LocalObjectReference `json:"imagePullSecrets,omitempty"`
+
+	// DeploymentEvents configures the events reporting the deployment state of bundles.
+	DeploymentEvents DeploymentEvents `json:"deploymentEvents,omitzero"`
+}
+
+// DeploymentEvents configures the events the fleet controller creates for
+// failing, and recovering, bundle deployments. Unset durations use their
+// default.
+type DeploymentEvents struct {
+	// Disabled turns off events about the deployment state of bundles.
+	Disabled bool `json:"disabled,omitempty"`
+
+	// Debounce is how long to wait for a burst of failures to settle before
+	// reporting it, defaults to 5s. Reporting a burst immediately would
+	// describe its first failure only.
+	Debounce metav1.Duration `json:"debounce,omitzero"`
+
+	// MinInterval is the minimum time between two events about the same
+	// object, defaults to 1m. It bounds how often a flapping deployment
+	// reports.
+	MinInterval metav1.Duration `json:"minInterval,omitzero"`
+
+	// ReportRecovery reports bundles whose deployments all became ready
+	// again after a failure, defaults to true.
+	ReportRecovery *bool `json:"reportRecovery,omitempty"`
+
+	// PerDeployment additionally reports each failing bundle deployment, in
+	// the namespace of its cluster. This is more detailed, but produces one
+	// event per failing deployment.
+	PerDeployment bool `json:"perDeployment,omitempty"`
+
+	// MaxCauses is how many distinct failure causes a single event
+	// describes, defaults to 3. The bundle status lists more of them.
+	MaxCauses int `json:"maxCauses,omitempty"`
 }
 
 type AgentWorkers struct {
@@ -262,10 +297,15 @@ func DefaultConfig() *Config {
 	}
 }
 
-var durationConfigKeys = []string{
-	"agentCheckinInterval",
-	"gitClientTimeout",
-	"garbageCollectionInterval",
+// durationConfigKeys are the paths of the duration fields in the config. A path
+// with more than one element addresses a duration nested in a block, so that it
+// is sanitized like a top-level one.
+var durationConfigKeys = [][]string{
+	{"agentCheckinInterval"},
+	{"gitClientTimeout"},
+	{"garbageCollectionInterval"},
+	{"deploymentEvents", "debounce"},
+	{"deploymentEvents", "minInterval"},
 }
 
 func ReadConfig(cm *v1.ConfigMap) (*Config, error) {
@@ -308,8 +348,14 @@ func sanitizeDurations(data string) (string, error) {
 
 	logger := log.Log.WithName("fleet-config")
 	changed := false
-	for _, key := range durationConfigKeys {
-		v, ok := raw[key]
+	for _, path := range durationConfigKeys {
+		parent := parentOf(raw, path)
+		if parent == nil {
+			continue
+		}
+
+		key := path[len(path)-1]
+		v, ok := parent[key]
 		if !ok {
 			continue
 		}
@@ -318,19 +364,24 @@ func sanitizeDurations(data string) (string, error) {
 			if _, err := time.ParseDuration(s); err == nil {
 				continue // valid Go duration, keep it
 			}
-			logger.Info("ignoring invalid duration in fleet config; using built-in default",
-				"key", key, "value", s,
-				"hint", "must be a Go duration like 15s, 5m, 2h, 1h30m; units d/w/y are not supported")
+			if s == "" {
+				// An empty string means the value was not set; drop it
+				// silently and let the default apply.
+			} else {
+				logger.Info("ignoring invalid duration in fleet config; using built-in default",
+					"key", strings.Join(path, "."), "value", s,
+					"hint", "must be a Go duration like 15s, 5m, 2h, 1h30m; units d/w/y are not supported")
+			}
 		} else if isZeroNumber(v) {
 			// 0 is the documented "fall back to the default" sentinel; so drop it
 			// silently and let the default apply.
 		} else {
 			logger.Info("ignoring invalid duration in fleet config; using built-in default",
-				"key", key, "value", v,
+				"key", strings.Join(path, "."), "value", v,
 				"hint", `must be a Go duration string like "15s", "5m", "2h"`)
 		}
 
-		delete(raw, key)
+		delete(parent, key)
 		changed = true
 	}
 
@@ -343,6 +394,22 @@ func sanitizeDurations(data string) (string, error) {
 		return data, err
 	}
 	return string(out), nil
+}
+
+// parentOf walks to the map holding the last element of path. It returns nil if
+// a step along the way is absent, or is not a block, in which case there is no
+// value to sanitize.
+func parentOf(raw map[string]any, path []string) map[string]any {
+	m := raw
+	for _, step := range path[:len(path)-1] {
+		nested, ok := m[step].(map[string]any)
+		if !ok {
+			return nil
+		}
+		m = nested
+	}
+
+	return m
 }
 
 func isZeroNumber(v any) bool {

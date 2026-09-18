@@ -192,6 +192,95 @@ var _ = Describe("Config", func() {
 		})
 	})
 
+	When("a duration nested in a block is not a valid Go duration", func() {
+		It("does not error and falls back to the default for that key", func() {
+			cfg, err := config.ReadConfig(&v1.ConfigMap{Data: map[string]string{
+				"config": `{"deploymentEvents": {"debounce": "1d"}}`,
+			}})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cfg.DeploymentEvents.Debounce.Duration).To(Equal(time.Duration(0)))
+		})
+
+		It("handles every nested duration key", func() {
+			cfg, err := config.ReadConfig(&v1.ConfigMap{Data: map[string]string{
+				"config": `{"deploymentEvents": {
+					"debounce": "1d",
+					"minInterval": "1w"
+				}}`,
+			}})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cfg.DeploymentEvents.Debounce.Duration).To(Equal(time.Duration(0)))
+			Expect(cfg.DeploymentEvents.MinInterval.Duration).To(Equal(time.Duration(0)))
+		})
+
+		It("keeps the valid siblings in the same block", func() {
+			cfg, err := config.ReadConfig(&v1.ConfigMap{Data: map[string]string{
+				"config": `{"deploymentEvents": {
+					"debounce": "1d",
+					"minInterval": "2m",
+					"perDeployment": true,
+					"maxCauses": 7
+				}}`,
+			}})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cfg.DeploymentEvents.Debounce.Duration).To(Equal(time.Duration(0)))
+			Expect(cfg.DeploymentEvents.MinInterval.Duration).To(Equal(2 * time.Minute))
+			Expect(cfg.DeploymentEvents.PerDeployment).To(BeTrue())
+			Expect(cfg.DeploymentEvents.MaxCauses).To(Equal(7))
+		})
+
+		It("sanitizes top-level and nested durations together", func() {
+			cfg, err := config.ReadConfig(&v1.ConfigMap{Data: map[string]string{
+				"config": `{
+					"gitClientTimeout": "20s",
+					"garbageCollectionInterval": "1d",
+					"deploymentEvents": {"debounce": "1d", "minInterval": "30s"}
+				}`,
+			}})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cfg.GitClientTimeout.Duration).To(Equal(20 * time.Second))
+			Expect(cfg.GarbageCollectionInterval.Duration).To(Equal(time.Duration(0)))
+			Expect(cfg.DeploymentEvents.Debounce.Duration).To(Equal(time.Duration(0)))
+			Expect(cfg.DeploymentEvents.MinInterval.Duration).To(Equal(30 * time.Second))
+		})
+
+		It("treats a bare 0 as the default sentinel", func() {
+			cfg, err := config.ReadConfig(&v1.ConfigMap{Data: map[string]string{
+				"config": `{"deploymentEvents": {"debounce": 0}}`,
+			}})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cfg.DeploymentEvents.Debounce.Duration).To(Equal(time.Duration(0)))
+		})
+
+		It("treats an empty string as unset", func() {
+			cfg, err := config.ReadConfig(&v1.ConfigMap{Data: map[string]string{
+				"config": `{"deploymentEvents": {"minInterval": ""}}`,
+			}})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cfg.DeploymentEvents.MinInterval.Duration).To(Equal(time.Duration(0)))
+		})
+
+		It("does not trip over the block being absent or not a block", func() {
+			for _, data := range []string{
+				`{"gitClientTimeout": "20s"}`,
+				`{"deploymentEvents": null}`,
+				`{"deploymentEvents": "nonsense"}`,
+			} {
+				cfg, err := config.ReadConfig(&v1.ConfigMap{Data: map[string]string{
+					"config": data,
+				}})
+				if data == `{"deploymentEvents": "nonsense"}` {
+					// A block of the wrong type is left to the typed
+					// unmarshal to reject, as before.
+					Expect(err).To(HaveOccurred())
+					continue
+				}
+				Expect(err).ToNot(HaveOccurred(), data)
+				Expect(cfg.DeploymentEvents.Debounce.Duration).To(Equal(time.Duration(0)))
+			}
+		})
+	})
+
 	When("the config is not a valid mapping at all", func() {
 		It("still surfaces the unmarshal error", func() {
 			cfg, err := config.ReadConfig(&v1.ConfigMap{Data: map[string]string{
