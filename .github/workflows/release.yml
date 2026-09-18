@@ -40,6 +40,47 @@ jobs:
           REPO: ${{ github.repository }}
         run: ./.github/scripts/verify-ci-on-commit.sh
 
+      - name: Tag Go modules
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          RELEASE_TAG: ${{ env.RELEASE_TAG }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! "${RELEASE_TAG}" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)([.-].*)?$ ]]; then
+            echo "ERROR: unexpected release tag format '${RELEASE_TAG}'; expected v<major>.<minor>.<patch>" >&2
+            exit 1
+          fi
+
+          module_tags=("pkg/apis/${RELEASE_TAG}")
+          if [[ -f pkg/helmvalues/go.mod ]]; then
+            module_tags+=("pkg/helmvalues/${RELEASE_TAG}")
+          fi
+
+          for module_tag in "${module_tags[@]}"; do
+            ref="refs/tags/${module_tag}"
+            # Skip module tags already published by an earlier release attempt.
+            if git ls-remote --exit-code --refs origin "${ref}" >/dev/null 2>&1; then
+              echo "Ref ${ref} already exists; continuing"
+              continue
+            fi
+
+            # Create an annotated tag object targeting the release commit.
+            tag_object=$(gh api "repos/${GITHUB_REPOSITORY}/git/tags" \
+              --method POST \
+              --field "tag=${module_tag}" \
+              --field "message=Release ${RELEASE_TAG}" \
+              --field "object=${GITHUB_SHA}" \
+              --field "type=commit")
+            # Publish the tag ref, making the annotated tag object reachable.
+            gh api "repos/${GITHUB_REPOSITORY}/git/refs" \
+              --method POST \
+              --field "ref=${ref}" \
+              --field "sha=$(jq -r '.sha' <<< "${tag_object}")" >/dev/null
+          done
+
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
