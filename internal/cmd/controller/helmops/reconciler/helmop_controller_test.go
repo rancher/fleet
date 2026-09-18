@@ -1680,3 +1680,123 @@ func TestValidateBundleSpec(t *testing.T) {
 		})
 	}
 }
+
+func TestUsesPolling(t *testing.T) {
+	interval := metav1.Duration{Duration: time.Minute}
+
+	cases := []struct {
+		name     string
+		helmop   fleet.HelmOp
+		expected bool
+	}{
+		{
+			name: "polls for a version constraint",
+			helmop: fleet.HelmOp{
+				Spec: fleet.HelmOpSpec{
+					PollingInterval: &interval,
+					BundleSpec: fleet.BundleSpec{
+						BundleDeploymentOptions: fleet.BundleDeploymentOptions{
+							Helm: &fleet.HelmOptions{Chart: "alpine", Version: ">= 1.0.0"},
+						},
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "does not poll for an exact version",
+			helmop: fleet.HelmOp{
+				Spec: fleet.HelmOpSpec{
+					PollingInterval: &interval,
+					BundleSpec: fleet.BundleSpec{
+						BundleDeploymentOptions: fleet.BundleDeploymentOptions{
+							Helm: &fleet.HelmOptions{Chart: "alpine", Version: "1.0.0"},
+						},
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "does not poll for an exact version with build metadata",
+			helmop: fleet.HelmOp{
+				Spec: fleet.HelmOpSpec{
+					PollingInterval: &interval,
+					BundleSpec: fleet.BundleSpec{
+						BundleDeploymentOptions: fleet.BundleDeploymentOptions{
+							Helm: &fleet.HelmOptions{Chart: "alpine", Version: "109.0.1+up1.0.2"},
+						},
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "does not poll for an exact version with build metadata spelled as a tag",
+			helmop: fleet.HelmOp{
+				Spec: fleet.HelmOpSpec{
+					PollingInterval: &interval,
+					BundleSpec: fleet.BundleSpec{
+						BundleDeploymentOptions: fleet.BundleDeploymentOptions{
+							Helm: &fleet.HelmOptions{Chart: "alpine", Version: "109.0.1_up1.0.2"},
+						},
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "does not poll for a tarball chart",
+			helmop: fleet.HelmOp{
+				Spec: fleet.HelmOpSpec{
+					PollingInterval: &interval,
+					BundleSpec: fleet.BundleSpec{
+						BundleDeploymentOptions: fleet.BundleDeploymentOptions{
+							Helm: &fleet.HelmOptions{Chart: "https://foo.bar/alpine.tgz"},
+						},
+					},
+				},
+			},
+			expected: false,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := usesPolling(c.helmop); got != c.expected {
+				t.Errorf("expected %v, got %v", c.expected, got)
+			}
+		})
+	}
+}
+
+func TestNormalizeHelmVersions(t *testing.T) {
+	spec := fleet.BundleSpec{
+		BundleDeploymentOptions: fleet.BundleDeploymentOptions{
+			Helm: &fleet.HelmOptions{Version: "109.0.1_up1.0.2"},
+		},
+		Targets: []fleet.BundleTarget{
+			{BundleDeploymentOptions: fleet.BundleDeploymentOptions{
+				Helm: &fleet.HelmOptions{Version: "108.0.0_up1.0.0"},
+			}},
+			{BundleDeploymentOptions: fleet.BundleDeploymentOptions{
+				Helm: &fleet.HelmOptions{Version: ">= 1.0.0"},
+			}},
+			{}, // no Helm options to normalize
+		},
+	}
+
+	normalizeHelmVersions(&spec)
+
+	if spec.Helm.Version != "109.0.1+up1.0.2" {
+		t.Errorf("expected version %q, got %q", "109.0.1+up1.0.2", spec.Helm.Version)
+	}
+
+	if spec.Targets[0].Helm.Version != "108.0.0+up1.0.0" {
+		t.Errorf("expected target version %q, got %q", "108.0.0+up1.0.0", spec.Targets[0].Helm.Version)
+	}
+
+	if spec.Targets[1].Helm.Version != ">= 1.0.0" {
+		t.Errorf("expected target constraint to be left alone, got %q", spec.Targets[1].Helm.Version)
+	}
+}
