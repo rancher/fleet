@@ -53,5 +53,7 @@ func Template(ctx context.Context, bundleID string, manifest *manifest.Manifest,
 	// Template operations don't need logging since they're just rendering
 	h.globalCfg.SetLogger(nil) // nil sets discard handler in Helm v4
 
-	return h.Deploy(ctx, bundleID, manifest, options)
+	// Template renders without a BundleDeployment, so there is no source identity
+	// to attribute; pass nil labels.
+	return h.Deploy(ctx, bundleID, manifest, options, nil)
 }
