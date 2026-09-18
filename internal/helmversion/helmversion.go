@@ -16,7 +16,6 @@ package helmversion
 
 import (
 	"cmp"
-	"strconv"
 	"strings"
 
 	"github.com/Masterminds/semver/v3"
@@ -150,16 +149,35 @@ func CompareMetadata(a, b string) int {
 // precedence rules the semver specification gives for pre-release identifiers:
 // numeric identifiers compare numerically, and rank below alphanumeric ones.
 func compareIdentifier(a, b string) int {
-	aNum, aErr := strconv.ParseUint(a, 10, 64)
-	bNum, bErr := strconv.ParseUint(b, 10, 64)
+	aNum, bNum := isNumeric(a), isNumeric(b)
 
 	switch {
-	case aErr == nil && bErr == nil:
-		return cmp.Compare(aNum, bNum)
-	case aErr == nil:
+	case aNum && bNum:
+		return compareNumeric(a, b)
+	case aNum:
 		return -1
-	case bErr == nil:
+	case bNum:
 		return 1
+	}
+
+	return strings.Compare(a, b)
+}
+
+// isNumeric reports whether s is a numeric identifier, as the semver
+// specification defines one: digits alone.
+func isNumeric(s string) bool {
+	return s != "" && strings.IndexFunc(s, func(r rune) bool { return r < '0' || r > '9' }) < 0
+}
+
+// compareNumeric orders two numeric identifiers of any width, which parsing
+// them into an integer of a fixed width could not: the longer number wins, and
+// equally long ones compare lexically, as their digits then line up. Leading
+// zeroes carry no value, so they are dropped before the lengths are taken.
+func compareNumeric(a, b string) int {
+	a, b = strings.TrimLeft(a, "0"), strings.TrimLeft(b, "0")
+
+	if c := cmp.Compare(len(a), len(b)); c != 0 {
+		return c
 	}
 
 	return strings.Compare(a, b)

@@ -163,6 +163,18 @@ func TestCompare(t *testing.T) {
 		{a: "109.0.1+up2", b: "109.0.1+up10", expected: 1},
 		{a: "1.1.2+up1.0", b: "1.1.2+up1.0.1", expected: -1},
 		{a: "1.1.2+1", b: "1.1.2+up1", expected: -1},
+		// A numeric identifier is compared as a number whatever its width, rather
+		// than being parsed into an integer which it may not fit.
+		{a: "1.1.2+100000000000000000000", b: "1.1.2+99999999999999999999", expected: 1},
+		{a: "1.1.2+99999999999999999999", b: "1.1.2+99999999999999999998", expected: 1},
+		{a: "1.1.2+18446744073709551616", b: "1.1.2+18446744073709551615", expected: 1},
+		{a: "1.1.2+99999999999999999999", b: "1.1.2+2", expected: 1},
+		// A number too wide to parse is still a number, so it stays below any
+		// alphanumeric identifier.
+		{a: "1.1.2+99999999999999999999", b: "1.1.2+abc", expected: -1},
+		// Leading zeroes carry no value.
+		{a: "1.1.2+007", b: "1.1.2+7", expected: 0},
+		{a: "1.1.2+007", b: "1.1.2+8", expected: -1},
 	}
 
 	for _, c := range cases {
