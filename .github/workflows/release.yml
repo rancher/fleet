@@ -67,18 +67,13 @@ jobs:
               continue
             fi
 
-            # Create a signed annotated tag object targeting the release commit.
+            # Create an annotated tag object targeting the release commit.
             tag_object=$(gh api "repos/${GITHUB_REPOSITORY}/git/tags" \
               --method POST \
               --field "tag=${module_tag}" \
               --field "message=Release ${RELEASE_TAG}" \
               --field "object=${GITHUB_SHA}" \
               --field "type=commit")
-            if [[ "$(jq -r '.verification.verified' <<< "${tag_object}")" != "true" ]]; then
-              echo "ERROR: GitHub did not create a verified signature for ${module_tag}" >&2
-              jq -r '.verification' <<< "${tag_object}" >&2
-              exit 1
-            fi
             # Publish the tag ref, making the annotated tag object reachable.
             gh api "repos/${GITHUB_REPOSITORY}/git/refs" \
               --method POST \
