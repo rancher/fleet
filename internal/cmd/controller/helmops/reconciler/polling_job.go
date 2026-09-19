@@ -10,10 +10,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Masterminds/semver/v3"
 	"github.com/reugn/go-quartz/quartz"
 	"golang.org/x/sync/semaphore"
 
+	"github.com/rancher/fleet/internal/helmversion"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	"github.com/rancher/wrangler/v3/pkg/condition"
@@ -110,7 +110,7 @@ func (j *helmPollingJob) pollHelm(ctx context.Context) error {
 
 	// In case the version constraint has changed before the job was updated or deleted, this prevents an unwanted
 	// update caused by a race between the scheduler and the reconciler.
-	if _, err := semver.StrictNewVersion(h.Spec.Helm.Version); err == nil {
+	if helmversion.IsExact(h.Spec.Helm.Version) {
 		return nil
 	}
 

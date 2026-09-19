@@ -4,11 +4,14 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/rancher/fleet/internal/helmversion"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	"github.com/go-logr/logr/testr"
@@ -366,6 +369,116 @@ func TestAddRemoteChartsWarnsMissingRegex(t *testing.T) {
 			} else {
 				assert.NotContains(t, strings.Join(recorder.lines, "\n"), "helmRepoURLRegex")
 			}
+		})
+	}
+}
+
+func TestAddRemoteChartsNormalizesVersions(t *testing.T) {
+	// An OCI registry does not accept a plus sign in a tag, so users may spell
+	// build metadata with an underscore, the way the tag does. Helm only
+	// understands the semver spelling.
+	charts := []*fleet.HelmOptions{
+		{Chart: "/nonexistent/chart", Version: "109.0.1_up1.0.2"},
+		{Chart: "/nonexistent/chart", Version: "109.0.1+up1.0.2"},
+		{Chart: "/nonexistent/chart", Version: ">= 1.0.0"},
+		{Chart: "/nonexistent/chart"},
+	}
+
+	dirs, err := addRemoteCharts(context.Background(), nil, t.TempDir(), charts, Auth{}, ".*")
+	require.NoError(t, err)
+	require.Len(t, dirs, len(charts))
+
+	expected := []string{"109.0.1+up1.0.2", "109.0.1+up1.0.2", ">= 1.0.0", ""}
+	for i, want := range expected {
+		assert.Equal(t, want, dirs[i].version, "version passed to the downloader for chart %d", i)
+		assert.Equal(t, want, charts[i].Version, "version stored in the bundle spec for chart %d", i)
+	}
+}
+
+func TestAddRemoteChartsResolvesOCIVersions(t *testing.T) {
+	// An OCI registry publishes a chart whose version carries build metadata under
+	// a tag holding an underscore, and Helm asks a registry for the tag a fully
+	// specified version names without ever listing the tags it has.
+	tags := `{"name":"sleeper-chart","tags":["109.0.0_up1.0.1","109.0.1_up1.0.1","109.0.1_up1.0.10"]}`
+
+	cases := []struct {
+		name            string
+		version         string
+		listsTags       bool
+		expectedVersion string
+	}{
+		{
+			name:            "resolves a version naming no build to the tag publishing it",
+			version:         "109.0.1",
+			listsTags:       true,
+			expectedVersion: "109.0.1+up1.0.10",
+		},
+		{
+			name:            "resolves a version naming a build",
+			version:         "109.0.1_up1.0.1",
+			listsTags:       true,
+			expectedVersion: "109.0.1+up1.0.1",
+		},
+		{
+			name:            "resolves a constraint",
+			version:         ">= 109.0.0",
+			listsTags:       true,
+			expectedVersion: "109.0.1+up1.0.10",
+		},
+		{
+			// Resolution is an improvement on what Helm does by itself rather than a
+			// requirement, so Helm is left to ask for the tag the version names, as
+			// it did before this resolution existed. A tag semver only accepts
+			// loosely deploys this way, as a chart read here is carried in the
+			// bundle and never goes through the strict check a HelmOp's version does.
+			name:            "keeps the version when no tag matches",
+			version:         "109.0.2",
+			listsTags:       true,
+			expectedVersion: "109.0.2",
+		},
+		{
+			name:            "keeps the version when the registry does not list its tags",
+			version:         "109.0.1",
+			listsTags:       false,
+			expectedVersion: "109.0.1",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if !c.listsTags || !strings.HasSuffix(r.URL.Path, "/tags/list") {
+					w.WriteHeader(http.StatusForbidden)
+
+					return
+				}
+
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(tags))
+			}))
+			defer svr.Close()
+
+			chart := &fleet.HelmOptions{
+				Repo:    ociURLPrefix + strings.TrimPrefix(svr.URL, "http://") + "/sleeper-chart",
+				Version: c.version,
+			}
+
+			dirs, err := addRemoteCharts(
+				context.Background(),
+				nil,
+				t.TempDir(),
+				[]*fleet.HelmOptions{chart},
+				Auth{BasicHTTP: true},
+				".*",
+			)
+
+			require.NoError(t, err)
+			require.Len(t, dirs, 1)
+			assert.Equal(t, c.expectedVersion, dirs[0].version, "version passed to the downloader")
+
+			// The bundle keeps the version the user wrote; only its spelling is
+			// normalized.
+			assert.Equal(t, helmversion.Normalize(c.version), chart.Version, "version stored in the bundle spec")
 		})
 	}
 }
