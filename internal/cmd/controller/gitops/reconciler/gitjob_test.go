@@ -3467,3 +3467,326 @@ func TestCreateJob_AlreadyExistsIsIgnored(t *testing.T) {
 		t.Fatal("createJob should return false when job already exists")
 	}
 }
+
+// Test_PropagateAcceptedFailureToReady_SetsReadyFalse verifies that when the
+// Accepted condition is False, propagateAcceptedFailureToReady forces Ready to
+// False with the same message and reason. This is the core fix for
+// https://github.com/rancher/fleet/issues/4865.
+func Test_PropagateAcceptedFailureToReady_SetsReadyFalse(t *testing.T) {
+	gitrepo := &fleetv1.GitRepo{}
+	gitrepo.Status.Conditions = []genericcondition.GenericCondition{
+		{
+			Type:    fleetv1.GitRepoAcceptedCondition,
+			Status:  "False",
+			Message: "failed to look up HelmSecretNameForPaths, error: secret not found",
+			Reason:  "Error",
+		},
+		{
+			Type:   "Ready",
+			Status: "True",
+		},
+	}
+
+	propagateAcceptedFailureToReady(gitrepo)
+
+	readyCond, found := getCondition(gitrepo, "Ready")
+	if !found {
+		t.Fatal("expected Ready condition to be present")
+	}
+	if readyCond.Status != "False" {
+		t.Errorf("expected Ready=False, got Ready=%s", readyCond.Status)
+	}
+	if readyCond.Message != "failed to look up HelmSecretNameForPaths, error: secret not found" {
+		t.Errorf("unexpected Ready message: %s", readyCond.Message)
+	}
+}
+
+// Test_PropagateAcceptedFailureToReady_AddsReadyWhenMissing verifies that when
+// Ready is absent and Accepted=False, a Ready=False condition is added.
+func Test_PropagateAcceptedFailureToReady_AddsReadyWhenMissing(t *testing.T) {
+	gitrepo := &fleetv1.GitRepo{}
+	gitrepo.Status.Conditions = []genericcondition.GenericCondition{
+		{
+			Type:    fleetv1.GitRepoAcceptedCondition,
+			Status:  "False",
+			Message: "missing cabundle secret",
+			Reason:  "Error",
+		},
+	}
+
+	propagateAcceptedFailureToReady(gitrepo)
+
+	readyCond, found := getCondition(gitrepo, "Ready")
+	if !found {
+		t.Fatal("expected Ready condition to be added")
+	}
+	if readyCond.Status != "False" {
+		t.Errorf("expected Ready=False, got Ready=%s", readyCond.Status)
+	}
+	if readyCond.Message != "missing cabundle secret" {
+		t.Errorf("unexpected Ready message: %s", readyCond.Message)
+	}
+}
+
+// Test_PropagateAcceptedFailureToReady_NoOpWhenAcceptedTrue verifies that when
+// Accepted=True, the Ready condition is not changed by propagateAcceptedFailureToReady.
+func Test_PropagateAcceptedFailureToReady_NoOpWhenAcceptedTrue(t *testing.T) {
+	gitrepo := &fleetv1.GitRepo{}
+	gitrepo.Status.Conditions = []genericcondition.GenericCondition{
+		{
+			Type:   fleetv1.GitRepoAcceptedCondition,
+			Status: "True",
+		},
+		{
+			Type:   "Ready",
+			Status: "True",
+		},
+	}
+
+	propagateAcceptedFailureToReady(gitrepo)
+
+	readyCond, found := getCondition(gitrepo, "Ready")
+	if !found {
+		t.Fatal("expected Ready condition to be present")
+	}
+	if readyCond.Status != "True" {
+		t.Errorf("expected Ready=True (unchanged), got Ready=%s", readyCond.Status)
+	}
+}
+
+// Test_PropagateAcceptedFailureToReady_NoOpWhenNoAccepted verifies that when
+// no Accepted condition is present, propagateAcceptedFailureToReady is a no-op.
+func Test_PropagateAcceptedFailureToReady_NoOpWhenNoAccepted(t *testing.T) {
+	gitrepo := &fleetv1.GitRepo{}
+	// No Accepted condition, no Ready condition - simulates fresh GitRepo with 0/0 bundles.
+	propagateAcceptedFailureToReady(gitrepo)
+
+	_, found := getCondition(gitrepo, "Ready")
+	if found {
+		t.Error("expected no Ready condition to be added when no Accepted condition is present")
+	}
+}
+
+// Test_PropagateAcceptedFailureToReady_PreservesOtherConditions verifies that
+// propagating Accepted=False onto Ready does not clobber other conditions.
+func Test_PropagateAcceptedFailureToReady_PreservesOtherConditions(t *testing.T) {
+	gitrepo := &fleetv1.GitRepo{}
+	gitrepo.Status.Conditions = []genericcondition.GenericCondition{
+		{
+			Type:    fleetv1.GitRepoAcceptedCondition,
+			Status:  "False",
+			Message: "secret not found",
+			Reason:  "Error",
+		},
+		{
+			Type:   "Ready",
+			Status: "True",
+		},
+		{
+			Type:    "GitPolling",
+			Status:  "True",
+			Message: "polling ok",
+		},
+		{
+			Type:    "Stalled",
+			Status:  "False",
+			Message: "some stall",
+			Reason:  "Error",
+		},
+	}
+
+	propagateAcceptedFailureToReady(gitrepo)
+
+	if len(gitrepo.Status.Conditions) != 4 {
+		t.Fatalf("expected 4 conditions to be preserved (with Ready updated), got %d", len(gitrepo.Status.Conditions))
+	}
+
+	readyCond, found := getCondition(gitrepo, "Ready")
+	if !found {
+		t.Fatal("expected Ready condition to be present")
+	}
+	if readyCond.Status != "False" {
+		t.Errorf("expected Ready=False, got Ready=%s", readyCond.Status)
+	}
+
+	accepted, found := getCondition(gitrepo, fleetv1.GitRepoAcceptedCondition)
+	if !found {
+		t.Fatal("expected Accepted condition to be preserved")
+	}
+	if accepted.Status != "False" || accepted.Message != "secret not found" {
+		t.Errorf("Accepted condition was mutated: %+v", accepted)
+	}
+
+	polling, found := getCondition(gitrepo, "GitPolling")
+	if !found {
+		t.Fatal("expected GitPolling condition to be preserved")
+	}
+	if polling.Status != "True" || polling.Message != "polling ok" {
+		t.Errorf("GitPolling condition was mutated: %+v", polling)
+	}
+
+	stalled, found := getCondition(gitrepo, "Stalled")
+	if !found {
+		t.Fatal("expected Stalled condition to be preserved")
+	}
+	if stalled.Status != "False" || stalled.Message != "some stall" {
+		t.Errorf("Stalled condition was mutated: %+v", stalled)
+	}
+}
+
+// Test_PropagateAcceptedFailureToReady_IdempotentLastUpdateTime verifies that
+// calling propagateAcceptedFailureToReady twice with the same Accepted failure
+// does not rewrite Ready or bump LastUpdateTime.
+func Test_PropagateAcceptedFailureToReady_IdempotentLastUpdateTime(t *testing.T) {
+	const sentinel = "2020-01-01T00:00:00Z"
+	msg := "failed to look up HelmSecretNameForPaths, error: secret not found"
+	gitrepo := &fleetv1.GitRepo{}
+	gitrepo.Status.Conditions = []genericcondition.GenericCondition{
+		{
+			Type:    fleetv1.GitRepoAcceptedCondition,
+			Status:  "False",
+			Message: msg,
+			Reason:  "Error",
+		},
+		{
+			Type:           "Ready",
+			Status:         "False",
+			Message:        msg,
+			Reason:         "Error",
+			LastUpdateTime: sentinel,
+		},
+	}
+
+	propagateAcceptedFailureToReady(gitrepo)
+	ready1, found := getCondition(gitrepo, "Ready")
+	if !found {
+		t.Fatal("expected Ready condition to be present")
+	}
+	if ready1.LastUpdateTime != sentinel {
+		t.Errorf("first call rewrote LastUpdateTime: got %q, want %q", ready1.LastUpdateTime, sentinel)
+	}
+
+	propagateAcceptedFailureToReady(gitrepo)
+	ready2, found := getCondition(gitrepo, "Ready")
+	if !found {
+		t.Fatal("expected Ready condition to be present after second call")
+	}
+	if ready2.LastUpdateTime != sentinel {
+		t.Errorf("second call rewrote LastUpdateTime: got %q, want %q", ready2.LastUpdateTime, sentinel)
+	}
+}
+
+// Test_StatusReconcile_AcceptedFailure_LastUpdateTimeStable reconciles a
+// GitRepo with no Bundles twice and asserts Ready.LastUpdateTime is unchanged
+// on the second pass. Without idempotent propagation, SetReadyConditions would
+// flip Ready to True (0/0 bundles) and wrangler would bump LastUpdateTime
+// every reconcile.
+func Test_StatusReconcile_AcceptedFailure_LastUpdateTimeStable(t *testing.T) {
+	const sentinel = "2020-01-01T00:00:00Z"
+	msg := "failed to look up HelmSecretNameForPaths, error: secret not found"
+
+	scheme := runtime.NewScheme()
+	utilruntime.Must(fleetv1.AddToScheme(scheme))
+
+	gitrepo := &fleetv1.GitRepo{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-repo",
+			Namespace: "fleet-local",
+		},
+		Spec: fleetv1.GitRepoSpec{
+			Repo: "https://example.com/org/repo.git",
+		},
+		Status: fleetv1.GitRepoStatus{
+			StatusBase: fleetv1.StatusBase{
+				Conditions: []genericcondition.GenericCondition{
+					{
+						Type:    fleetv1.GitRepoAcceptedCondition,
+						Status:  "False",
+						Message: msg,
+						Reason:  "Error",
+					},
+					{
+						Type:    "GitPolling",
+						Status:  "True",
+						Message: "polling ok",
+					},
+				},
+			},
+		},
+	}
+
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(gitrepo).
+		WithStatusSubresource(&fleetv1.GitRepo{}).
+		Build()
+
+	r := &StatusReconciler{Client: fakeClient, Scheme: scheme}
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Name: gitrepo.Name, Namespace: gitrepo.Namespace}}
+	ctx := context.Background()
+
+	if _, err := r.Reconcile(ctx, req); err != nil {
+		t.Fatalf("first reconcile: %v", err)
+	}
+
+	updated := &fleetv1.GitRepo{}
+	if err := fakeClient.Get(ctx, req.NamespacedName, updated); err != nil {
+		t.Fatalf("get after first reconcile: %v", err)
+	}
+
+	ready, found := getCondition(updated, "Ready")
+	if !found {
+		t.Fatal("expected Ready condition after first reconcile")
+	}
+	if ready.Status != "False" {
+		t.Errorf("expected Ready=False after first reconcile, got %s", ready.Status)
+	}
+	if ready.Message != msg {
+		t.Errorf("unexpected Ready message after first reconcile: %s", ready.Message)
+	}
+
+	if _, found := getCondition(updated, "GitPolling"); !found {
+		t.Error("expected GitPolling condition to be preserved")
+	}
+	if _, found := getCondition(updated, fleetv1.GitRepoAcceptedCondition); !found {
+		t.Error("expected Accepted condition to be preserved")
+	}
+
+	// Stamp a sentinel LastUpdateTime so a same-second rewrite is detectable.
+	for i := range updated.Status.Conditions {
+		if updated.Status.Conditions[i].Type == "Ready" {
+			updated.Status.Conditions[i].LastUpdateTime = sentinel
+		}
+	}
+	if err := fakeClient.Status().Update(ctx, updated); err != nil {
+		t.Fatalf("stamp sentinel LastUpdateTime: %v", err)
+	}
+
+	if _, err := r.Reconcile(ctx, req); err != nil {
+		t.Fatalf("second reconcile: %v", err)
+	}
+
+	updated2 := &fleetv1.GitRepo{}
+	if err := fakeClient.Get(ctx, req.NamespacedName, updated2); err != nil {
+		t.Fatalf("get after second reconcile: %v", err)
+	}
+
+	ready2, found := getCondition(updated2, "Ready")
+	if !found {
+		t.Fatal("expected Ready condition after second reconcile")
+	}
+	if ready2.Status != "False" {
+		t.Errorf("expected Ready=False after second reconcile, got %s", ready2.Status)
+	}
+	if ready2.LastUpdateTime != sentinel {
+		t.Errorf("LastUpdateTime churned on second reconcile: got %q, want %q", ready2.LastUpdateTime, sentinel)
+	}
+
+	polling, found := getCondition(updated2, "GitPolling")
+	if !found {
+		t.Fatal("expected GitPolling condition to be preserved on second reconcile")
+	}
+	if polling.Status != "True" || polling.Message != "polling ok" {
+		t.Errorf("GitPolling condition was mutated: %+v", polling)
+	}
+}
