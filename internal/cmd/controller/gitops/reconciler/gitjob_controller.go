@@ -598,11 +598,6 @@ func (r *GitJobReconciler) handleDelete(ctx context.Context, logger logr.Logger,
 		}
 	}
 
-	// Delete the target namespace if DeleteNamespace is true
-	if err := finalize.PurgeTargetNamespaceIfNeeded(ctx, r.Client, gitrepo); err != nil {
-		return ctrl.Result{}, err
-	}
-
 	metrics.GitRepoCollector.Delete(gitrepo.Name, gitrepo.Namespace)
 
 	// we don't have pending Bundles nor ImageScans, we can remove the finalizer
