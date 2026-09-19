@@ -2,6 +2,7 @@ package reconciler
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"time"
@@ -12,9 +13,10 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/durations"
 	"github.com/rancher/fleet/pkg/sharding"
+	"github.com/rancher/wrangler/v3/pkg/condition"
 	"github.com/rancher/wrangler/v3/pkg/genericcondition"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/workqueue"
@@ -73,9 +75,9 @@ func (r *StatusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	logger := log.FromContext(ctx).WithName("gitops-status")
 
 	gitrepo := &fleet.GitRepo{}
-	if err := r.Get(ctx, req.NamespacedName, gitrepo); err != nil && !errors.IsNotFound(err) {
+	if err := r.Get(ctx, req.NamespacedName, gitrepo); err != nil && !apierrors.IsNotFound(err) {
 		return ctrl.Result{}, err
-	} else if errors.IsNotFound(err) {
+	} else if apierrors.IsNotFound(err) {
 		logger.V(1).Info("Gitrepo deleted, cleaning up poll jobs")
 		return ctrl.Result{}, nil
 	}
@@ -181,7 +183,14 @@ func setStatus(list *fleet.BundleDeploymentList, gitrepo *fleet.GitRepo) error {
 
 	resourcestatus.SetResources(list.Items, &gitrepo.Status.StatusBase)
 
-	summary.SetReadyConditions(&gitrepo.Status, "Bundle", gitrepo.Status.Summary)
+	// Ready is a summary of other conditions. When Accepted is False
+	// (e.g. missing secret, cabundle failure), propagateAcceptedFailureToReady
+	// will set Ready=False. Skip SetReadyConditions in that case: with no
+	// bundles it would set Ready=True and wrangler would churn LastUpdateTime
+	// on every reconcile.
+	if _, _, acceptedFalse := acceptedFailure(gitrepo); !acceptedFalse {
+		summary.SetReadyConditions(&gitrepo.Status, "Bundle", gitrepo.Status.Summary)
+	}
 
 	gitrepo.Status.Display.ReadyBundleDeployments = fmt.Sprintf("%d/%d",
 		gitrepo.Status.Summary.Ready,
@@ -253,47 +262,38 @@ bundles:
 	return nil
 }
 
-// propagateAcceptedFailureToReady ensures the Ready condition reflects an
-// Accepted=False error. When a pre-job error (missing secret, cabundle failure,
-// restriction violation) prevents any bundle from being created, the bundle
-// summary is 0/0, which would normally resolve to Ready=True. By copying the
-// Accepted condition's message onto Ready we surface the real error.
-func propagateAcceptedFailureToReady(gitrepo *fleet.GitRepo) {
-	var acceptedMsg string
-	var acceptedReason string
-	acceptedFalse := false
+// acceptedFailure reports the message and reason of an Accepted=False
+// condition, if one is present.
+func acceptedFailure(gitrepo *fleet.GitRepo) (msg, reason string, isFalse bool) {
 	for _, c := range gitrepo.Status.Conditions {
 		if c.Type == fleet.GitRepoAcceptedCondition && c.Status == v1.ConditionFalse {
-			acceptedFalse = true
-			acceptedMsg = c.Message
-			acceptedReason = c.Reason
-			break
+			return c.Message, c.Reason, true
 		}
 	}
+	return "", "", false
+}
+
+// propagateAcceptedFailureToReady ensures Ready, the summary condition,
+// reflects an Accepted=False error. When a pre-job error (missing secret,
+// cabundle failure, restriction violation) prevents any bundle from being
+// created, the bundle summary is 0/0, which would normally resolve to
+// Ready=True. Ready is updated in place so other conditions on the object
+// are preserved; it is not replaced with a copy of Accepted.
+//
+// The update is idempotent: if Ready already carries the same
+// status/reason/message, it is left untouched so wrangler does not bump
+// LastUpdateTime on every reconcile.
+func propagateAcceptedFailureToReady(gitrepo *fleet.GitRepo) {
+	acceptedMsg, acceptedReason, acceptedFalse := acceptedFailure(gitrepo)
 	if !acceptedFalse {
 		return
 	}
 
-	found := false
-	newConditions := make([]genericcondition.GenericCondition, 0, len(gitrepo.Status.Conditions))
-	for _, c := range gitrepo.Status.Conditions {
-		if c.Type == string(fleet.Ready) {
-			c.Status = v1.ConditionFalse
-			c.Message = acceptedMsg
-			c.Reason = acceptedReason
-			found = true
-		}
-		newConditions = append(newConditions, c)
+	c := condition.Cond(string(fleet.Ready))
+	if c.MatchesError(&gitrepo.Status, acceptedReason, errors.New(acceptedMsg)) {
+		return
 	}
-	if !found {
-		newConditions = append(newConditions, genericcondition.GenericCondition{
-			Type:    string(fleet.Ready),
-			Status:  v1.ConditionFalse,
-			Message: acceptedMsg,
-			Reason:  acceptedReason,
-		})
-	}
-	gitrepo.Status.Conditions = newConditions
+	c.SetError(&gitrepo.Status, acceptedReason, errors.New(acceptedMsg))
 }
 
 type forcedDelayingSource[R comparable] struct {
