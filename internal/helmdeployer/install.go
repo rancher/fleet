@@ -143,6 +143,13 @@ func (h *Helm) install(ctx context.Context, bundleID string, manifest *manifest.
 		return nil, err
 	}
 
+	// Logged once per real deploy rather than once per rendered object.
+	if !dryRunCfg.DryRun {
+		if _, ok := yieldSourceOrigins(bdLabels); !ok {
+			logger.V(1).Info("No Fleet source identity on the bundle deployment, deploying resources without managed-by labels")
+		}
+	}
+
 	if install {
 		return h.runInstall(ctx, cfg, chart, values, releaseName, defaultNamespace, timeout, options, pr, dryRunCfg)
 	}
