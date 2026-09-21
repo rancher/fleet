@@ -19,3 +19,22 @@ const (
 	// label an agent is allowed to assert.
 	CreatedByAgentPodLabel = "fleet.cattle.io/created-by-agent-pod"
 )
+
+// Provenance labels stamped onto every Kubernetes resource Fleet deploys,
+// identifying the Fleet resource that manages it. All three are applied
+// together or not at all.
+const (
+	ManagedByKindLabel      = "fleet.cattle.io/managed-by-kind"
+	ManagedByNamespaceLabel = "fleet.cattle.io/managed-by-namespace"
+	ManagedByNameLabel      = "fleet.cattle.io/managed-by-name"
+)
+
+// The kinds of Fleet source a deployed resource can originate from, and the
+// only permitted values of ManagedByKindLabel. Every BundleDeployment comes
+// from exactly one of the three: a GitRepo, a HelmOp, or a Bundle applied
+// directly with "fleet apply".
+const (
+	ManagedByKindGitRepo = "gitrepo"
+	ManagedByKindHelmOp  = "helmop"
+	ManagedByKindBundle  = "bundle"
+)
