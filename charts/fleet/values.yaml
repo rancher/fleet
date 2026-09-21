@@ -246,6 +246,6 @@ rancherNamespaces:
   labels: {}
   #   foo: bar
 
-  # Additional annotaitons to be added to new namespaces. Will be appied along with the "cattle.io/managed-namespace" annotation.
+  # Additional annotations to be added to new namespaces. Will be applied along with the "cattle.io/managed-namespace" annotation.
   annotations: {}
   #   foo: bar
