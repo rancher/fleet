@@ -206,6 +206,14 @@ func (p *postRender) Run(renderedManifests *bytes.Buffer) (modifiedManifests *by
 		return nil, err
 	}
 
+	// Provenance is a set of labels identifying the Fleet source that manages
+	// these resources. It is derived once per deploy and merged onto every
+	// object. A deployment with no recorded provenance is deployed unlabelled
+	// rather than failing; install logs that case once.
+	if identity, ok := yieldSourceOrigins(p.bdLabels); ok {
+		labels = mergeMaps(labels, identity.labels())
+	}
+
 	for _, obj := range objs {
 		m, err := meta.Accessor(obj)
 		if err != nil {
