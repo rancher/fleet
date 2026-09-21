@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/controllers/manageagent"
+	"github.com/rancher/fleet/internal/config"
 	"github.com/rancher/fleet/internal/names"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
@@ -125,7 +126,7 @@ func (h *handler) OnClusterChanged(cluster *fleet.Cluster, status fleet.ClusterS
 func (h *handler) createNamespace(cluster *fleet.Cluster, status fleet.ClusterStatus) error {
 	_, err := h.namespaceCache.Get(status.Namespace)
 	if apierrors.IsNotFound(err) {
-		_, err = h.namespaces.Create(&v1.Namespace{
+		ns := &v1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: status.Namespace,
 				Labels: map[string]string{
@@ -136,7 +137,9 @@ func (h *handler) createNamespace(cluster *fleet.Cluster, status fleet.ClusterSt
 					fleet.ClusterAnnotation:          cluster.Name,
 				},
 			},
-		})
+		}
+		config.Get().ApplyRancherNamespaceLabelsAndAnnotations(ns)
+		_, err = h.namespaces.Create(ns)
 	}
 
 	if apierrors.IsAlreadyExists(err) {
