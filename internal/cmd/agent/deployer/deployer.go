@@ -365,6 +365,15 @@ const namespaceFieldOwner = "fleet-agent-namespace-metadata"
 // non-nil map makes Fleet the owner of exactly those keys. ForceOwnership adopts
 // keys previously written via the old read-modify-write update so the first
 // apply after upgrade does not conflict.
+//
+// Security-sensitive labels such as `pod-security.kubernetes.io/*` are not
+// filtered out of the options. The namespace is patched as the deployment's
+// service account (see namespaceClient), so which labels a bundle may set on
+// its target namespace is gated by the downstream RBAC of that account.
+// Deployments that resolve to no service account still run as the agent, so
+// restricting them requires pinning a service account, either in the bundle or
+// through a Policy. A pod-security label the bundle does not declare is left
+// alone, because Fleet never asserts ownership of it. See #5156 and #5687.
 func applyNamespaceMetadata(ctx context.Context, c client.Client, name string, labels, annotations map[string]string) error {
 	nsac := corev1ac.Namespace(name)
 	if labels != nil {
