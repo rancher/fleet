@@ -47,15 +47,6 @@ var _ = Describe("Cluster import kubeconfig secrets", func() {
 		}
 	})
 
-	// setConfig replaces the global config for the current spec.
-	setConfig := func(mutate func(*config.Config)) {
-		previous := config.Get()
-		updated := *previous
-		mutate(&updated)
-		config.Set(&updated)
-		DeferCleanup(func() { config.Set(previous) })
-	}
-
 	createKubeconfigSecret := func(namespace string) *corev1.Secret {
 		GinkgoHelper()
 		secret := &corev1.Secret{
