@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"crypto/tls"
+	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"io"
@@ -13,6 +14,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -294,6 +296,25 @@ func checkConditionIs(g Gomega, fllethelm *fleet.HelmOp, condType string, status
 	g.Expect(cond.Status).To(Equal(status))
 	g.Expect(cond.Reason).To(Equal(reason))
 	g.Expect(cond.Message).To(Equal(message))
+}
+
+// newOCIRegistryServer returns a test server standing in for an OCI registry
+// which lists the provided tags for any repository, and the OCI reference of a
+// repository it serves.
+func newOCIRegistryServer(repository string, tags ...string) (*httptest.Server, string) {
+	svr := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasSuffix(r.URL.Path, "/tags/list") {
+			w.WriteHeader(http.StatusNotFound)
+
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(map[string]any{"name": repository, "tags": tags})
+	}))
+
+	return svr, fmt.Sprintf("oci://%s/%s", strings.TrimPrefix(svr.URL, "https://"), repository)
 }
 
 func newTLSServerWithAuth() *httptest.Server {
@@ -1353,6 +1374,114 @@ var _ = Describe("HelmOps controller", func() {
 					helmop.Spec.Helm.Version = "0.2.0"
 					checkBundleIsAsExpected(g, *bundle, helmop, t)
 				}).Should(Succeed())
+			})
+		})
+
+		// An OCI registry does not accept a plus sign in a tag, so a chart whose
+		// version carries build metadata is published under a tag holding an
+		// underscore instead.
+		Context("connecting to an OCI registry publishing build metadata", func() {
+			// Tags the fake registry serves. They publish versions
+			// 109.0.0+up1.0.1, 109.0.1+up1.0.2 and 109.0.1+up1.0.10.
+			tags := []string{"109.0.0_up1.0.1", "109.0.1_up1.0.2", "109.0.1_up1.0.10"}
+
+			setUpHelmOp := func(name, version string) {
+				targets = []fleet.BundleTarget{}
+				helmop = getRandomHelmOpWithTargets(name, targets)
+
+				svr, ref := newOCIRegistryServer("sleeper-chart", tags...)
+				DeferCleanup(svr.Close)
+
+				// An OCI reference goes in the repo field, leaving the chart empty.
+				helmop.Spec.Helm.Repo = ref
+				helmop.Spec.Helm.Chart = ""
+				helmop.Spec.Helm.Version = version
+				helmop.Spec.InsecureSkipTLSverify = true
+				helmop.Spec.HelmSecretName = ""
+			}
+
+			checkResolvesTo := func(version string) func() {
+				return func() {
+					By("storing the resolved version in the bundle")
+					Eventually(func(g Gomega) {
+						bundle := &fleet.Bundle{}
+						ns := types.NamespacedName{Name: helmop.Name, Namespace: helmop.Namespace}
+						g.Expect(k8sClient.Get(ctx, ns, bundle)).ToNot(HaveOccurred())
+						g.Expect(bundle.Spec.Helm.Version).To(Equal(version))
+					}).Should(Succeed())
+
+					By("reporting the resolved version in the HelmOp status")
+					Eventually(func(g Gomega) {
+						fh := &fleet.HelmOp{}
+						ns := types.NamespacedName{Name: helmop.Name, Namespace: helmop.Namespace}
+						g.Expect(k8sClient.Get(ctx, ns, fh)).ToNot(HaveOccurred())
+						g.Expect(fh.Status.Version).To(Equal(version))
+						checkConditionContains(g, fh, fleet.HelmOpAcceptedCondition, v1.ConditionTrue, "", "")
+					}).Should(Succeed())
+				}
+			}
+
+			When("the version holds build metadata", func() {
+				BeforeEach(func() {
+					setUpHelmOp("test-oci-metadata", "109.0.1+up1.0.2")
+				})
+
+				It("pins to the tag publishing it", checkResolvesTo("109.0.1+up1.0.2"))
+			})
+
+			When("the version holds build metadata spelled as a tag", func() {
+				BeforeEach(func() {
+					setUpHelmOp("test-oci-metadata-tag", "109.0.1_up1.0.2")
+				})
+
+				It("pins to the tag publishing it", checkResolvesTo("109.0.1+up1.0.2"))
+			})
+
+			When("the version is a constraint", func() {
+				BeforeEach(func() {
+					setUpHelmOp("test-oci-metadata-range", ">= 109.0.0")
+				})
+
+				It("resolves to the highest tag, build metadata included", checkResolvesTo("109.0.1+up1.0.10"))
+			})
+
+			// The registry publishes the chart under its build, not under the bare
+			// version, so the bare version has to reach that build.
+			When("the version holds no build metadata", func() {
+				BeforeEach(func() {
+					setUpHelmOp("test-oci-metadata-bare", "109.0.1")
+				})
+
+				It("resolves to the highest build of that version", checkResolvesTo("109.0.1+up1.0.10"))
+			})
+
+			When("the version matches no tag", func() {
+				BeforeEach(func() {
+					setUpHelmOp("test-oci-metadata-missing", "109.0.2")
+				})
+
+				It("does not create a bundle and explains why", func() {
+					Consistently(func(g Gomega) {
+						bundle := &fleet.Bundle{}
+						ns := types.NamespacedName{Name: helmop.Name, Namespace: helmop.Namespace}
+						err := k8sClient.Get(ctx, ns, bundle)
+						g.Expect(errors.IsNotFound(err)).To(BeTrue(), "expected no bundle to exist, got error %v", err)
+					}, 5*time.Second, time.Second).Should(Succeed())
+
+					Eventually(func(g Gomega) {
+						fh := &fleet.HelmOp{}
+						ns := types.NamespacedName{Name: helmop.Name, Namespace: helmop.Namespace}
+						g.Expect(k8sClient.Get(ctx, ns, fh)).ToNot(HaveOccurred())
+						checkConditionContains(
+							g,
+							fh,
+							fleet.HelmOpAcceptedCondition,
+							v1.ConditionFalse,
+							"Error",
+							`no tag matching version "109.0.2" found`,
+						)
+					}).Should(Succeed())
+				})
 			})
 		})
 	})

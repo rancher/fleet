@@ -24,7 +24,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
-	"github.com/Masterminds/semver/v3"
 	"github.com/go-logr/logr"
 	"github.com/rancher/wrangler/v3/pkg/condition"
 	"github.com/rancher/wrangler/v3/pkg/genericcondition"
@@ -34,6 +33,7 @@ import (
 	fleetutil "github.com/rancher/fleet/internal/cmd/controller/errorutil"
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	ctrlquartz "github.com/rancher/fleet/internal/cmd/controller/quartz"
+	"github.com/rancher/fleet/internal/helmversion"
 	"github.com/rancher/fleet/internal/metrics"
 	"github.com/rancher/fleet/internal/validation"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -258,6 +258,11 @@ func (r *HelmOpReconciler) calculateBundle(helmop *fleet.HelmOp) *fleet.Bundle {
 		fleet.HelmOpLabel: helmop.Name,
 	})
 
+	// Users may spell build metadata the way a registry tag does, with an
+	// underscore. Store the semver spelling in the bundle, as that is the
+	// spelling Helm expects when the agent pulls the chart.
+	normalizeHelmVersions(&bundle.Spec)
+
 	// Setting the Resources to nil, the agent will download the helm chart
 	bundle.Spec.Resources = nil
 	// store the helm options (this will also enable the helm chart deployment in the bundle)
@@ -403,6 +408,20 @@ func propagateHelmOpProperties(spec *fleet.BundleSpec) {
 	}
 }
 
+// normalizeHelmVersions rewrites the versions in spec, and in those of its
+// targets which set one of their own, to their semver spelling.
+func normalizeHelmVersions(spec *fleet.BundleSpec) {
+	if spec.Helm != nil {
+		spec.Helm.Version = helmversion.Normalize(spec.Helm.Version)
+	}
+
+	for _, target := range spec.Targets {
+		if target.Helm != nil {
+			target.Helm.Version = helmversion.Normalize(target.Helm.Version)
+		}
+	}
+}
+
 func deleteFinalizer[T client.Object](ctx context.Context, c client.Client, obj T, finalizer string) error {
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		nsName := types.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}
@@ -434,9 +453,7 @@ func usesPolling(helmop fleet.HelmOp) bool {
 
 	// we only need to poll if the version is set to a constraint on versions, which may resolve to
 	// different available versions as the contents of the Helm repository evolves over time.
-	_, err := semver.StrictNewVersion(helmop.Spec.Helm.Version)
-
-	return err != nil
+	return !helmversion.IsExact(helmop.Spec.Helm.Version)
 }
 
 // updateStatus updates the status for the HelmOp resource. It retries on

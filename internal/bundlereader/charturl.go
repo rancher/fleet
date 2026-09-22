@@ -1,6 +1,7 @@
 package bundlereader
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"crypto/tls"
@@ -19,6 +20,7 @@ import (
 	"time"
 
 	"github.com/Masterminds/semver/v3"
+	"github.com/rancher/fleet/internal/helmversion"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleetgit "github.com/rancher/fleet/pkg/git"
 	"golang.org/x/sync/singleflight"
@@ -46,6 +48,10 @@ var (
 // ChartVersion returns the version of the helm chart from a helm repo server, by
 // inspecting the repo's index.yaml
 func ChartVersion(ctx context.Context, location fleet.HelmOptions, a Auth) (string, error) {
+	// Users may spell build metadata the way a registry tag does, with an
+	// underscore instead of a plus sign.
+	location.Version = helmversion.Normalize(location.Version)
+
 	if repoURI, ok := strings.CutPrefix(location.Repo, ociURLPrefix); ok {
 		client, err := getOCIRepoClient(repoURI, a)
 		if err != nil {
@@ -53,14 +59,10 @@ func ChartVersion(ctx context.Context, location fleet.HelmOptions, a Auth) (stri
 		}
 
 		tag, err := GetOCITag(ctx, client, location.Version)
-		if len(tag) == 0 || err != nil {
-			return "", fmt.Errorf(
-				"could not find tag matching constraint %q in registry %s: %w",
-				location.Version,
-				location.Repo,
-				err,
-			)
+		if err != nil {
+			return "", fmt.Errorf("registry %s: %w", location.Repo, err)
 		}
+
 		return tag, nil
 	}
 
@@ -189,13 +191,43 @@ func getHelmRepoIndex(ctx context.Context, repoURL string, auth Auth) (helmRepoI
 	return &index, nil
 }
 
-// GetOCITag fetches the highest available tag matching version v in repository r.
-// Returns an error if the remote repository itself returns an error, for instance if the OCI repository is not found.
-// If no error is returned, it is the caller's responsibility to check that the returned tag is non-empty.
+// NoMatchingTagError reports that a registry listed the tags of a repository and
+// none of them holds the version asked for. It tells that apart from the tags
+// being out of reach, which leaves the matching tag unknown rather than absent.
+type NoMatchingTagError struct {
+	Version string
+}
+
+func (e *NoMatchingTagError) Error() string {
+	return fmt.Sprintf("no tag matching version %q found", e.Version)
+}
+
+// GetOCITag fetches the tag matching version v in repository r, and returns it
+// spelled as semver, so that Helm can pull it.
+//
+// A fully specified version only matches tags holding that version. Spelling
+// out build metadata pins a single build, so that only the tag publishing it
+// matches; leaving the metadata out matches every build of the version, and the
+// highest one wins, as a registry following the convention publishes the chart
+// under its build rather than under the bare version. If v is a constraint, the
+// highest matching tag is returned, build metadata breaking ties between tags
+// semver considers equal. An empty v means any version, as it does for Helm.
+//
+// Returns an error if no tag matches, or if the remote repository itself returns
+// one, for instance if the OCI repository is not found.
 func GetOCITag(ctx context.Context, r *remote.Repository, v string) (string, error) {
-	constraint, err := semver.NewConstraint(v)
-	if err != nil {
-		return "", fmt.Errorf("failed to compute version constraint from version %q: %w", v, err)
+	wanted, isExact := helmversion.ParseExact(v)
+
+	// A fully specified version which spells out build metadata asks for that one
+	// build; one which does not leaves the build open.
+	pinsBuild := isExact && wanted.Metadata() != ""
+
+	var constraint *semver.Constraints
+	if !isExact {
+		var err error
+		if constraint, err = semver.NewConstraint(cmp.Or(v, "*")); err != nil {
+			return "", fmt.Errorf("failed to compute version constraint from version %q: %w", v, err)
+		}
 	}
 
 	availableTags, err := registry.Tags(ctx, r)
@@ -214,31 +246,55 @@ func GetOCITag(ctx context.Context, r *remote.Repository, v string) (string, err
 	var tagToResolve string
 	var resolvedVersion *semver.Version
 
-	_, err = semver.StrictNewVersion(v)
-	isExactVersion := err == nil
-
 	// As per https://github.com/opencontainers/distribution-spec/blob/v1.1.1/spec.md#listing-tags, available tags
 	// are sorted in lexical order. However, the spec does not specify anything about ascending or descending order.
 	for _, tag := range availableTags {
-		// check for exact match before trying something more involved.
-		if isExactVersion && v == tag {
-			tagToResolve = tag
-			break
-		}
+		// A tag holds an underscore where the version it publishes has build
+		// metadata, as a registry does not accept a plus sign in a tag.
+		version := helmversion.FromTag(tag)
 
-		sv, err := semver.NewVersion(tag)
+		// Tags which are not versions, and tags holding a version semver only
+		// accepts loosely, are no candidates: the latter cannot be deployed, so
+		// resolving to one would only trade this error for a later one naming a
+		// version the user never asked for.
+		sv, err := helmversion.Parse(version)
 		if err != nil {
 			continue
 		}
 
-		if !constraint.Check(sv) {
+		if isExact {
+			// Semver comparison ignores build metadata, so this keeps every build of
+			// the wanted version.
+			if !sv.Equal(wanted) {
+				continue
+			}
+
+			// Build metadata is what tells two tags for the same version apart, so a
+			// version asking for one build has to match it as well.
+			if pinsBuild && !helmversion.Equal(sv, wanted) {
+				continue
+			}
+		} else if !constraint.Check(sv) {
 			continue
 		}
 
-		if len(tagToResolve) == 0 || sv.GreaterThan(resolvedVersion) {
-			tagToResolve = tag
-			resolvedVersion = sv
+		if resolvedVersion != nil {
+			c := helmversion.Compare(sv, resolvedVersion)
+
+			// Two tags whose versions are equal, build metadata included, are two
+			// spellings of the same version, such as 1.2.3 and v1.2.3. Settle on one
+			// of them, as the distribution spec makes no promise about the order in
+			// which a registry lists its tags.
+			if c < 0 || (c == 0 && version >= tagToResolve) {
+				continue
+			}
 		}
+
+		tagToResolve, resolvedVersion = version, sv
+	}
+
+	if resolvedVersion == nil {
+		return "", &NoMatchingTagError{Version: v}
 	}
 
 	return tagToResolve, nil
