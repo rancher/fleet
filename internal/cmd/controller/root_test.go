@@ -1,4 +1,4 @@
-package cleanup
+package controller
 
 import (
 	"testing"
@@ -7,8 +7,9 @@ import (
 )
 
 // TestRunConfiguresControllerRuntimeLogger guards against a regression where
-// this entrypoint never calls ctrl.SetLogger: log.Log calls in the cleanup
-// controller are then silently dropped instead of printed.
+// this entrypoint stops calling ctrl.SetLogger: log.Log calls throughout the
+// bundle/bundledeployment/cluster reconcilers are then silently dropped
+// instead of printed.
 func TestRunConfiguresControllerRuntimeLogger(t *testing.T) {
 	logtest.AssertPackageConfiguresLogger(t)
 }
