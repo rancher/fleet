@@ -246,7 +246,18 @@ func OnChange(ctx context.Context, f func(*Config) error) {
 // Set doesn't trigger the callbacks, use SetAndTrigger for that. Set is used
 // by controller-runtime controllers.
 func Set(cfg *Config) {
+	sanitizeNamespaceMetadata(cfg)
 	config = cfg
+}
+
+func sanitizeNamespaceMetadata(cfg *Config) {
+	if cfg == nil {
+		return
+	}
+	delete(cfg.RancherNamespaces.Labels, fleet.ManagedLabel)
+	delete(cfg.RancherNamespaces.Annotations, fleet.ClusterNamespaceAnnotation)
+	delete(cfg.RancherNamespaces.Annotations, fleet.ClusterAnnotation)
+	delete(cfg.RancherNamespaces.Annotations, ManagedNamespaceAnnotation)
 }
 
 // SetAndTrigger sets the config and triggers the callbacks. It is used by the
@@ -255,7 +266,7 @@ func SetAndTrigger(cfg *Config) error {
 	callbackLock.Lock()
 	defer callbackLock.Unlock()
 
-	config = cfg
+	Set(cfg)
 	for _, f := range callbacks {
 		if err := f(cfg); err != nil {
 			return err
