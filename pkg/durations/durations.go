@@ -38,6 +38,11 @@ const (
 	// the helmop status first, before the status controller looks at
 	// bundledeployments.
 	HelmOpStatusDelay = time.Second * 5
+	// StatusConflictRequeue is how long a status controller waits before
+	// recomputing a status whose write lost an optimistic lock. A conflict
+	// means the object was just written, so its cache entry is refreshed
+	// almost immediately and there is no reason to wait a full status delay.
+	StatusConflictRequeue = time.Second
 	// WaitForDependenciesReadyRequeueInterval is the wait time after the Fleet agent finds a BundleDeployment has non-ready dependencies
 	WaitForDependenciesReadyRequeueInterval = time.Second * 15
 	// NamespacePermissionRequeueInterval is the wait time after the Fleet
