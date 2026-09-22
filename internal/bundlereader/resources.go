@@ -3,6 +3,7 @@ package bundlereader
 import (
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,6 +12,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/rancher/fleet/internal/helmversion"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
@@ -234,9 +236,20 @@ func mergeGenericMap(first, second *fleet.GenericMap) *fleet.GenericMap {
 // addRemoteCharts gets the chart url from a helm repo server and returns a `directory` struct.
 // For every chart that is not on disk, create a directory struct that contains the charts URL as path.
 // This adds one directory per HelmOption.
+//
+// It rewrites each chart's version to its semver spelling, so that the bundle
+// stores the same spelling Helm is handed when it downloads the chart. A chart
+// in an OCI registry is then downloaded at the version its tags resolve to,
+// which the bundle does not store: the spec keeps the version the user wrote, as
+// the resources read here are what the agent deploys.
 func addRemoteCharts(ctx context.Context, directories []directory, base string, charts []*fleet.HelmOptions, auth Auth, helmRepoURLRegex string) ([]directory, error) {
 	warnedOnce := false
 	for _, chart := range charts {
+		// Users may spell build metadata the way a registry tag does, with an
+		// underscore instead of a plus sign. Helm expects the semver spelling, and
+		// puts the underscore back itself when it pulls a tag from a registry.
+		chart.Version = helmversion.Normalize(chart.Version)
+
 		if _, err := os.Stat(filepath.Join(base, chart.Chart)); os.IsNotExist(err) || chart.Repo != "" {
 			shouldAddAuthToRequest, err := shouldAddAuthToRequest(helmRepoURLRegex, chart.Repo, chart.Chart)
 			if err != nil {
@@ -245,8 +258,17 @@ func addRemoteCharts(ctx context.Context, directories []directory, base string, 
 			auth := auth // loop-scoped variable
 			strippedCredentialsForEmptyRegex := false
 			if !shouldAddAuthToRequest {
-				if helmRepoURLRegex == "" && (auth.Username != "" || auth.Password != "" || len(auth.SSHPrivateKey) > 0) {
+				hasCredentials := auth.Username != "" || auth.Password != "" || len(auth.SSHPrivateKey) > 0
+				if helmRepoURLRegex == "" && hasCredentials {
 					strippedCredentialsForEmptyRegex = true
+				} else if helmRepoURLRegex != "" && hasCredentials {
+					// A non-empty regex that does not match this chart's URL also
+					// strips credentials, but silently: the resulting download
+					// failure is a registry-side 401 that looks like an
+					// authentication problem. Say why credentials were dropped.
+					log.Log.Info(fmt.Sprintf(
+						"helmRepoURLRegex %q does not match chart %s: Helm credentials will not be forwarded to this repository",
+						helmRepoURLRegex, downloadChartError(*chart)))
 				}
 				if !warnedOnce && strippedCredentialsForEmptyRegex {
 					log.Log.Info("helmRepoURLRegex is empty: Helm credentials will not be forwarded to any repository; set spec.helmRepoURLRegex to enable credential forwarding")
@@ -263,17 +285,67 @@ func addRemoteCharts(ctx context.Context, directories []directory, base string, 
 				return nil, fmt.Errorf("failed to resolve URL of %s: %w", downloadChartError(*chart), err)
 			}
 
+			version := ociChartVersion(ctx, chartURL, chart.Version, auth)
+
 			directories = append(directories, directory{
 				prefix:        checksum(chart),
 				base:          base,
 				source:        chartURL,
 				auth:          auth,
-				version:       chart.Version,
+				version:       version,
 				strippedCreds: strippedCredentialsForEmptyRegex,
 			})
 		}
 	}
 	return directories, nil
+}
+
+// ociChartVersion resolves version against the tags of the OCI repository
+// chartURL points at, and returns the version Helm is to download.
+//
+// Helm asks a registry for the tag a fully specified version names, without ever
+// listing the tags it has, so a version naming no build never reaches a chart
+// published under one: version 109.0.1 does not reach the tag 109.0.1_up1.0.2.
+// Resolving here gives a chart in a git repository the same reach a HelmOp has.
+//
+// Resolution is an improvement on what Helm does by itself rather than a
+// requirement, so a version which cannot be resolved is returned unchanged:
+// Helm then asks the registry for the tag it names, exactly as it did before
+// this resolution existed. Unlike a HelmOp, whose version has to pass a strict
+// semver check before any bundle deployment is created, a chart read here is
+// carried in the bundle, so a tag semver only accepts loosely still deploys.
+func ociChartVersion(ctx context.Context, chartURL, version string, auth Auth) string {
+	if !strings.HasPrefix(chartURL, ociURLPrefix) {
+		return version
+	}
+
+	resolved, err := ChartVersion(ctx, fleet.HelmOptions{Repo: chartURL, Version: version}, auth)
+	if err == nil {
+		return resolved
+	}
+
+	// Which of the two happened is worth telling apart: no matching tag is
+	// something the user can act on, whereas tags we cannot list is a property of
+	// the registry, and both used to go unmentioned.
+	var noTag *NoMatchingTagError
+	if errors.As(err, &noTag) {
+		log.Log.Info(
+			"no tag of the OCI repository holds the chart version; "+
+				"asking Helm for the tag the version names",
+			"repo", chartURL,
+			"version", version,
+		)
+	} else {
+		log.Log.V(1).Info(
+			"could not list the tags of the OCI repository; "+
+				"asking Helm for the tag the version names",
+			"repo", chartURL,
+			"version", version,
+			"error", err,
+		)
+	}
+
+	return version
 }
 
 func downloadChartError(c fleet.HelmOptions) string {
