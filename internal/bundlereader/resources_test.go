@@ -313,6 +313,13 @@ func TestAddRemoteChartsWarnsMissingRegex(t *testing.T) {
 			wantWarning: true,
 		},
 		{
+			name:        "SSH key set, regex non-matching — warn",
+			charts:      remoteChart,
+			auth:        Auth{SSHPrivateKey: []byte("key")},
+			regex:       "https://charts\\.example\\.com.*",
+			wantWarning: true,
+		},
+		{
 			name:        "no credentials, regex empty — no warn",
 			charts:      remoteChart,
 			auth:        Auth{BasicHTTP: true},
@@ -320,11 +327,27 @@ func TestAddRemoteChartsWarnsMissingRegex(t *testing.T) {
 			wantWarning: false,
 		},
 		{
-			name:        "credentials set, regex provided — no warn",
+			name:        "no credentials, regex non-matching — no warn",
 			charts:      remoteChart,
+			auth:        Auth{BasicHTTP: true},
+			regex:       "https://charts\\.example\\.com.*",
+			wantWarning: false,
+		},
+		{
+			// The chart URL matches the regex, so credentials are forwarded and
+			// no warning is logged.
+			name:        "credentials set, regex matching — no warn",
+			charts:      []*fleet.HelmOptions{{Chart: "https://charts.example.com/nonexistent.tgz"}},
 			auth:        Auth{Username: "user", Password: "secret"},
 			regex:       "https://charts\\.example\\.com.*",
 			wantWarning: false,
+		},
+		{
+			name:        "credentials set, regex non-matching — warn",
+			charts:      remoteChart,
+			auth:        Auth{Username: "user", Password: "secret"},
+			regex:       "https://charts\\.example\\.com.*",
+			wantWarning: true,
 		},
 		{
 			name:        "credentials set, regex empty, no charts — no warn",
