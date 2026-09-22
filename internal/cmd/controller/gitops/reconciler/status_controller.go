@@ -84,11 +84,16 @@ func (r *StatusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	orig := gitrepo.DeepCopy()
 
-	// Restrictions / Overrides, gitrepo reconciler is responsible for setting error in status
+	// Restrictions / Overrides. gitjob_controller records the failure as
+	// Accepted=False. This return is above the propagation below, so apply
+	// that existing failure to Ready here. Otherwise a GitRepo that was
+	// Ready=True stays Ready=True when authorization fails.
 	if err := AuthorizeAndAssignDefaults(ctx, r.Client, gitrepo); err != nil {
-		// the gitjob_controller will handle the error (records event, updates status)
-		// status_controller just computes display status, no action needed on restriction errors
-		//nolint:nilerr // Intentionally delegating error handling to gitjob_controller
+		propagateAcceptedFailureToReady(gitrepo)
+		if statusErr := r.updateStatus(ctx, orig, gitrepo); statusErr != nil {
+			logger.Error(statusErr, "Reconcile failed update to git repo status", "status", gitrepo.Status)
+			return ctrl.Result{RequeueAfter: durations.GitRepoStatusDelay}, nil
+		}
 		return ctrl.Result{}, nil
 	}
 
@@ -147,8 +152,9 @@ func (r *StatusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, err
 	}
 
-	// If the Accepted condition is False (e.g. missing secret, cabundle failure,
-	// restriction violation), propagate that failure to the Ready condition.
+	// If the Accepted condition is False (e.g. missing secret, cabundle failure),
+	// propagate that failure to the Ready condition. Restriction violations
+	// return above and are propagated on that path.
 	// Without this, a GitRepo with no bundles (because the job never ran) would
 	// report Ready=True because the empty bundle summary satisfies 0/0 == ready.
 	propagateAcceptedFailureToReady(gitrepo)

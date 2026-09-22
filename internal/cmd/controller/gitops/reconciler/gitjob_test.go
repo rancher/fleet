@@ -3818,3 +3818,147 @@ func Test_StatusReconcile_AcceptedFailure_LastUpdateTimeStable(t *testing.T) {
 		t.Errorf("GitPolling condition was mutated: %+v", polling)
 	}
 }
+
+// Test_StatusReconcile_RestrictionViolation_PropagatesAcceptedToReady covers
+// the AuthorizeAndAssignDefaults error return. gitjob_controller has already
+// recorded the violation as Accepted=False while Ready is still True. Reconcile
+// must set Ready=False from that Accepted reason/message, and a second
+// reconcile must not rewrite LastUpdateTime.
+func Test_StatusReconcile_RestrictionViolation_PropagatesAcceptedToReady(t *testing.T) {
+	const (
+		sentinel = "2020-01-01T00:00:00Z"
+		msg      = "empty targetNamespace denied, because allowedTargetNamespaces restriction is present"
+		reason   = "Error"
+	)
+
+	scheme := runtime.NewScheme()
+	utilruntime.Must(fleetv1.AddToScheme(scheme))
+
+	gitrepo := &fleetv1.GitRepo{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-repo",
+			Namespace: "fleet-local",
+		},
+		Spec: fleetv1.GitRepoSpec{
+			Repo: "https://example.com/org/repo.git",
+		},
+		Status: fleetv1.GitRepoStatus{
+			StatusBase: fleetv1.StatusBase{
+				Conditions: []genericcondition.GenericCondition{
+					{
+						Type:    fleetv1.GitRepoAcceptedCondition,
+						Status:  "False",
+						Message: msg,
+						Reason:  reason,
+					},
+					{
+						Type:   "Ready",
+						Status: "True",
+					},
+					{
+						Type:    "GitPolling",
+						Status:  "True",
+						Message: "polling ok",
+					},
+				},
+			},
+		},
+	}
+	restriction := &fleetv1.GitRepoRestriction{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "restrict-target-ns",
+			Namespace: gitrepo.Namespace,
+		},
+		AllowedTargetNamespaces: []string{"ns1", "ns2"},
+	}
+
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(gitrepo, restriction).
+		WithStatusSubresource(&fleetv1.GitRepo{}).
+		Build()
+
+	r := &StatusReconciler{Client: fakeClient, Scheme: scheme}
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Name: gitrepo.Name, Namespace: gitrepo.Namespace}}
+	ctx := context.Background()
+
+	if _, err := r.Reconcile(ctx, req); err != nil {
+		t.Fatalf("first reconcile: %v", err)
+	}
+
+	updated := &fleetv1.GitRepo{}
+	if err := fakeClient.Get(ctx, req.NamespacedName, updated); err != nil {
+		t.Fatalf("get after first reconcile: %v", err)
+	}
+
+	ready, found := getCondition(updated, "Ready")
+	if !found {
+		t.Fatal("expected Ready condition after first reconcile")
+	}
+	if ready.Status != "False" {
+		t.Errorf("expected Ready=False after first reconcile, got %s", ready.Status)
+	}
+	if ready.Message != msg {
+		t.Errorf("unexpected Ready message after first reconcile: %s", ready.Message)
+	}
+	if ready.Reason != reason {
+		t.Errorf("unexpected Ready reason after first reconcile: %s", ready.Reason)
+	}
+	// setStatus writes Display.ReadyBundleDeployments. An empty value means
+	// Reconcile returned from the authorization failure instead of falling through.
+	if updated.Status.Display.ReadyBundleDeployments != "" {
+		t.Errorf("expected no bundle summary on the restriction path, got %q", updated.Status.Display.ReadyBundleDeployments)
+	}
+
+	accepted, found := getCondition(updated, fleetv1.GitRepoAcceptedCondition)
+	if !found {
+		t.Fatal("expected Accepted condition to be preserved")
+	}
+	if accepted.Status != "False" || accepted.Message != msg || accepted.Reason != reason {
+		t.Errorf("Accepted condition was mutated: %+v", accepted)
+	}
+
+	polling, found := getCondition(updated, "GitPolling")
+	if !found {
+		t.Fatal("expected GitPolling condition to be preserved")
+	}
+	if polling.Status != "True" || polling.Message != "polling ok" {
+		t.Errorf("GitPolling condition was mutated: %+v", polling)
+	}
+
+	// Stamp a sentinel LastUpdateTime so a same-second rewrite is detectable.
+	for i := range updated.Status.Conditions {
+		if updated.Status.Conditions[i].Type == "Ready" {
+			updated.Status.Conditions[i].LastUpdateTime = sentinel
+		}
+	}
+	if err := fakeClient.Status().Update(ctx, updated); err != nil {
+		t.Fatalf("stamp sentinel LastUpdateTime: %v", err)
+	}
+
+	if _, err := r.Reconcile(ctx, req); err != nil {
+		t.Fatalf("second reconcile: %v", err)
+	}
+
+	updated2 := &fleetv1.GitRepo{}
+	if err := fakeClient.Get(ctx, req.NamespacedName, updated2); err != nil {
+		t.Fatalf("get after second reconcile: %v", err)
+	}
+
+	ready2, found := getCondition(updated2, "Ready")
+	if !found {
+		t.Fatal("expected Ready condition after second reconcile")
+	}
+	if ready2.Status != "False" {
+		t.Errorf("expected Ready=False after second reconcile, got %s", ready2.Status)
+	}
+	if ready2.Message != msg || ready2.Reason != reason {
+		t.Errorf("Ready no longer carries the Accepted failure: %+v", ready2)
+	}
+	if ready2.LastUpdateTime != sentinel {
+		t.Errorf("LastUpdateTime churned on second reconcile: got %q, want %q", ready2.LastUpdateTime, sentinel)
+	}
+	if updated2.Status.Display.ReadyBundleDeployments != "" {
+		t.Errorf("second reconcile left the restriction path, display=%q", updated2.Status.Display.ReadyBundleDeployments)
+	}
+}
