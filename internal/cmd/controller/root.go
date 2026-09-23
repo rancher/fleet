@@ -174,8 +174,8 @@ func App() *cobra.Command {
 	root.Flags().AddGoFlagSet(fs)
 
 	root.AddCommand(
-		cleanup.App(),
-		agentmanagement.App(),
+		cleanup.App(zopts),
+		agentmanagement.App(zopts),
 		gitops.App(zopts),
 		helmops.App(zopts),
 	)
