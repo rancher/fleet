@@ -11,6 +11,7 @@ const (
 	AgentSecretTimeout             = time.Minute * 1
 	ClusterImportTokenTTL          = time.Hour * 12
 	ClusterRegisterDelay           = time.Second * 15
+	ClusterRegisterJitterMax       = time.Second * 60
 	ClusterRegistrationDeleteDelay = time.Minute * 40
 	ClusterSecretRetry             = time.Second * 2
 	ContentPurgeInterval           = time.Minute * 5
