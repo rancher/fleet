@@ -21,8 +21,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 )
 
-var clientBuilder = fake.NewClientBuilder()
-
 var _ = Describe("ClusterStatus Ticker", func() {
 	var (
 		scheme *runtime.Scheme
@@ -126,15 +124,17 @@ var _ = Describe("ClusterStatus Ticker", func() {
 		Ticker(ctx, clt, agentNamespace, clusterNamespace, clusterName, checkinInterval)
 
 		// Wait for at least one periodic patch to confirm the ticker is running.
-		Eventually(func() int32 { return patchCount.Load() }, time.Second).
-			Should(BeNumerically(">=", 1))
+		Eventually(func(g Gomega) {
+			g.Expect(patchCount.Load()).To(BeNumerically(">=", 1))
+		}, time.Second).Should(Succeed())
 
 		cancel()
 		countAtCancel := patchCount.Load()
 
 		// After cancellation the goroutine must exit; no additional patches.
-		Consistently(func() int32 { return patchCount.Load() }, checkinInterval*3, checkinInterval).
-			Should(Equal(countAtCancel))
+		Consistently(func(g Gomega) {
+			g.Expect(patchCount.Load()).To(Equal(countAtCancel))
+		}, checkinInterval*3, checkinInterval).Should(Succeed())
 	})
 
 	It("should spread first periodic patch across the interval to avoid thundering herd", func() {
@@ -190,11 +190,27 @@ var _ = Describe("ClusterStatus Ticker", func() {
 
 		// All agents started at the same moment; with jitter their first periodic
 		// patches must be spread across the checkinInterval window, not bunched at t=0.
-        var foundTimestamps []time.Time
-        for _, t := range firstPatchTimes {
-            Expect(t.IsZero()).To(BeFalse(), "no check-in timestamp should be 0")
-            Expect(foundTimestamps).ToNot(ContainElement(t), "no check-in timestamp should be duplicated between agents")
-            foundTimestamps = append(foundTimestamps, t)
-        }
+		var foundTimestamps []time.Time
+		for _, t := range firstPatchTimes {
+			Expect(t.IsZero()).To(BeFalse(), "no check-in timestamp should be 0")
+			Expect(foundTimestamps).ToNot(ContainElement(t), "no check-in timestamp should be duplicated between agents")
+			foundTimestamps = append(foundTimestamps, t)
+		}
+
+		// Distinct, non-zero timestamps alone don't prove jitter is spreading
+		// check-ins across the window — scheduler noise could produce that on
+		// its own. Assert the spread covers a meaningful fraction of
+		// checkinInterval, which a disabled/miscalculated jitter would fail.
+		minTime, maxTime := foundTimestamps[0], foundTimestamps[0]
+		for _, t := range foundTimestamps {
+			if t.Before(minTime) {
+				minTime = t
+			}
+			if t.After(maxTime) {
+				maxTime = t
+			}
+		}
+		Expect(maxTime.Sub(minTime)).To(BeNumerically(">", checkinInterval/4),
+			"jittered first patches should be spread across a meaningful fraction of checkinInterval")
 	})
 })

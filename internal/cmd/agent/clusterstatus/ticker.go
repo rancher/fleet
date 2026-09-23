@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math/rand/v2"
 	"time"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -17,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
@@ -39,21 +39,18 @@ func Ticker(ctx context.Context, client client.Client, agentNamespace string, cl
 		client:           client,
 	}
 
-	// Guard before both goroutines — rand.N panics on non-positive values.
+	// Guard before both goroutines — checkinInterval must be positive to be
+	// used as a jitter bound.
 	if checkinInterval <= 0 {
 		checkinInterval = durations.DefaultClusterCheckInterval
 	}
 
 	go func() {
-		// Fixed registration delay plus jitter to spread startup check-ins when
-		// many agents restart simultaneously (e.g. after a fleet-controller recovery).
-		timer := time.NewTimer(durations.ClusterRegisterDelay + rand.N(checkinInterval))
-		select {
-		case <-timer.C:
-		case <-ctx.Done():
-			if !timer.Stop() {
-				<-timer.C
-			}
+		// Fixed registration delay plus a small bounded jitter, so the first
+		// status report stays fast regardless of checkinInterval. Only the
+		// periodic ticker below is jittered across the full interval.
+		delay := durations.ClusterRegisterDelay + wait.Jitter(durations.ClusterRegisterJitterMax, 1.0)
+		if !sleepOrDone(ctx, delay) {
 			return
 		}
 		logger.V(1).Info("Reporting cluster status once")
@@ -64,13 +61,7 @@ func Ticker(ctx context.Context, client client.Client, agentNamespace string, cl
 	go func() {
 		// Spread agent check-ins across the interval window to prevent a thundering
 		// herd on the fleet-controller when many agents start at the same time.
-		timer := time.NewTimer(rand.N(checkinInterval))
-		select {
-		case <-timer.C:
-		case <-ctx.Done():
-			if !timer.Stop() {
-				<-timer.C
-			}
+		if !sleepOrDone(ctx, wait.Jitter(checkinInterval, 1.0)) {
 			return
 		}
 		for range ticker.Context(ctx, checkinInterval) {
@@ -80,6 +71,17 @@ func Ticker(ctx context.Context, client client.Client, agentNamespace string, cl
 			}
 		}
 	}()
+}
+
+// sleepOrDone waits for d or until ctx is cancelled, whichever comes first.
+// It returns false if ctx was cancelled first.
+func sleepOrDone(ctx context.Context, d time.Duration) bool {
+	select {
+	case <-time.After(d):
+		return true
+	case <-ctx.Done():
+		return false
+	}
 }
 
 // Update the cluster.fleet.cattle.io status in the upstream cluster with the current cluster status
