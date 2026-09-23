@@ -305,7 +305,19 @@ jobs:
 
       - name: Publish Release
         if: ${{ env.IS_HOTFIX == 'false' }}
-        run: gh release edit "${RELEASE_TAG}" --draft=false
+        run: |
+          set -euo pipefail
+
+          make_latest=false
+          if current_latest=$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq '.tag_name' 2>/dev/null); then
+            if [[ "${RELEASE_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              if [[ "$(printf '%s\n' "${current_latest}" "${RELEASE_TAG}" | sort -V | tail -n1)" == "${RELEASE_TAG}" ]]; then
+                make_latest=true
+              fi
+            fi
+          fi
+
+          gh release edit "${RELEASE_TAG}" --draft=false --latest="${make_latest}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
