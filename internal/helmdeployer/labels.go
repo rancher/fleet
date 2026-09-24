@@ -27,6 +27,9 @@ type sourceIdentity struct {
 func yieldSourceOrigins(bdLabels map[string]string) (sourceIdentity, bool) {
 	var s sourceIdentity
 
+	if bdLabels[fleet.InternalBundleLabel] == "true" {
+		return s, false
+	}
 	// GitRepo takes precedence over HelmOp: a BundleDeployment carrying both
 	// labels is not expected, and preferring the GitRepo keeps the outcome
 	// deterministic rather than dependent on map iteration.
