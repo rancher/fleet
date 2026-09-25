@@ -59,12 +59,14 @@ func (h *Helm) ListDeployments(list ListAction) ([]DeployedBundle, error) {
 		if ns != h.agentNamespace {
 			continue
 		}
-		// ignore error as keepResources should be false if annotation not found
+		// ignore error as keepResources and deleteNamespace should be false if annotation not found
 		keepResources, _ := strconv.ParseBool(release.Chart.Metadata.Annotations[KeepResourcesAnnotation])
+		deleteNamespace, _ := strconv.ParseBool(release.Chart.Metadata.Annotations[DeleteNamespaceAnnotation])
 		result = append(result, DeployedBundle{
-			BundleID:      d,
-			ReleaseName:   release.Namespace + "/" + release.Name,
-			KeepResources: keepResources,
+			BundleID:        d,
+			ReleaseName:     release.Namespace + "/" + release.Name,
+			KeepResources:   keepResources,
+			DeleteNamespace: deleteNamespace,
 		})
 	}
 
