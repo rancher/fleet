@@ -311,4 +311,6 @@ func TestClusterGroupsForCluster_NewResourceVersionCreatesNewCacheEntry(t *testi
 	assert.NoError(t, err)
 	_, v2Cached := manager.selectorCache.Load(ns + "/prod-cg@2")
 	assert.True(t, v2Cached, "entry for rv=2 should be cached after update")
+	_, v1Cached = manager.selectorCache.Load(ns + "/prod-cg@1")
+	assert.False(t, v1Cached, "entry for rv=1 should be purged after update")
 }

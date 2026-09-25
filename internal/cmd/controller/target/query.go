@@ -2,6 +2,8 @@ package target
 
 import (
 	"context"
+	"strings"
+	"sync"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -100,7 +102,6 @@ func (m *Manager) clusterGroupsForCluster(ctx context.Context, cluster *fleet.Cl
 			continue
 		}
 		// Cache key includes ResourceVersion so the selector is recompiled when the ClusterGroup changes.
-		// TODO: evict stale entries (deleted ClusterGroups or obsolete ResourceVersions) to bound memory growth.
 		cacheKey := cg.Namespace + "/" + cg.Name + "@" + cg.ResourceVersion
 		var sel labels.Selector
 		if cached, ok := m.selectorCache.Load(cacheKey); ok {
@@ -113,6 +114,7 @@ func (m *Manager) clusterGroupsForCluster(ctx context.Context, cluster *fleet.Cl
 				continue
 			}
 			m.selectorCache.Store(cacheKey, sel)
+			purgeObsoleteEntries(&m.selectorCache, cacheKey)
 		}
 		if sel.Matches(labels.Set(cluster.Labels)) {
 			cgCopy := cg
@@ -121,6 +123,21 @@ func (m *Manager) clusterGroupsForCluster(ctx context.Context, cluster *fleet.Cl
 	}
 
 	return result, nil
+}
+
+// purgeObsoleteEntries removes cache entries that share the same namespace/name prefix as cacheKey
+// but differ in ResourceVersion. This bounds memory growth when a ClusterGroup is updated repeatedly.
+func purgeObsoleteEntries(cache *sync.Map, cacheKey string) {
+	// cacheKey format: "namespace/name@resourceVersion"
+	prefix := cacheKey[:strings.LastIndex(cacheKey, "@")]
+	cache.Range(func(k, _ any) bool {
+		key := k.(string)
+		if key != cacheKey && strings.HasPrefix(key, prefix+"@") {
+			cache.Delete(key)
+			return false
+		}
+		return true
+	})
 }
 
 // ClusterGroupsForCluster returns all cluster groups that match the given cluster.
