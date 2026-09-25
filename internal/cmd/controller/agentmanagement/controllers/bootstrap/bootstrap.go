@@ -91,11 +91,14 @@ func (h *handler) OnConfig(config *fleetconfig.Config) error {
 		return err
 	}
 
-	objs = append(objs, &corev1.Namespace{
+	localClusterNS := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: config.Bootstrap.Namespace,
 		},
-	}, secret, &fleet.Cluster{
+	}
+	config.ApplyRancherNamespaceLabelsAndAnnotations(localClusterNS)
+
+	objs = append(objs, localClusterNS, secret, &fleet.Cluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      fleet.LocalClusterName,
 			Namespace: config.Bootstrap.Namespace,

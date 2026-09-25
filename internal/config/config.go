@@ -4,6 +4,7 @@ package config
 import (
 	"context"
 	"encoding/json"
+	"maps"
 	"sync"
 	"time"
 
@@ -43,6 +44,9 @@ const (
 	// KubeConfigSecretValueKey is the key in the kubeconfig secret, which
 	// contains the kubeconfig for the downstream cluster.
 	KubeConfigSecretValueKey = "value"
+	// ManagedNamespaceAnnotation is applied to namespaces created by Fleet
+	// when the rancherNamespaces feature is enabled.
+	ManagedNamespaceAnnotation = "cattle.io/managed-namespace"
 	// APIServerURLKey is the key which contains the API server URL of the
 	// upstream server. It is used in the controller config, the kubeconfig
 	// secret of a cluster, the cluster registration secret "import-NAME"
@@ -166,6 +170,39 @@ type Config struct {
 	// ImagePullSecrets references secrets located in the same namespace as the Fleet controller deployment, to be
 	// propagated to downstream clusters and used as image pull secrets for Fleet agent images.
 	ImagePullSecrets []v1.LocalObjectReference `json:"imagePullSecrets,omitempty"`
+
+	// RancherNamespaces controls additional labels and annotations applied to namespaces created by Fleet.
+	RancherNamespaces RancherNamespaces `json:"rancherNamespaces,omitzero"`
+}
+
+// RancherNamespaces controls additional labels and annotations applied to namespaces created by Fleet.
+type RancherNamespaces struct {
+	// Enabled, when true, applies Labels, Annotations and the ManagedNamespaceAnnotation to new namespaces.
+	Enabled     bool              `json:"enabled,omitempty"`
+	Labels      map[string]string `json:"labels,omitempty"`
+	Annotations map[string]string `json:"annotations,omitempty"`
+}
+
+// ApplyRancherNamespaceLabelsAndAnnotations adds the configured extra labels and
+// annotations, along with the ManagedNamespaceAnnotation, to ns if the
+// rancherNamespaces feature is enabled. It is a no-op otherwise.
+func (c *Config) ApplyRancherNamespaceLabelsAndAnnotations(ns *v1.Namespace) {
+	if c == nil || !c.RancherNamespaces.Enabled {
+		return
+	}
+
+	if len(c.RancherNamespaces.Labels) > 0 {
+		if ns.Labels == nil {
+			ns.Labels = map[string]string{}
+		}
+		maps.Copy(ns.Labels, c.RancherNamespaces.Labels)
+	}
+
+	if ns.Annotations == nil {
+		ns.Annotations = map[string]string{}
+	}
+	maps.Copy(ns.Annotations, c.RancherNamespaces.Annotations)
+	ns.Annotations[ManagedNamespaceAnnotation] = "true"
 }
 
 type AgentWorkers struct {
@@ -209,7 +246,18 @@ func OnChange(ctx context.Context, f func(*Config) error) {
 // Set doesn't trigger the callbacks, use SetAndTrigger for that. Set is used
 // by controller-runtime controllers.
 func Set(cfg *Config) {
+	sanitizeNamespaceMetadata(cfg)
 	config = cfg
+}
+
+func sanitizeNamespaceMetadata(cfg *Config) {
+	if cfg == nil {
+		return
+	}
+	delete(cfg.RancherNamespaces.Labels, fleet.ManagedLabel)
+	delete(cfg.RancherNamespaces.Annotations, fleet.ClusterNamespaceAnnotation)
+	delete(cfg.RancherNamespaces.Annotations, fleet.ClusterAnnotation)
+	delete(cfg.RancherNamespaces.Annotations, ManagedNamespaceAnnotation)
 }
 
 // SetAndTrigger sets the config and triggers the callbacks. It is used by the
@@ -218,7 +266,7 @@ func SetAndTrigger(cfg *Config) error {
 	callbackLock.Lock()
 	defer callbackLock.Unlock()
 
-	config = cfg
+	Set(cfg)
 	for _, f := range callbacks {
 		if err := f(cfg); err != nil {
 			return err
