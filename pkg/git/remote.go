@@ -77,7 +77,14 @@ type Remote struct {
 }
 
 func NewRemote(url string, opts *options) (*Remote, error) {
-	auth, err := GetAuthFromSecret(url, opts.Credential, opts.KnownHosts)
+	caBundle := append([]byte(nil), opts.CABundle...)
+	if proxyCAPEM, ok := os.LookupEnv(ProxyCABundleEnvVar); ok && proxyCAPEM != "" {
+		if len(caBundle) > 0 && caBundle[len(caBundle)-1] != '\n' {
+			caBundle = append(caBundle, '\n')
+		}
+		caBundle = append(caBundle, []byte(proxyCAPEM)...)
+	}
+	auth, err := GetAuthFromSecret(url, opts.Credential, opts.KnownHosts, caBundle)
 	if err != nil {
 		return nil, err
 	}
@@ -90,14 +97,6 @@ func NewRemote(url string, opts *options) (*Remote, error) {
 
 	if auth == nil && strings.HasPrefix(u.String(), "ssh://") {
 		return nil, fmt.Errorf("SSH private key file is required for SSH/SCP-style URLs: %s", url)
-	}
-
-	caBundle := append([]byte(nil), opts.CABundle...) // defensive copy
-	if proxyCAPEM, ok := os.LookupEnv(ProxyCABundleEnvVar); ok && proxyCAPEM != "" {
-		if len(caBundle) > 0 && caBundle[len(caBundle)-1] != '\n' {
-			caBundle = append(caBundle, '\n')
-		}
-		caBundle = append(caBundle, []byte(proxyCAPEM)...)
 	}
 
 	return &Remote{
