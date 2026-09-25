@@ -254,7 +254,7 @@ func (d *Deployer) helmdeploy(ctx context.Context, logger logr.Logger, bd *fleet
 	}
 
 	m.Commit = bd.Labels[fleet.CommitLabel]
-	release, err := d.helm.Deploy(ctx, bd.Name, m, bd.Spec.Options)
+	release, err := d.helm.Deploy(ctx, bd.Name, m, bd.Spec.Options, bd.Labels)
 	if err != nil {
 		return "", err
 	}

@@ -49,6 +49,10 @@ const (
 	// InternalSecretLabel is a label added to any secret created by Fleet to propagate Bundle or
 	// BundleDeployment secrets storing credential details for OCI storage or HelmOps.
 	InternalSecretLabel = "fleet.cattle.io/bundle-internal-secret"
+
+	// InternalBundleLabel marks a Bundle that Fleet creates for its own
+	// operation, rather than one derived from user content.
+	InternalBundleLabel = "fleet.cattle.io/internal-bundle"
 )
 
 var (

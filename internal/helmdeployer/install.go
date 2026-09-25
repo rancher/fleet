@@ -35,8 +35,11 @@ type dryRunConfig struct {
 	DryRunOption string
 }
 
-// Deploy deploys an unpacked content resource with helm. bundleID is the name of the bundledeployment.
-func (h *Helm) Deploy(ctx context.Context, bundleID string, manifest *manifest.Manifest, options fleet.BundleDeploymentOptions) (*releasev1.Release, error) {
+// Deploy deploys an unpacked content resource with helm. bundleID is the name of the
+// bundledeployment. bdLabels are that bundledeployment's labels, which carry the identity of
+// the Fleet source this deployment originates from; they may be nil where no bundledeployment
+// is involved.
+func (h *Helm) Deploy(ctx context.Context, bundleID string, manifest *manifest.Manifest, options fleet.BundleDeploymentOptions, bdLabels map[string]string) (*releasev1.Release, error) {
 	if options.Helm == nil {
 		options.Helm = &fleet.HelmOptions{}
 	}
@@ -66,7 +69,7 @@ func (h *Helm) Deploy(ctx context.Context, bundleID string, manifest *manifest.M
 		chart.Metadata.Annotations[CommitAnnotation] = manifest.Commit
 	}
 
-	release, err := h.install(ctx, bundleID, manifest, chart, options, getDryRunConfig(chart, true))
+	release, err := h.install(ctx, bundleID, manifest, chart, options, bdLabels, getDryRunConfig(chart, true))
 	if err != nil {
 		// A server-side dry run, which is needed for charts using the lookup
 		// function, cannot install the CRDs contained in the chart. Custom
@@ -84,11 +87,11 @@ func (h *Helm) Deploy(ctx context.Context, bundleID string, manifest *manifest.M
 		return release, nil
 	}
 
-	return h.install(ctx, bundleID, manifest, chart, options, getDryRunConfig(chart, false))
+	return h.install(ctx, bundleID, manifest, chart, options, bdLabels, getDryRunConfig(chart, false))
 }
 
 // install runs helm install or upgrade and supports dry running the action. Will run helm rollback in case of a failed upgrade.
-func (h *Helm) install(ctx context.Context, bundleID string, manifest *manifest.Manifest, chart *chartv2.Chart, options fleet.BundleDeploymentOptions, dryRunCfg dryRunConfig) (*releasev1.Release, error) {
+func (h *Helm) install(ctx context.Context, bundleID string, manifest *manifest.Manifest, chart *chartv2.Chart, options fleet.BundleDeploymentOptions, bdLabels map[string]string, dryRunCfg dryRunConfig) (*releasev1.Release, error) {
 	logger := log.FromContext(ctx).WithName("helm-deployer").WithName("install").WithValues("commit", manifest.Commit, "dryRun", dryRunCfg.DryRun)
 	timeout, defaultNamespace, releaseName := h.getOpts(bundleID, options)
 
@@ -135,9 +138,16 @@ func (h *Helm) install(ctx context.Context, bundleID string, manifest *manifest.
 		return nil, err
 	}
 
-	pr, err := h.createPostRenderer(cfg, bundleID, manifest, chart, options)
+	pr, err := h.createPostRenderer(cfg, bundleID, manifest, chart, options, bdLabels)
 	if err != nil {
 		return nil, err
+	}
+
+	// Logged once per real deploy rather than once per rendered object.
+	if !dryRunCfg.DryRun {
+		if _, ok := yieldSourceOrigins(bdLabels); !ok {
+			logger.V(1).Info("No Fleet source identity on the bundle deployment, deploying resources without managed-by labels")
+		}
 	}
 
 	if install {
@@ -155,7 +165,7 @@ func (h *Helm) install(ctx context.Context, bundleID string, manifest *manifest.
 
 // createPostRenderer creates a post-renderer for Helm charts that handles label/annotation
 // transformations and CRD deletion policies based on Fleet bundle deployment options.
-func (h *Helm) createPostRenderer(cfg *action.Configuration, bundleID string, manifest *manifest.Manifest, chart *chartv2.Chart, options fleet.BundleDeploymentOptions) (*postRender, error) {
+func (h *Helm) createPostRenderer(cfg *action.Configuration, bundleID string, manifest *manifest.Manifest, chart *chartv2.Chart, options fleet.BundleDeploymentOptions, bdLabels map[string]string) (*postRender, error) {
 	pr := &postRender{
 		labelPrefix: h.labelPrefix,
 		labelSuffix: h.labelSuffix,
@@ -163,6 +173,7 @@ func (h *Helm) createPostRenderer(cfg *action.Configuration, bundleID string, ma
 		manifest:    manifest,
 		opts:        options,
 		chart:       chart,
+		bdLabels:    bdLabels,
 	}
 
 	if !h.useGlobalCfg {

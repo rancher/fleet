@@ -293,3 +293,123 @@ func objectKinds(objs []kruntime.Object) []string {
 	}
 	return kinds
 }
+
+func TestPostRenderer_Run_Labels(t *testing.T) {
+	tests := map[string]struct {
+		bdLabels       map[string]string
+		objLabels      map[string]string
+		expectedLabels map[string]string
+	}{
+		"gitrepo source stamps all three labels": {
+			bdLabels: map[string]string{
+				v1alpha1.RepoLabel:            "label-trace",
+				v1alpha1.BundleNamespaceLabel: "fleet-default",
+			},
+			expectedLabels: map[string]string{
+				v1alpha1.ManagedByKindLabel:      "gitrepo",
+				v1alpha1.ManagedByNamespaceLabel: "fleet-default",
+				v1alpha1.ManagedByNameLabel:      "label-trace",
+			},
+		},
+		"helmop source stamps all three labels": {
+			bdLabels: map[string]string{
+				v1alpha1.HelmOpLabel:          "kafka",
+				v1alpha1.BundleNamespaceLabel: "fleet-default",
+			},
+			expectedLabels: map[string]string{
+				v1alpha1.ManagedByKindLabel:      "helmop",
+				v1alpha1.ManagedByNamespaceLabel: "fleet-default",
+				v1alpha1.ManagedByNameLabel:      "kafka",
+			},
+		},
+		"labels the object already declares are preserved": {
+			bdLabels: map[string]string{
+				v1alpha1.RepoLabel:            "label-trace",
+				v1alpha1.BundleNamespaceLabel: "fleet-default",
+			},
+			objLabels: map[string]string{
+				"app.kubernetes.io/name": "my-app",
+				"team":                   "platform",
+			},
+			expectedLabels: map[string]string{
+				"app.kubernetes.io/name":         "my-app",
+				"team":                           "platform",
+				v1alpha1.ManagedByKindLabel:      "gitrepo",
+				v1alpha1.ManagedByNamespaceLabel: "fleet-default",
+				v1alpha1.ManagedByNameLabel:      "label-trace",
+			},
+		},
+		"fleet's own internal bundle is deployed unlabelled": {
+			bdLabels: map[string]string{
+				"objectset.rio.cattle.io/hash": "abc123",
+			},
+			objLabels:      map[string]string{"app.kubernetes.io/name": "fleet-agent"},
+			expectedLabels: map[string]string{"app.kubernetes.io/name": "fleet-agent"},
+		},
+		"a BundleDeployment with no labels is deployed unlabelled": {
+			bdLabels:       nil,
+			expectedLabels: nil,
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			obj := &corev1.ConfigMap{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "ConfigMap",
+					APIVersion: "v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-cm",
+					Namespace: "default",
+					Labels:    test.objLabels,
+				},
+			}
+			data, err := yaml.ToBytes([]kruntime.Object{obj})
+			if err != nil {
+				t.Fatalf("unexpected error %v", err)
+			}
+
+			pr := postRender{
+				manifest: &manifest.Manifest{
+					Resources: []v1alpha1.BundleResource{},
+				},
+				chart:    &chartv2.Chart{},
+				bdLabels: test.bdLabels,
+			}
+			postRenderedManifests, err := pr.Run(bytes.NewBuffer(data))
+			if err != nil {
+				t.Fatalf("unexpected error %v", err)
+			}
+
+			objs, err := yaml.ToObjects(bytes.NewBuffer(postRenderedManifests.Bytes()))
+			if err != nil {
+				t.Fatalf("unexpected error %v", err)
+			}
+			if len(objs) != 1 {
+				t.Fatalf("expected 1 object, got %d", len(objs))
+			}
+			m, err := meta.Accessor(objs[0])
+			if err != nil {
+				t.Fatalf("unexpected error %v", err)
+			}
+
+			got := map[string]string{}
+			for k, v := range m.GetLabels() {
+				if _, expected := test.expectedLabels[k]; expected {
+					got[k] = v
+				}
+				switch k {
+				case v1alpha1.ManagedByKindLabel, v1alpha1.ManagedByNamespaceLabel, v1alpha1.ManagedByNameLabel:
+					got[k] = v
+				}
+			}
+			if len(got) == 0 {
+				got = nil
+			}
+			if !cmp.Equal(got, test.expectedLabels) {
+				t.Errorf("expected %v, got %v", test.expectedLabels, got)
+			}
+		})
+	}
+}

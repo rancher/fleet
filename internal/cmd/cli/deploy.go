@@ -154,7 +154,7 @@ func (d *Deploy) Run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	rel, err := deployer.Deploy(ctx, bd.Name, manifest, bd.Spec.Options)
+	rel, err := deployer.Deploy(ctx, bd.Name, manifest, bd.Spec.Options, bd.Labels)
 	if err != nil {
 		return err
 	}
