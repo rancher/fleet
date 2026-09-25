@@ -10,15 +10,9 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
-// registerKubeconfigFlags adds the controller-runtime flags, --kubeconfig
-// among them, to cmd.
-func registerKubeconfigFlags(cmd *cobra.Command) {
-	addGoFlags(cmd, flag.NewFlagSet("", flag.ExitOnError))
-}
-
-// registerLoggingAndKubeconfigFlags does the same as registerKubeconfigFlags,
-// and also exposes the zap logging flags, for the commands which set up the
-// controller-runtime logger from them.
+// registerLoggingAndKubeconfigFlags adds the controller-runtime flags,
+// --kubeconfig among them, plus the zap logging flags, to cmd, for the
+// commands which set up the controller-runtime logger from them.
 func registerLoggingAndKubeconfigFlags(cmd *cobra.Command) {
 	fs := flag.NewFlagSet("", flag.ExitOnError)
 	zopts.BindFlags(fs)

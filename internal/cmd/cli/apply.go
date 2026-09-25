@@ -9,8 +9,10 @@ import (
 	gogit "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/spf13/cobra"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	"github.com/rancher/fleet/internal/bundlereader"
 	command "github.com/rancher/fleet/internal/cmd"
@@ -37,7 +39,7 @@ func NewApply() *cobra.Command {
 		Short: "Create bundles from directories, and output them or apply them on a cluster",
 	})
 
-	registerKubeconfigFlags(cmd)
+	registerLoggingAndKubeconfigFlags(cmd)
 
 	return cmd
 }
@@ -83,6 +85,8 @@ func (r *Apply) PersistentPre(_ *cobra.Command, _ []string) error {
 }
 
 func (a *Apply) Run(cmd *cobra.Command, args []string) error {
+	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zopts)))
+
 	// Apply retries on conflict errors.
 	// We could have race conditions updating the Bundle in high load situations
 	var err error
@@ -166,7 +170,7 @@ func (a *Apply) run(cmd *cobra.Command, args []string) error {
 		args = args[1:]
 	}
 
-	ctx := cmd.Context()
+	ctx := log.IntoContext(cmd.Context(), ctrl.Log)
 
 	// When an output is set the bundles are rendered locally and the cluster
 	// is never contacted: CreateBundles and CreateBundlesDriven skip pruning

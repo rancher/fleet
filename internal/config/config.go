@@ -244,12 +244,12 @@ func Exists(_ context.Context, namespace, name string, configMaps corev1.ConfigM
 	return true, nil
 }
 
-func Lookup(_ context.Context, namespace, name string, configMaps corev1.ConfigMapClient) (*Config, error) {
+func Lookup(_ context.Context, namespace, name string, configMaps corev1.ConfigMapClient) (*Config, bool, error) {
 	cm, err := configMaps.Get(namespace, name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		cm = &v1.ConfigMap{}
 	} else if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	return ReadConfig(cm)
@@ -268,7 +268,7 @@ var durationConfigKeys = []string{
 	"garbageCollectionInterval",
 }
 
-func ReadConfig(cm *v1.ConfigMap) (*Config, error) {
+func ReadConfig(cm *v1.ConfigMap) (*Config, bool, error) {
 	// A running controller (config != nil) ignores a ConfigMap whose version
 	// annotation is absent or differs from its own, adopting only config it can
 	// positively confirm was rendered for its version; at startup there is no
@@ -276,21 +276,23 @@ func ReadConfig(cm *v1.ConfigMap) (*Config, error) {
 	if config != nil && cm.Annotations[VersionAnnotation] != version.Version {
 		logger := log.Log.WithName("fleet-config")
 		logger.Info("skipping hot-reload because version annotation of the ConfigMap is missing or is not matched.")
-		return config, nil
+		return config, false, nil
 	}
 	cfg := DefaultConfig()
 	data := cm.Data[Key]
 	if len(data) == 0 {
-		return cfg, nil
+		return cfg, true, nil
 	}
 
 	data, err := sanitizeDurations(data)
 	if err != nil {
-		return cfg, err
+		return cfg, false, err
 	}
 
-	err = yaml.Unmarshal([]byte(data), &cfg)
-	return cfg, err
+	if err := yaml.Unmarshal([]byte(data), &cfg); err != nil {
+		return cfg, false, err
+	}
+	return cfg, true, nil
 }
 
 // sanitizeDurations strips duration config keys

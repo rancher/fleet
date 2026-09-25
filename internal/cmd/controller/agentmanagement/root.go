@@ -2,14 +2,21 @@ package agentmanagement
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"strconv"
+
+	"github.com/spf13/cobra"
+	ctrl "sigs.k8s.io/controller-runtime"
+	clog "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	command "github.com/rancher/fleet/internal/cmd"
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/agent"
 	"github.com/rancher/fleet/pkg/version"
-	"github.com/spf13/cobra"
 )
+
+var zopts *zap.Options
 
 type AgentManagement struct {
 	command.DebugConfig
@@ -26,6 +33,11 @@ func (a *AgentManagement) HelpFunc(cmd *cobra.Command, strings []string) {
 }
 
 func (a *AgentManagement) PersistentPre(_ *cobra.Command, _ []string) error {
+	if err := a.SetupDebug(); err != nil {
+		return fmt.Errorf("failed to setup debug logging: %w", err)
+	}
+	zopts = a.OverrideZapOpts(zopts)
+
 	// if debug is enabled in controller, enable in agents too (unless otherwise specified)
 	propagateDebug, _ := strconv.ParseBool(os.Getenv("FLEET_PROPAGATE_DEBUG_SETTINGS_TO_AGENTS"))
 	if propagateDebug && a.Debug {
@@ -47,10 +59,14 @@ func (a *AgentManagement) Run(cmd *cobra.Command, args []string) error {
 	}
 	enforceTTL, _ := strconv.ParseBool(os.Getenv("FLEET_REGISTRATION_TOKEN_TTL_REQUIRED"))
 
-	return start(cmd.Context(), a.Kubeconfig, a.Namespace, a.DisableBootstrap, enforceTTL)
+	ctrl.SetLogger(zap.New(zap.UseFlagOptions(zopts)))
+	ctx := clog.IntoContext(cmd.Context(), ctrl.Log)
+
+	return start(ctx, a.Kubeconfig, a.Namespace, a.DisableBootstrap, enforceTTL)
 }
 
-func App() *cobra.Command {
+func App(zo *zap.Options) *cobra.Command {
+	zopts = zo
 	return command.Command(&AgentManagement{}, cobra.Command{
 		Version: version.FriendlyVersion(),
 		Use:     "agentmanagement",
