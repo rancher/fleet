@@ -100,10 +100,10 @@ jobs:
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
 
       - name: Install Slsactl
-        uses: rancherlabs/slsactl/actions/install-slsactl@a9707d8d4c20ef00215c686c26ab56f3ed4273a1 # v0.1.39
+        uses: rancherlabs/slsactl/actions/install-slsactl@99918c8edfad329ce4a379529d56137933b1632e # v0.1.40
         with:
           # renovate: datasource=github-tags depName=rancherlabs/slsactl
-          version: v0.1.39
+          version: v0.1.40
 
       - name: "Read Vault Secrets"
         uses: rancher-eio/read-vault-secrets@0da85151ad1f19ed7986c41587e45aac1ace74b6 # v3
@@ -142,9 +142,9 @@ jobs:
           fi
 
           # renovate: datasource=github-releases depName=goreleaser/goreleaser
-          GORELEASER_VERSION="v2.18.1"
-          # renovate: datasource=github-release-attachments depName=goreleaser/goreleaser digestVersion=v2.18.1
-          GORELEASER_CHECKSUM_amd64="0c6122af0ad8fd65638889bf7d3757148b2f80eeff9f079682f0655df66ec8e8"
+          GORELEASER_VERSION="v2.18.2"
+          # renovate: datasource=github-release-attachments depName=goreleaser/goreleaser digestVersion=v2.18.2
+          GORELEASER_CHECKSUM_amd64="0a96edc9d9bc594e4a41cc4d59467c182062910ab24d9d1f6dd7b667d32606d3"
 
           ARCH=$(uname -m)
           CHECKSUM="${GORELEASER_CHECKSUM_amd64}"
