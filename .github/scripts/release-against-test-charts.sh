@@ -46,8 +46,9 @@ for suffix in '' '-agent' '-crd'; do
     # Replace rancher/fleet and rancher/fleet-agent image names
     sed -i \
         -e "s@repository: rancher/\(fleet.*\).*@repository: ttl.sh/rancher-\\1-$UUID@" \
+        -e "s@image: rancher/\(fleet[-a-z]*\):dev@image: ttl.sh/rancher-\\1-$UUID:1h@" \
         -e "s/tag: dev/tag: 1h/" \
-        values.yaml
+        values.yaml Chart.yaml
 
     cd -
 
