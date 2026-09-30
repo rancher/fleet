@@ -25,6 +25,11 @@ data:
       "imagePullSecrets": {{toJson .Values.global.cattle.imagePullSecrets}},
       {{ end }}
       "ignoreClusterRegistrationLabels": {{.Values.ignoreClusterRegistrationLabels}},
+      "rancherNamespaces": {
+        "enabled": {{.Values.rancherNamespaces.enabled}},
+        "labels": {{toJson .Values.rancherNamespaces.labels}},
+        "annotations": {{toJson .Values.rancherNamespaces.annotations}}
+      },
       "bootstrap": {
         "paths": "{{.Values.bootstrap.paths}}",
         "repo": "{{.Values.bootstrap.repo}}",
