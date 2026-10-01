@@ -158,6 +158,27 @@ func TestGenerateValuesReadsFileWithinRoot(t *testing.T) {
 	assert.Equal(t, "bar", valuesMap.Data["foo"])
 }
 
+// A root spelled through a symlink must still contain the canonical bundle path.
+func TestGenerateValuesAllowsSymlinkedRoot(t *testing.T) {
+	dir := t.TempDir()
+	real := filepath.Join(dir, "repo")
+	base := filepath.Join(real, "charts", "chart1")
+	require.NoError(t, os.MkdirAll(base, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(real, "values.yaml"), []byte("foo: bar"), 0644))
+	link := filepath.Join(dir, "checkout")
+	require.NoError(t, os.Symlink(real, link))
+
+	chart := &fleet.HelmOptions{
+		GitOpsHelmOptions: fleet.GitOpsHelmOptions{
+			ValuesFiles: []string{"../../values.yaml"},
+		},
+	}
+
+	valuesMap, err := generateValues(base, link, chart)
+	require.NoError(t, err)
+	assert.Equal(t, "bar", valuesMap.Data["foo"])
+}
+
 func TestGenerateValuesRejectsPathOutsideRoot(t *testing.T) {
 	dir := t.TempDir()
 	root := filepath.Join(dir, "root")

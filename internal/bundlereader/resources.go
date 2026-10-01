@@ -195,30 +195,27 @@ func generateValues(base, root string, chart *fleet.HelmOptions) (valuesMap *fle
 	if chart.Values != nil {
 		valuesMap = chart.Values
 	}
-	absBase, err := filepath.Abs(base)
+	resolvedBase, err := resolveDir(base)
 	if err != nil {
 		return nil, fmt.Errorf("resolving values base %q: %w", base, err)
 	}
-	absRoot := absBase
+	resolvedRoot := resolvedBase
 	if root != "" {
-		if absRoot, err = filepath.Abs(root); err != nil {
+		r, err := resolveDir(root)
+		if err != nil {
 			return nil, fmt.Errorf("resolving values root %q: %w", root, err)
 		}
-	}
-	if !pathWithinDir(absRoot, absBase) {
-		absRoot = absBase
-	}
-	resolvedRoot, err := filepath.EvalSymlinks(absRoot)
-	if err != nil {
-		return nil, fmt.Errorf("resolving values root %q: %w", absRoot, err)
+		if pathWithinDir(r, resolvedBase) {
+			resolvedRoot = r
+		}
 	}
 	for _, value := range chart.ValuesFiles {
 		cleanValue := filepath.Clean(filepath.FromSlash(value))
 		if filepath.IsAbs(cleanValue) {
 			return nil, fmt.Errorf("invalid values file %q: path must be relative", value)
 		}
-		valuesPath := filepath.Join(absBase, cleanValue)
-		if !pathWithinDir(absRoot, valuesPath) {
+		valuesPath := filepath.Join(resolvedBase, cleanValue)
+		if !pathWithinDir(resolvedRoot, valuesPath) {
 			return nil, fmt.Errorf("invalid values file %q: path escapes repository directory", value)
 		}
 		resolvedValuesPath, err := filepath.EvalSymlinks(valuesPath)
@@ -241,6 +238,15 @@ func generateValues(base, root string, chart *fleet.HelmOptions) (valuesMap *fle
 	}
 
 	return valuesMap, nil
+}
+
+// resolveDir returns the absolute path of dir with symlinks resolved.
+func resolveDir(dir string) (string, error) {
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return "", err
+	}
+	return filepath.EvalSymlinks(abs)
 }
 
 func mergeGenericMap(first, second *fleet.GenericMap) *fleet.GenericMap {
