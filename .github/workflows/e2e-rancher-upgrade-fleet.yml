@@ -90,9 +90,9 @@ jobs:
         run: |
           mkdir -p /home/runner/.local/bin
           # renovate: datasource=github-releases depName=rancher/cli
-          RANCHER_CLI_VERSION="v2.15.1"
-          # renovate: datasource=github-release-attachments depName=rancher/cli digestVersion=v2.15.1
-          RANCHER_CLI_SUM_amd64="0d2bdce13a55204e97134d894adafdb3be43d3a70290cfb0d56db6c61b913be3"
+          RANCHER_CLI_VERSION="v2.15.2"
+          # renovate: datasource=github-release-attachments depName=rancher/cli digestVersion=v2.15.2
+          RANCHER_CLI_SUM_amd64="4efe48771fdd5f62f46bc1f40bb870acc7d94e7a2579abab58d8d495a30c2d74"
           ARCHIVE="rancher-linux-amd64-${RANCHER_CLI_VERSION}.tar.gz"
           wget -q "https://github.com/rancher/cli/releases/download/${RANCHER_CLI_VERSION}/${ARCHIVE}"
           echo "${RANCHER_CLI_SUM_amd64}  ${ARCHIVE}" | sha256sum -c -
