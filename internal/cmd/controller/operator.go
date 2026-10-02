@@ -125,6 +125,7 @@ func start(
 		mgr.GetClient(),
 		mgr.GetScheme(),
 		"fleet-bundle-ctrl"+shardIDSuffix,
+		// Passed as a function, so that config changes apply without a restart.
 		bundleevents.OptionsFromGlobalConfig,
 	)
 	if err := mgr.Add(bundleEvents); err != nil {

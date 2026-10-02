@@ -29,6 +29,16 @@ import (
 const (
 	renderError = "chart render failed: template: app/templates/deploy.yaml:12: nil pointer"
 	nsForbidden = `namespace "prod" is forbidden by AllowedTargetNamespaceSelector`
+
+	// targets is the number of clusters the test bundle is deployed to.
+	targets = 500
+
+	// bundleUID is the UID of the bundle the fixture reports on.
+	bundleUID = types.UID("7b3d")
+
+	// newUID is the UID of a bundle observed for the first time, in the
+	// eviction tests.
+	newUID = types.UID("brand-new")
 )
 
 type testClock struct {
@@ -141,9 +151,6 @@ func bundle(summary fleet.BundleSummary) *fleet.Bundle {
 		Status: fleet.BundleStatus{Summary: summary},
 	}
 }
-
-// targets is the number of clusters the test bundle is deployed to.
-const targets = 500
 
 func ready() fleet.BundleSummary {
 	return fleet.BundleSummary{DesiredReady: targets, Ready: targets}
@@ -452,6 +459,27 @@ func TestOngoingFailureIsNotReportedAfterARestart(t *testing.T) {
 	}
 }
 
+func TestRecoveryAfterARestartIsReportedAcrossTransientStates(t *testing.T) {
+	f := newFixture(t, nil)
+
+	// The fixture's emitter starts empty, as after a restart: the failure is
+	// only known from the persisted status, and the bundle is redeployed
+	// before it is ready.
+	f.emitter.ObserveBundle(context.TODO(), bundle(failing(500, renderError)), bundle(deploying()))
+	f.flush(t)
+
+	f.emitter.ObserveBundle(context.TODO(), bundle(deploying()), bundle(ready()))
+	f.flush(t)
+
+	events := f.events(t)
+	if len(events) != 1 {
+		t.Fatalf("expected the recovery to be reported, got %d events", len(events))
+	}
+	if events[0].Reason != ReasonBundleReady {
+		t.Errorf("unexpected reason: %s", events[0].Reason)
+	}
+}
+
 func TestMinIntervalDelaysTheNextEvent(t *testing.T) {
 	f := newFixture(t, nil)
 
@@ -491,7 +519,7 @@ func TestRateLimitedEventsStayPending(t *testing.T) {
 	f.emitter.mu.Lock()
 	defer f.emitter.mu.Unlock()
 
-	ent, ok := f.emitter.entries[types.UID("7b3d")]
+	ent, ok := f.emitter.entries[bundleUID]
 	if !ok || ent.pending == nil {
 		t.Fatal("expected the rate limited event to stay pending")
 	}
@@ -627,6 +655,26 @@ func TestBundleDeploymentRecoveryIsReportedAcrossTransientStates(t *testing.T) {
 	}
 }
 
+func TestBundleDeploymentRecoveryAfterARestartIsReportedAcrossTransientStates(t *testing.T) {
+	f := newFixture(t, nil)
+	f.opts.PerDeployment = true
+
+	// As for bundles, the failure is only known from the persisted status.
+	f.emitter.ObserveBundleDeployment(context.TODO(), deployment(fleet.ErrApplied), deployment(fleet.Pending))
+	f.flush(t)
+
+	f.emitter.ObserveBundleDeployment(context.TODO(), deployment(fleet.Pending), deployment(fleet.Ready))
+	f.flush(t)
+
+	events := f.events(t)
+	if len(events) != 1 {
+		t.Fatalf("expected the recovery to be reported, got %d events", len(events))
+	}
+	if events[0].Reason != ReasonBundleDeploymentReady {
+		t.Errorf("unexpected reason: %s", events[0].Reason)
+	}
+}
+
 func TestBundleDeploymentReadyWithoutAFailureIsNotReported(t *testing.T) {
 	f := newFixture(t, nil)
 	f.opts.PerDeployment = true
@@ -674,9 +722,6 @@ func TestReasonsAreScopedToTheKindTheyAreReportedOn(t *testing.T) {
 	}
 }
 
-// bundleUID is the UID of the bundle the fixture reports on.
-const bundleUID = types.UID("7b3d")
-
 func serverBusy() error {
 	return apierrors.NewTimeoutError("server is busy", 1)
 }
@@ -707,6 +752,9 @@ func TestTransientCreateFailureIsRetried(t *testing.T) {
 
 	if got := f.events(t); len(got) != 0 {
 		t.Fatalf("expected the first attempt to fail, got %d events", len(got))
+	}
+	if ent := f.bundleEntry(); ent == nil || ent.attempts != 1 || ent.pending == nil {
+		t.Fatal("expected the failed attempt to be counted and the event to be queued for a retry")
 	}
 
 	f.retry(2)
@@ -790,7 +838,8 @@ func TestFailureIsReportedAgainAfterGivingUp(t *testing.T) {
 	}
 
 	// Whatever made creation fail is fixed, and the bundle fails for a new
-	// reason: nothing was lost permanently.
+	// reason. The dropped event stays lost, but giving up does not keep later
+	// changes from being reported.
 	f.createErr = nil
 	f.emitter.ObserveBundle(context.TODO(),
 		bundle(failing(500, renderError)), bundle(failing(500, nsForbidden)))
@@ -859,8 +908,6 @@ func (f *fixture) eventsFor(t *testing.T, uid types.UID) int {
 	return count
 }
 
-const newUID = types.UID("brand-new")
-
 func TestEvictionKeepsTheObjectItMakesRoomFor(t *testing.T) {
 	f := newFixture(t, nil)
 	f.opts.MaxTracked = 10
@@ -900,9 +947,26 @@ func TestEvictionDoesNotDropEventsDuringABurst(t *testing.T) {
 		otherBundle(newUID, ready()),
 		otherBundle(newUID, failing(1, nsForbidden)),
 	)
+
+	// With every entry exempt, the limit is exceeded instead.
+	if len(f.emitter.entries) <= f.opts.MaxTracked {
+		t.Errorf("expected more than %d entries during the burst, got %d", f.opts.MaxTracked, len(f.emitter.entries))
+	}
+
 	f.flush(t)
 
 	if got := f.eventsFor(t, newUID); got != 1 {
 		t.Errorf("expected the newly tracked bundle to be reported once, got %d events", got)
+	}
+
+	// Once the events are created, the next object to be tracked brings the
+	// emitter back within the limit.
+	f.emitter.ObserveBundle(
+		context.TODO(),
+		otherBundle("after-burst", ready()),
+		otherBundle("after-burst", failing(1, nsForbidden)),
+	)
+	if len(f.emitter.entries) > f.opts.MaxTracked {
+		t.Errorf("expected at most %d entries after the burst, got %d", f.opts.MaxTracked, len(f.emitter.entries))
 	}
 }

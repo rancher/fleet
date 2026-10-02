@@ -12,7 +12,7 @@ import (
 // the controller's configmap.
 const rendered = `{
   "deploymentEvents": {
-    "disabled": false,
+    "enabled": true,
     "debounce": "10s",
     "minInterval": "2m",
     "reportRecovery": false,
@@ -59,9 +59,22 @@ func TestOptionsFallBackToDefaults(t *testing.T) {
 }
 
 func TestOptionsCanBeDisabled(t *testing.T) {
-	cfg := &config.Config{DeploymentEvents: config.DeploymentEvents{Disabled: true}}
+	disabled := false
+	cfg := &config.Config{DeploymentEvents: config.DeploymentEvents{Enabled: &disabled}}
 
 	if OptionsFromConfig(cfg).Enabled {
 		t.Error("expected events to be disabled")
+	}
+}
+
+// The chart renders an unset toggle as null, which has to keep the default.
+func TestOptionsEnabledWhenToggleIsNull(t *testing.T) {
+	cfg := &config.Config{}
+	if err := json.Unmarshal([]byte(`{"deploymentEvents": {"enabled": null}}`), cfg); err != nil {
+		t.Fatalf("reading config: %v", err)
+	}
+
+	if !OptionsFromConfig(cfg).Enabled {
+		t.Error("expected events to be enabled")
 	}
 }

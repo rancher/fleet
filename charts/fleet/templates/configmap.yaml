@@ -27,7 +27,7 @@ data:
       "ignoreClusterRegistrationLabels": {{.Values.ignoreClusterRegistrationLabels}},
       {{- with .Values.deploymentEvents }}
       "deploymentEvents": {
-        "disabled": {{toJson .disabled}},
+        "enabled": {{toJson .enabled}},
         {{ if .debounce }}
         "debounce": "{{.debounce}}",
         {{ end }}

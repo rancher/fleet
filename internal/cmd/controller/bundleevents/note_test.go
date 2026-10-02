@@ -3,6 +3,7 @@ package bundleevents
 import (
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
@@ -55,8 +56,8 @@ func TestFailureNoteStaysWithinTheNoteLimit(t *testing.T) {
 	if len(note) > noteMaxLength {
 		t.Errorf("expected the note to be at most %d bytes, got %d", noteMaxLength, len(note))
 	}
-	if !strings.Contains(note, "more, see status.summary.nonReadyResources") {
-		t.Errorf("expected a pointer to the status, got %q", note)
+	if !strings.HasSuffix(note, "more, see status.summary.nonReadyResources)") {
+		t.Errorf("expected the note to end with a complete pointer to the status, got %q", note)
 	}
 }
 
@@ -160,17 +161,17 @@ func TestMagnitudeBuckets(t *testing.T) {
 }
 
 func TestTruncateKeepsValidUTF8(t *testing.T) {
+	// "ü" takes two bytes, so cutting to 10 bytes, of which 7 are left once
+	// the ellipsis is accounted for, would split the fourth one in half.
 	truncated := truncate(strings.Repeat("ü", 20), 10)
 
 	if len(truncated) > 10 {
 		t.Errorf("expected at most 10 bytes, got %d", len(truncated))
 	}
-	if !strings.HasSuffix(truncated, "...") {
+	if !strings.HasSuffix(truncated, ellipsis) {
 		t.Errorf("expected an ellipsis, got %q", truncated)
 	}
-	for _, r := range truncated {
-		if r == '�' {
-			t.Errorf("expected valid UTF-8, got %q", truncated)
-		}
+	if !utf8.ValidString(truncated) {
+		t.Errorf("expected valid UTF-8, got %q", truncated)
 	}
 }

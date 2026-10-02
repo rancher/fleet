@@ -37,7 +37,7 @@
     "deploymentEvents": {
       "type": "object",
       "properties": {
-        "disabled": {
+        "enabled": {
           "type": "boolean"
         },
         "debounce": {

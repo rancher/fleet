@@ -32,9 +32,9 @@ ignoreClusterRegistrationLabels: false
 
 # Events reporting the deployment state of bundles, on the bundle they are about.
 deploymentEvents:
-  # Turns off events about the deployment state of bundles. Unsetting the whole
-  # block keeps the defaults below, which report.
-  disabled: false
+  # Turns events about the deployment state of bundles on or off. Unsetting it,
+  # or the whole block, keeps the default, which reports.
+  enabled: true
   # How long to wait for a burst of failures to settle before reporting it, so
   # that the event describes the whole burst instead of only its first failure.
   # A bundle failing on 500 clusters over 3s reports once, as "500/500 bundle
@@ -55,7 +55,7 @@ deploymentEvents:
   # How many distinct failure causes a single event describes. The bundle's
   # status.summary.nonReadyResources lists more of them, up to 10, which is
   # therefore the highest value with an effect. Causes beyond it are reported as
-  # "(+117 more, see status.summary.nonReadyResources)".
+  # e.g. "(+117 more, see status.summary.nonReadyResources)".
   maxCauses: 3
 
 # Counts from gitrepo are out of sync with bundleDeployment state.

@@ -62,7 +62,8 @@ const (
 	// actionDeploy is the operation all events reported here relate to.
 	actionDeploy = "Deploy"
 
-	// tickInterval is how often pending events are checked for being due.
+	// tickInterval is how often pending events (see entry.pending) are
+	// checked for being due.
 	tickInterval = time.Second
 
 	// entryTTL is how long an object without a pending event is remembered.
@@ -93,7 +94,9 @@ type Notifier interface {
 	ObserveBundle(ctx context.Context, old, cur *fleet.Bundle)
 
 	// ObserveBundleDeployment reports a single bundle deployment, if
-	// per-deployment reporting is enabled.
+	// per-deployment reporting is enabled. Old is the bundle deployment as
+	// previously persisted, which makes the state change survive a restart
+	// of the controller.
 	ObserveBundleDeployment(ctx context.Context, old, cur *fleet.BundleDeployment)
 
 	// Forget drops everything remembered about an object. Callers report
@@ -117,12 +120,19 @@ type snapshot struct {
 type entry struct {
 	// emitted is the fingerprint of the last event created for the object.
 	emitted fingerprint
+
+	// hasSent is true if emitted holds a created event. It is reset once the
+	// object stops failing, so that a recurring failure is reported again.
 	hasSent bool
 
 	// lastEmit is when that event was created.
 	lastEmit time.Time
 
 	// pending is the next event to create, and dueAt is when it may be created.
+	// A pending event exists only in the emitter's memory: it is not written
+	// to the API until it is due, has been claimed by a flush and has passed
+	// the rate limiter. Until then it can be replaced by a newer description
+	// of the same object, which is how a burst collapses into a single event.
 	pending *snapshot
 	dueAt   time.Time
 
@@ -282,9 +292,14 @@ func (e *Emitter) ObserveBundle(ctx context.Context, old, cur *fleet.Bundle) {
 		return
 	}
 
-	// wasFailing covers the failure and the recovery landing in one status
-	// update, which is the only form a restart can still detect.
-	if !e.awaitingRecovery(cur.UID) && wasFailing == 0 {
+	// After a restart, the memory of a failure is gone, but the previously
+	// persisted status still shows it. Remember it again, so that the
+	// recovery is reported even if the bundle passes through other states
+	// before it is ready.
+	if wasFailing > 0 {
+		e.awaitRecovery(cur.UID, opts)
+	}
+	if !e.awaitingRecovery(cur.UID) {
 		return
 	}
 
@@ -321,9 +336,10 @@ func (e *Emitter) ObserveBundleDeployment(ctx context.Context, old, cur *fleet.B
 	state := fleet.BundleState(cur.Status.Display.State)
 	previous := fleet.BundleState(old.Status.Display.State)
 
-	if isFailure(state) {
+	if isFailure(state) || isFailure(previous) {
 		// As for bundles, remember the failure, so that the recovery is
-		// reported from whichever state the deployment reaches Ready.
+		// reported from whichever state the deployment reaches Ready. The
+		// previous state restores it after a restart.
 		e.awaitRecovery(cur.UID, opts)
 	}
 
@@ -352,7 +368,7 @@ func (e *Emitter) ObserveBundleDeployment(ctx context.Context, old, cur *fleet.B
 			e.stopAwaitingRecovery(cur.UID)
 			return
 		}
-		if !e.awaitingRecovery(cur.UID) && !isFailure(previous) {
+		if !e.awaitingRecovery(cur.UID) {
 			return
 		}
 
@@ -366,6 +382,16 @@ func (e *Emitter) ObserveBundleDeployment(ctx context.Context, old, cur *fleet.B
 			fingerprintOf("ready", ReasonBundleDeploymentReady),
 		), opts)
 	}
+}
+
+// hasPending reports whether an event for the object is waiting to be created.
+func (e *Emitter) hasPending(uid types.UID) bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	ent, ok := e.entries[uid]
+
+	return ok && ent.pending != nil
 }
 
 // awaitRecovery remembers that an object is failing, so that its recovery is
@@ -384,16 +410,6 @@ func (e *Emitter) awaitRecovery(uid types.UID, opts Options) {
 	}
 	ent.touched = now
 	ent.awaitingRecovery = true
-}
-
-// hasPending reports whether an event for the object is waiting to be created.
-func (e *Emitter) hasPending(uid types.UID) bool {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-
-	ent, ok := e.entries[uid]
-
-	return ok && ent.pending != nil
 }
 
 // awaitingRecovery reports whether a failure is waiting to be reported as
@@ -608,15 +624,17 @@ func (e *Emitter) recordEmit(uid types.UID, fp fingerprint, now time.Time, opts 
 	}
 }
 
-// createFailed retries the event, unless it has been tried too often or the
-// error says that trying again can only fail the same way. Giving up drops the
-// event, which lets the entry be forgotten again: what the event describes is
-// still in the object's status, whereas holding on to it would keep the entry
-// alive and spend the rate limit which events that can be created need.
+// createFailed puts the event back to be retried, unless it has been tried too
+// often or the error says that trying again can only fail the same way. The
+// event was taken off the queue when it was claimed, so giving up only means
+// not putting it back. This lets the entry be forgotten again: what the event
+// describes is still in the object's status, whereas holding on to it would
+// keep the entry alive and spend the rate limit which events that can be
+// created need.
 //
-// Nothing is lost permanently: the next change to the object queues a new
-// event, with a full budget of attempts, so a cause which is fixed in the
-// meantime reports again.
+// The dropped event is not reported later, but what it described is still in
+// the object's status, and the next change to the object queues a new event
+// with a full budget of attempts.
 func (e *Emitter) createFailed(ctx context.Context, uid types.UID, snap *snapshot, now time.Time, err error) {
 	e.mu.Lock()
 
@@ -767,8 +785,9 @@ func (e *Emitter) forgetStale() {
 // The entry being made room for is never a candidate. Objects with an event
 // waiting are exempt, and during a burst that is every object except the one
 // just observed, which would otherwise leave it as the only candidate and drop
-// its event. Exempting it lets the map exceed maxTracked instead, which the
-// next flush undoes as it drains the pending events.
+// its event. Exempting it lets the map exceed maxTracked instead, until the
+// pending events have been created and the next object to be tracked evicts
+// again.
 func (e *Emitter) evict(maxTracked int, keep types.UID) {
 	if maxTracked <= 0 || len(e.entries) <= maxTracked {
 		return

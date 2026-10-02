@@ -176,8 +176,9 @@ type Config struct {
 // failing, and recovering, bundle deployments. Unset durations use their
 // default.
 type DeploymentEvents struct {
-	// Disabled turns off events about the deployment state of bundles.
-	Disabled bool `json:"disabled,omitempty"`
+	// Enabled turns events about the deployment state of bundles on or off,
+	// defaults to true.
+	Enabled *bool `json:"enabled,omitempty"`
 
 	// Debounce is how long to wait for a burst of failures to settle before
 	// reporting it, defaults to 5s. Reporting a burst immediately would
@@ -195,7 +196,7 @@ type DeploymentEvents struct {
 
 	// PerDeployment additionally reports each failing bundle deployment, in
 	// the namespace of its cluster. This is more detailed, but produces one
-	// event per failing deployment.
+	// event per failing deployment. Defaults to false.
 	PerDeployment bool `json:"perDeployment,omitempty"`
 
 	// MaxCauses is how many distinct failure causes a single event

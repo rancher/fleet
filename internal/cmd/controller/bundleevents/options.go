@@ -76,8 +76,8 @@ func OptionsFromConfig(cfg *config.Config) Options {
 
 	events := cfg.DeploymentEvents
 
-	if events.Disabled {
-		opts.Enabled = false
+	if events.Enabled != nil {
+		opts.Enabled = *events.Enabled
 	}
 	if events.Debounce.Duration > 0 {
 		opts.Debounce = events.Debounce.Duration

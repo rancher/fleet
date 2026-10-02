@@ -20,6 +20,13 @@ const (
 	// statusHint points at the bundle status, which lists more causes than
 	// fit into a note.
 	statusHint = "see status.summary.nonReadyResources"
+
+	// moreCausesFormat ends a note whose causes do not all fit, with how many
+	// were left out and where to find them.
+	moreCausesFormat = " (+%d more, " + statusHint + ")"
+
+	// ellipsis marks a truncated text.
+	ellipsis = "..."
 )
 
 // failureCounts returns the number of bundle deployments which failed to deploy
@@ -149,10 +156,11 @@ func failureNote(s fleet.BundleSummary, maxCauses int) string {
 	}
 	b.WriteString(".")
 
-	// Leave room for the trailing hint, which is more useful than one more cause.
-	budget := noteMaxLength - len(statusHint) - 32
-
 	causes := failureCauses(s)
+
+	// Leave room for the ending, which is more useful than one more cause. No
+	// more causes can be left out than there are, so this fits any count.
+	budget := noteMaxLength - len(fmt.Sprintf(moreCausesFormat, len(causes)))
 	written := 0
 	for _, c := range causes {
 		if written >= maxCauses {
@@ -174,7 +182,7 @@ func failureNote(s fleet.BundleSummary, maxCauses int) string {
 	// there. How many deployments are failing is already in the first
 	// sentence.
 	if remaining := len(causes) - written; remaining > 0 {
-		fmt.Fprintf(&b, " (+%d more, %s)", remaining, statusHint)
+		fmt.Fprintf(&b, moreCausesFormat, remaining)
 	}
 
 	return truncate(b.String(), noteMaxLength)
@@ -202,9 +210,9 @@ func truncate(s string, max int) string {
 	if len(s) <= max {
 		return s
 	}
-	if max <= 3 {
+	if max <= len(ellipsis) {
 		return strings.ToValidUTF8(s[:max], "")
 	}
 
-	return strings.ToValidUTF8(s[:max-3], "") + "..."
+	return strings.ToValidUTF8(s[:max-len(ellipsis)], "") + ellipsis
 }
