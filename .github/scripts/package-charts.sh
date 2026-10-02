@@ -17,10 +17,11 @@ trap 'rm -rf "${TMP_DIR}"' EXIT
 
 find charts -maxdepth 1 -mindepth 1 -type d -exec cp -R {} "${TMP_DIR}/" \;
 
-# Update image tags in all chart values files
-find "${TMP_DIR}" -maxdepth 2 -name "values.yaml" -exec sed -i.bak \
+# Update image tags in all chart values files and helm.sh/images annotations
+find "${TMP_DIR}" -maxdepth 2 \( -name "values.yaml" -o -name "Chart.yaml" \) -exec sed -i.bak \
   -e "s@repository: rancher/\(fleet[-a-z]*\).*@repository: rancher/\1@" \
   -e "s@tag: dev@tag: ${TAG}@" \
+  -e "s@\(image: rancher/fleet[-a-z]*\):dev@\1:${TAG}@" \
   {} \;
 find "${TMP_DIR}" -name "*.bak" -delete
 
