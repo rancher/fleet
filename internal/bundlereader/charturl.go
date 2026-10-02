@@ -21,6 +21,7 @@ import (
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/rancher/fleet/internal/helmversion"
+	"github.com/rancher/fleet/internal/httputils"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleetgit "github.com/rancher/fleet/pkg/git"
 	"golang.org/x/sync/singleflight"
@@ -300,10 +301,24 @@ func GetOCITag(ctx context.Context, r *remote.Repository, v string) (string, err
 	return tagToResolve, nil
 }
 
-func getHTTPClient(auth Auth) *http.Client {
+// getHTTPClientForHelmRegistry returns a client for Helm's registry package,
+// whose TLS handling type-asserts Transport to *http.Transport and panics on
+// anything else (see #3782). It therefore cannot carry Fleet's User-Agent
+// transport; that header is passed to Helm through getter.WithUserAgent
+// instead.
+func getHTTPClientForHelmRegistry(auth Auth) *http.Client {
 	return &http.Client{
 		Transport: transportForAuth(auth.InsecureSkipVerify, auth.CABundle),
 		Timeout:   httpClientTimeout,
+	}
+}
+
+func getHTTPClient(auth Auth) *http.Client {
+	return &http.Client{
+		Transport: httputils.UserAgentTransport{
+			Next: transportForAuth(auth.InsecureSkipVerify, auth.CABundle),
+		},
+		Timeout: httpClientTimeout,
 	}
 }
 

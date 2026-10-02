@@ -21,6 +21,7 @@ import (
 
 	"github.com/rancher/fleet/internal/content"
 	"github.com/rancher/fleet/internal/helmupdater"
+	"github.com/rancher/fleet/internal/httputils"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
@@ -339,7 +340,7 @@ func downloadOCIChart(name, version, path string, auth Auth) (string, error) {
 
 	clientOptions := []registry.ClientOption{
 		registry.ClientOptCredentialsFile(filepath.Join(temp, "creds.json")),
-		registry.ClientOptHTTPClient(getHTTPClient(auth)),
+		registry.ClientOptHTTPClient(getHTTPClientForHelmRegistry(auth)),
 	}
 	if auth.BasicHTTP {
 		clientOptions = append(clientOptions, registry.ClientOptPlainHTTP())
@@ -368,7 +369,9 @@ func downloadOCIChart(name, version, path string, auth Auth) (string, error) {
 		}
 	}
 
-	getterOptions := []helmgetter.Option{}
+	getterOptions := []helmgetter.Option{
+		helmgetter.WithUserAgent(httputils.UserAgent()),
+	}
 	if auth.Username != "" && auth.Password != "" {
 		getterOptions = append(getterOptions, helmgetter.WithBasicAuth(auth.Username, auth.Password))
 	}

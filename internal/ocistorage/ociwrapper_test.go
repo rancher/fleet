@@ -12,6 +12,8 @@ import (
 	"github.com/opencontainers/go-digest"
 	"go.uber.org/mock/gomock"
 
+	"github.com/rancher/fleet/internal/httputils"
+
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"oras.land/oras-go/v2"
 	"oras.land/oras-go/v2/content"
@@ -139,8 +141,10 @@ var _ = Describe("OCIUtils tests", func() {
 	It("return the expected tls client", func() {
 		client := getHTTPClient(true, nil)
 
-		// Custom path wraps transport in retry.Transport
-		retryTransport, ok := client.Transport.(*retry.Transport)
+		// Custom path stamps the User-Agent, then wraps in retry.Transport
+		uaTransport, ok := client.Transport.(httputils.UserAgentTransport)
+		Expect(ok).To(BeTrue())
+		retryTransport, ok := uaTransport.Next.(*retry.Transport)
 		Expect(ok).To(BeTrue())
 		innerTransport, ok := retryTransport.Base.(*http.Transport)
 		Expect(ok).To(BeTrue())
@@ -148,8 +152,11 @@ var _ = Describe("OCIUtils tests", func() {
 		Expect(innerTransport.TLSClientConfig.InsecureSkipVerify).To(BeTrue())
 		Expect(innerTransport.Proxy).ToNot(BeNil())
 
+		// Default path reuses ORAS' client, with the User-Agent stamped on top
 		client = getHTTPClient(false, nil)
-		Expect(client).To(Equal(retry.DefaultClient))
+		uaTransport, ok = client.Transport.(httputils.UserAgentTransport)
+		Expect(ok).To(BeTrue())
+		Expect(uaTransport.Next).To(Equal(retry.DefaultClient.Transport))
 	})
 	It("should use custom CA bundle when provided", func() {
 		// Use a valid test certificate from the codebase pattern (same as netutils_test.go)
@@ -170,7 +177,9 @@ DXZDjC5Ty3zfDBeWUA==
 		client := getHTTPClient(false, caBundle)
 
 		// Verify transport is configured with custom TLS config
-		retryT, ok := client.Transport.(*retry.Transport)
+		uaT, ok := client.Transport.(httputils.UserAgentTransport)
+		Expect(ok).To(BeTrue())
+		retryT, ok := uaT.Next.(*retry.Transport)
 		Expect(ok).To(BeTrue())
 		transport, ok := retryT.Base.(*http.Transport)
 		Expect(ok).To(BeTrue())
@@ -203,7 +212,9 @@ DXZDjC5Ty3zfDBeWUA==
 		client := getHTTPClient(false, customCA)
 
 		// Should have merged both CAs
-		retryT, ok := client.Transport.(*retry.Transport)
+		uaT, ok := client.Transport.(httputils.UserAgentTransport)
+		Expect(ok).To(BeTrue())
+		retryT, ok := uaT.Next.(*retry.Transport)
 		Expect(ok).To(BeTrue())
 		transport, ok := retryT.Base.(*http.Transport)
 		Expect(ok).To(BeTrue())
@@ -223,7 +234,9 @@ DXZDjC5Ty3zfDBeWUA==
 		client := getHTTPClient(false, invalidCA)
 
 		// Should still create a client with TLS config (warning logged)
-		retryT, ok := client.Transport.(*retry.Transport)
+		uaT, ok := client.Transport.(httputils.UserAgentTransport)
+		Expect(ok).To(BeTrue())
+		retryT, ok := uaT.Next.(*retry.Transport)
 		Expect(ok).To(BeTrue())
 		transport, ok := retryT.Base.(*http.Transport)
 		Expect(ok).To(BeTrue())
@@ -237,7 +250,9 @@ DXZDjC5Ty3zfDBeWUA==
 		client := getHTTPClient(false, nil)
 
 		// Should return default client when no valid CA and not insecure
-		Expect(client).To(Equal(retry.DefaultClient))
+		uaT, ok := client.Transport.(httputils.UserAgentTransport)
+		Expect(ok).To(BeTrue())
+		Expect(uaT.Next).To(Equal(retry.DefaultClient.Transport))
 	})
 	It("should combine insecureSkipTLS with CA bundle", func() {
 		caBundle := []byte(`-----BEGIN CERTIFICATE-----
@@ -256,7 +271,9 @@ DXZDjC5Ty3zfDBeWUA==
 -----END CERTIFICATE-----`)
 		client := getHTTPClient(true, caBundle)
 
-		retryT, ok := client.Transport.(*retry.Transport)
+		uaT, ok := client.Transport.(httputils.UserAgentTransport)
+		Expect(ok).To(BeTrue())
+		retryT, ok := uaT.Next.(*retry.Transport)
 		Expect(ok).To(BeTrue())
 		transport, ok := retryT.Base.(*http.Transport)
 		Expect(ok).To(BeTrue())
