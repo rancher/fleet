@@ -488,6 +488,7 @@ func (h *handler) newAgentBundle(ns string, cluster *fleet.Cluster) ([]runtime.O
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      names.SafeConcatName(AgentBundleName, cluster.Name),
 			Namespace: ns,
+			Labels:    map[string]string{fleet.InternalBundleLabel: "true"},
 		},
 		Spec: fleet.BundleSpec{
 			BundleDeploymentOptions: fleet.BundleDeploymentOptions{
