@@ -7,6 +7,9 @@ annotations:
   catalog.cattle.io/permits-os: linux,windows
   catalog.cattle.io/rancher-version: '>= 2.13.0-0 < 2.14.0-0'
   catalog.cattle.io/release-name: fleet-agent
+  helm.sh/images: |
+    - name: fleet-agent
+      image: rancher/fleet-agent:dev
 apiVersion: v2
 appVersion: 0.0.0
 description: Fleet Agent - GitOps at Scale
