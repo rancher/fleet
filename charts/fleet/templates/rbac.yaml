@@ -38,6 +38,15 @@ rules:
     - 'events'
   verbs:
     - '*'
+# Events are only written: created, and patched by the event recorder when it
+# adds to an event series.
+- apiGroups:
+    - "events.k8s.io"
+  resources:
+    - 'events'
+  verbs:
+    - 'create'
+    - 'patch'
 - apiGroups:
     - "apps"
   resources:
