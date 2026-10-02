@@ -57,13 +57,14 @@ func (c *Cloner) CloneRepo(opts *GitCloner) error {
 	transport.UnsupportedCapabilities = []capability.Capability{
 		capability.ThinPack,
 	}
-	auth, err := createAuthFromOpts(opts)
-	if err != nil {
-		return fmt.Errorf("failed to create auth from options for %s: %w", repo(opts), err)
-	}
+
 	caBundle, err := getCABundleFromFile(opts.CABundleFile)
 	if err != nil {
 		return fmt.Errorf("failed to read CA bundle from file for %s: %w", repo(opts), err)
+	}
+	auth, err := createAuthFromOpts(opts, caBundle)
+	if err != nil {
+		return fmt.Errorf("failed to create auth from options for %s: %w", repo(opts), err)
 	}
 
 	if opts.Branch == "" && opts.Revision == "" {
@@ -251,7 +252,7 @@ func getCABundleFromFile(path string) ([]byte, error) {
 }
 
 // createAuthFromOpts adds auth for cloning git repos based on the parameters provided in opts.
-func createAuthFromOpts(opts *GitCloner) (transport.AuthMethod, error) {
+func createAuthFromOpts(opts *GitCloner, caBundle []byte) (transport.AuthMethod, error) {
 	knownHosts, isKnownHostsSet := os.LookupEnv(fleetssh.KnownHostsEnvVar)
 	if knownHosts == "" {
 		isKnownHostsSet = false
@@ -287,7 +288,7 @@ func createAuthFromOpts(opts *GitCloner) (transport.AuthMethod, error) {
 			return nil, fmt.Errorf("failed to read GitHub app private key from file: %w", err)
 		}
 
-		auth, err := appAuthGetter.Get(opts.Repo, opts.GitHubAppID, opts.GitHubAppInstallation, key)
+		auth, err := appAuthGetter.Get(opts.Repo, opts.GitHubAppID, opts.GitHubAppInstallation, key, caBundle)
 		if err != nil {
 			return nil, err
 		}
