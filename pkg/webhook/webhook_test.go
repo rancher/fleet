@@ -1090,6 +1090,50 @@ func TestSSHURLToParsable(t *testing.T) {
 	}
 }
 
+func TestParsePayloadBitbucketServerCloneLinks(t *testing.T) {
+	cases := map[string]struct {
+		links    map[string]any
+		expected []string
+	}{
+		"no links":           {links: nil, expected: nil},
+		"no clone links":     {links: map[string]any{}, expected: nil},
+		"clone not a list":   {links: map[string]any{"clone": "https://bitbucket.example.com/scm/p/r.git"}, expected: nil},
+		"link not an object": {links: map[string]any{"clone": []any{"https://bitbucket.example.com/scm/p/r.git"}}, expected: nil},
+		"href not a string": {
+			links:    map[string]any{"clone": []any{map[string]any{"name": "http", "href": 42}}},
+			expected: nil,
+		},
+		"malformed entries are skipped": {
+			links: map[string]any{"clone": []any{
+				"garbage",
+				map[string]any{"name": "http", "href": "https://bitbucket.example.com/scm/p/r.git"},
+				map[string]any{"name": "ssh"},
+				map[string]any{"name": "ssh", "href": "ssh://git@bitbucket.example.com:7999/p/r.git"},
+			}},
+			expected: []string{
+				"https://bitbucket.example.com/scm/p/r.git",
+				"ssh://git@bitbucket.example.com:7999/p/r.git",
+			},
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			payload := bitbucketserver.RepositoryReferenceChangedPayload{
+				Repository: bitbucketserver.Repository{Links: tc.links},
+				Changes: []bitbucketserver.RepositoryChange{
+					{ReferenceID: "refs/heads/main", ToHash: "aaaa"},
+				},
+			}
+			revision, branch, tag, repoURLs := parsePayload(payload)
+			assert.Equal(t, "aaaa", revision)
+			assert.Equal(t, "main", branch)
+			assert.Equal(t, "", tag)
+			assert.DeepEqual(t, tc.expected, repoURLs)
+		})
+	}
+}
+
 func TestErrorReadingRequest(t *testing.T) {
 	ctlr := gomock.NewController(t)
 	mockClient := mocks.NewMockK8sClient(ctlr)
