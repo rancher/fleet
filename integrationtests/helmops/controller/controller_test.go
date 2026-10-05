@@ -742,7 +742,7 @@ var _ = Describe("HelmOps controller", func() {
 				It("uses the version specified if later the user sets it", usesVersionSpecified)
 			})
 
-			When("version is *", func() {
+			When("version is wildcard", func() {
 				BeforeEach(func() {
 					helmop.Spec.Helm.Version = "*"
 				})
