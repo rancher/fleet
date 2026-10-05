@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/rancher/fleet/internal/ocistorage"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/wrangler/v3/pkg/schemes"
@@ -20,6 +22,55 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
+
+func TestNewBundleConfinesValuesToCheckout(t *testing.T) {
+	for _, test := range []struct {
+		name       string
+		checkout   bool
+		gitFile    bool
+		symlink    bool
+		valuesFile string
+		wantError  bool
+	}{
+		{name: "outside checkout", checkout: true, valuesFile: "../../../outside.yaml", wantError: true},
+		{name: "shared checkout values", checkout: true, valuesFile: "../../values.yaml"},
+		{name: "checkout pointer cannot widen root", gitFile: true, valuesFile: "../../../outside.yaml", wantError: true},
+		{name: "shared worktree values", gitFile: true, valuesFile: "../../values.yaml"},
+		{name: "symlinked bundle", checkout: true, symlink: true, valuesFile: "../../values.yaml"},
+		{name: "no checkout marker", valuesFile: "../../values.yaml", wantError: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			parent := t.TempDir()
+			root := filepath.Join(parent, "repo")
+			base := filepath.Join(root, "charts", "chart1")
+			require.NoError(t, os.MkdirAll(base, 0755))
+			if test.checkout {
+				require.NoError(t, os.Mkdir(filepath.Join(root, ".git"), 0755))
+			}
+			if test.gitFile {
+				require.NoError(t, os.WriteFile(filepath.Join(root, ".git"), []byte("gitdir: "+parent+"\n"), 0644))
+			}
+			require.NoError(t, os.WriteFile(filepath.Join(parent, "outside.yaml"), []byte("private: outside"), 0644))
+			require.NoError(t, os.WriteFile(filepath.Join(root, "values.yaml"), []byte("shared: allowed"), 0644))
+			require.NoError(t, os.WriteFile(filepath.Join(base, "fleet.yaml"), []byte("targetCustomizations:\n- name: test\n  helm:\n    valuesFiles:\n    - "+test.valuesFile+"\n"), 0644))
+			if test.symlink {
+				alias := filepath.Join(parent, "alias")
+				require.NoError(t, os.Symlink(base, alias))
+				base = alias
+			}
+			t.Chdir(parent)
+
+			bundle, _, err := newBundle(context.Background(), "test", base, Options{})
+			if test.wantError {
+				require.ErrorContains(t, err, "escapes repository directory")
+				require.Nil(t, bundle)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, "allowed", bundle.Spec.Targets[0].Helm.Values.Data["shared"])
+			}
+		})
+	}
+}
 
 type failFirstBundleClient struct {
 	client.Client
