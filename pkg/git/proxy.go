@@ -16,6 +16,8 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	"golang.org/x/net/http/httpproxy"
 	"golang.org/x/net/proxy"
+
+	"github.com/rancher/fleet/internal/httputils"
 )
 
 // ProxyCABundleEnvVar is the name of the environment variable that holds the
@@ -230,7 +232,7 @@ func (d *httpConnectDialer) DialContext(ctx context.Context, network, addr strin
 		Host:   addr,
 		Header: make(http.Header),
 	}
-	req.Header.Set("User-Agent", "git/fleet")
+	req.Header.Set("User-Agent", httputils.UserAgent())
 
 	if user := d.proxyURL.User; user != nil {
 		username := user.Username()
