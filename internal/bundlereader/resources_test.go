@@ -115,10 +115,126 @@ func TestGenerateValuesRejectsPathOutsideBase(t *testing.T) {
 			ValuesFiles: []string{"../outside-secret.yaml"},
 		},
 	}
-
-	_, err := generateValues(base, chart)
+	_, err := generateValues(base, "", chart)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid values file")
+}
+
+// Values files shared between bundles of a repository live outside the bundle
+// directory but inside the checkout root.
+func TestGenerateValuesReadsFileWithinRoot(t *testing.T) {
+	root := t.TempDir()
+	base := filepath.Join(root, "charts", "chart1")
+	require.NoError(t, os.MkdirAll(base, 0755))
+	envDir := filepath.Join(root, "environments", "DEV")
+	require.NoError(t, os.MkdirAll(envDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(envDir, "values.yaml"), []byte("foo: bar"), 0644))
+
+	chart := &fleet.HelmOptions{
+		GitOpsHelmOptions: fleet.GitOpsHelmOptions{
+			ValuesFiles: []string{"../../environments/DEV/values.yaml"},
+		},
+	}
+
+	valuesMap, err := generateValues(base, root, chart)
+	require.NoError(t, err)
+	assert.Equal(t, "bar", valuesMap.Data["foo"])
+}
+
+// A root spelled through a symlink must still contain the canonical bundle path.
+func TestGenerateValuesAllowsSymlinkedRoot(t *testing.T) {
+	dir := t.TempDir()
+	real := filepath.Join(dir, "repo")
+	base := filepath.Join(real, "charts", "chart1")
+	require.NoError(t, os.MkdirAll(base, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(real, "values.yaml"), []byte("foo: bar"), 0644))
+	link := filepath.Join(dir, "checkout")
+	require.NoError(t, os.Symlink(real, link))
+
+	chart := &fleet.HelmOptions{
+		GitOpsHelmOptions: fleet.GitOpsHelmOptions{
+			ValuesFiles: []string{"../../values.yaml"},
+		},
+	}
+
+	valuesMap, err := generateValues(base, link, chart)
+	require.NoError(t, err)
+	assert.Equal(t, "bar", valuesMap.Data["foo"])
+}
+
+func TestGenerateValuesRejectsPathOutsideRoot(t *testing.T) {
+	dir := t.TempDir()
+	root := filepath.Join(dir, "root")
+	base := filepath.Join(root, "charts", "chart1")
+	require.NoError(t, os.MkdirAll(base, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "outside-secret.yaml"), []byte("leaked: true"), 0644))
+
+	chart := &fleet.HelmOptions{
+		GitOpsHelmOptions: fleet.GitOpsHelmOptions{
+			ValuesFiles: []string{"../../../outside-secret.yaml"},
+		},
+	}
+
+	_, err := generateValues(base, root, chart)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "escapes repository directory")
+}
+
+func TestGenerateValuesRejectsAbsolutePath(t *testing.T) {
+	base := t.TempDir()
+	abs := filepath.Join(base, "values.yaml")
+	require.NoError(t, os.WriteFile(abs, []byte("foo: bar"), 0644))
+
+	chart := &fleet.HelmOptions{
+		GitOpsHelmOptions: fleet.GitOpsHelmOptions{
+			ValuesFiles: []string{abs},
+		},
+	}
+
+	_, err := generateValues(base, base, chart)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "must be relative")
+}
+
+func TestGenerateValuesRejectsSymlinkPointingOutsideRoot(t *testing.T) {
+	dir := t.TempDir()
+	root := filepath.Join(dir, "root")
+	base := filepath.Join(root, "bundle")
+	require.NoError(t, os.MkdirAll(base, 0755))
+
+	outsidePath := filepath.Join(dir, "outside-secret.yaml")
+	require.NoError(t, os.WriteFile(outsidePath, []byte("leaked: true"), 0644))
+	require.NoError(t, os.Symlink(outsidePath, filepath.Join(root, "values.yaml")))
+
+	chart := &fleet.HelmOptions{
+		GitOpsHelmOptions: fleet.GitOpsHelmOptions{
+			ValuesFiles: []string{"../values.yaml"},
+		},
+	}
+
+	_, err := generateValues(base, root, chart)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "escapes repository directory")
+}
+
+// A root that does not contain the bundle directory must not widen access.
+func TestGenerateValuesIgnoresRootNotContainingBase(t *testing.T) {
+	dir := t.TempDir()
+	base := filepath.Join(dir, "bundle")
+	otherRoot := filepath.Join(dir, "other")
+	require.NoError(t, os.MkdirAll(base, 0755))
+	require.NoError(t, os.MkdirAll(otherRoot, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "outside.yaml"), []byte("foo: bar"), 0644))
+
+	chart := &fleet.HelmOptions{
+		GitOpsHelmOptions: fleet.GitOpsHelmOptions{
+			ValuesFiles: []string{"../outside.yaml"},
+		},
+	}
+
+	_, err := generateValues(base, otherRoot, chart)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "escapes repository directory")
 }
 
 func TestGenerateValuesRejectsSymlinkPointingOutsideBase(t *testing.T) {
@@ -135,10 +251,9 @@ func TestGenerateValuesRejectsSymlinkPointingOutsideBase(t *testing.T) {
 			ValuesFiles: []string{"values.yaml"},
 		},
 	}
-
-	_, err := generateValues(base, chart)
+	_, err := generateValues(base, "", chart)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "escapes bundle directory")
+	assert.Contains(t, err.Error(), "escapes repository directory")
 }
 
 func TestGenerateValuesReadsFileWithinBase(t *testing.T) {
@@ -150,8 +265,7 @@ func TestGenerateValuesReadsFileWithinBase(t *testing.T) {
 			ValuesFiles: []string{"values.yaml"},
 		},
 	}
-
-	valuesMap, err := generateValues(base, chart)
+	valuesMap, err := generateValues(base, "", chart)
 	require.NoError(t, err)
 	assert.Equal(t, "bar", valuesMap.Data["foo"])
 }
@@ -173,7 +287,7 @@ func TestGenerateValuesAllowsAbsoluteSymlinkWithinRelativeBase(t *testing.T) {
 		},
 	}
 
-	valuesMap, err := generateValues(".", chart)
+	valuesMap, err := generateValues(".", "", chart)
 	require.NoError(t, err)
 	assert.Equal(t, "bar", valuesMap.Data["foo"])
 }
