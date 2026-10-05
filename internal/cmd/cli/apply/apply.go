@@ -341,7 +341,11 @@ func newBundle(ctx context.Context, name, baseDir string, opts Options) (*fleet.
 			return nil, nil, fmt.Errorf("decoding bundle %s: %w", name, err)
 		}
 	} else {
-		var err error
+		// fleet apply runs from the repository checkout root.
+		rootDir, err := os.Getwd()
+		if err != nil {
+			return nil, nil, fmt.Errorf("getting working directory: %w", err)
+		}
 		bundle, scans, err = bundlereader.NewBundle(ctx, name, baseDir, opts.BundleFile, &bundlereader.Options{
 			BundleFile:       opts.BundleFile,
 			Compress:         opts.Compress,
@@ -360,6 +364,7 @@ func newBundle(ctx context.Context, name, baseDir string, opts Options) (*fleet.
 				Force:           opts.CorrectDriftForce,
 				KeepFailHistory: opts.CorrectDriftKeepFailHistory,
 			},
+			RootDir: rootDir,
 		})
 		if err != nil {
 			return nil, nil, err
