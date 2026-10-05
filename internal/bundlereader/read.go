@@ -38,6 +38,9 @@ type Options struct {
 	DeleteNamespace  bool
 	CorrectDrift     *fleet.CorrectDrift
 	ImagescanEnabled bool
+	// RootDir is the repository checkout root. Helm values files may reference
+	// files anywhere below it. Defaults to the bundle directory.
+	RootDir string
 }
 
 // NewBundle reads the fleet.yaml, from stdin, or basedir, or a file in basedir.
@@ -200,7 +203,7 @@ func bundleFromDir(ctx context.Context, name, baseDir string, bundleData []byte,
 
 	propagateHelmChartProperties(&fy.BundleSpec)
 
-	resources, err := readResources(ctx, &fy.BundleSpec, opts.Compress, baseDir, opts.Auth, opts.HelmRepoURLRegex, opts.BundleFile)
+	resources, err := readResources(ctx, &fy.BundleSpec, opts.Compress, baseDir, opts.RootDir, opts.Auth, opts.HelmRepoURLRegex, opts.BundleFile)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed reading resources for %q: %w", baseDir, err)
 	}
