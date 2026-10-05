@@ -6512,6 +6512,13 @@ spec:
                     agent that is currently used.
                   nullable: true
                   type: string
+                agentPullSecretsHash:
+                  description: 'AgentPullSecretsHash is a hash of the agent''s image
+                    pull secret
+
+                    configuration, used to detect changes.'
+                  nullable: true
+                  type: string
                 agentResourcesHash:
                   description: 'AgentResourcesHash is a hash of the agent''s resources
                     configuration,
