@@ -13,6 +13,7 @@ import (
 	"github.com/reugn/go-quartz/quartz"
 	"golang.org/x/sync/semaphore"
 
+	"github.com/rancher/fleet/internal/cmd/controller/status"
 	"github.com/rancher/fleet/internal/helmversion"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
@@ -77,7 +78,15 @@ func (j *helmPollingJob) Execute(ctx context.Context) error {
 	}
 	defer j.sem.Release(1)
 
-	return j.pollHelm(ctx)
+	err := j.pollHelm(ctx)
+	if err != nil {
+		// Quartz schedulers are built with the default logger.NoOpLogger and no
+		// job retries, so an error returned from here is discarded. Log it
+		// before handing it back, or polling failures are invisible.
+		logger.Error(err, "HelmOp polling job failed, retrying on the next poll")
+	}
+
+	return err
 }
 
 // Description returns a description for the job.
@@ -192,6 +201,8 @@ func (j *helmPollingJob) pollHelm(ctx context.Context) error {
 			return fmt.Errorf("could not get HelmOp to update its status: %w", err)
 		}
 
+		orig := t.DeepCopy()
+
 		t.Status.LastPollingTime = metav1.Time{Time: pollingTimestamp}
 		t.Status.Version = version
 
@@ -201,19 +212,17 @@ func (j *helmPollingJob) pollHelm(ctx context.Context) error {
 		condition.Cond(fleet.HelmOpPolledCondition).Reason(&t.Status, "")
 		kstatus.SetActive(&t.Status)
 
-		statusPatch := client.MergeFrom(h)
-		if patchData, err := statusPatch.Data(t); err == nil && string(patchData) == "{}" {
-			// skip update if patch is empty
-			return nil
-		}
-		return j.client.Status().Patch(ctx, t, statusPatch)
+		// Patch under an optimistic lock, against a base read in this same attempt,
+		// so that conditions written concurrently by the HelmOp reconciler are not
+		// dropped. RetryOnConflict re-reads and recomputes on conflict.
+		return status.PatchStatus(ctx, j.client, orig, t)
 	})
 	if err != nil {
-		return fail(
-			fmt.Errorf("could not update HelmOp status with polling timestamp: %w", err),
-			"FailedToUpdateHelmOpStatus",
-			"UpdateHelmOpStatus",
-		)
+		// The version resolution itself succeeded here; only the status write lost
+		// a race. Reporting that through fail() would mark the HelmOp stalled over
+		// a transient conflict. Return the error instead, for Execute to log: the
+		// next scheduled poll recomputes the status from a fresh read.
+		return fmt.Errorf("could not update HelmOp status with polling timestamp: %w", err)
 	}
 
 	return nil
@@ -236,6 +245,8 @@ func (j *helmPollingJob) updateErrorStatus(
 			return fmt.Errorf("could not get HelmOp to update its status: %w", err)
 		}
 
+		orig := t.DeepCopy()
+
 		condition.Cond(fleet.HelmOpPolledCondition).SetError(&t.Status, "", orgErr)
 		kstatus.SetError(t, orgErr.Error())
 
@@ -243,12 +254,9 @@ func (j *helmPollingJob) updateErrorStatus(
 			t.Status.LastPollingTime = metav1.Time{Time: pollingTimestamp}
 		}
 
-		statusPatch := client.MergeFrom(helmOp)
-		if patchData, err := statusPatch.Data(t); err == nil && string(patchData) == "{}" {
-			// skip update if patch is empty
-			return nil
-		}
-		return j.client.Status().Patch(ctx, t, statusPatch)
+		// See pollHelm: patch under an optimistic lock against a base read in this
+		// same attempt, so a stale base cannot drop foreign conditions.
+		return status.PatchStatus(ctx, j.client, orig, t)
 	})
 	if err != nil {
 		merr = append(merr, err)

@@ -10,6 +10,7 @@ import (
 	"github.com/reugn/go-quartz/quartz"
 	"golang.org/x/sync/semaphore"
 
+	"github.com/rancher/fleet/internal/cmd/controller/status"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	"github.com/rancher/wrangler/v3/pkg/condition"
@@ -67,7 +68,15 @@ func (j *gitPollingJob) Execute(ctx context.Context) error {
 	}
 	defer j.sem.Release(1)
 
-	return j.pollGitRepo(ctx)
+	err := j.pollGitRepo(ctx)
+	if err != nil {
+		// Quartz schedulers are built with the default logger.NoOpLogger and no
+		// job retries, so an error returned from here is discarded. Log it
+		// before handing it back, or polling failures are invisible.
+		logger.Error(err, "GitRepo polling job failed, retrying on the next poll")
+	}
+
+	return err
 }
 
 // Description returns a description for the job.
@@ -126,20 +135,25 @@ func (j *gitPollingJob) pollGitRepo(ctx context.Context) error {
 			return fmt.Errorf("could not get GitRepo to update its status: %w", err)
 		}
 
+		orig := t.DeepCopy()
+
 		t.Status.LastPollingTime = metav1.Time{Time: pollingTimestamp}
 		t.Status.PollingCommit = commit
 
 		condition.Cond(gitPollingCondition).SetError(&t.Status, "", nil)
 
-		statusPatch := client.MergeFrom(gitrepo)
-		if patchData, err := statusPatch.Data(t); err == nil && string(patchData) == "{}" {
-			// skip update if patch is empty
-			return nil
-		}
-		return j.client.Status().Patch(ctx, t, statusPatch)
+		// Patch under an optimistic lock, against a base read in this same attempt,
+		// so that conditions written concurrently by the gitjob reconciler are not
+		// dropped. RetryOnConflict re-reads and recomputes on conflict.
+		return status.PatchStatus(ctx, j.client, orig, t)
 	})
 	if err != nil {
-		return fail(fmt.Errorf("could not update GitRepo status with polling timestamp: %w", err))
+		// The commit check itself succeeded here; only the status write lost a
+		// race. Reporting that through fail() would emit a FailedToCheckCommit
+		// event and mark the GitRepo stalled over a transient conflict. Return
+		// the error instead, for Execute to log: the next scheduled poll
+		// recomputes the status from a fresh read.
+		return fmt.Errorf("could not update GitRepo status with polling timestamp: %w", err)
 	}
 
 	return nil
@@ -162,6 +176,8 @@ func (j *gitPollingJob) updateErrorStatus(
 			return fmt.Errorf("could not get GitRepo to update its status: %w", err)
 		}
 
+		orig := t.DeepCopy()
+
 		condition.Cond(gitPollingCondition).SetError(&t.Status, "", orgErr)
 		kstatus.SetError(t, orgErr.Error())
 
@@ -169,8 +185,9 @@ func (j *gitPollingJob) updateErrorStatus(
 			t.Status.LastPollingTime = metav1.Time{Time: pollingTimestamp}
 		}
 
-		statusPatch := client.MergeFrom(gitrepo)
-		return j.client.Status().Patch(ctx, t, statusPatch)
+		// See pollGitRepo: patch under an optimistic lock against a base read in
+		// this same attempt, so a stale base cannot drop foreign conditions.
+		return status.PatchStatus(ctx, j.client, orig, t)
 	})
 	if err != nil {
 		merr = append(merr, err)

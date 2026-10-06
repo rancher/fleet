@@ -1,10 +1,12 @@
 package status
 
 import (
+	"context"
 	"reflect"
 
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -90,4 +92,14 @@ func SetFields(list *fleet.BundleDeploymentList, status *fleet.StatusBase) error
 	status.Display.Error = len(message) > 0
 
 	return nil
+}
+
+// PatchStatus patches the status of obj against orig under an optimistic lock,
+// skipping the request if nothing changed.
+func PatchStatus(ctx context.Context, c client.Client, orig, obj client.Object) error {
+	if equality.Semantic.DeepEqual(orig, obj) {
+		return nil
+	}
+
+	return c.Status().Patch(ctx, obj, client.MergeFromWithOptions(orig, client.MergeFromWithOptimisticLock{}))
 }

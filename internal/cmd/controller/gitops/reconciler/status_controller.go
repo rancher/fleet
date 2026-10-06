@@ -145,21 +145,27 @@ func (r *StatusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, err
 	}
 
-	if err := r.updateStatus(ctx, orig, gitrepo); err != nil {
+	// Patch under an optimistic lock. A merge patch replaces the whole conditions
+	// array, so without the lock a stale read here silently drops conditions owned
+	// by the gitjob reconciler (Accepted in particular). That reconciler ignores
+	// status-only changes, so a dropped condition is never restored.
+	if err := status.PatchStatus(ctx, r.Client, orig, gitrepo); err != nil {
+		if errors.IsConflict(err) {
+			// Expected under the optimistic lock: another controller wrote the
+			// status first. Requeuing recomputes it from a fresh read, so this
+			// is not worth reporting as an error. Come back sooner than the
+			// status delay, which exists to wait for a write that has by
+			// definition already happened here.
+			logger.V(1).Info("Conflict updating git repo status, retrying", "error", err)
+			return ctrl.Result{RequeueAfter: durations.StatusConflictRequeue}, nil
+		}
+
 		logger.Error(err, "Reconcile failed update to git repo status", "status", gitrepo.Status)
+
 		return ctrl.Result{RequeueAfter: durations.GitRepoStatusDelay}, nil
 	}
 
 	return ctrl.Result{}, nil
-}
-
-func (r *StatusReconciler) updateStatus(ctx context.Context, orig *fleet.GitRepo, obj *fleet.GitRepo) error {
-	statusPatch := client.MergeFrom(orig)
-	if patchData, err := statusPatch.Data(obj); err == nil && string(patchData) == "{}" {
-		// skip update if patch is empty
-		return nil
-	}
-	return r.Client.Status().Patch(ctx, obj, statusPatch)
 }
 
 func setStatus(list *fleet.BundleDeploymentList, gitrepo *fleet.GitRepo) error {
