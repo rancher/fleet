@@ -25,7 +25,7 @@ const ociURLPrefix = "oci://"
 
 // readResources reads and downloads all resources from the bundle. Resources
 // can be downloaded and are spread across multiple directories.
-func readResources(ctx context.Context, spec *fleet.BundleSpec, compress bool, base string, auth Auth, helmRepoURLRegex, bundleFile string) ([]fleet.BundleResource, error) {
+func readResources(ctx context.Context, spec *fleet.BundleSpec, compress bool, base, root string, auth Auth, helmRepoURLRegex, bundleFile string) ([]fleet.BundleResource, error) {
 	directories, err := addDirectory(base, ".", ".")
 	if err != nil {
 		return nil, err
@@ -34,7 +34,7 @@ func readResources(ctx context.Context, spec *fleet.BundleSpec, compress bool, b
 	var chartDirs []*fleet.HelmOptions
 
 	if spec.Helm != nil && spec.Helm.Chart != "" {
-		if err := parseValuesFiles(base, spec.Helm); err != nil {
+		if err := parseValuesFiles(base, root, spec.Helm); err != nil {
 			return nil, err
 		}
 		chartDirs = append(chartDirs, spec.Helm)
@@ -42,7 +42,7 @@ func readResources(ctx context.Context, spec *fleet.BundleSpec, compress bool, b
 
 	for _, target := range spec.Targets {
 		if target.Helm != nil {
-			err := parseValuesFiles(base, target.Helm)
+			err := parseValuesFiles(base, root, target.Helm)
 			if err != nil {
 				return nil, err
 			}
@@ -164,9 +164,9 @@ func addDirectory(base, customDir, defaultDir string) ([]directory, error) {
 	}}, nil
 }
 
-func parseValuesFiles(base string, chart *fleet.HelmOptions) (err error) {
+func parseValuesFiles(base, root string, chart *fleet.HelmOptions) (err error) {
 	if len(chart.ValuesFiles) != 0 {
-		valuesMap, err := generateValues(base, chart)
+		valuesMap, err := generateValues(base, root, chart)
 		if err != nil {
 			return err
 		}
@@ -179,30 +179,43 @@ func parseValuesFiles(base string, chart *fleet.HelmOptions) (err error) {
 	return nil
 }
 
-func generateValues(base string, chart *fleet.HelmOptions) (valuesMap *fleet.GenericMap, err error) {
+// generateValues merges the chart's values files into its values. Values files
+// are resolved relative to base and must stay within root, the directory the
+// repository was cloned to. root may be empty, in which case base is used.
+func generateValues(base, root string, chart *fleet.HelmOptions) (valuesMap *fleet.GenericMap, err error) {
 	valuesMap = &fleet.GenericMap{}
 	if chart.Values != nil {
 		valuesMap = chart.Values
 	}
-	absBase, err := filepath.Abs(base)
+	resolvedBase, err := resolveDir(base)
 	if err != nil {
 		return nil, fmt.Errorf("resolving values base %q: %w", base, err)
 	}
-	resolvedBase, err := filepath.EvalSymlinks(absBase)
-	if err != nil {
-		return nil, fmt.Errorf("resolving values base %q: %w", base, err)
+	resolvedRoot := resolvedBase
+	if root != "" {
+		r, err := resolveDir(root)
+		if err != nil {
+			return nil, fmt.Errorf("resolving values root %q: %w", root, err)
+		}
+		if pathWithinDir(r, resolvedBase) {
+			resolvedRoot = r
+		}
 	}
 	for _, value := range chart.ValuesFiles {
-		valuesPath, err := safeJoinSubDir(absBase, value)
-		if err != nil {
-			return nil, fmt.Errorf("invalid values file %q: %w", value, err)
+		cleanValue := filepath.Clean(filepath.FromSlash(value))
+		if filepath.IsAbs(cleanValue) {
+			return nil, fmt.Errorf("invalid values file %q: path must be relative", value)
+		}
+		valuesPath := filepath.Join(resolvedBase, cleanValue)
+		if !pathWithinDir(resolvedRoot, valuesPath) {
+			return nil, fmt.Errorf("invalid values file %q: path escapes repository directory", value)
 		}
 		resolvedValuesPath, err := filepath.EvalSymlinks(valuesPath)
 		if err != nil {
 			return nil, fmt.Errorf("resolving values file %q: %w", valuesPath, err)
 		}
-		if !pathWithinDir(resolvedBase, resolvedValuesPath) {
-			return nil, fmt.Errorf("invalid values file %q: target escapes bundle directory", value)
+		if !pathWithinDir(resolvedRoot, resolvedValuesPath) {
+			return nil, fmt.Errorf("invalid values file %q: target escapes repository directory", value)
 		}
 		valuesByte, err := os.ReadFile(resolvedValuesPath)
 		if err != nil {
@@ -219,28 +232,18 @@ func generateValues(base string, chart *fleet.HelmOptions) (valuesMap *fleet.Gen
 	return valuesMap, nil
 }
 
-func safeJoinSubDir(base, sub string) (string, error) {
-	cleanSub := filepath.Clean(filepath.FromSlash(sub))
-	if filepath.IsAbs(cleanSub) {
-		return "", fmt.Errorf("subdir must be relative, got %q", sub)
-	}
-	if cleanSub == "." {
-		return base, nil
-	}
-	joined := filepath.Join(base, cleanSub)
-	rel, err := filepath.Rel(base, joined)
-	if err != nil {
-		return "", err
-	}
-	if rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
-		return "", fmt.Errorf("subdir %q escapes base directory", sub)
-	}
-	return joined, nil
-}
-
 func pathWithinDir(base, path string) bool {
 	rel, err := filepath.Rel(base, path)
 	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator))
+}
+
+// resolveDir returns the absolute path of dir with symlinks resolved.
+func resolveDir(dir string) (string, error) {
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return "", err
+	}
+	return filepath.EvalSymlinks(abs)
 }
 
 func mergeGenericMap(first, second *fleet.GenericMap) *fleet.GenericMap {
