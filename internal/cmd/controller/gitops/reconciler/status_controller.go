@@ -14,7 +14,6 @@ import (
 	"github.com/rancher/fleet/pkg/sharding"
 	"github.com/rancher/wrangler/v3/pkg/genericcondition"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -146,7 +145,11 @@ func (r *StatusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, err
 	}
 
-	if err := r.updateStatus(ctx, orig, gitrepo); err != nil {
+	// Patch under an optimistic lock. A merge patch replaces the whole conditions
+	// array, so without the lock a stale read here silently drops conditions owned
+	// by the gitjob reconciler (Accepted in particular). That reconciler ignores
+	// status-only changes, so a dropped condition is never restored.
+	if err := status.PatchStatus(ctx, r.Client, orig, gitrepo); err != nil {
 		if errors.IsConflict(err) {
 			// Expected under the optimistic lock: another controller wrote the
 			// status first. Requeuing recomputes it from a fresh read, so this
@@ -163,24 +166,6 @@ func (r *StatusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	return ctrl.Result{}, nil
-}
-
-func (r *StatusReconciler) updateStatus(ctx context.Context, orig *fleet.GitRepo, obj *fleet.GitRepo) error {
-	if equality.Semantic.DeepEqual(orig.Status, obj.Status) {
-		// skip update if nothing changed
-		return nil
-	}
-
-	// Patch under an optimistic lock. A merge patch replaces the whole conditions
-	// array, so without the lock a stale read here silently drops conditions owned
-	// by the gitjob reconciler (Accepted in particular). That reconciler ignores
-	// status-only changes, so a dropped condition is never restored.
-	// On conflict the caller requeues and recomputes from a fresh read.
-	return r.Client.Status().Patch(
-		ctx,
-		obj,
-		client.MergeFromWithOptions(orig, client.MergeFromWithOptimisticLock{}),
-	)
 }
 
 func setStatus(list *fleet.BundleDeploymentList, gitrepo *fleet.GitRepo) error {

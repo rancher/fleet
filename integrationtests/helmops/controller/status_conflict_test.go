@@ -315,10 +315,6 @@ var _ = Describe("HelmOp reconciler status conflicts", func() {
 				Status:  corev1.ConditionTrue,
 				Message: "set by a concurrent writer",
 			})
-			// Clear the version too, so the assertion below shows the reconciler
-			// still republishes it. This is the case the removed #3883 workaround
-			// used to handle, and it must survive a conflict retry.
-			live.Status.Version = ""
 			Expect(k8sClient.Status().Update(ctx, live)).To(Succeed())
 
 			// Only the read at the top of Reconcile is stale. Everything after it,
@@ -341,6 +337,67 @@ var _ = Describe("HelmOp reconciler status conflicts", func() {
 			cond, found := utils.FindCondition(live.Status.Conditions, foreignCondition)
 			Expect(found).To(BeTrue(), "condition added since the reconcile's read was dropped")
 			Expect(cond.Message).To(Equal("set by a concurrent writer"))
+		})
+	})
+
+	When("the polling job publishes a new version while the reconcile is in flight", func() {
+		It("does not revert it to the version the reconcile read", func() {
+			// With polling enabled, handleVersion leaves Status.Version alone, so
+			// the version the reconciler holds is only an echo of its initial
+			// read. Writing it back would undo whatever the polling job resolved
+			// in the meantime.
+			helmop := newHelmOp(helmOpName, "version-test-shard", "alpine")
+			helmop.Spec.Helm.Repo = newChartRepo()
+			helmop.Spec.Helm.Version = "<= 0.2.0"
+			helmop.Spec.PollingInterval = &metav1.Duration{Duration: time.Hour}
+			Expect(k8sClient.Create(ctx, helmop)).To(Succeed())
+
+			staleCopy := &fleet.HelmOp{}
+			wrapped := &utils.StaleReadClient{
+				Client:   k8sClient,
+				Target:   helmOpName,
+				CopyInto: copyHelmOpInto(staleCopy),
+			}
+
+			sched, err := quartz.NewStdScheduler()
+			Expect(err).ToNot(HaveOccurred())
+			DeferCleanup(func() { sched.Stop() })
+
+			r := &reconciler.HelmOpReconciler{
+				Client:    wrapped,
+				Scheme:    k8sClient.Scheme(),
+				Scheduler: sched,
+				Workers:   1,
+				Recorder:  &events.FakeRecorder{},
+			}
+
+			By("reconciling once so the finalizer and bundle are in place")
+			_, err = r.Reconcile(ctx, ctrl.Request{NamespacedName: helmOpName})
+			Expect(err).ToNot(HaveOccurred())
+
+			By("capturing the HelmOp with an older polled version, as the next reconcile would read it")
+			live := &fleet.HelmOp{}
+			Expect(k8sClient.Get(ctx, helmOpName, live)).To(Succeed())
+			live.Status.Version = "0.1.0"
+			Expect(k8sClient.Status().Update(ctx, live)).To(Succeed())
+			Expect(k8sClient.Get(ctx, helmOpName, live)).To(Succeed())
+			live.DeepCopyInto(staleCopy)
+
+			By("having the polling job publish a newer version after that read")
+			live.Status.Version = "0.2.0"
+			Expect(k8sClient.Status().Update(ctx, live)).To(Succeed())
+
+			// Only the read at the top of Reconcile is stale; updateStatus then
+			// reads the live object, so its patch does not conflict.
+			wrapped.Arm(1)
+
+			By("reconciling from that stale read")
+			_, err = r.Reconcile(ctx, ctrl.Request{NamespacedName: helmOpName})
+			Expect(err).ToNot(HaveOccurred())
+
+			By("keeping the version written by the polling job")
+			Expect(k8sClient.Get(ctx, helmOpName, live)).To(Succeed())
+			Expect(live.Status.Version).To(Equal("0.2.0"))
 		})
 	})
 })

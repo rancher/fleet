@@ -13,7 +13,6 @@ import (
 	"github.com/rancher/fleet/pkg/sharding"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -99,18 +98,11 @@ func (r *HelmOpStatusReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 
-	if equality.Semantic.DeepEqual(orig.Status, helmop.Status) {
-		// skip update if nothing changed
-		return ctrl.Result{}, nil
-	}
-
 	// Patch under an optimistic lock. A merge patch replaces the whole conditions
 	// array, so without the lock a stale read here silently drops conditions owned
 	// by the HelmOp reconciler (Accepted in particular). That reconciler ignores
 	// status-only changes, so a dropped condition is never restored.
-	// On conflict we requeue and recompute from a fresh read.
-	statusPatch := client.MergeFromWithOptions(orig, client.MergeFromWithOptimisticLock{})
-	if err := r.Status().Patch(ctx, helmop, statusPatch); err != nil {
+	if err := status.PatchStatus(ctx, r.Client, orig, helmop); err != nil {
 		if errors.IsConflict(err) {
 			// Expected under the optimistic lock: another controller wrote the
 			// status first. Requeuing recomputes it from a fresh read, so this

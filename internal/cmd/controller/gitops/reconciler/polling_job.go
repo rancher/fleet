@@ -10,13 +10,13 @@ import (
 	"github.com/reugn/go-quartz/quartz"
 	"golang.org/x/sync/semaphore"
 
+	"github.com/rancher/fleet/internal/cmd/controller/status"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	"github.com/rancher/wrangler/v3/pkg/condition"
 	"github.com/rancher/wrangler/v3/pkg/kstatus"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	errutil "k8s.io/apimachinery/pkg/util/errors"
@@ -142,20 +142,10 @@ func (j *gitPollingJob) pollGitRepo(ctx context.Context) error {
 
 		condition.Cond(gitPollingCondition).SetError(&t.Status, "", nil)
 
-		if equality.Semantic.DeepEqual(orig.Status, t.Status) {
-			// skip update if nothing changed
-			return nil
-		}
-
-		// Patch under an optimistic lock, against a base read in this same attempt.
-		// A merge patch replaces the whole conditions array, so patching from a
-		// stale base drops conditions written concurrently by the gitjob
-		// reconciler. RetryOnConflict re-reads and recomputes on conflict.
-		return j.client.Status().Patch(
-			ctx,
-			t,
-			client.MergeFromWithOptions(orig, client.MergeFromWithOptimisticLock{}),
-		)
+		// Patch under an optimistic lock, against a base read in this same attempt,
+		// so that conditions written concurrently by the gitjob reconciler are not
+		// dropped. RetryOnConflict re-reads and recomputes on conflict.
+		return status.PatchStatus(ctx, j.client, orig, t)
 	})
 	if err != nil {
 		// The commit check itself succeeded here; only the status write lost a
@@ -195,17 +185,9 @@ func (j *gitPollingJob) updateErrorStatus(
 			t.Status.LastPollingTime = metav1.Time{Time: pollingTimestamp}
 		}
 
-		if equality.Semantic.DeepEqual(orig.Status, t.Status) {
-			return nil
-		}
-
 		// See pollGitRepo: patch under an optimistic lock against a base read in
 		// this same attempt, so a stale base cannot drop foreign conditions.
-		return j.client.Status().Patch(
-			ctx,
-			t,
-			client.MergeFromWithOptions(orig, client.MergeFromWithOptimisticLock{}),
-		)
+		return status.PatchStatus(ctx, j.client, orig, t)
 	})
 	if err != nil {
 		merr = append(merr, err)

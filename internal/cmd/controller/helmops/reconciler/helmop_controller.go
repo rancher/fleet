@@ -498,7 +498,12 @@ func updateStatus(
 		orig := t.DeepCopy()
 
 		// selectively update the status fields this reconciler is responsible for
-		if desired.Status.Version != "" {
+		//
+		// Only write the version if this reconcile computed it. With polling
+		// enabled, handleVersion leaves Status.Version untouched, so desired
+		// merely echoes what was read at the start of the reconcile; writing it
+		// would revert a newer version written by the polling job meanwhile.
+		if desired.Status.Version != "" && desired.Status.Version != base.Version {
 			t.Status.Version = desired.Status.Version
 		}
 
@@ -514,21 +519,10 @@ func updateStatus(
 
 		setAcceptedConditionHelm(&t.Status, orgErr)
 
-		if equality.Semantic.DeepEqual(orig.Status, t.Status) {
-			metrics.HelmCollector.Collect(ctx, t)
-			// skip update if nothing changed
-			return nil
-		}
-
-		// Patch under an optimistic lock, against a base read in this same attempt.
-		// A merge patch replaces the whole conditions array, so patching from a
-		// stale base drops conditions written concurrently by the status
-		// reconciler. RetryOnConflict re-reads and recomputes on conflict.
-		if err := c.Status().Patch(
-			ctx,
-			t,
-			client.MergeFromWithOptions(orig, client.MergeFromWithOptimisticLock{}),
-		); err != nil {
+		// Patch under an optimistic lock, against a base read in this same attempt,
+		// so that conditions written concurrently by the status reconciler are not
+		// dropped. RetryOnConflict re-reads and recomputes on conflict.
+		if err := status.PatchStatus(ctx, c, orig, t); err != nil {
 			return err
 		}
 
