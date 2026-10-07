@@ -19,6 +19,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -52,6 +53,7 @@ func Register(ctx context.Context,
 		clusterRegistrations: clusterRegistrations,
 	}
 
+	config.OnChange(ctx, h.syncClusterNamespaces)
 	clusters.OnChange(ctx, "managed-cluster-trigger", h.ensureNSDeleted)
 	fleetcontrollers.RegisterClusterStatusHandler(ctx,
 		clusters,
@@ -124,7 +126,10 @@ func (h *handler) OnClusterChanged(cluster *fleet.Cluster, status fleet.ClusterS
 }
 
 func (h *handler) createNamespace(cluster *fleet.Cluster, status fleet.ClusterStatus) error {
-	_, err := h.namespaceCache.Get(status.Namespace)
+	existing, err := h.namespaceCache.Get(status.Namespace)
+	if err == nil {
+		return SyncNamespaceMetadata(h.namespaces, existing)
+	}
 	if apierrors.IsNotFound(err) {
 		ns := &v1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
@@ -146,4 +151,32 @@ func (h *handler) createNamespace(cluster *fleet.Cluster, status fleet.ClusterSt
 		return nil
 	}
 	return err
+}
+
+// SyncNamespaceMetadata additively applies the configured rancherNamespaces
+// labels and annotations to an existing namespace.
+func SyncNamespaceMetadata(namespaces corecontrollers.NamespaceClient, existing *v1.Namespace) error {
+	ns := existing.DeepCopy()
+	if !config.Get().ApplyRancherNamespaceLabelsAndAnnotations(ns) {
+		return nil
+	}
+	_, err := namespaces.Update(ns)
+	return err
+}
+
+// syncClusterNamespaces applies new rancherNamespaces metadata to all existing cluster namespaces.
+func (h *handler) syncClusterNamespaces(_ *config.Config) error {
+	list, err := h.namespaceCache.List(labels.Set{fleet.ManagedLabel: "true"}.AsSelector())
+	if err != nil {
+		return err
+	}
+	for _, ns := range list {
+		if ns.Annotations[fleet.ClusterNamespaceAnnotation] == "" {
+			continue
+		}
+		if err := SyncNamespaceMetadata(h.namespaces, ns); err != nil && !apierrors.IsNotFound(err) {
+			return err
+		}
+	}
+	return nil
 }

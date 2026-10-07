@@ -12,6 +12,7 @@ import (
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/controllers/manageagent"
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/controllers/resources"
 	fleetns "github.com/rancher/fleet/internal/cmd/controller/namespace"
+	fleetconfig "github.com/rancher/fleet/internal/config"
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/durations"
 	"github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io"
@@ -29,6 +30,7 @@ import (
 	rbaccontrollers "github.com/rancher/wrangler/v3/pkg/generated/controllers/rbac/v1"
 	"github.com/rancher/wrangler/v3/pkg/start"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes"
@@ -75,6 +77,22 @@ func Register(ctx context.Context, appCtx *AppContext, systemNamespace string, d
 	); err != nil {
 		return err
 	}
+	// ApplyBootstrapResources only runs once, so re-sync the system namespaces on config changes.
+	fleetconfig.OnChange(ctx, func(_ *fleetconfig.Config) error {
+		for _, name := range []string{systemNamespace, systemRegistrationNamespace} {
+			ns, err := appCtx.Core.Namespace().Cache().Get(name)
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			if err != nil {
+				return err
+			}
+			if err := cluster.SyncNamespaceMetadata(appCtx.Core.Namespace(), ns); err != nil && !apierrors.IsNotFound(err) {
+				return err
+			}
+		}
+		return nil
+	})
 	if !disableBootstrap {
 		bootstrap.Register(ctx,
 			systemNamespace,
