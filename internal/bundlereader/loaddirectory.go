@@ -23,6 +23,7 @@ import (
 	"github.com/rancher/fleet/internal/helmupdater"
 	"github.com/rancher/fleet/internal/httputils"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	orasauth "oras.land/oras-go/v2/registry/remote/auth"
 )
 
 const helmRepoURLRegexUIHint = "helmRepoURLRegex is empty, so Helm credentials were not forwarded; set spec.helmRepoURLRegex to allow credential forwarding"
@@ -337,10 +338,14 @@ func downloadOCIChart(name, version, path string, auth Auth) (string, error) {
 		return "", err
 	}
 	defer os.RemoveAll(temp)
+	httpClient := getHTTPClientForHelmRegistry(auth)
+	authorizer := orasauth.Client{Client: httpClient}
+	authorizer.SetUserAgent(httputils.UserAgent())
 
 	clientOptions := []registry.ClientOption{
 		registry.ClientOptCredentialsFile(filepath.Join(temp, "creds.json")),
-		registry.ClientOptHTTPClient(getHTTPClientForHelmRegistry(auth)),
+		registry.ClientOptHTTPClient(httpClient),
+		registry.ClientOptAuthorizer(authorizer),
 	}
 	if auth.BasicHTTP {
 		clientOptions = append(clientOptions, registry.ClientOptPlainHTTP())
