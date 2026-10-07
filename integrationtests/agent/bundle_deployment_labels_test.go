@@ -86,6 +86,27 @@ var _ = Describe("Validate labels on deployed resources", Ordered, func() {
 		})
 	})
 
+	When("the bundle deployment comes from a Bundle", func() {
+		BeforeAll(func() {
+			env = &specEnv{namespace: createNamespace()}
+			name = "by-bundle"
+			createBundleDeployment(name, map[string]string{
+				v1alpha1.BundleLabel:          "my-bundle",
+				v1alpha1.BundleNamespaceLabel: "fleet-default",
+			})
+		})
+
+		It("labels the deployed resources as managed by that Bundle", func() {
+			Eventually(func(g Gomega) {
+				cm, err := env.getConfigMap("cm1")
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(cm.Labels).To(HaveKeyWithValue(v1alpha1.ManagedByKindLabel, v1alpha1.ManagedByKindBundle))
+				g.Expect(cm.Labels).To(HaveKeyWithValue(v1alpha1.ManagedByNamespaceLabel, "fleet-default"))
+				g.Expect(cm.Labels).To(HaveKeyWithValue(v1alpha1.ManagedByNameLabel, "my-bundle"))
+			}).Should(Succeed())
+		})
+	})
+
 	When("the bundle deployment carries no Fleet source labels", func() {
 		BeforeAll(func() {
 			env = &specEnv{namespace: createNamespace()}

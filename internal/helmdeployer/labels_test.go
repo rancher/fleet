@@ -53,6 +53,18 @@ func TestYieldSourceOrigins(t *testing.T) {
 			},
 			expectedOK: true,
 		},
+		"bundle source": {
+			bdLabels: map[string]string{
+				v1alpha1.BundleLabel:          "my-bundle",
+				v1alpha1.BundleNamespaceLabel: "fleet-default",
+			},
+			expectedIdentity: sourceIdentity{
+				Kind:      v1alpha1.ManagedByKindBundle,
+				Namespace: "fleet-default",
+				Name:      "my-bundle",
+			},
+			expectedOK: true,
+		},
 		// Defensive: a BundleDeployment carrying both source labels is not
 		// expected. Pin GitRepo as the winner so the outcome is deterministic.
 		"both source labels present prefers gitrepo": {
@@ -67,6 +79,14 @@ func TestYieldSourceOrigins(t *testing.T) {
 				Name:      "label-trace",
 			},
 			expectedOK: true,
+		},
+		"internal agent bundle is excluded": {
+			bdLabels: map[string]string{
+				v1alpha1.BundleLabel:          "fleet-agent-local",
+				v1alpha1.BundleNamespaceLabel: "fleet-local",
+				v1alpha1.InternalBundleLabel:  "true",
+			},
+			expectedOK: false,
 		},
 		"fleet's own internal bundle carries no source labels": {
 			bdLabels: map[string]string{

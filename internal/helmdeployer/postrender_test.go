@@ -339,9 +339,22 @@ func TestPostRenderer_Run_Labels(t *testing.T) {
 				v1alpha1.ManagedByNameLabel:      "label-trace",
 			},
 		},
+		"bundle source stamps all three labels": {
+			bdLabels: map[string]string{
+				v1alpha1.BundleLabel:          "my-bundle",
+				v1alpha1.BundleNamespaceLabel: "fleet-default",
+			},
+			expectedLabels: map[string]string{
+				v1alpha1.ManagedByKindLabel:      "bundle",
+				v1alpha1.ManagedByNamespaceLabel: "fleet-default",
+				v1alpha1.ManagedByNameLabel:      "my-bundle",
+			},
+		},
 		"fleet's own internal bundle is deployed unlabelled": {
 			bdLabels: map[string]string{
-				"objectset.rio.cattle.io/hash": "abc123",
+				v1alpha1.BundleLabel:          "fleet-agent-local",
+				v1alpha1.BundleNamespaceLabel: "fleet-local",
+				v1alpha1.InternalBundleLabel:  "true",
 			},
 			objLabels:      map[string]string{"app.kubernetes.io/name": "fleet-agent"},
 			expectedLabels: map[string]string{"app.kubernetes.io/name": "fleet-agent"},
