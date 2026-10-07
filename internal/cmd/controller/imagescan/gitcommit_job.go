@@ -317,7 +317,10 @@ func readAuth(ctx context.Context, logger logr.Logger, c client.Client, gitrepo 
 		}
 		return publicKey, nil
 	default:
-		auth, err := fleetgithub.GetGithubAppAuthFromSecret(gitrepo.Spec.Repo, secret, fleetgithub.DefaultAppAuthGetter{}, gitrepo.Spec.CABundle)
+		auth, err := fleetgithub.GetGithubAppAuthFromSecret(gitrepo.Spec.Repo, secret, fleetgithub.DefaultAppAuthGetter{}, fleetgithub.TLSConfig{
+			CABundle:           gitrepo.Spec.CABundle,
+			InsecureSkipVerify: gitrepo.Spec.InsecureSkipTLSverify,
+		})
 		if err != nil {
 			return nil, err
 		}

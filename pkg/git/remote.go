@@ -12,6 +12,7 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/go-git/go-git/v5/storage/memory"
 	"github.com/go-logr/logr"
+	fleetgithub "github.com/rancher/fleet/internal/github"
 	giturls "github.com/rancher/fleet/pkg/git-urls"
 	corev1 "k8s.io/api/core/v1"
 )
@@ -84,7 +85,10 @@ func NewRemote(url string, opts *options) (*Remote, error) {
 		}
 		caBundle = append(caBundle, []byte(proxyCAPEM)...)
 	}
-	auth, err := GetAuthFromSecret(url, opts.Credential, opts.KnownHosts, caBundle)
+	auth, err := GetAuthFromSecret(url, opts.Credential, opts.KnownHosts, fleetgithub.TLSConfig{
+		CABundle:           caBundle,
+		InsecureSkipVerify: opts.InsecureTLSVerify,
+	})
 	if err != nil {
 		return nil, err
 	}

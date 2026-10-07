@@ -288,7 +288,10 @@ func createAuthFromOpts(opts *GitCloner, caBundle []byte) (transport.AuthMethod,
 			return nil, fmt.Errorf("failed to read GitHub app private key from file: %w", err)
 		}
 
-		auth, err := appAuthGetter.Get(opts.Repo, opts.GitHubAppID, opts.GitHubAppInstallation, key, caBundle)
+		auth, err := appAuthGetter.Get(opts.Repo, opts.GitHubAppID, opts.GitHubAppInstallation, key, fleetgithub.TLSConfig{
+			CABundle:           caBundle,
+			InsecureSkipVerify: opts.InsecureSkipTLS,
+		})
 		if err != nil {
 			return nil, err
 		}

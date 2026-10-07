@@ -82,7 +82,7 @@ func TestGitHubApp_GetToken_Success(t *testing.T) {
 
 	app := NewApp("https://github.com/foo/bar", 123, 456, []byte(validRSA))
 
-	token, err := app.GetToken(context.Background(), nil)
+	token, err := app.GetToken(context.Background(), TLSConfig{})
 	if err != nil {
 		t.Fatalf("GetToken returned error: %v", err)
 	}
@@ -128,7 +128,7 @@ func TestGitHubApp_GetToken_NonGithubDotCom(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			app := NewApp(tc.repoURL, 123, 456, []byte(validRSA))
 
-			_, err := app.GetToken(context.Background(), nil)
+			_, err := app.GetToken(context.Background(), TLSConfig{})
 			if err == nil {
 				t.Fatal("expected error when getting token, got nil")
 			}
@@ -144,7 +144,7 @@ func TestGitHubApp_GetToken_NonGithubDotCom(t *testing.T) {
 func TestGitHubApp_GetToken_InvalidPEM(t *testing.T) {
 	app := NewApp("https://github.com/foo/bar", 123, 456, []byte("definitely-not-a-PEM-block"))
 
-	_, err := app.GetToken(context.Background(), nil)
+	_, err := app.GetToken(context.Background(), TLSConfig{})
 	if err == nil {
 		t.Fatalf("expected error for invalid PEM, got nil")
 	}
@@ -157,7 +157,7 @@ func TestGitHubApp_GetToken_InvalidPEM(t *testing.T) {
 func TestGitHubApp_GetToken_NotRSA(t *testing.T) {
 	app := NewApp("https://github.com/foo/bar", 123, 456, []byte(notRSA))
 
-	_, err := app.GetToken(context.Background(), nil)
+	_, err := app.GetToken(context.Background(), TLSConfig{})
 	if err == nil {
 		t.Fatalf("expected error for not RSA PEM, got nil")
 	}
@@ -170,7 +170,7 @@ func TestGitHubApp_GetToken_NotRSA(t *testing.T) {
 func TestGitHubApp_GetToken_InvalidRSA(t *testing.T) {
 	app := NewApp("https://github.com/foo/bar", 123, 456, []byte(invalidRSA))
 
-	_, err := app.GetToken(context.Background(), nil)
+	_, err := app.GetToken(context.Background(), TLSConfig{})
 	if err == nil {
 		t.Fatalf("expected error for not RSA PEM, got nil")
 	}
@@ -180,35 +180,34 @@ func TestGitHubApp_GetToken_InvalidRSA(t *testing.T) {
 	}
 }
 
-func TestTransportWithCABundle_EmptyBundle_ReturnsDefaultTransportUnchanged(t *testing.T) {
-	tr, err := transportWithCABundle(nil)
-	if err != nil {
-		t.Fatalf("unexpected err: %v", err)
-	}
+func TestTransportWithTLS_Defaults_ReturnsDefaultTransportUnchanged(t *testing.T) {
+	tr := transportWithTLS(TLSConfig{})
 	if tr != http.DefaultTransport {
-		t.Fatal("expected http.DefaultTransport to be returned unchanged for empty caBundle")
+		t.Fatal("expected http.DefaultTransport to be returned unchanged for default TLSConfig")
 	}
 }
 
-func TestTransportWithCABundle_InvalidPEM_ReturnsError(t *testing.T) {
-	_, err := transportWithCABundle([]byte("this is not a valid PEM certificate"))
-	if err == nil {
-		t.Fatal("expected error for invalid CA bundle PEM, got nil")
+func TestTransportWithTLS_InvalidPEM_IsTolerated(t *testing.T) {
+	tr := transportWithTLS(TLSConfig{CABundle: []byte("this is not a valid PEM certificate")})
+
+	httpTr, ok := tr.(*http.Transport)
+	if !ok {
+		t.Fatalf("expected *http.Transport, got %T", tr)
+	}
+	if httpTr.TLSClientConfig.RootCAs == nil {
+		t.Fatal("expected RootCAs to still be set to the system pool")
 	}
 }
 
-func TestTransportWithCABundle_ValidBundle_BuildsTransportWithPoolAndMinVersion(t *testing.T) {
-	tr, err := transportWithCABundle([]byte(testCACertPEM))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+func TestTransportWithTLS_ValidBundle_BuildsTransportWithPoolAndMinVersion(t *testing.T) {
+	tr := transportWithTLS(TLSConfig{CABundle: []byte(testCACertPEM)})
 
 	httpTr, ok := tr.(*http.Transport)
 	if !ok {
 		t.Fatalf("expected *http.Transport, got %T", tr)
 	}
 	if httpTr.TLSClientConfig == nil {
-		t.Fatal("expected TLSConfig to be set")
+		t.Fatal("expected TLSClientConfig to be set")
 	}
 	if httpTr.TLSClientConfig.RootCAs == nil {
 		t.Fatal("expected RootCAs pool to be set")
@@ -216,15 +215,35 @@ func TestTransportWithCABundle_ValidBundle_BuildsTransportWithPoolAndMinVersion(
 	if httpTr.TLSClientConfig.MinVersion != tls.VersionTLS12 {
 		t.Fatalf("expected MinVersion TLS 1.2, got %v", httpTr.TLSClientConfig.MinVersion)
 	}
+	if httpTr.TLSClientConfig.InsecureSkipVerify {
+		t.Fatal("expected InsecureSkipVerify to be false")
+	}
 }
 
-func TestTransportWithCABundle_NonHTTPTransportDefault_DoesNotPanic(t *testing.T) {
+func TestTransportWithTLS_InsecureOnly_SetsInsecureSkipVerify(t *testing.T) {
+	tr := transportWithTLS(TLSConfig{InsecureSkipVerify: true})
+
+	httpTr, ok := tr.(*http.Transport)
+	if !ok {
+		t.Fatalf("expected *http.Transport, got %T", tr)
+	}
+	if !httpTr.TLSClientConfig.InsecureSkipVerify {
+		t.Fatal("expected InsecureSkipVerify to be set")
+	}
+}
+
+func TestTransportWithTLS_NonHTTPTransportDefault_KeepsProxyFromEnvironment(t *testing.T) {
 	orig := http.DefaultTransport
 	http.DefaultTransport = &fakeRT{}
 	t.Cleanup(func() { http.DefaultTransport = orig })
 
-	_, err := transportWithCABundle([]byte(testCACertPEM))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	tr := transportWithTLS(TLSConfig{CABundle: []byte(testCACertPEM)})
+
+	httpTr, ok := tr.(*http.Transport)
+	if !ok {
+		t.Fatalf("expected *http.Transport, got %T", tr)
+	}
+	if httpTr.Proxy == nil {
+		t.Fatal("expected Proxy to be preserved in the fallback transport")
 	}
 }

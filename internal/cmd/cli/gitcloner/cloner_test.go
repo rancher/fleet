@@ -22,6 +22,7 @@ import (
 	gossh "github.com/go-git/go-git/v5/plumbing/transport/ssh"
 	"github.com/google/go-cmp/cmp"
 	"github.com/rancher/fleet/internal/cmd/cli/gitcloner/submodule"
+	fleetgithub "github.com/rancher/fleet/internal/github"
 	fleetssh "github.com/rancher/fleet/internal/ssh"
 	fleetgit "github.com/rancher/fleet/pkg/git"
 	golangssh "golang.org/x/crypto/ssh"
@@ -29,7 +30,7 @@ import (
 
 type fakeGetter struct{}
 
-func (fakeGetter) Get(_ string, appID, instID int64, key []byte, _ []byte) (*httpgit.BasicAuth, error) {
+func (fakeGetter) Get(_ string, appID, instID int64, key []byte, _ fleetgithub.TLSConfig) (*httpgit.BasicAuth, error) {
 	return &httpgit.BasicAuth{
 		Username: "x-access-token",
 		Password: "token",
