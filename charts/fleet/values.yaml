@@ -235,3 +235,17 @@ agent:
 #   helmops:
 #     new-annotation: "new-annotation-value"
 #     new-annotation-2: "new-annotation-value-2"
+
+# Control additional labels and annotations on namespaces created by Rancher.
+rancherNamespaces:
+
+  # If enabled is true, the "cattle.io/managed-namespace" annotation will be applied to any new namespaces.
+  enabled: false
+
+  # Additional labels to be added to new namespaces.
+  labels: {}
+  #   foo: bar
+
+  # Additional annotations to be added to new namespaces. Will be applied along with the "cattle.io/managed-namespace" annotation.
+  annotations: {}
+  #   foo: bar
