@@ -134,6 +134,29 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 				return out
 			}).Should(ContainSubstring("sleeper-"))
 
+			By("checking the deployment's labels")
+			Eventually(func(g Gomega) {
+				out, err := k.Namespace(targetNamespace).Get("deployment", "sleeper", "-o", "jsonpath={.metadata.labels}")
+				g.Expect(err).ToNot(HaveOccurred())
+
+				var lbls map[string]string
+				g.Expect(json.Unmarshal([]byte(out), &lbls)).To(Succeed())
+
+				g.Expect(lbls).To(HaveKeyWithValue(fleet.ManagedByKindLabel, fleet.ManagedByKindGitRepo))
+				g.Expect(lbls).To(HaveKeyWithValue(fleet.ManagedByNameLabel, gitrepoName))
+				g.Expect(lbls).To(HaveKeyWithValue(fleet.ManagedByNamespaceLabel, env.Namespace))
+			}).Should(Succeed())
+
+			By("checking Fleet's own agent is not labelled")
+			out, err := env.Kubectl.Namespace("cattle-fleet-local-system").Get("deployment", "fleet-agent", "-o", "jsonpath={.metadata.labels}")
+			Expect(err).ToNot(HaveOccurred(), out)
+
+			var agentLbls map[string]string
+			Expect(json.Unmarshal([]byte(out), &agentLbls)).To(Succeed())
+			Expect(agentLbls).ToNot(HaveKey(fleet.ManagedByKindLabel))
+			Expect(agentLbls).ToNot(HaveKey(fleet.ManagedByNameLabel))
+			Expect(agentLbls).ToNot(HaveKey(fleet.ManagedByNamespaceLabel))
+
 			By("updating the git repository")
 			replace(path.Join(clonedir, "examples", "Chart.yaml"), "0.1.0", "0.2.0")
 			replace(path.Join(clonedir, "examples", "templates", "deployment.yaml"), "name: sleeper", "name: newsleep")

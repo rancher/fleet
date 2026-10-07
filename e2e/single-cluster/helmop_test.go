@@ -148,6 +148,19 @@ var _ = Describe("HelmOp resource with polling of repo index", Label("infra-setu
 				return strings.Contains(outDeployments, "sleeper")
 			}).Should(BeTrue())
 
+			By("checking the deployment's labels")
+			Eventually(func(g Gomega) {
+				out, err := k.Namespace(namespace).Get("deployment", "sleeper", "-o", "jsonpath={.metadata.labels}")
+				g.Expect(err).ToNot(HaveOccurred())
+
+				var lbls map[string]string
+				g.Expect(json.Unmarshal([]byte(out), &lbls)).To(Succeed())
+
+				g.Expect(lbls).To(HaveKeyWithValue(fleet.ManagedByKindLabel, fleet.ManagedByKindHelmOp))
+				g.Expect(lbls).To(HaveKeyWithValue(fleet.ManagedByNameLabel, name))
+				g.Expect(lbls).To(HaveKeyWithValue(fleet.ManagedByNamespaceLabel, env.Namespace))
+			}).Should(Succeed())
+
 			By("having a newer chart version available in the repository")
 			cmd := exec.Command("helm", "package", testenv.AssetPath("helmop/sleeper-chart2/"))
 			out, err := cmd.CombinedOutput()
