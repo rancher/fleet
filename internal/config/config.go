@@ -4,7 +4,6 @@ package config
 import (
 	"context"
 	"encoding/json"
-	"maps"
 	"sync"
 	"time"
 
@@ -183,26 +182,47 @@ type RancherNamespaces struct {
 	Annotations map[string]string `json:"annotations,omitempty"`
 }
 
+// Copy copies all key/value pairs in src adding them to dst and returns whether the dst map was updated. If a key
+// exist in both it will be overwritten in dst.
+func copy[M1, M2 map[K]V, K comparable, V comparable](m1 M1, m2 M2) bool {
+	var updated bool
+
+	for k2, v2 := range m2 {
+		if v1, ok := m1[k2]; !ok || v1 != v2 {
+			updated = updated || true
+		}
+
+		m1[k2] = v2
+	}
+
+	return updated
+}
+
 // ApplyRancherNamespaceLabelsAndAnnotations adds the configured extra labels and
 // annotations, along with the ManagedNamespaceAnnotation, to ns if the
-// rancherNamespaces feature is enabled. It is a no-op otherwise.
-func (c *Config) ApplyRancherNamespaceLabelsAndAnnotations(ns *v1.Namespace) {
+// rancherNamespaces feature is enabled. Existing keys on ns that are not
+// configured are left untouched. It reports whether ns was modified and is a
+// no-op otherwise.
+func (c *Config) ApplyRancherNamespaceLabelsAndAnnotations(ns *v1.Namespace) bool {
 	if c == nil || !c.RancherNamespaces.Enabled {
-		return
+		return false
 	}
 
-	if len(c.RancherNamespaces.Labels) > 0 {
-		if ns.Labels == nil {
-			ns.Labels = map[string]string{}
-		}
-		maps.Copy(ns.Labels, c.RancherNamespaces.Labels)
-	}
+	var updated bool
 
-	if ns.Annotations == nil {
-		ns.Annotations = map[string]string{}
+	if len(ns.Annotations) == 0 {
+		ns.Annotations = make(map[string]string, len(c.RancherNamespaces.Annotations))
 	}
-	maps.Copy(ns.Annotations, c.RancherNamespaces.Annotations)
-	ns.Annotations[ManagedNamespaceAnnotation] = "true"
+	updated = copy(ns.Annotations, c.RancherNamespaces.Annotations)
+
+	updated = copy(ns.Annotations, map[string]string{ManagedNamespaceAnnotation: "true"}) || updated
+
+	if len(ns.Labels) == 0 {
+		ns.Labels = make(map[string]string, len(c.RancherNamespaces.Labels))
+	}
+	updated = copy(ns.Labels, c.RancherNamespaces.Labels)
+
+	return updated
 }
 
 type AgentWorkers struct {

@@ -55,6 +55,30 @@ var _ = Describe("Config", func() {
 		})
 	})
 
+	When("the rancher namespace metadata changes", func() {
+		It("adds only current values to new namespaces and keeps old values on existing ones", func() {
+			DeferCleanup(func() { config.Set(nil) })
+			config.Set(&config.Config{RancherNamespaces: config.RancherNamespaces{
+				Enabled: true, Labels: map[string]string{"old": "1"}, Annotations: map[string]string{"old": "1"},
+			}})
+			existing := &v1.Namespace{}
+			config.Get().ApplyRancherNamespaceLabelsAndAnnotations(existing)
+
+			config.Set(&config.Config{RancherNamespaces: config.RancherNamespaces{
+				Enabled: true, Labels: map[string]string{"new": "2"}, Annotations: map[string]string{"new": "2"},
+			}})
+			Expect(config.Get().ApplyRancherNamespaceLabelsAndAnnotations(existing)).To(BeTrue())
+			Expect(existing.Labels).To(And(HaveKey("old"), HaveKey("new")))
+			Expect(existing.Annotations).To(And(HaveKey("old"), HaveKey("new")))
+
+			fresh := &v1.Namespace{}
+			config.Get().ApplyRancherNamespaceLabelsAndAnnotations(fresh)
+			Expect(fresh.Labels).To(Equal(map[string]string{"new": "2"}))
+			Expect(fresh.Annotations).ToNot(HaveKey("old"))
+			Expect(fresh.Annotations).To(HaveKeyWithValue("new", "2"))
+		})
+	})
+
 	When("the configmap on startup has no version annotation", func() {
 		It("loads config anyway", func() {
 			cfg, err := config.ReadConfig(&v1.ConfigMap{
