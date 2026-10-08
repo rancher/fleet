@@ -31,13 +31,7 @@ EOF
 }
 
 # Ensure the right version of controller-gen is installed
-CONTROLLERGEN=controller-gen
-CONTROLLERGEN_VERSION=$(go list -m -f '{{.Version}}' sigs.k8s.io/controller-tools)
-if ! $CONTROLLERGEN --version | grep -q "${CONTROLLERGEN_VERSION}" ; then
-  log "Downloading controller-gen ${CONTROLLERGEN_VERSION} to a temporary directory. Run 'go install sigs.k8s.io/controller-tools/cmd/controller-gen@${CONTROLLERGEN_VERSION}' to get a persistent installation"
-  GOBIN="${tmpdir}/bin" go install sigs.k8s.io/controller-tools/cmd/controller-gen@${CONTROLLERGEN_VERSION}
-  CONTROLLERGEN="${tmpdir}/bin/controller-gen"
-fi
+CONTROLLERGEN="go tool -modfile gotools/controller-gen/go.mod controller-gen"
 
 # Run controller-gen
 ${CONTROLLERGEN} object:headerFile=cmd/codegen/boilerplate.go.txt,year="$(date +%Y)" paths="./pkg/apis/..."
