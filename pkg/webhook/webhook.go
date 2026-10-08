@@ -104,6 +104,7 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	// the web host, github.com). Track the GitRepos already updated in `seen` so
 	// each is processed once per request, no matter how many URLs resolve to it.
 	seen := make(map[types.NamespacedName]struct{})
+	var authenticated, rejected int
 	for _, repo := range repoURLs {
 		u, err := url.Parse(repo)
 		if err != nil {
@@ -163,18 +164,19 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 						w.logAndReturn(rw, err)
 						return
 					}
+					authenticated++
 				} else {
+					// see #5297, #5712
 					w.log.Info(
-						"Warning: unauthenticated webhook call accepted",
+						"Rejected unauthenticated webhook call. Configure GitRepo.spec.webhookSecret or create the global \"gitjob-webhook\" secret to authenticate this GitRepo.",
 						"gitrepo", gitrepo.Name,
 						"namespace", gitrepo.Namespace,
 					)
-					// see #5297
-					w.log.Info(
-						"Support for unauthenticated webhooks is a security risk and therefore deprecated. It will be removed in a future release. Configure GitRepo.spec.webhookSecret or create the global \"gitjob-webhook\" secret to authenticate this GitRepo.",
-						"gitrepo", gitrepo.Name,
-						"namespace", gitrepo.Namespace,
-					)
+					// Skip only this GitRepo: other GitRepos matching the
+					// same URL may have their own secret.
+					rejected++
+					seen[gitrepoResource] = struct{}{}
+					continue
 				}
 
 				var gitRepoFromCluster fleet.GitRepo
@@ -199,10 +201,7 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 				// if PollingInterval is not set, set it to 1 hour to reduce polling load
 				// now that a webhook handles commit notifications. Use a separate spec
 				// patch because Status().Patch() only applies status subresource changes.
-				// Only do this once the request's signature has been verified: without a
-				// verified secret, an unauthenticated caller must not be able to mutate
-				// GitRepo.Spec.
-				if secret != nil && orig.Spec.PollingInterval == nil {
+				if orig.Spec.PollingInterval == nil {
 					specOrig := gitRepoFromCluster.DeepCopy()
 					gitRepoFromCluster.Spec.PollingInterval = &metav1.Duration{
 						Duration: webhookDefaultSyncInterval * time.Second,
@@ -215,6 +214,16 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 			}
 			seen[gitrepoResource] = struct{}{}
 		}
+	}
+	// partial gitrepo might be patched , so http.StatusUnauthorized applies to the following conditions
+	//   rejected  authenticated  response
+	//   0         0              200   no matching GitRepo, or all already up to date
+	//   0         ≥1             200   every matching GitRepo verified the request
+	//   ≥1        ≥1             200   mixed: some GitRepos lack a secret (logged above)
+	//   ≥1        0              401   no matching GitRepo has a secret to verify with
+	if rejected > 0 && authenticated == 0 {
+		http.Error(rw, "Webhook secret required", http.StatusUnauthorized)
+		return
 	}
 	rw.WriteHeader(http.StatusOK)
 	_, _ = rw.Write([]byte("succeeded"))
