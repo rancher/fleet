@@ -1,0 +1,70 @@
+publiccodeYmlVersion: 0.7.0
+name: Fleet
+applicationSuite: kubernetes
+url: https://github.com/rancher/fleet
+landingURL: https://fleet.rancher.io/
+# TODO: This is an optional field, but it would be good to have it, however it requires to have the logo inside the same repository
+# logo:
+platforms:
+  - linux
+categories:
+  - cloud-management
+  - fleet-management
+# TODO: Add more mentions to who uses it
+usedBy:
+  - SUSE
+fundedBy:
+  - SUSE
+roadmap: https://github.com/orgs/rancher/projects/12/views/4?filterQuery=-status%3A%22%E2%9C%85+Done%22+repo%3Arancher%2Ffleet
+developmentStatus: stable
+softwareType: addon
+organisation:
+  name: SUSE
+  uri: "https://suse.com"
+description:
+  en:
+    shortDescription: >-
+      Fleet is GitOps and HelmOps at scale, designed to manage a single or multiple clusters
+    longDescription: |
+      Fleet is GitOps and HelmOps at scale across a big amount of clusters, deployments and
+      teams in a single organization, but it's lightweight enough at small scale.
+
+      Fleet can manage deployments from git of raw Kubernetes YAML, Helm charts, or Kustomize or any
+      combination of the three. Regardless of the source all resources are dynamically turned into
+      Helm charts and Helm is used as the engine to deploy everything in the cluster. This gives a
+      high degree of control, consistency, and auditability. Fleet focuses not only on the ability
+      to scale, but to give one a high degree of control and visibility to exactly what is installed
+      on the cluster.
+    documentation: https://fleet.rancher.io/how-tos-for-users/gitrepo-add
+    apiDocumentation: https://fleet.rancher.io/reference/ref-crds
+    features:
+      - Cluster Control
+      - Cluster Monitoring
+      - Deployment Management
+      - GitOps
+    screenshots:
+      - docs/arch.png
+    videos:
+      - https://youtu.be/lNeX_PxnzLM
+      - https://youtu.be/2x5q89YLdc0
+legal:
+  license: Apache-2.0
+  mainCopyrightOwner: SUSE LLC
+maintenance:
+  type: internal
+  contacts:
+    - name: Corentin Néau
+      email: fleet@suse.com
+localisation:
+  localisationReady: false
+  availableLanguages:
+    - en
+dependsOn:
+  open:
+    - name: Kubernetes
+      optional: false
+    - name: kubectl
+      optional: true
+    - name: Helm
+      versionMin: "3"
+      optional: true
