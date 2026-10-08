@@ -86,7 +86,7 @@ func TestAzureDevopsWebhook(t *testing.T) {
 	utilruntime.Must(corev1.AddToScheme(scheme))
 	utilruntime.Must(v1alpha1.AddToScheme(scheme))
 
-	client := cfake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(gitRepo).WithStatusSubresource(gitRepo).Build()
+	client := cfake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(gitRepo, testWebhookSecret("")).WithStatusSubresource(gitRepo).Build()
 	w := &Webhook{client: client}
 	jsonBody := []byte(`{"subscriptionId":"xxx","notificationId":1,"id":"xxx","eventType":"git.push","publisherId":"tfs","message":{"text":"commit pushed","html":"commit pushed"},"detailedMessage":{"text":"pushed a commit to git-test"},"resource":{"commits":[{"commitId":"` + commit + `","author":{"name":"fleet","email":"fleet@suse.com","date":"2024-01-05T10:16:56Z"},"committer":{"name":"fleet","email":"fleet@suse.com","date":"2024-01-05T10:16:56Z"},"comment":"test commit","url":"https://dev.azure.com/fleet/_apis/git/repositories/xxx/commits/f00c3a181697bb3829a6462e931c7456bbed557b"}],"refUpdates":[{"name":"refs/heads/main","oldObjectId":"135f8a827edae980466f72eef385881bb4e158d8","newObjectId":"` + commit + `"}],"repository":{"id":"xxx","name":"git-test","url":"https://dev.azure.com/fleet/_apis/git/repositories/xxx","project":{"id":"xxx","name":"git-test","url":"https://dev.azure.com/fleet/_apis/projects/xxx","state":"wellFormed","visibility":"unchanged","lastUpdateTime":"0001-01-01T00:00:00"},"defaultBranch":"refs/heads/main","remoteUrl":"` + repoURL + `"},"pushedBy":{"displayName":"Fleet","url":"https://spsprodneu1.vssps.visualstudio.com/xxx/_apis/Identities/xxx","_links":{"avatar":{"href":"https://dev.azure.com/fleet/_apis/GraphProfile/MemberAvatars/msa.xxxx"}},"id":"xxx","uniqueName":"fleet@suse.com","imageUrl":"https://dev.azure.com/fleet/_api/_common/identityImage?id=xxx","descriptor":"xxxx"},"pushId":22,"date":"2024-01-05T10:17:18.735088Z","url":"https://dev.azure.com/fleet/_apis/git/repositories/xxx/pushes/22","_links":{"self":{"href":"https://dev.azure.com/fleet/_apis/git/repositories/xxx/pushes/22"},"repository":{"href":"https://dev.azure.com/fleet/xxx/_apis/git/repositories/xxx"},"commits":{"href":"https://dev.azure.com/fleet/_apis/git/repositories/xxx/pushes/22/commits"},"pusher":{"href":"https://spsprodneu1.vssps.visualstudio.com/xxx/_apis/Identities/xxx"},"refs":{"href":"https://dev.azure.com/fleet/xxx/_apis/git/repositories/xxx/refs/heads/main"}}},"resourceVersion":"1.0","resourceContainers":{"collection":{"id":"xxx","baseUrl":"https://dev.azure.com/fleet/"},"account":{"id":"ec365173-fce3-4dfc-8fc2-950f0b5728b1","baseUrl":"https://dev.azure.com/fleet/"},"project":{"id":"xxx","baseUrl":"https://dev.azure.com/fleet/"}},"createdDate":"2024-01-05T10:17:26.0098694Z"}`)
 	bodyReader := bytes.NewReader(jsonBody)
@@ -97,6 +97,7 @@ func TestAzureDevopsWebhook(t *testing.T) {
 	h := http.Header{}
 	h.Add("X-Vss-Activityid", "xxx")
 	req.Header = h
+	signTestRequest(req, jsonBody)
 
 	w.ServeHTTP(&responseWriter{}, req)
 
@@ -142,7 +143,7 @@ func TestAzureDevopsWebhookWithURLSpacing(t *testing.T) {
 			utilruntime.Must(corev1.AddToScheme(scheme))
 			utilruntime.Must(v1alpha1.AddToScheme(scheme))
 
-			client := cfake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(gitRepo).WithStatusSubresource(gitRepo).Build()
+			client := cfake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(gitRepo, testWebhookSecret("")).WithStatusSubresource(gitRepo).Build()
 			w := &Webhook{client: client}
 			jsonBody := []byte(`{"subscriptionId":"xxx","notificationId":1,"id":"xxx","eventType":"git.push","publisherId":"tfs","message":{"text":"commit pushed","html":"commit pushed"},"detailedMessage":{"text":"pushed a commit to git test"},"resource":{"commits":[{"commitId":"` + commit + `","author":{"name":"fleet","email":"fleet@suse.com","date":"2025-08-26T10:16:56Z"},"committer":{"name":"fleet","email":"fleet@suse.com","date":"2025-08-26T10:16:56Z"},"comment":"test commit","url":"https://dev.azure.com/fleet/_apis/git/repositories/xxx/commits/f00c3a181697bb3829a6462e931c7456bbed557b"}],"refUpdates":[{"name":"refs/heads/main","oldObjectId":"135f8a827edae980466f72eef385881bb4e158d8","newObjectId":"` + commit + `"}],"repository":{"id":"xxx","name":"git test","url":"https://dev.azure.com/fleet/_apis/git/repositories/xxx","project":{"id":"xxx","name":"git test","url":"https://dev.azure.com/fleet/_apis/projects/xxx","state":"wellFormed","visibility":"unchanged","lastUpdateTime":"0001-01-01T00:00:00"},"defaultBranch":"refs/heads/main","remoteUrl":"` + c.repoURL + `"},"pushedBy":{"displayName":"Fleet","url":"https://spsprodneu1.vssps.visualstudio.com/xxx/_apis/Identities/xxx","_links":{"avatar":{"href":"https://dev.azure.com/fleet/_apis/GraphProfile/MemberAvatars/msa.xxxx"}},"id":"xxx","uniqueName":"fleet@suse.com","imageUrl":"https://dev.azure.com/fleet/_api/_common/identityImage?id=xxx","descriptor":"xxxx"},"pushId":22,"date":"2025-08-26T10:17:18.735088Z","url":"https://dev.azure.com/fleet/_apis/git/repositories/xxx/pushes/22","_links":{"self":{"href":"https://dev.azure.com/fleet/_apis/git/repositories/xxx/pushes/22"},"repository":{"href":"https://dev.azure.com/fleet/xxx/_apis/git/repositories/xxx"},"commits":{"href":"https://dev.azure.com/fleet/_apis/git/repositories/xxx/pushes/22/commits"},"pusher":{"href":"https://spsprodneu1.vssps.visualstudio.com/xxx/_apis/Identities/xxx"},"refs":{"href":"https://dev.azure.com/fleet/xxx/_apis/git/repositories/xxx/refs/heads/main"}}},"resourceVersion":"1.0","resourceContainers":{"collection":{"id":"xxx","baseUrl":"https://dev.azure.com/fleet/"},"account":{"id":"ec365173-fce3-4dfc-8fc2-950f0b5728b1","baseUrl":"https://dev.azure.com/fleet/"},"project":{"id":"xxx","baseUrl":"https://dev.azure.com/fleet/"}},"createdDate":"2025-08-26T10:17:26.0098694Z"}`)
 			bodyReader := bytes.NewReader(jsonBody)
@@ -153,6 +154,7 @@ func TestAzureDevopsWebhookWithURLSpacing(t *testing.T) {
 			h := http.Header{}
 			h.Add("X-Vss-Activityid", "xxx")
 			req.Header = h
+			signTestRequest(req, jsonBody)
 
 			w.ServeHTTP(&responseWriter{}, req)
 
@@ -188,7 +190,7 @@ func TestAzureDevopsWebhookWithURLMatching(t *testing.T) {
 	utilruntime.Must(corev1.AddToScheme(scheme))
 	utilruntime.Must(v1alpha1.AddToScheme(scheme))
 
-	client := cfake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(gitRepo).WithStatusSubresource(gitRepo).Build()
+	client := cfake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(gitRepo, testWebhookSecret("")).WithStatusSubresource(gitRepo).Build()
 	w := &Webhook{client: client}
 	jsonBody := []byte(`{"subscriptionId":"xxx","notificationId":1,"id":"xxx","eventType":"git.push","publisherId":"tfs","message":{"text":"commit pushed","html":"commit pushed"},"detailedMessage":{"text":"pushed a commit to git test"},"resource":{"commits":[{"commitId":"` + commit + `","author":{"name":"fleet","email":"fleet@suse.com","date":"2025-08-26T10:16:56Z"},"committer":{"name":"fleet","email":"fleet@suse.com","date":"2025-08-26T10:16:56Z"},"comment":"test commit","url":"https://dev.azure.com/fleet/_apis/git/repositories/xxx/commits/f00c3a181697bb3829a6462e931c7456bbed557b"}],"refUpdates":[{"name":"refs/heads/main","oldObjectId":"135f8a827edae980466f72eef385881bb4e158d8","newObjectId":"` + commit + `"}],"repository":{"id":"xxx","name":"git test","url":"https://dev.azure.com/fleet/_apis/git/repositories/xxx","project":{"id":"xxx","name":"git test","url":"https://dev.azure.com/fleet/_apis/projects/xxx","state":"wellFormed","visibility":"unchanged","lastUpdateTime":"0001-01-01T00:00:00"},"defaultBranch":"refs/heads/main","remoteUrl":"` + remoteURL + `"},"pushedBy":{"displayName":"Fleet","url":"https://spsprodneu1.vssps.visualstudio.com/xxx/_apis/Identities/xxx","_links":{"avatar":{"href":"https://dev.azure.com/fleet/_apis/GraphProfile/MemberAvatars/msa.xxxx"}},"id":"xxx","uniqueName":"fleet@suse.com","imageUrl":"https://dev.azure.com/fleet/_api/_common/identityImage?id=xxx","descriptor":"xxxx"},"pushId":22,"date":"2025-08-26T10:17:18.735088Z","url":"https://dev.azure.com/fleet/_apis/git/repositories/xxx/pushes/22","_links":{"self":{"href":"https://dev.azure.com/fleet/_apis/git/repositories/xxx/pushes/22"},"repository":{"href":"https://dev.azure.com/fleet/xxx/_apis/git/repositories/xxx"},"commits":{"href":"https://dev.azure.com/fleet/_apis/git/repositories/xxx/pushes/22/commits"},"pusher":{"href":"https://spsprodneu1.vssps.visualstudio.com/xxx/_apis/Identities/xxx"},"refs":{"href":"https://dev.azure.com/fleet/xxx/_apis/git/repositories/xxx/refs/heads/main"}}},"resourceVersion":"1.0","resourceContainers":{"collection":{"id":"xxx","baseUrl":"https://fleet.visualstudio.com/"},"account":{"id":"ec365173-fce3-4dfc-8fc2-950f0b5728b1","baseUrl":"https://fleet.visualstudio.com/"},"project":{"id":"xxx","baseUrl":"https://fleet.visualstudio.com/"}},"createdDate":"2025-08-26T10:17:26.0098694Z"}`)
 	bodyReader := bytes.NewReader(jsonBody)
@@ -199,6 +201,7 @@ func TestAzureDevopsWebhookWithURLMatching(t *testing.T) {
 	h := http.Header{}
 	h.Add("X-Vss-Activityid", "xxx")
 	req.Header = h
+	signTestRequest(req, jsonBody)
 
 	w.ServeHTTP(&responseWriter{}, req)
 
@@ -232,7 +235,7 @@ func TestAzureDevopsWebhookWithSSHURL(t *testing.T) {
 	utilruntime.Must(corev1.AddToScheme(scheme))
 	utilruntime.Must(v1alpha1.AddToScheme(scheme))
 
-	client := cfake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(gitRepo).WithStatusSubresource(gitRepo).Build()
+	client := cfake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(gitRepo, testWebhookSecret("")).WithStatusSubresource(gitRepo).Build()
 	w := &Webhook{client: client}
 	jsonBody := []byte(`{"subscriptionId":"xxx","notificationId":1,"id":"xxx","eventType":"git.push","publisherId":"tfs","message":{"text":"commit pushed","html":"commit pushed"},"detailedMessage":{"text":"pushed a commit to git-test"},"resource":{"commits":[{"commitId":"` + commit + `","author":{"name":"fleet","email":"fleet@suse.com","date":"2024-01-05T10:16:56Z"},"committer":{"name":"fleet","email":"fleet@suse.com","date":"2024-01-05T10:16:56Z"},"comment":"test commit","url":"https://dev.azure.com/fleet/_apis/git/repositories/xxx/commits/f00c3a181697bb3829a6462e931c7456bbed557b"}],"refUpdates":[{"name":"refs/heads/main","oldObjectId":"135f8a827edae980466f72eef385881bb4e158d8","newObjectId":"` + commit + `"}],"repository":{"id":"xxx","name":"git-test","url":"https://dev.azure.com/fleet/_apis/git/repositories/xxx","project":{"id":"xxx","name":"git-test","url":"https://dev.azure.com/fleet/_apis/projects/xxx","state":"wellFormed","visibility":"unchanged","lastUpdateTime":"0001-01-01T00:00:00"},"defaultBranch":"refs/heads/main","remoteUrl":"` + responseRemoteURL + `"},"pushedBy":{"displayName":"Fleet","url":"https://spsprodneu1.vssps.visualstudio.com/xxx/_apis/Identities/xxx","_links":{"avatar":{"href":"https://dev.azure.com/fleet/_apis/GraphProfile/MemberAvatars/msa.xxxx"}},"id":"xxx","uniqueName":"fleet@suse.com","imageUrl":"https://dev.azure.com/fleet/_api/_common/identityImage?id=xxx","descriptor":"xxxx"},"pushId":22,"date":"2024-01-05T10:17:18.735088Z","url":"https://dev.azure.com/fleet/_apis/git/repositories/xxx/pushes/22","_links":{"self":{"href":"https://dev.azure.com/fleet/_apis/git/repositories/xxx/pushes/22"},"repository":{"href":"https://dev.azure.com/fleet/xxx/_apis/git/repositories/xxx"},"commits":{"href":"https://dev.azure.com/fleet/_apis/git/repositories/xxx/pushes/22/commits"},"pusher":{"href":"https://spsprodneu1.vssps.visualstudio.com/xxx/_apis/Identities/xxx"},"refs":{"href":"https://dev.azure.com/fleet/xxx/_apis/git/repositories/xxx/refs/heads/main"}}},"resourceVersion":"1.0","resourceContainers":{"collection":{"id":"xxx","baseUrl":"https://dev.azure.com/fleet/"},"account":{"id":"ec365173-fce3-4dfc-8fc2-950f0b5728b1","baseUrl":"https://dev.azure.com/fleet/"},"project":{"id":"xxx","baseUrl":"https://dev.azure.com/fleet/"}},"createdDate":"2024-01-05T10:17:26.0098694Z"}`)
 	bodyReader := bytes.NewReader(jsonBody)
@@ -243,6 +246,7 @@ func TestAzureDevopsWebhookWithSSHURL(t *testing.T) {
 	h := http.Header{}
 	h.Add("X-Vss-Activityid", "xxx")
 	req.Header = h
+	signTestRequest(req, jsonBody)
 
 	w.ServeHTTP(&responseWriter{}, req)
 
@@ -253,6 +257,41 @@ func TestAzureDevopsWebhookWithSSHURL(t *testing.T) {
 	}
 	if updatedGitRepo.Status.WebhookCommit != commit {
 		t.Errorf("expected webhook commit %v, but got %v", commit, updatedGitRepo.Status.WebhookCommit)
+	}
+}
+
+const testSecretValue = "supersecretvalue"
+
+// testWebhookSecret returns the global webhook secret, holding the same value
+// for every provider, so that signTestRequest can authenticate any request.
+func testWebhookSecret(namespace string) *corev1.Secret {
+	return &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: webhookSecretName, Namespace: namespace},
+		Data: map[string][]byte{
+			githubKey:     []byte(testSecretValue),
+			gitlabKey:     []byte(testSecretValue),
+			gogsKey:       []byte(testSecretValue),
+			azureUsername: []byte(testSecretValue),
+			azurePassword: []byte(testSecretValue),
+		},
+	}
+}
+
+// signTestRequest authenticates req against testWebhookSecret.
+func signTestRequest(req *http.Request, body []byte) {
+	mac := hmac.New(sha256.New, []byte(testSecretValue))
+	_, _ = mac.Write(body)
+	sig := hex.EncodeToString(mac.Sum(nil))
+
+	switch {
+	case req.Header.Get("X-Github-Event") != "":
+		req.Header.Set("X-Hub-Signature-256", "sha256="+sig)
+	case req.Header.Get("X-Gitlab-Event") != "":
+		req.Header.Set("X-Gitlab-Token", testSecretValue)
+	case req.Header.Get("X-Gogs-Event") != "":
+		req.Header.Set("X-Gogs-Signature", sig)
+	default:
+		req.SetBasicAuth(testSecretValue, testSecretValue)
 	}
 }
 
@@ -477,7 +516,7 @@ func TestGitHubWrongSecret(t *testing.T) {
 	}
 }
 
-func TestNoWebhookSecretDoesNotMutateSpec(t *testing.T) {
+func TestNoWebhookSecretRejected(t *testing.T) {
 	// No webhookSecretName Secret exists, and the GitRepo has no Spec.WebhookSecret set —
 	// this is Fleet's default, out-of-the-box configuration.
 	gitRepo := &v1alpha1.GitRepo{
@@ -522,19 +561,71 @@ func TestNoWebhookSecretDoesNotMutateSpec(t *testing.T) {
 	rr := httptest.NewRecorder()
 	w.ServeHTTP(rr, req)
 
-	if status := rr.Code; status != http.StatusOK {
-		t.Fatalf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
+	if status := rr.Code; status != http.StatusUnauthorized {
+		t.Fatalf("handler returned wrong status code: got %v want %v", status, http.StatusUnauthorized)
 	}
 
 	updatedGitRepo := &v1alpha1.GitRepo{}
 	if err := client.Get(context.TODO(), types.NamespacedName{Name: gitRepo.Name, Namespace: gitRepo.Namespace}, updatedGitRepo); err != nil {
 		t.Fatalf("unexpected err %v", err)
 	}
-	if updatedGitRepo.Status.WebhookCommit != commit {
-		t.Errorf("expected webhook commit %v, but got %v", commit, updatedGitRepo.Status.WebhookCommit)
+	if updatedGitRepo.Status.WebhookCommit != "" {
+		t.Errorf("unauthenticated webhook request must not update the webhook commit, got %v", updatedGitRepo.Status.WebhookCommit)
 	}
 	if updatedGitRepo.Spec.PollingInterval != nil {
 		t.Errorf("unauthenticated webhook request must not mutate Spec.PollingInterval, got %v", updatedGitRepo.Spec.PollingInterval)
+	}
+}
+
+func TestUnauthenticatedGitRepoDoesNotBlockOthers(t *testing.T) {
+	// Both GitRepos match the payload. No global secret exists, so only the one
+	// referencing its own webhook secret is authenticated; it must still be updated
+	// even though the unauthenticated one is listed first.
+	unauthenticated := &v1alpha1.GitRepo{
+		ObjectMeta: metav1.ObjectMeta{Name: "a-unauthenticated", Namespace: "default"},
+		Spec:       v1alpha1.GitRepoSpec{Repo: "https://github.com/example/repo"},
+	}
+	authenticated := &v1alpha1.GitRepo{
+		ObjectMeta: metav1.ObjectMeta{Name: "b-authenticated", Namespace: "default"},
+		Spec: v1alpha1.GitRepoSpec{
+			Repo:          "https://github.com/example/repo",
+			WebhookSecret: "own-secret",
+		},
+	}
+	secret := testWebhookSecret("default")
+	secret.Name = "own-secret"
+
+	sch := runtime.NewScheme()
+	utilruntime.Must(corev1.AddToScheme(sch))
+	utilruntime.Must(v1alpha1.AddToScheme(sch))
+	client := cfake.NewClientBuilder().WithScheme(sch).
+		WithRuntimeObjects(unauthenticated, authenticated, secret).
+		WithStatusSubresource(unauthenticated, authenticated).Build()
+	w := &Webhook{client: client, namespace: "default"}
+
+	const commit = "af69d162de5a276abc86e0686b2b44033cd3f442"
+	body := []byte(`{"ref":"refs/heads/main","after":"` + commit + `","repository":{"html_url":"https://github.com/example/repo"}}`)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "/", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("Failed to create HTTP request: %v", err)
+	}
+	req.Header.Set("X-Github-Event", "push")
+	signTestRequest(req, body)
+
+	rr := httptest.NewRecorder()
+	w.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusOK {
+		t.Fatalf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
+	}
+	for gitRepo, want := range map[string]string{unauthenticated.Name: "", authenticated.Name: commit} {
+		var got v1alpha1.GitRepo
+		if err := client.Get(context.TODO(), types.NamespacedName{Name: gitRepo, Namespace: "default"}, &got); err != nil {
+			t.Fatalf("unexpected err %v", err)
+		}
+		if got.Status.WebhookCommit != want {
+			t.Errorf("gitrepo %s: expected webhook commit %q, got %q", gitRepo, want, got.Status.WebhookCommit)
+		}
 	}
 }
 
@@ -685,9 +776,8 @@ func TestGitHubSecretAndCommitUpdated(t *testing.T) {
 			gitrepoSecretKey:     "",
 			gitrepoSecretValue:   "",
 			setSecretInGitrepo:   false,
-			expectedResCode:      http.StatusOK,
-			expectedCommitUpdate: true,
-			expectedSpecPatch:    false, // no secret at all: request is unverified, must not mutate Spec
+			expectedResCode:      http.StatusUnauthorized,
+			expectedCommitUpdate: false,
 		},
 
 		// when a referenced secret does not exist, we throw an error
@@ -704,150 +794,152 @@ func TestGitHubSecretAndCommitUpdated(t *testing.T) {
 			expectedCommitUpdate: false,
 		},
 	}
-	for _, tt := range tests {
-		ctlr := gomock.NewController(t)
-		mockClient := mocks.NewMockK8sClient(ctlr)
+	for tc, tt := range tests {
+		t.Run(tc, func(t *testing.T) {
+			ctlr := gomock.NewController(t)
+			mockClient := mocks.NewMockK8sClient(ctlr)
 
-		gitRepo := &v1alpha1.GitRepo{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "test",
-				Namespace: "gitrepoNamespace",
-			},
-			Spec: v1alpha1.GitRepoSpec{
-				Repo:   "https://github.com/example/repo",
-				Branch: "main",
-			},
-		}
-
-		if tt.setSecretInGitrepo {
-			gitRepo.Spec.WebhookSecret = gitrepoSecretName
-		}
-
-		// List GitRepos mock call
-		mockClient.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(
-			func(ctx context.Context, list *v1alpha1.GitRepoList, opts ...client.ListOption) error {
-				list.Items = append(list.Items, *gitRepo)
-				return nil
-			},
-		)
-
-		// call for secret
-		mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-			func(ctx context.Context, name types.NamespacedName, secret *corev1.Secret, _ ...any) error {
-				// check that we're calling Get with the expected name and Namespace
-				if tt.gitrepoSecret {
-					if name.Name != gitrepoSecretName {
-						t.Errorf("expecting calling secret Get with secret name %q, got %q", gitrepoSecretName, name.Name)
-					}
-					if name.Namespace != gitRepo.Namespace {
-						t.Errorf("expecting calling secret Get with secret namespace %q, got %q", gitRepo.Namespace, name.Namespace)
-					}
-				} else if tt.globalSecret {
-					// it expects the global secret name
-					if name.Name != webhookSecretName {
-						t.Errorf("expecting calling secret Get with secret name %q, got %q", webhookSecretName, name.Name)
-					}
-					// we're using "default" as the namespace for the webhook
-					if name.Namespace != "default" {
-						t.Errorf("expecting calling secret Get with secret namespace %q, got %q", "default", name.Namespace)
-					}
-				}
-				if tt.gitrepoSecret {
-					secret.Data = map[string][]byte{
-						tt.gitrepoSecretKey: []byte(tt.gitrepoSecretValue),
-					}
-					return nil
-				} else if tt.globalSecret {
-					secret.Data = map[string][]byte{
-						tt.globalSecretKey: []byte(tt.globalSecretValue),
-					}
-					return nil
-				}
-
-				// if no secret
-				return apierrors.NewNotFound(schema.GroupResource{}, "")
-			}).Times(1)
-
-		// Status().Update() mock call
-		if tt.expectedCommitUpdate {
-			mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-				func(ctx context.Context, name types.NamespacedName, gitrepo *v1alpha1.GitRepo, _ ...any) error {
-					return nil
-				})
-			statusClient := mocks.NewMockStatusWriter(ctlr)
-
-			mockClient.EXPECT().Status().Return(statusClient).Times(1)
-			statusClient.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any()).Do(
-				func(ctx context.Context, repo *v1alpha1.GitRepo, _ client.Patch, opts ...any) {
-					// check that the commit is the expected one
-					if repo.Status.WebhookCommit != expectedCommit {
-						t.Errorf("expecting gitrepo webhook commit %s, got %s", expectedCommit, repo.Status.WebhookCommit)
-					}
-					// PollingInterval must NOT be set via Status().Patch(); it uses a separate spec patch
-					if repo.Spec.PollingInterval != nil {
-						t.Errorf("PollingInterval must not appear in the status patch, got %s", repo.Spec.PollingInterval.Duration)
-					}
+			gitRepo := &v1alpha1.GitRepo{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "gitrepoNamespace",
 				},
-			).Times(1)
-			// PollingInterval is nil on the GitRepo fixture; a separate spec Patch() must
-			// follow only when the request was verified against an actually configured secret.
-			if tt.expectedSpecPatch {
-				mockClient.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any()).Do(
+				Spec: v1alpha1.GitRepoSpec{
+					Repo:   "https://github.com/example/repo",
+					Branch: "main",
+				},
+			}
+
+			if tt.setSecretInGitrepo {
+				gitRepo.Spec.WebhookSecret = gitrepoSecretName
+			}
+
+			// List GitRepos mock call
+			mockClient.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(
+				func(ctx context.Context, list *v1alpha1.GitRepoList, opts ...client.ListOption) error {
+					list.Items = append(list.Items, *gitRepo)
+					return nil
+				},
+			)
+
+			// call for secret
+			mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+				func(ctx context.Context, name types.NamespacedName, secret *corev1.Secret, _ ...any) error {
+					// check that we're calling Get with the expected name and Namespace
+					if tt.gitrepoSecret {
+						if name.Name != gitrepoSecretName {
+							t.Errorf("expecting calling secret Get with secret name %q, got %q", gitrepoSecretName, name.Name)
+						}
+						if name.Namespace != gitRepo.Namespace {
+							t.Errorf("expecting calling secret Get with secret namespace %q, got %q", gitRepo.Namespace, name.Namespace)
+						}
+					} else if tt.globalSecret {
+						// it expects the global secret name
+						if name.Name != webhookSecretName {
+							t.Errorf("expecting calling secret Get with secret name %q, got %q", webhookSecretName, name.Name)
+						}
+						// we're using "default" as the namespace for the webhook
+						if name.Namespace != "default" {
+							t.Errorf("expecting calling secret Get with secret namespace %q, got %q", "default", name.Namespace)
+						}
+					}
+					if tt.gitrepoSecret {
+						secret.Data = map[string][]byte{
+							tt.gitrepoSecretKey: []byte(tt.gitrepoSecretValue),
+						}
+						return nil
+					} else if tt.globalSecret {
+						secret.Data = map[string][]byte{
+							tt.globalSecretKey: []byte(tt.globalSecretValue),
+						}
+						return nil
+					}
+
+					// if no secret
+					return apierrors.NewNotFound(schema.GroupResource{}, "")
+				}).Times(1)
+
+			// Status().Update() mock call
+			if tt.expectedCommitUpdate {
+				mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+					func(ctx context.Context, name types.NamespacedName, gitrepo *v1alpha1.GitRepo, _ ...any) error {
+						return nil
+					})
+				statusClient := mocks.NewMockStatusWriter(ctlr)
+
+				mockClient.EXPECT().Status().Return(statusClient).Times(1)
+				statusClient.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any()).Do(
 					func(ctx context.Context, repo *v1alpha1.GitRepo, _ client.Patch, opts ...any) {
-						if repo.Spec.PollingInterval == nil || repo.Spec.PollingInterval.Duration != time.Hour {
-							t.Errorf("expecting polling interval 1h in spec patch, got %v", repo.Spec.PollingInterval)
+						// check that the commit is the expected one
+						if repo.Status.WebhookCommit != expectedCommit {
+							t.Errorf("expecting gitrepo webhook commit %s, got %s", expectedCommit, repo.Status.WebhookCommit)
+						}
+						// PollingInterval must NOT be set via Status().Patch(); it uses a separate spec patch
+						if repo.Spec.PollingInterval != nil {
+							t.Errorf("PollingInterval must not appear in the status patch, got %s", repo.Spec.PollingInterval.Duration)
 						}
 					},
 				).Times(1)
-			} else {
-				mockClient.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+				// PollingInterval is nil on the GitRepo fixture; a separate spec Patch() must
+				// follow only when the request was verified against an actually configured secret.
+				if tt.expectedSpecPatch {
+					mockClient.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any()).Do(
+						func(ctx context.Context, repo *v1alpha1.GitRepo, _ client.Patch, opts ...any) {
+							if repo.Spec.PollingInterval == nil || repo.Spec.PollingInterval.Duration != time.Hour {
+								t.Errorf("expecting polling interval 1h in spec patch, got %v", repo.Spec.PollingInterval)
+							}
+						},
+					).Times(1)
+				} else {
+					mockClient.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+				}
 			}
-		}
 
-		w := &Webhook{
-			client:    mockClient,
-			namespace: "default",
-		}
-
-		// we set only the values that we're going to use in the push event to make things simple
-		jsonBody := fmt.Appendf(nil, `
-		{
-		  "ref":"refs/heads/main",
-		  "after":"%s",
-		  "repository":{
-			"html_url":"https://github.com/example/repo"
-		  }
-		}`, expectedCommit)
-
-		// Request creation
-		req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "/", bytes.NewReader(jsonBody))
-		if err != nil {
-			t.Fatalf("Failed to create HTTP request: %v", err)
-		}
-		req.Header.Set("X-Github-Event", "push")
-
-		// calculate the value to store in the X-Hub-Signature-256 header
-		mac256 := hmac.New(sha256.New, []byte(tt.secretValueInRequest))
-		_, _ = mac256.Write(jsonBody)
-		expectedMAC256 := hex.EncodeToString(mac256.Sum(nil))
-		req.Header.Set("X-Hub-Signature-256", "sha256="+expectedMAC256)
-
-		// request execution
-		rr := httptest.NewRecorder()
-		w.ServeHTTP(rr, req)
-
-		// Verify the response status code is correct
-		if status := rr.Code; status != tt.expectedResCode {
-			t.Errorf("handler returned wrong status code: got %v want %v", status, tt.expectedResCode)
-		}
-
-		// Verify the response message is correct
-		if tt.expectedResCode == http.StatusOK {
-			expectedResponse := "succeeded"
-			if rr.Body.String() != expectedResponse {
-				t.Errorf("handler returned unexpected body: got %v want %v", rr.Body, expectedResponse)
+			w := &Webhook{
+				client:    mockClient,
+				namespace: "default",
 			}
-		}
+
+			// we set only the values that we're going to use in the push event to make things simple
+			jsonBody := fmt.Appendf(nil, `
+			{
+			  "ref":"refs/heads/main",
+			  "after":"%s",
+			  "repository":{
+				"html_url":"https://github.com/example/repo"
+			  }
+			}`, expectedCommit)
+
+			// Request creation
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "/", bytes.NewReader(jsonBody))
+			if err != nil {
+				t.Fatalf("Failed to create HTTP request: %v", err)
+			}
+			req.Header.Set("X-Github-Event", "push")
+
+			// calculate the value to store in the X-Hub-Signature-256 header
+			mac256 := hmac.New(sha256.New, []byte(tt.secretValueInRequest))
+			_, _ = mac256.Write(jsonBody)
+			expectedMAC256 := hex.EncodeToString(mac256.Sum(nil))
+			req.Header.Set("X-Hub-Signature-256", "sha256="+expectedMAC256)
+
+			// request execution
+			rr := httptest.NewRecorder()
+			w.ServeHTTP(rr, req)
+
+			// Verify the response status code is correct
+			if status := rr.Code; status != tt.expectedResCode {
+				t.Errorf("handler returned wrong status code: got %v want %v", status, tt.expectedResCode)
+			}
+
+			// Verify the response message is correct
+			if tt.expectedResCode == http.StatusOK {
+				expectedResponse := "succeeded"
+				if rr.Body.String() != expectedResponse {
+					t.Errorf("handler returned unexpected body: got %v want %v", rr.Body, expectedResponse)
+				}
+			}
+		})
 	}
 }
 
@@ -1020,7 +1112,12 @@ func TestGitRepoURLMatch(t *testing.T) {
 			nn := types.NamespacedName{Name: webhookSecretName, Namespace: "my-namespace"}
 			// The following calls should happen only _once_, for the GitRepo with the exact URL match, hence the explicit
 			// `.Times(1)` calls.
-			mockClient.EXPECT().Get(gomock.Any(), nn, gomock.Any()).Return(apierrors.NewNotFound(schema.GroupResource{}, "")).Times(1)
+			mockClient.EXPECT().Get(gomock.Any(), nn, gomock.Any()).DoAndReturn(
+				func(ctx context.Context, _ types.NamespacedName, secret *corev1.Secret, _ ...any) error {
+					testWebhookSecret(nn.Namespace).DeepCopyInto(secret)
+					return nil
+				},
+			).Times(1)
 
 			mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
 				func(ctx context.Context, name types.NamespacedName, gitrepo *v1alpha1.GitRepo, _ ...any) error {
@@ -1044,14 +1141,15 @@ func TestGitRepoURLMatch(t *testing.T) {
 					}
 				},
 			).Times(1)
-			// No webhook secret is configured, so request is unverified and must not mutate Spec.
-			mockClient.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+			// PollingInterval is unset on the matched GitRepo, so it is defaulted via a spec patch.
+			mockClient.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any()).Times(1)
 
 			req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "/", bytes.NewReader([]byte(tc.body)))
 			if err != nil {
 				t.Fatalf("Failed to create HTTP request: %v", err)
 			}
 			req.Header.Set(tc.eventHeader, tc.eventValue)
+			signTestRequest(req, []byte(tc.body))
 
 			rr := httptest.NewRecorder()
 			w := &Webhook{
