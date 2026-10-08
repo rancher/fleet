@@ -1,4 +1,5 @@
-//go:generate mockgen --build_flags=--mod=mod -destination=../../../mocks/target_builder_mock.go -package=mocks github.com/rancher/fleet/internal/cmd/controller/reconciler TargetBuilder,Store
+//go:generate go tool -modfile ../../../gotools/mockgen/go.mod mockgen --build_flags=--mod=mod -destination=../../../mocks/target_builder_mock.go -package=mocks github.com/rancher/fleet/internal/cmd/controller/reconciler TargetBuilder
+//go:generate go tool -modfile ../../../gotools/mockgen/go.mod mockgen --build_flags=--mod=mod -destination=../../../mocks/manifest_store_mock.go -package=mocks github.com/rancher/fleet/internal/cmd/controller/reconciler Store
 package reconciler_test
 
 import (
