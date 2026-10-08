@@ -1,7 +1,7 @@
 #!/bin/sh
 set -ue
 
-go generate
+go generate ./...
 ginkgo unfocus
 
 if [ -n "$(git status --porcelain)" ]; then
