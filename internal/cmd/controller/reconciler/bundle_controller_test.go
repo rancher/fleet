@@ -583,6 +583,24 @@ func TestReconcile_OptionsSecretDeletionError(t *testing.T) {
 	}
 }
 
+// fakeNotifier counts the bundles reported to it, to check that a persisted
+// status is reported no matter which path persisted it.
+type fakeNotifier struct {
+	observed int
+}
+
+func (f *fakeNotifier) ObserveBundle(_ context.Context, _, _ *fleetv1.Bundle) {
+	f.observed++
+}
+
+func (f *fakeNotifier) ObserveBundleDeployment(
+	_ context.Context,
+	_, _ *fleetv1.BundleDeployment,
+) {
+}
+
+func (f *fakeNotifier) Forget(_ types.UID) {}
+
 func TestReconcile_OCIReferenceSecretResolutionError(t *testing.T) {
 	cases := []struct {
 		name               string
@@ -664,11 +682,14 @@ func TestReconcile_OCIReferenceSecretResolutionError(t *testing.T) {
 			targetBuilderMock := mocks.NewMockTargetBuilder(mockCtrl)
 			targetBuilderMock.EXPECT().Targets(gomock.Any(), gomock.Any(), gomock.Any()).Return(matchedTargets, false, nil)
 
+			notifier := &fakeNotifier{}
+
 			r := reconciler.BundleReconciler{
 				Client:   mockClient,
 				Scheme:   scheme,
 				Recorder: recorderMock,
 				Builder:  targetBuilderMock,
+				Events:   notifier,
 			}
 
 			ctx := context.TODO()
@@ -682,6 +703,19 @@ func TestReconcile_OCIReferenceSecretResolutionError(t *testing.T) {
 
 			if c.expectedErrMsg == "" && rs.RequeueAfter == 0 {
 				t.Errorf("expected non-zero RequeueAfter in result")
+			}
+
+			// This path persists the summary and then returns an error,
+			// without reaching the end of Reconcile. The state it persisted
+			// still has to be reported, or it never will be: the next
+			// reconcile compares against the status persisted here and sees
+			// no change.
+			want := 0
+			if c.expectStatusUpdate {
+				want = 1
+			}
+			if notifier.observed != want {
+				t.Errorf("expected %d bundles reported to the notifier, got %d", want, notifier.observed)
 			}
 		})
 	}
