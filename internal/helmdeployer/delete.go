@@ -24,6 +24,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
+const maxPurgeNamespaceAttempts = 5
+
 // DeleteRelease deletes the release for the DeployedBundle.
 func (h *Helm) DeleteRelease(ctx context.Context, deployment DeployedBundle) error {
 	return h.deleteByRelease(
@@ -118,7 +120,7 @@ func (h *Helm) deleteByRelease(
 	// Clean up once the release has been uninstalled, to prevent removal of release metadata which could interfere
 	// with Helm operations.
 	if deleteNamespace && !keepResources {
-		purgeReleaseNamespace(ctx, h.client, logger, releaseNamespace)
+		go purgeReleaseNamespace(ctx, cfg, h.client, logger, releaseNamespace)
 	}
 
 	return deleteResourcesCopiedFromUpstream(ctx, h.client, bundleID)
@@ -241,7 +243,13 @@ func deleteResourcesCopiedFromUpstream(ctx context.Context, c client.Client, bdN
 // purgeReleaseNamespace attempts to delete the release namespace if that namespace is not a Kubernetes nor a Fleet
 // system namespace.
 // Failures to delete a namespace are logged, but not reported as failures to uninstall a release.
-func purgeReleaseNamespace(ctx context.Context, c client.Client, logger logr.Logger, ns string) {
+func purgeReleaseNamespace(
+	ctx context.Context,
+	cfg *action.Configuration,
+	c client.Client,
+	logger logr.Logger,
+	ns string,
+) {
 	// Ignore default namespaces
 	defaultNamespaces := []string{"cattle-fleet-system", "default"}
 	if slices.Contains(defaultNamespaces, ns) {
@@ -253,8 +261,31 @@ func purgeReleaseNamespace(ctx context.Context, c client.Client, logger logr.Log
 		return
 	}
 
-	err := c.Delete(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})
-	if err != nil && !apierrors.IsNotFound(err) {
-		logger.Info("failed to delete release namespace", "namespace", ns)
+	for attempts := 0; attempts < maxPurgeNamespaceAttempts; attempts++ {
+		releases, err := listReleases(cfg.Releases, func(r *releasev1.Release) bool {
+			return r.Namespace == ns
+		})
+		if err != nil {
+			logger.Info(
+				fmt.Sprintf("Helm: failed to list releases possibly sharing target namespace (attempt %d)", attempts+1),
+				"namespace", ns,
+			)
+
+			continue
+		}
+
+		if len(releases) > 0 {
+			logger.Info(
+				fmt.Sprintf("Helm: other releases live in namespace; skipping target namespace deletion (attempt %d)", attempts+1),
+				"namespace", ns,
+			)
+
+			continue
+		}
+
+		err = c.Delete(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})
+		if err != nil && !apierrors.IsNotFound(err) {
+			logger.Info("failed to delete release namespace", "namespace", ns)
+		}
 	}
 }
