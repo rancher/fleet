@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/go-logr/logr"
+	"github.com/jpillora/backoff"
 	"helm.sh/helm/v4/pkg/action"
 	"helm.sh/helm/v4/pkg/kube"
 	releasev1 "helm.sh/helm/v4/pkg/release/v1"
@@ -24,7 +26,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-const maxPurgeNamespaceAttempts = 5
+const (
+	maxPurgeNamespaceAttempts = 5
+	purgeNamespaceMinBackoff  = 1 * time.Second
+	purgeNamespaceMaxBackoff  = 10 * time.Second
+	purgeNamespaceFactor      = 2
+)
 
 // DeleteRelease deletes the release for the DeployedBundle.
 func (h *Helm) DeleteRelease(ctx context.Context, deployment DeployedBundle) error {
@@ -261,7 +268,14 @@ func purgeReleaseNamespace(
 		return
 	}
 
-	for attempts := 0; attempts < maxPurgeNamespaceAttempts; attempts++ {
+	b := backoff.Backoff{
+		Min:    purgeNamespaceMinBackoff,
+		Max:    purgeNamespaceMaxBackoff,
+		Factor: purgeNamespaceFactor,
+		Jitter: true,
+	}
+
+	for attempts := range maxPurgeNamespaceAttempts {
 		releases, err := listReleases(cfg.Releases, func(r *releasev1.Release) bool {
 			return r.Namespace == ns
 		})
@@ -270,7 +284,7 @@ func purgeReleaseNamespace(
 				fmt.Sprintf("Helm: failed to list releases possibly sharing target namespace (attempt %d)", attempts+1),
 				"namespace", ns,
 			)
-
+			time.Sleep(b.Duration())
 			continue
 		}
 
@@ -279,13 +293,17 @@ func purgeReleaseNamespace(
 				fmt.Sprintf("Helm: other releases live in namespace; skipping target namespace deletion (attempt %d)", attempts+1),
 				"namespace", ns,
 			)
-
 			continue
 		}
 
 		err = c.Delete(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})
 		if err != nil && !apierrors.IsNotFound(err) {
-			logger.Info("failed to delete release namespace", "namespace", ns)
+			logger.Info("failed to delete release namespace", "namespace", ns, "error", err)
+			time.Sleep(b.Duration())
+
+			continue
 		}
+
+		break
 	}
 }
