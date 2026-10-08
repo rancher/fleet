@@ -12,12 +12,12 @@ annotations:
   catalog.cattle.io/release-name: fleet
   helm.sh/images: |
     - name: fleet
-      image: rancher/fleet:v0.13.17-alpha.1
+      image: rancher/fleet:v0.13.17-beta.1
     - name: fleet-agent
-      image: rancher/fleet-agent:v0.13.17-alpha.1
+      image: rancher/fleet-agent:v0.13.17-beta.1
 apiVersion: v2
-appVersion: 0.13.17-alpha.1
+appVersion: 0.13.17-beta.1
 description: Fleet Controller - GitOps at Scale
 icon: https://charts.rancher.io/assets/logos/fleet.svg
 name: fleet
-version: 0.13.17-alpha.1
+version: 0.13.17-beta.1
