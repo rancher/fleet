@@ -123,6 +123,7 @@ func Register(ctx context.Context, appCtx *AppContext, systemNamespace string, d
 		appCtx.Cluster(),
 		appCtx.ClusterRegistrationToken(),
 		appCtx.Bundle(),
+		appCtx.BundleDeployment().Cache(),
 		appCtx.Core.Namespace())
 
 	clusterregistration.Register(ctx,

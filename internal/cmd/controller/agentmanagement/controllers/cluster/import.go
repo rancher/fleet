@@ -8,8 +8,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/labels"
@@ -40,8 +42,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
+	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/util/retry"
 )
 
 const (
@@ -61,6 +65,7 @@ type importHandler struct {
 	secretsCache        corecontrollers.SecretCache
 	tokens              fleetcontrollers.ClusterRegistrationTokenCache
 	tokenClient         fleetcontrollers.ClusterRegistrationTokenClient
+	bundleDeployments   fleetcontrollers.BundleDeploymentCache
 	bundleClient        fleetcontrollers.BundleClient
 	namespaceController corecontrollers.NamespaceController
 }
@@ -72,6 +77,7 @@ func RegisterImport(
 	clusters fleetcontrollers.ClusterController,
 	tokens fleetcontrollers.ClusterRegistrationTokenController,
 	bundles fleetcontrollers.BundleClient,
+	bundleDeployments fleetcontrollers.BundleDeploymentCache,
 	namespaceController corecontrollers.NamespaceController,
 ) {
 	h := importHandler{
@@ -84,6 +90,7 @@ func RegisterImport(
 		tokenClient:         tokens,
 		namespaceController: namespaceController,
 		bundleClient:        bundles,
+		bundleDeployments:   bundleDeployments,
 	}
 
 	clusters.OnChange(ctx, "import-cluster", h.OnChange)
@@ -153,12 +160,99 @@ func (i *importHandler) onConfig(cfg *config.Config) error {
 		if err != nil {
 			return fmt.Errorf("cluster %s/%s: could not check for config changes: %w", cluster.Namespace, cluster.Name, err)
 		}
+		if err := i.syncDownstreamNamespace(cfg, cluster, secret); err != nil {
+			return fmt.Errorf("cluster %s/%s: could not sync namespace metadata: %w", cluster.Namespace, cluster.Name, err)
+		}
 		if err := i.checkForConfigChange(cfg, cluster, secret); err != nil {
 			log.Log.Info(fmt.Sprintf("cluster %s/%s: could not check for config changes", cluster.Namespace, cluster.Name), "error", err)
 			continue
 		}
 	}
 	return nil
+}
+
+// syncDownstreamNamespace adds configured metadata to the already-deployed
+// agent namespace and to the target namespaces of the cluster's bundle
+// deployments. It does not remove metadata or create namespaces.
+func (i *importHandler) syncDownstreamNamespace(cfg *config.Config, cluster *fleet.Cluster, secret *corev1.Secret) error {
+	if cfg == nil || !cfg.RancherNamespaces.Enabled {
+		return nil
+	}
+
+	names, err := i.downstreamNamespaces(cluster)
+	if err != nil {
+		return err
+	}
+	if len(names) == 0 {
+		return nil
+	}
+
+	restConfig, err := i.restConfigFromKubeConfig(secret.Data[config.KubeConfigSecretValueKey], cfg.AgentTLSMode)
+	if err != nil {
+		return err
+	}
+	restConfig.Timeout = durations.RestConfigTimeout
+
+	kc, err := kubernetes.NewForConfig(restConfig)
+	if err != nil {
+		return err
+	}
+
+	var errs []error
+	for _, name := range names {
+		if err := syncDownstreamNamespaceMetadata(i.ctx, kc.CoreV1().Namespaces(), name, cfg); err != nil {
+			errs = append(errs, fmt.Errorf("namespace %s: %w", name, err))
+		}
+	}
+	return errors.Join(errs...)
+}
+
+// downstreamNamespaces returns the agent namespace and the explicit target
+// namespaces of the cluster's bundle deployments.
+func (i *importHandler) downstreamNamespaces(cluster *fleet.Cluster) ([]string, error) {
+	set := map[string]struct{}{}
+	if cluster.Status.Agent.Namespace != "" {
+		set[cluster.Status.Agent.Namespace] = struct{}{}
+	}
+
+	if cluster.Status.Namespace != "" && i.bundleDeployments != nil {
+		bds, err := i.bundleDeployments.List(cluster.Status.Namespace, labels.Everything())
+		if err != nil {
+			return nil, err
+		}
+		for _, bd := range bds {
+			opts := bd.Spec.Options
+			switch {
+			case opts.TargetNamespace != "":
+				set[opts.TargetNamespace] = struct{}{}
+			case opts.DefaultNamespace != "":
+				set[opts.DefaultNamespace] = struct{}{}
+			}
+		}
+	}
+
+	return slices.Sorted(maps.Keys(set)), nil
+}
+
+func syncDownstreamNamespaceMetadata(ctx context.Context, namespaces typedcorev1.NamespaceInterface, name string, cfg *config.Config) error {
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		ns, err := namespaces.Get(ctx, name, metav1.GetOptions{})
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+
+		if err != nil {
+			return err
+		}
+
+		if !cfg.ApplyRancherNamespaceLabelsAndAnnotations(ns) {
+			return nil
+		}
+
+		_, err = namespaces.Update(ctx, ns, metav1.UpdateOptions{})
+
+		return err
+	})
 }
 
 // enqueueLocalClusterOnConfig re-evaluates the local cluster whenever the global
