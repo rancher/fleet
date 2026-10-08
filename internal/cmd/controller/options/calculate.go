@@ -46,6 +46,14 @@ func DeploymentID(manifestID string, opts fleet.BundleDeploymentOptions) (string
 	// CorrectDrift governs how drift is reconciled, not what is deployed and it
 	// should not trigger a new DeploymentID.
 	sanitized.CorrectDrift = nil
+	// Namespace metadata is applied to the release namespace by the agent, next
+	// to the deployed resources rather than as part of them, so a change to it
+	// should not redeploy the workload. Keeping it out of the hash also means
+	// upgrading to a Fleet version that resolves it per target does not rewrite
+	// the DeploymentID of every affected bundle. updateDeploymentFromStaged
+	// propagates these two fields instead.
+	sanitized.NamespaceLabels = nil
+	sanitized.NamespaceAnnotations = nil
 	if err := json.NewEncoder(h).Encode(&sanitized); err != nil {
 		return "", err
 	}
@@ -141,6 +149,20 @@ func Merge(base, custom fleet.BundleDeploymentOptions) fleet.BundleDeploymentOpt
 	}
 	if len(custom.DownstreamResources) > 0 {
 		result.DownstreamResources = mergeUnique(result.DownstreamResources, custom.DownstreamResources, downstreamResourceKey)
+	}
+	// result is a deep copy of base, so writing into these maps does not mutate
+	// the caller's inputs. Custom keys override base keys for the same name.
+	if len(custom.NamespaceLabels) > 0 {
+		if result.NamespaceLabels == nil {
+			result.NamespaceLabels = map[string]string{}
+		}
+		maps.Copy(result.NamespaceLabels, custom.NamespaceLabels)
+	}
+	if len(custom.NamespaceAnnotations) > 0 {
+		if result.NamespaceAnnotations == nil {
+			result.NamespaceAnnotations = map[string]string{}
+		}
+		maps.Copy(result.NamespaceAnnotations, custom.NamespaceAnnotations)
 	}
 
 	return result

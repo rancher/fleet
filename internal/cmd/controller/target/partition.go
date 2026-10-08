@@ -1,8 +1,6 @@
 package target
 
 import (
-	"reflect"
-
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -88,12 +86,22 @@ func updateDeploymentFromStaged(t *Target, bundleStatus *fleet.BundleStatus, par
 	if t.Deployment != nil &&
 		!t.IsPaused() &&
 		t.Deployment.Spec.StagedDeploymentID != "" &&
-		t.Deployment.Spec.DeploymentID == t.Deployment.Spec.StagedDeploymentID &&
-		!reflect.DeepEqual(t.Deployment.Spec.Options.Diff, t.Deployment.Spec.StagedOptions.Diff) {
-		// Keep diff options in sync even when the DeploymentID is unchanged.
-		// This enables diff updates to be propagated downstream to resolve modified statuses
-		// (for instance after updating bundle diffs in a fleet.yaml).
+		t.Deployment.Spec.DeploymentID == t.Deployment.Spec.StagedDeploymentID {
+		// Options which options.DeploymentID leaves out of its hash never reach
+		// the deployment through the promotion below, because changing them
+		// leaves the DeploymentID untouched. Sync them here instead.
+		//
+		// This enables diff updates to be propagated downstream to resolve
+		// modified statuses (for instance after updating bundle diffs in a
+		// fleet.yaml), and it lets namespace metadata that a target no longer
+		// matches stop being applied to that target's namespace.
+		//
+		// Options.CorrectDrift is left out of the hash as well, but needs no
+		// syncing here: the agent reads the top-level Spec.CorrectDrift, which
+		// BundleDeployment() rebuilds from the merged options every time.
 		t.Deployment.Spec.Options.Diff = t.Deployment.Spec.StagedOptions.Diff
+		t.Deployment.Spec.Options.NamespaceLabels = t.Deployment.Spec.StagedOptions.NamespaceLabels
+		t.Deployment.Spec.Options.NamespaceAnnotations = t.Deployment.Spec.StagedOptions.NamespaceAnnotations
 	}
 
 	if t.Deployment != nil &&
