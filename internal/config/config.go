@@ -220,7 +220,7 @@ func (c *Config) ApplyRancherNamespaceLabelsAndAnnotations(ns *v1.Namespace) boo
 	if len(ns.Labels) == 0 {
 		ns.Labels = make(map[string]string, len(c.RancherNamespaces.Labels))
 	}
-	updated = copy(ns.Labels, c.RancherNamespaces.Labels)
+	updated = copy(ns.Labels, c.RancherNamespaces.Labels) || updated
 
 	return updated
 }
