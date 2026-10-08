@@ -1,4 +1,4 @@
-//go:generate go tool -modfile ../../../../../gotools/mockgen/go.mod mockgen --build_flags=--mod=mod -destination=../../../../mocks/client_mock.go -package=mocks -mock_names=Client=MockK8sClient,SubResourceWriter=MockSubResourceWriter sigs.k8s.io/controller-runtime/pkg/client Client,SubResourceWriter
+//go:generate go tool -modfile ../../../../../gotools/mockgen/go.mod mockgen --build_flags=--mod=mod -destination=../../../../mocks/client_mock.go -package=mocks -mock_names=Client=MockClient,SubResourceWriter=MockSubResourceWriter sigs.k8s.io/controller-runtime/pkg/client Client,SubResourceWriter
 
 package reconciler
 
