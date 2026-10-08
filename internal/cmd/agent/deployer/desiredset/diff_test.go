@@ -1,4 +1,4 @@
-//go:generate mockgen --build_flags=--mod=mod -destination=../../../../mocks/logger_mock.go -package=mocks github.com/go-logr/logr/ LogSink
+//go:generate go tool -modfile ../../../../../gotools/mockgen/go.mod mockgen --build_flags=--mod=mod -destination=../../../../mocks/logger_mock.go -package=mocks github.com/go-logr/logr/ LogSink
 package desiredset_test
 
 import (

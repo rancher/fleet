@@ -1,6 +1,6 @@
 package submodule
 
-//go:generate mockgen --build_flags=--mod=mod -source=fetcher.go  -destination=../../../../mocks/git_fetcher_mock.go  -package=mocks github.com/rancher/fleet/internal/cmd/cli/gitcloner/submodule Strategy,CapabilityDetector
+//go:generate go tool -modfile ../../../../../gotools/mockgen/go.mod mockgen --build_flags=--mod=mod -source=fetcher.go  -destination=../../../../mocks/git_fetcher_mock.go  -package=mocks github.com/rancher/fleet/internal/cmd/cli/gitcloner/submodule Strategy,CapabilityDetector
 
 import (
 	"context"
