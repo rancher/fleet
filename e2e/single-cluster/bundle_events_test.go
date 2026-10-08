@@ -28,9 +28,13 @@ const (
 	controllerNamespace = "cattle-fleet-system"
 
 	// noEventsWindow is how long a test waits to be sure that no further
-	// event is created. It is longer than the default debounce, so that an
+	// event is created. It is longer than the configured debounce, so that an
 	// event which was going to be created has been.
-	noEventsWindow = 20 * time.Second
+	noEventsWindow = 5 * time.Second
+
+	// debounce is the debounce the specs configure. It is kept short so that
+	// the noEventsWindow, which has to outlast it, keeps the run brief.
+	debounce = "2s"
 
 	// configNotAdoptedHint explains the likeliest cause of a spec observing
 	// the events of the options a previous spec configured.
@@ -108,7 +112,7 @@ var _ = Describe("Bundle deployment events", Serial, Ordered, func() {
 
 	When("per-deployment events are disabled", func() {
 		BeforeEach(func() {
-			setDeploymentEvents(map[string]any{"minInterval": "1s"})
+			setDeploymentEvents(map[string]any{"debounce": debounce, "minInterval": "1s"})
 		})
 
 		It("reports failures, new causes and recoveries on the bundle only", func() {
@@ -173,7 +177,7 @@ var _ = Describe("Bundle deployment events", Serial, Ordered, func() {
 
 	When("per-deployment events are enabled", func() {
 		BeforeEach(func() {
-			setDeploymentEvents(map[string]any{"minInterval": "1s", "perDeployment": true})
+			setDeploymentEvents(map[string]any{"debounce": debounce, "minInterval": "1s", "perDeployment": true})
 		})
 
 		It("reports failures and recoveries on the bundle and on the bundle deployment", func() {
