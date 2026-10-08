@@ -557,6 +557,65 @@ func TestOnConfig_DisallowedNamespace(t *testing.T) {
 	}
 }
 
+func TestSyncDownstreamNamespaceMetadata(t *testing.T) {
+	ctx := context.Background()
+	kc := kubernetesfake.NewSimpleClientset(&corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "cattle-fleet-local-system",
+			Labels: map[string]string{
+				"existing-label": "keep",
+			},
+			Annotations: map[string]string{
+				"existing-annotation": "keep",
+			},
+		},
+	})
+	cfg := &config.Config{RancherNamespaces: config.RancherNamespaces{
+		Enabled:     true,
+		Labels:      map[string]string{"new-label": "value"},
+		Annotations: map[string]string{"new-annotation": "value"},
+	}}
+
+	if err := syncDownstreamNamespaceMetadata(ctx, kc.CoreV1().Namespaces(), "cattle-fleet-local-system", cfg); err != nil {
+		t.Fatalf("syncDownstreamNamespaceMetadata returned an error: %v", err)
+	}
+
+	ns, err := kc.CoreV1().Namespaces().Get(ctx, "cattle-fleet-local-system", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("getting updated namespace: %v", err)
+	}
+	if ns.Labels["existing-label"] != "keep" || ns.Labels["new-label"] != "value" {
+		t.Errorf("unexpected namespace labels: %#v", ns.Labels)
+	}
+	if ns.Annotations["existing-annotation"] != "keep" || ns.Annotations["new-annotation"] != "value" {
+		t.Errorf("unexpected namespace annotations: %#v", ns.Annotations)
+	}
+}
+
+func TestDownstreamNamespaces(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	bdCache := fake.NewMockCacheInterface[*fleet.BundleDeployment](ctrl)
+	bdCache.EXPECT().List("cluster-ns", gomock.Any()).Return([]*fleet.BundleDeployment{
+		{Spec: fleet.BundleDeploymentSpec{Options: fleet.BundleDeploymentOptions{TargetNamespace: "target"}}},
+		{Spec: fleet.BundleDeploymentSpec{Options: fleet.BundleDeploymentOptions{DefaultNamespace: "default-ns"}}},
+		{Spec: fleet.BundleDeploymentSpec{Options: fleet.BundleDeploymentOptions{TargetNamespace: "target"}}},
+		{},
+	}, nil)
+
+	ih := importHandler{bundleDeployments: bdCache}
+	got, err := ih.downstreamNamespaces(&fleet.Cluster{Status: fleet.ClusterStatus{
+		Namespace: "cluster-ns",
+		Agent:     fleet.AgentStatus{Namespace: "cattle-fleet-system"},
+	}})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := []string{"cattle-fleet-system", "default-ns", "target"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("want %v, got %v", want, got)
+	}
+}
+
 func TestAllowedKubeConfigSecretNamespace(t *testing.T) {
 	cases := map[string]struct {
 		clusterNamespace string
