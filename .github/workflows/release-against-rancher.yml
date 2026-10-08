@@ -132,9 +132,6 @@ jobs:
           go-version-file: ./rancher/go.mod
           cache-dependency-path: ./rancher/go.sum
 
-      - name: Install controller-gen
-        run: go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.17.2
-
       - name: Run release script
         env:
           NEW_FLEET: ${{ steps.versions.outputs.new_fleet }}
