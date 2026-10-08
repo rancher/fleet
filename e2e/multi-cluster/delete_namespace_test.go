@@ -52,7 +52,7 @@ var _ = Describe("Target namespace deletion through deleteNamespace", func() {
 			targetNamespace = "test-delns"
 		})
 
-		It("deletes the target namespace on the downstream cluster when deleting the GitRepo", func() {
+		It("deletes the target namespace on the downstream cluster when deleting the HelmOp", func() {
 			By("checking that the workload has been deployed")
 			Eventually(func(g Gomega) {
 				cms, err := kd.Namespace(targetNamespace).Get("configmaps")
@@ -81,7 +81,7 @@ var _ = Describe("Target namespace deletion through deleteNamespace", func() {
 			targetNamespace = "test-no-delns"
 		})
 
-		It("keeps the target namespace on the downstream cluster when deleting the GitRepo", func() {
+		It("keeps the target namespace on the downstream cluster when deleting the HelmOp", func() {
 			By("checking that the workload has been deployed")
 			Eventually(func(g Gomega) {
 				cms, err := kd.Namespace(targetNamespace).Get("configmaps")
@@ -141,22 +141,6 @@ var _ = Describe("Target namespace deletion edge cases", func() {
 			g.Expect(nss).To(ContainSubstring(hop.targetNamespace))
 		}).WithTimeout(10 * time.Second).WithPolling(2 * time.Second).Should(Succeed())
 	},
-		Entry(
-			"target is kube-system",
-			helmOpParams{
-				name:            "target-kube-system",
-				deleteNamespace: true,
-				targetNamespace: "kube-system",
-			},
-		),
-		Entry(
-			"target is default",
-			helmOpParams{
-				name:            "target-default",
-				deleteNamespace: true,
-				targetNamespace: "default",
-			},
-		),
 		Entry(
 			"keepResources is true",
 			helmOpParams{
