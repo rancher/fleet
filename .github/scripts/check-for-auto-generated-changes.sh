@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-go generate
+go generate ./...
 
 if [ -n "$(git status --porcelain)" ]; then
     printf 'Generated files have either been changed manually or were not updated.\n\n'
