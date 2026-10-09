@@ -10,9 +10,14 @@ annotations:
   catalog.cattle.io/provides-gvr: clusters.fleet.cattle.io/v1alpha1
   catalog.cattle.io/rancher-version: '>= 2.16.0-0 < 2.17.0-0'
   catalog.cattle.io/release-name: fleet
+  helm.sh/images: |
+    - name: fleet
+      image: rancher/fleet:v0.17.0-alpha.6
+    - name: fleet-agent
+      image: rancher/fleet-agent:v0.17.0-alpha.6
 apiVersion: v2
-appVersion: 0.17.0-alpha.5
+appVersion: 0.17.0-alpha.6
 description: Fleet Controller - GitOps at Scale
 icon: https://charts.rancher.io/assets/logos/fleet.svg
 name: fleet
-version: 0.17.0-alpha.5
+version: 0.17.0-alpha.6
