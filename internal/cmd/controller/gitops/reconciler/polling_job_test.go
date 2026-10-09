@@ -98,6 +98,118 @@ func TestPollGitRepo(t *testing.T) {
 			},
 		},
 		{
+			// The GitRepo starts with the status left by a failed poll, which
+			// set Stalled; the poll run here succeeds. With an unchanged commit,
+			// no gitjob reconcile follows, so the poller must clear the Stalled
+			// condition it set itself. Reconciling, set since by the gitjob
+			// reconciler for a job in progress, must be kept.
+			name: "Successful poll clears Stalled set by a failed poll",
+			gitrepo: &v1alpha1.GitRepo{
+				ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
+				Spec:       v1alpha1.GitRepoSpec{Repo: repoURL, Branch: branch},
+			},
+			setupMocks: func(c *mocks.MockK8sClient, sw *mocks.MockStatusWriter, gf *gitmocks.MockGitFetcher, r *events.FakeRecorder) {
+				c.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).Times(2).DoAndReturn(func(_ context.Context, _ client.ObjectKey, obj *v1alpha1.GitRepo, _ ...client.GetOption) error {
+					obj.Name = name
+					obj.Namespace = namespace
+					obj.Spec.Repo = repoURL
+					obj.Spec.Branch = branch
+					obj.Status.Commit = "same-commit"
+					obj.Status.Conditions = append(
+						failedPollConditions("context deadline exceeded", "context deadline exceeded"),
+						genericcondition.GenericCondition{Type: "Reconciling", Status: "True", Reason: "Reconciling"},
+					)
+					return nil
+				})
+				gf.EXPECT().LatestCommit(gomock.Any(), gomock.Any(), gomock.Any()).Return("same-commit", nil)
+				c.EXPECT().Status().Return(sw)
+			},
+			validateGitRepo: func(t *testing.T, gr *v1alpha1.GitRepo) {
+				t.Helper()
+				if cond := findStatusCondition(gr.Status.Conditions, gitPollingCondition); cond == nil || cond.Status != "True" {
+					t.Errorf("expected GitPolling condition to be True, got %+v", cond)
+				}
+				if cond := findStatusCondition(gr.Status.Conditions, "Stalled"); cond == nil || cond.Status != "False" || cond.Message != "" {
+					t.Errorf("expected Stalled condition to be cleared, got %+v", cond)
+				}
+				if cond := findStatusCondition(gr.Status.Conditions, "Reconciling"); cond == nil || cond.Status != "True" {
+					t.Errorf("expected Reconciling condition to be kept True, got %+v", cond)
+				}
+			},
+		},
+		{
+			// Stalled with a message other than the polling error was set by the
+			// gitjob reconciler, e.g. for a failed clone job. A successful poll
+			// says nothing about that failure, so it must stay.
+			name: "Successful poll keeps Stalled set by a failed clone job",
+			gitrepo: &v1alpha1.GitRepo{
+				ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
+				Spec:       v1alpha1.GitRepoSpec{Repo: repoURL, Branch: branch},
+			},
+			setupMocks: func(c *mocks.MockK8sClient, sw *mocks.MockStatusWriter, gf *gitmocks.MockGitFetcher, r *events.FakeRecorder) {
+				c.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).Times(2).DoAndReturn(func(_ context.Context, _ client.ObjectKey, obj *v1alpha1.GitRepo, _ ...client.GetOption) error {
+					obj.Name = name
+					obj.Namespace = namespace
+					obj.Spec.Repo = repoURL
+					obj.Spec.Branch = branch
+					obj.Status.Commit = "same-commit"
+					obj.Status.Conditions = failedPollConditions(
+						"context deadline exceeded",
+						"no resource found at the following paths to deploy: [.]",
+					)
+					return nil
+				})
+				gf.EXPECT().LatestCommit(gomock.Any(), gomock.Any(), gomock.Any()).Return("same-commit", nil)
+				c.EXPECT().Status().Return(sw)
+			},
+			validateGitRepo: func(t *testing.T, gr *v1alpha1.GitRepo) {
+				t.Helper()
+				if cond := findStatusCondition(gr.Status.Conditions, gitPollingCondition); cond == nil || cond.Status != "True" {
+					t.Errorf("expected GitPolling condition to be True, got %+v", cond)
+				}
+				cond := findStatusCondition(gr.Status.Conditions, "Stalled")
+				if cond == nil || cond.Status != "True" || cond.Message != "no resource found at the following paths to deploy: [.]" {
+					t.Errorf("expected Stalled condition from the clone job to be kept, got %+v", cond)
+				}
+			},
+		},
+		{
+			// The GitRepo starts with the status left by a failed clone job
+			// followed by a failed poll: the failed poll overwrote the message of
+			// the job's Stalled condition with its own, so the Stalled and
+			// GitPolling messages match, but GitJobStatus is still Failed. The
+			// poll run here succeeds. Nothing re-runs the gitjob reconciler on an
+			// unchanged commit, so Stalled must stay for the failed job.
+			name: "Successful poll keeps Stalled while the clone job is failed",
+			gitrepo: &v1alpha1.GitRepo{
+				ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
+				Spec:       v1alpha1.GitRepoSpec{Repo: repoURL, Branch: branch},
+			},
+			setupMocks: func(c *mocks.MockK8sClient, sw *mocks.MockStatusWriter, gf *gitmocks.MockGitFetcher, r *events.FakeRecorder) {
+				c.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).Times(2).DoAndReturn(func(_ context.Context, _ client.ObjectKey, obj *v1alpha1.GitRepo, _ ...client.GetOption) error {
+					obj.Name = name
+					obj.Namespace = namespace
+					obj.Spec.Repo = repoURL
+					obj.Spec.Branch = branch
+					obj.Status.Commit = "same-commit"
+					obj.Status.GitJobStatus = "Failed"
+					obj.Status.Conditions = failedPollConditions("context deadline exceeded", "context deadline exceeded")
+					return nil
+				})
+				gf.EXPECT().LatestCommit(gomock.Any(), gomock.Any(), gomock.Any()).Return("same-commit", nil)
+				c.EXPECT().Status().Return(sw)
+			},
+			validateGitRepo: func(t *testing.T, gr *v1alpha1.GitRepo) {
+				t.Helper()
+				if cond := findStatusCondition(gr.Status.Conditions, gitPollingCondition); cond == nil || cond.Status != "True" {
+					t.Errorf("expected GitPolling condition to be True, got %+v", cond)
+				}
+				if cond := findStatusCondition(gr.Status.Conditions, "Stalled"); cond == nil || cond.Status != "True" {
+					t.Errorf("expected Stalled condition to be kept for the failed job, got %+v", cond)
+				}
+			},
+		},
+		{
 			name: "Git fetch error",
 			gitrepo: &v1alpha1.GitRepo{
 				ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
@@ -260,6 +372,16 @@ func TestGitPollingJob_Description(t *testing.T) {
 	expected := "gitops-polling-test-ns-test-repo-http://a.b/c.git-develop"
 	if job.Description() != expected {
 		t.Errorf("expected description '%q', got '%q'", expected, job.Description())
+	}
+}
+
+// failedPollConditions returns a False GitPolling condition with pollMsg and a
+// True Stalled condition with stalledMsg. updateErrorStatus sets both to the
+// poll error; a different stalledMsg means another writer set Stalled.
+func failedPollConditions(pollMsg, stalledMsg string) []genericcondition.GenericCondition {
+	return []genericcondition.GenericCondition{
+		{Type: gitPollingCondition, Status: "False", Reason: "Error", Message: pollMsg},
+		{Type: "Stalled", Status: "True", Reason: "Stalled", Message: stalledMsg},
 	}
 }
 
