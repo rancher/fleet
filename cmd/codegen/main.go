@@ -8,9 +8,6 @@ import (
 
 	// Ensure gvk gets loaded in wrangler/pkg/gvk cache
 	_ "github.com/rancher/wrangler/v3/pkg/generated/controllers/apiextensions.k8s.io/v1"
-
-	// To keep the dependency in go.mod
-	_ "sigs.k8s.io/controller-tools/pkg/crd"
 )
 
 func main() {

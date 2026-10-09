@@ -1,4 +1,4 @@
-//go:generate mockgen --build_flags=--mod=mod -destination=../../../../mocks/scheduler_mock.go -package=mocks github.com/reugn/go-quartz/quartz Scheduler,ScheduledJob
+//go:generate go tool -modfile ../../../../../gotools/mockgen/go.mod mockgen --build_flags=--mod=mod -destination=../../../../mocks/scheduler_mock.go -package=mocks github.com/reugn/go-quartz/quartz Scheduler,ScheduledJob
 
 package reconciler
 
