@@ -98,10 +98,11 @@ func TestPollGitRepo(t *testing.T) {
 			},
 		},
 		{
-			// A failed poll sets Stalled. With an unchanged commit, no gitjob
-			// reconcile follows the next successful poll, so the poller must clear
-			// the Stalled condition it set itself. Reconciling, set since by the
-			// gitjob reconciler for a job in progress, must be kept.
+			// The GitRepo starts with the status left by a failed poll, which
+			// set Stalled; the poll run here succeeds. With an unchanged commit,
+			// no gitjob reconcile follows, so the poller must clear the Stalled
+			// condition it set itself. Reconciling, set since by the gitjob
+			// reconciler for a job in progress, must be kept.
 			name: "Successful poll clears Stalled set by a failed poll",
 			gitrepo: &v1alpha1.GitRepo{
 				ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
@@ -173,10 +174,12 @@ func TestPollGitRepo(t *testing.T) {
 			},
 		},
 		{
-			// A failed poll overwrites the message of Stalled set for a failed
-			// job, so the messages match. The job is still failed, and nothing
-			// re-runs the gitjob reconciler on an unchanged commit, so Stalled
-			// must stay.
+			// The GitRepo starts with the status left by a failed clone job
+			// followed by a failed poll: the failed poll overwrote the message of
+			// the job's Stalled condition with its own, so the Stalled and
+			// GitPolling messages match, but GitJobStatus is still Failed. The
+			// poll run here succeeds. Nothing re-runs the gitjob reconciler on an
+			// unchanged commit, so Stalled must stay for the failed job.
 			name: "Successful poll keeps Stalled while the clone job is failed",
 			gitrepo: &v1alpha1.GitRepo{
 				ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},

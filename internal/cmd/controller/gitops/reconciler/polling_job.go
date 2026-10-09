@@ -161,32 +161,6 @@ func (j *gitPollingJob) pollGitRepo(ctx context.Context) error {
 	return nil
 }
 
-// clearPollingStall clears a Stalled condition left by a previous failed poll,
-// now that polling succeeds again. Otherwise Stalled stays set until the gitjob
-// reconciler runs, which a poll returning an unchanged commit does not trigger.
-// updateErrorStatus writes the same message to GitPolling and Stalled; a Stalled
-// condition with another message comes from the gitjob reconciler (e.g. a failed
-// clone job) and is left for it to clear.
-// A failed poll also overwrites the message of a Stalled condition set for a
-// failed job, so a failed job keeps Stalled regardless of its message.
-// Reconciling is left alone: SetError already cleared it when the poll failed,
-// and the gitjob reconciler may have set it since for a job in progress.
-func clearPollingStall(gitrepo *fleet.GitRepo) {
-	polling := condition.Cond(gitPollingCondition)
-	if !polling.IsFalse(gitrepo) || !kstatus.Stalled.IsTrue(gitrepo) {
-		return
-	}
-	if kstatus.Stalled.GetMessage(gitrepo) != polling.GetMessage(gitrepo) {
-		return
-	}
-	if gitrepo.Status.GitJobStatus == clistatus.FailedStatus.String() {
-		return
-	}
-	kstatus.Stalled.False(gitrepo)
-	kstatus.Stalled.Reason(gitrepo, "")
-	kstatus.Stalled.Message(gitrepo, "")
-}
-
 // updateErrorStatus updates the provided gitrepo's status to reflect the provided orgErr.
 // This includes updating the gitrepo's polling timestamp, if provided.
 func (j *gitPollingJob) updateErrorStatus(
@@ -221,4 +195,30 @@ func (j *gitPollingJob) updateErrorStatus(
 		merr = append(merr, err)
 	}
 	return errutil.NewAggregate(merr)
+}
+
+// clearPollingStall clears a Stalled condition left by a previous failed poll,
+// now that polling succeeds again. Otherwise Stalled stays set until the gitjob
+// reconciler runs, which a poll returning an unchanged commit does not trigger.
+// updateErrorStatus writes the same message to GitPolling and Stalled; a Stalled
+// condition with another message comes from the gitjob reconciler (e.g. a failed
+// clone job) and is left for it to clear.
+// A failed poll also overwrites the message of a Stalled condition set for a
+// failed job, so a failed job keeps Stalled regardless of its message.
+// Reconciling is left alone: SetError already cleared it when the poll failed,
+// and the gitjob reconciler may have set it since for a job in progress.
+func clearPollingStall(gitrepo *fleet.GitRepo) {
+	polling := condition.Cond(gitPollingCondition)
+	if !polling.IsFalse(gitrepo) || !kstatus.Stalled.IsTrue(gitrepo) {
+		return
+	}
+	if kstatus.Stalled.GetMessage(gitrepo) != polling.GetMessage(gitrepo) {
+		return
+	}
+	if gitrepo.Status.GitJobStatus == clistatus.FailedStatus.String() {
+		return
+	}
+	kstatus.Stalled.False(gitrepo)
+	kstatus.Stalled.Reason(gitrepo, "")
+	kstatus.Stalled.Message(gitrepo, "")
 }
