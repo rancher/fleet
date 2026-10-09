@@ -46,7 +46,7 @@ bump_fleet_module() {
         moddir=$(dirname "${modfile}")
         (
             cd "${moddir}"
-            go get -u "${module}@v${NEW_FLEET_VERSION}"
+            go get "${module}@v${NEW_FLEET_VERSION}"
             go mod tidy
         )
         git add "${moddir}/go.mod" "${moddir}/go.sum"
