@@ -1,13 +1,13 @@
 module github.com/rancher/fleet/gotools/mockgen
 
-go 1.27.0
+go 1.26.0
 
-toolchain go1.27.1
+toolchain go1.26.8
 
 tool go.uber.org/mock/mockgen
 
 require (
-	go.uber.org/mock v0.6.0 // indirect
+	go.uber.org/mock v0.5.2 // indirect
 	golang.org/x/mod v0.27.0 // indirect
 	golang.org/x/sync v0.16.0 // indirect
 	golang.org/x/tools v0.36.0 // indirect
