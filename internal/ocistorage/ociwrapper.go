@@ -25,6 +25,7 @@ import (
 	"oras.land/oras-go/v2/registry/remote/retry"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/rancher/fleet/internal/httputils"
 	"github.com/rancher/fleet/internal/manifest"
 	fleetgit "github.com/rancher/fleet/pkg/git"
 )
@@ -95,9 +96,11 @@ func getHTTPClient(insecureSkipTLS bool, caBundle []byte) *http.Client {
 		}
 	}
 
-	// If no custom TLS config needed, use default ORAS client
+	// If no custom TLS config is needed, use ORAS' default client
 	if !insecureSkipTLS && len(caBundle) == 0 {
-		return retry.DefaultClient
+		client := *retry.DefaultClient
+		client.Transport = httputils.UserAgentTransport{Next: client.Transport}
+		return &client
 	}
 
 	// Clone the default transport to preserve proxy, timeout, and
@@ -126,7 +129,11 @@ func getHTTPClient(insecureSkipTLS bool, caBundle []byte) *http.Client {
 		transport.TLSClientConfig.MinVersion = tls.VersionTLS12
 	}
 
-	return &http.Client{Transport: retry.NewTransport(transport)}
+	return &http.Client{
+		Transport: httputils.UserAgentTransport{
+			Next: retry.NewTransport(transport),
+		},
+	}
 }
 
 func getAuthClient(opts OCIOpts) *auth.Client {

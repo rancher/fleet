@@ -21,7 +21,6 @@ type options struct {
 	CABundle          []byte
 	InsecureTLSVerify bool
 	KnownHosts        string
-	Headers           map[string]string
 	Timeout           time.Duration
 	log               logr.Logger
 }

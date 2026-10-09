@@ -39,6 +39,7 @@ import (
 	"k8s.io/client-go/transport/spdy"
 	"k8s.io/streaming/pkg/httpstream"
 
+	"github.com/rancher/fleet/internal/httputils"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/sharding"
 )
@@ -658,7 +659,11 @@ func createDialer(ctx context.Context, cfg *rest.Config, c client.Client, svc *c
 
 	u.Host = strings.TrimRight(u.Host, "/")
 
-	httpCli := http.Client{Transport: rt}
+	httpCli := http.Client{
+		Transport: httputils.UserAgentTransport{
+			Next: rt,
+		},
+	}
 
 	return spdy.NewDialerForStreaming(up, &httpCli, http.MethodPost, u), &httpCli, nil
 }
