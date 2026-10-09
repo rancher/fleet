@@ -1,6 +1,6 @@
-//go:generate mockgen -destination=../../../../mocks/client_getter_mock.go -package=mocks -mock_names=GetterInterface=MockClientGetter github.com/rancher/fleet/internal/client GetterInterface
-//go:generate mockgen -destination=../../../../mocks/fleet_controllers_mock.go -package=mocks -mock_names=Interface=MockFleetControllers github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1 Interface
-//go:generate mockgen -destination=../../../../mocks/wrangler_core_mock.go -package=mocks -mock_names=Interface=MockWranglerCore github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1 Interface
+//go:generate go tool -modfile ../../../../../gotools/mockgen/go.mod mockgen -destination=../../../../mocks/client_getter_mock.go -package=mocks -mock_names=GetterInterface=MockClientGetter github.com/rancher/fleet/internal/client GetterInterface
+//go:generate go tool -modfile ../../../../../gotools/mockgen/go.mod mockgen -destination=../../../../mocks/fleet_controllers_mock.go -package=mocks -mock_names=Interface=MockFleetControllers github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1 Interface
+//go:generate go tool -modfile ../../../../../gotools/mockgen/go.mod mockgen -destination=../../../../mocks/wrangler_core_mock.go -package=mocks -mock_names=Interface=MockWranglerCore github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1 Interface
 package agent_test
 
 import (

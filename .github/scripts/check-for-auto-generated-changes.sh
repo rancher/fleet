@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-go generate
+go generate ./...
 ginkgo unfocus
 
 if [ -n "$(git status --porcelain)" ]; then

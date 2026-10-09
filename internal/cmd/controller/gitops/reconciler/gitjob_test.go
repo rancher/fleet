@@ -1,5 +1,5 @@
-//go:generate mockgen --build_flags=--mod=mod -destination=../../../../mocks/client_mock.go -package=mocks -mock_names=Client=MockK8sClient,SubResourceWriter=MockStatusWriter sigs.k8s.io/controller-runtime/pkg/client Client,SubResourceWriter
-//go:generate mockgen --build_flags=--mod=mod -destination=../../../../mocks/eventrecorder_mock.go -package=mocks k8s.io/client-go/tools/events EventRecorder
+//go:generate go tool -modfile ../../../../../gotools/mockgen/go.mod mockgen --build_flags=--mod=mod -destination=../../../../mocks/client_mock.go -package=mocks -mock_names=Client=MockK8sClient,SubResourceWriter=MockStatusWriter sigs.k8s.io/controller-runtime/pkg/client Client,SubResourceWriter
+//go:generate go tool -modfile ../../../../../gotools/mockgen/go.mod mockgen --build_flags=--mod=mod -destination=../../../../mocks/eventrecorder_mock.go -package=mocks k8s.io/client-go/tools/events EventRecorder
 
 package reconciler
 
