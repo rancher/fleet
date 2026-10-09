@@ -1,5 +1,4 @@
-//go:generate mockgen --build_flags=--mod=mod -destination=../../../../mocks/poller_mock.go -package=mocks github.com/rancher/fleet/internal/cmd/controller/gitops/reconciler GitPoller
-//go:generate mockgen --build_flags=--mod=mod -destination=../../../../mocks/client_mock.go -package=mocks sigs.k8s.io/controller-runtime/pkg/client Client,SubResourceWriter
+//go:generate go tool -modfile ../../../../../gotools/mockgen/go.mod mockgen --build_flags=--mod=mod -destination=../../../../mocks/client_mock.go -package=mocks -mock_names=Client=MockClient,SubResourceWriter=MockSubResourceWriter sigs.k8s.io/controller-runtime/pkg/client Client,SubResourceWriter
 
 package reconciler
 
@@ -1818,11 +1817,7 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 }
 
 func TestGenerateJob_EnvVars(t *testing.T) {
-	mockCtrl := gomock.NewController(t)
 	ctx := context.TODO()
-	poller := mocks.NewMockGitPoller(mockCtrl)
-	poller.EXPECT().AddOrModifyGitRepoPollJob(ctx, gomock.Any()).AnyTimes()
-	poller.EXPECT().CleanUpGitRepoPollJobs(ctx).AnyTimes()
 
 	tests := map[string]struct {
 		gitrepo                      *fleetv1.GitRepo
