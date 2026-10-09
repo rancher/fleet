@@ -579,53 +579,99 @@ func TestNoWebhookSecretRejected(t *testing.T) {
 
 func TestUnauthenticatedGitRepoDoesNotBlockOthers(t *testing.T) {
 	// Both GitRepos match the payload. No global secret exists, so only the one
-	// referencing its own webhook secret is authenticated; it must still be updated
-	// even though the unauthenticated one is listed first.
-	unauthenticated := &v1alpha1.GitRepo{
-		ObjectMeta: metav1.ObjectMeta{Name: "a-unauthenticated", Namespace: "default"},
-		Spec:       v1alpha1.GitRepoSpec{Repo: "https://github.com/example/repo"},
-	}
-	authenticated := &v1alpha1.GitRepo{
-		ObjectMeta: metav1.ObjectMeta{Name: "b-authenticated", Namespace: "default"},
-		Spec: v1alpha1.GitRepoSpec{
-			Repo:          "https://github.com/example/repo",
-			WebhookSecret: "own-secret",
+	// referencing its own webhook secret authenticates the request. The
+	// unauthenticated one is listed first and rejected; the request must still
+	// succeed, and the authenticated one is patched only if its commit changed.
+	const commit = "af69d162de5a276abc86e0686b2b44033cd3f442"
+
+	tests := map[string]struct {
+		webhookCommit string // initial Status.WebhookCommit of the authenticated GitRepo
+		wantPatched   bool
+	}{
+		"fresh push": {
+			webhookCommit: "",
+			wantPatched:   true,
+		},
+		// Same as a redelivery of an already processed push: the handler keeps
+		// no state between requests, only the GitRepo status.
+		"authenticated GitRepo already up to date": {
+			webhookCommit: commit,
+			wantPatched:   false,
 		},
 	}
-	secret := testWebhookSecret("default")
-	secret.Name = "own-secret"
 
-	sch := runtime.NewScheme()
-	utilruntime.Must(corev1.AddToScheme(sch))
-	utilruntime.Must(v1alpha1.AddToScheme(sch))
-	client := cfake.NewClientBuilder().WithScheme(sch).
-		WithRuntimeObjects(unauthenticated, authenticated, secret).
-		WithStatusSubresource(unauthenticated, authenticated).Build()
-	w := &Webhook{client: client, namespace: "default"}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			unauthenticated := &v1alpha1.GitRepo{
+				ObjectMeta: metav1.ObjectMeta{Name: "a-unauthenticated", Namespace: "default"},
+				Spec:       v1alpha1.GitRepoSpec{Repo: "https://github.com/example/repo"},
+			}
+			authenticated := &v1alpha1.GitRepo{
+				ObjectMeta: metav1.ObjectMeta{Name: "b-authenticated", Namespace: "default"},
+				Spec: v1alpha1.GitRepoSpec{
+					Repo:          "https://github.com/example/repo",
+					WebhookSecret: "own-secret",
+				},
+				Status: v1alpha1.GitRepoStatus{WebhookCommit: tt.webhookCommit},
+			}
+			secret := testWebhookSecret("default")
+			secret.Name = "own-secret"
 
-	const commit = "af69d162de5a276abc86e0686b2b44033cd3f442"
-	body := []byte(`{"ref":"refs/heads/main","after":"` + commit + `","repository":{"html_url":"https://github.com/example/repo"}}`)
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "/", bytes.NewReader(body))
-	if err != nil {
-		t.Fatalf("Failed to create HTTP request: %v", err)
-	}
-	req.Header.Set("X-Github-Event", "push")
-	signTestRequest(req, body)
+			sch := runtime.NewScheme()
+			utilruntime.Must(corev1.AddToScheme(sch))
+			utilruntime.Must(v1alpha1.AddToScheme(sch))
+			client := cfake.NewClientBuilder().WithScheme(sch).
+				WithRuntimeObjects(unauthenticated, authenticated, secret).
+				WithStatusSubresource(unauthenticated, authenticated).Build()
+			w := &Webhook{client: client, namespace: "default"}
 
-	rr := httptest.NewRecorder()
-	w.ServeHTTP(rr, req)
+			body := []byte(`
+			{
+				"ref":"refs/heads/main",
+				"after":"` + commit + `",
+				"repository":{
+					"html_url":"https://github.com/example/repo"
+				}
+			}`)
+			req, err := http.NewRequestWithContext(
+				context.Background(),
+				http.MethodPost, "/",
+				bytes.NewReader(body),
+			)
+			if err != nil {
+				t.Fatalf("Failed to create HTTP request: %v", err)
+			}
+			req.Header.Set("X-Github-Event", "push")
+			signTestRequest(req, body)
 
-	if status := rr.Code; status != http.StatusOK {
-		t.Fatalf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
-	}
-	for gitRepo, want := range map[string]string{unauthenticated.Name: "", authenticated.Name: commit} {
-		var got v1alpha1.GitRepo
-		if err := client.Get(context.TODO(), types.NamespacedName{Name: gitRepo, Namespace: "default"}, &got); err != nil {
-			t.Fatalf("unexpected err %v", err)
-		}
-		if got.Status.WebhookCommit != want {
-			t.Errorf("gitrepo %s: expected webhook commit %q, got %q", gitRepo, want, got.Status.WebhookCommit)
-		}
+			rr := httptest.NewRecorder()
+			w.ServeHTTP(rr, req)
+
+			if status := rr.Code; status != http.StatusOK {
+				t.Fatalf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
+			}
+
+			// LastWebhookTime and PollingInterval are only ever written by the
+			// handler's status and spec patches, so they show whether a patch happened.
+			for gitRepo, wantPatched := range map[string]bool{
+				unauthenticated.Name: false,
+				authenticated.Name:   tt.wantPatched,
+			} {
+				var got v1alpha1.GitRepo
+				if err := client.Get(context.TODO(), types.NamespacedName{Name: gitRepo, Namespace: "default"}, &got); err != nil {
+					t.Fatalf("unexpected err %v", err)
+				}
+				if patched := !got.Status.LastWebhookTime.IsZero(); patched != wantPatched {
+					t.Errorf("gitrepo %s: status patched = %v, want %v", gitRepo, patched, wantPatched)
+				}
+				if patched := got.Spec.PollingInterval != nil; patched != wantPatched {
+					t.Errorf("gitrepo %s: spec patched = %v, want %v", gitRepo, patched, wantPatched)
+				}
+				if wantPatched && got.Status.WebhookCommit != commit {
+					t.Errorf("gitrepo %s: expected webhook commit %q, got %q", gitRepo, commit, got.Status.WebhookCommit)
+				}
+			}
+		})
 	}
 }
 

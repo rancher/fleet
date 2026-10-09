@@ -143,42 +143,45 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 				}
 			}
 
-			if gitrepo.Status.WebhookCommit != revision && revision != "" {
-				// before updating the gitrepo check if a secret was
-				// defined and, if so, verify that it is correct
-				secret, err := w.getSecret(ctx, gitrepo)
-				if err != nil {
-					w.logAndReturn(rw, err)
-					return
-				}
-				if secret != nil {
-					// At this point we know that a secret is defined and exists.
-					// Parse the request again (this time with secret)
-					// We need to parse twice because in the first parsing we didn't
-					// know the gitrepo associated with the webhook payload.
-					// The first parsing is used to get the gitrepo and, if a secret is
-					// defined in the gitrepo, it takes precedence over the global one.
-					r.Body = io.NopCloser(bytes.NewBuffer(body))
-					_, err = parseWebhook(r, secret)
-					if err != nil {
-						w.logAndReturn(rw, err)
-						return
-					}
-					authenticated++
-				} else {
-					// see #5297, #5712
-					w.log.Info(
-						"Rejected unauthenticated webhook call. Configure GitRepo.spec.webhookSecret or create the global \"gitjob-webhook\" secret to authenticate this GitRepo.",
-						"gitrepo", gitrepo.Name,
-						"namespace", gitrepo.Namespace,
-					)
-					// Skip only this GitRepo: other GitRepos matching the
-					// same URL may have their own secret.
-					rejected++
-					seen[gitrepoResource] = struct{}{}
-					continue
-				}
+			if revision == "" {
+				continue
+			}
 
+			// Authenticate the request against this GitRepo's secret, even if the
+			// GitRepo is already up to date: the response must tell the sender
+			// whether any GitRepo accepted it, not only whether one changed.
+			secret, err := w.getSecret(ctx, gitrepo)
+			if err != nil {
+				w.logAndReturn(rw, err)
+				return
+			}
+			if secret == nil {
+				// see #5297, #5712
+				w.log.Info(
+					"Rejected unauthenticated webhook call. Configure GitRepo.spec.webhookSecret or create the global \"gitjob-webhook\" secret to authenticate this GitRepo.",
+					"gitrepo", gitrepo.Name,
+					"namespace", gitrepo.Namespace,
+				)
+				// Skip only this GitRepo: other GitRepos matching the
+				// same URL may have their own secret.
+				rejected++
+				seen[gitrepoResource] = struct{}{}
+				continue
+			}
+			// At this point we know that a secret is defined and exists.
+			// Parse the request again (this time with secret)
+			// We need to parse twice because in the first parsing we didn't
+			// know the gitrepo associated with the webhook payload.
+			// The first parsing is used to get the gitrepo and, if a secret is
+			// defined in the gitrepo, it takes precedence over the global one.
+			r.Body = io.NopCloser(bytes.NewBuffer(body))
+			if _, err := parseWebhook(r, secret); err != nil {
+				w.logAndReturn(rw, err)
+				return
+			}
+			authenticated++
+
+			if gitrepo.Status.WebhookCommit != revision {
 				var gitRepoFromCluster fleet.GitRepo
 				err = w.client.Get(
 					ctx,
