@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -14,17 +15,19 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
+const ns = "fleet-default"
+
 func newScheme() *runtime.Scheme {
 	scheme := runtime.NewScheme()
 	_ = fleet.AddToScheme(scheme)
 	return scheme
 }
 
-func makeCGForQuery(name, namespace, rv string, selector *metav1.LabelSelector) *fleet.ClusterGroup {
+func makeCGForQuery(name, rv string, selector *metav1.LabelSelector) *fleet.ClusterGroup {
 	return &fleet.ClusterGroup{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            name,
-			Namespace:       namespace,
+			Namespace:       ns,
 			ResourceVersion: rv,
 		},
 		Spec: fleet.ClusterGroupSpec{
@@ -34,8 +37,6 @@ func makeCGForQuery(name, namespace, rv string, selector *metav1.LabelSelector) 
 }
 
 func TestClusterGroupsForCluster_Matching(t *testing.T) {
-	const ns = "fleet-default"
-
 	testCases := []struct {
 		name          string
 		cgs           []runtime.Object
@@ -45,7 +46,7 @@ func TestClusterGroupsForCluster_Matching(t *testing.T) {
 		{
 			name: "matching cluster group returned",
 			cgs: []runtime.Object{
-				makeCGForQuery("prod-cg", ns, "1", &metav1.LabelSelector{
+				makeCGForQuery("prod-cg", "1", &metav1.LabelSelector{
 					MatchLabels: map[string]string{"env": "prod"},
 				}),
 			},
@@ -55,7 +56,7 @@ func TestClusterGroupsForCluster_Matching(t *testing.T) {
 		{
 			name: "non-matching cluster group excluded",
 			cgs: []runtime.Object{
-				makeCGForQuery("prod-cg", ns, "1", &metav1.LabelSelector{
+				makeCGForQuery("prod-cg", "1", &metav1.LabelSelector{
 					MatchLabels: map[string]string{"env": "prod"},
 				}),
 			},
@@ -65,7 +66,7 @@ func TestClusterGroupsForCluster_Matching(t *testing.T) {
 		{
 			name: "nil selector cluster group excluded",
 			cgs: []runtime.Object{
-				makeCGForQuery("no-selector-cg", ns, "1", nil),
+				makeCGForQuery("no-selector-cg", "1", nil),
 			},
 			clusterLabels: map[string]string{"env": "prod"},
 			expectedNames: []string{},
@@ -73,7 +74,7 @@ func TestClusterGroupsForCluster_Matching(t *testing.T) {
 		{
 			name: "invalid selector skipped",
 			cgs: []runtime.Object{
-				makeCGForQuery("bad-cg", ns, "1", &metav1.LabelSelector{
+				makeCGForQuery("bad-cg", "1", &metav1.LabelSelector{
 					MatchExpressions: []metav1.LabelSelectorRequirement{
 						{Key: "env", Operator: "InvalidOp", Values: []string{"prod"}},
 					},
@@ -85,10 +86,10 @@ func TestClusterGroupsForCluster_Matching(t *testing.T) {
 		{
 			name: "multiple cgs, only matching returned",
 			cgs: []runtime.Object{
-				makeCGForQuery("prod-cg", ns, "1", &metav1.LabelSelector{
+				makeCGForQuery("prod-cg", "1", &metav1.LabelSelector{
 					MatchLabels: map[string]string{"env": "prod"},
 				}),
-				makeCGForQuery("staging-cg", ns, "1", &metav1.LabelSelector{
+				makeCGForQuery("staging-cg", "1", &metav1.LabelSelector{
 					MatchLabels: map[string]string{"env": "staging"},
 				}),
 			},
@@ -111,7 +112,7 @@ func TestClusterGroupsForCluster_Matching(t *testing.T) {
 			}
 
 			result, err := manager.clusterGroupsForCluster(context.Background(), cluster)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			names := make([]string, len(result))
 			for i, cg := range result {
@@ -127,9 +128,7 @@ func TestClusterGroupsForCluster_Matching(t *testing.T) {
 }
 
 func TestClusterGroupsForCluster_SelectorCachedAfterFirstCall(t *testing.T) {
-	const ns = "fleet-default"
-
-	cg := makeCGForQuery("prod-cg", ns, "42", &metav1.LabelSelector{
+	cg := makeCGForQuery("prod-cg", "42", &metav1.LabelSelector{
 		MatchLabels: map[string]string{"env": "prod"},
 	})
 
@@ -145,7 +144,7 @@ func TestClusterGroupsForCluster_SelectorCachedAfterFirstCall(t *testing.T) {
 	}
 
 	result1, err := manager.clusterGroupsForCluster(context.Background(), cluster)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Len(t, result1, 1)
 
 	cacheKey := ns + "/prod-cg@42"
@@ -154,14 +153,12 @@ func TestClusterGroupsForCluster_SelectorCachedAfterFirstCall(t *testing.T) {
 	assert.Implements(t, (*labels.Selector)(nil), cached)
 
 	result2, err := manager.clusterGroupsForCluster(context.Background(), cluster)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Len(t, result2, 1)
 }
 
 func TestClusterGroupsForCluster_InvalidSelectorNotCached(t *testing.T) {
-	const ns = "fleet-default"
-
-	cg := makeCGForQuery("bad-cg", ns, "1", &metav1.LabelSelector{
+	cg := makeCGForQuery("bad-cg", "1", &metav1.LabelSelector{
 		MatchExpressions: []metav1.LabelSelectorRequirement{
 			{Key: "env", Operator: "InvalidOp", Values: []string{"prod"}},
 		},
@@ -179,7 +176,7 @@ func TestClusterGroupsForCluster_InvalidSelectorNotCached(t *testing.T) {
 	}
 
 	result, err := manager.clusterGroupsForCluster(context.Background(), cluster)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Empty(t, result)
 
 	_, cached := manager.selectorCache.Load(ns + "/bad-cg@1")
@@ -189,7 +186,7 @@ func TestClusterGroupsForCluster_InvalidSelectorNotCached(t *testing.T) {
 func TestBundlesForCluster_RefreshAndCleanup(t *testing.T) {
 	const ns = "fleet-default"
 
-	cg := makeCGForQuery("prod-cg", ns, "1", &metav1.LabelSelector{
+	cg := makeCGForQuery("prod-cg", "1", &metav1.LabelSelector{
 		MatchLabels: map[string]string{"env": "prod"},
 	})
 	matchingBundle := &fleet.Bundle{
@@ -225,7 +222,7 @@ func TestBundlesForCluster_RefreshAndCleanup(t *testing.T) {
 	}
 
 	refresh, cleanup, err := manager.BundlesForCluster(context.Background(), cluster)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	refreshNames := make([]string, len(refresh))
 	for i, b := range refresh {
@@ -244,7 +241,7 @@ func TestBundlesForCluster_MultipleBundlesUseSameHoistedCGS(t *testing.T) {
 	// Verify that all bundles are evaluated correctly when CGs are computed once per cluster.
 	const ns = "fleet-default"
 
-	cg := makeCGForQuery("prod-cg", ns, "1", &metav1.LabelSelector{
+	cg := makeCGForQuery("prod-cg", "1", &metav1.LabelSelector{
 		MatchLabels: map[string]string{"env": "prod"},
 	})
 
@@ -273,7 +270,7 @@ func TestBundlesForCluster_MultipleBundlesUseSameHoistedCGS(t *testing.T) {
 	}
 
 	refresh, cleanup, err := manager.BundlesForCluster(context.Background(), cluster)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Len(t, refresh, 5)
 	assert.Empty(t, cleanup)
 }
@@ -281,8 +278,6 @@ func TestBundlesForCluster_MultipleBundlesUseSameHoistedCGS(t *testing.T) {
 func TestClusterGroupsForCluster_NewResourceVersionCreatesNewCacheEntry(t *testing.T) {
 	// When a ClusterGroup is updated (ResourceVersion bumped), a new cache entry
 	// must be created so the updated selector is compiled rather than served stale.
-	const ns = "fleet-default"
-
 	selector := &metav1.LabelSelector{MatchLabels: map[string]string{"env": "prod"}}
 	cluster := &fleet.Cluster{
 		ObjectMeta: metav1.ObjectMeta{
@@ -294,21 +289,21 @@ func TestClusterGroupsForCluster_NewResourceVersionCreatesNewCacheEntry(t *testi
 
 	// First client returns CG at rv=1.
 	client1 := fake.NewClientBuilder().WithScheme(newScheme()).
-		WithRuntimeObjects(makeCGForQuery("prod-cg", ns, "1", selector)).Build()
+		WithRuntimeObjects(makeCGForQuery("prod-cg", "1", selector)).Build()
 	manager := New(client1, client1)
 
 	_, err := manager.clusterGroupsForCluster(context.Background(), cluster)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	_, v1Cached := manager.selectorCache.Load(ns + "/prod-cg@1")
 	assert.True(t, v1Cached, "entry for rv=1 should be cached after first call")
 
 	// Swap to a client that returns the same CG at rv=2 (simulates an update).
 	client2 := fake.NewClientBuilder().WithScheme(newScheme()).
-		WithRuntimeObjects(makeCGForQuery("prod-cg", ns, "2", selector)).Build()
+		WithRuntimeObjects(makeCGForQuery("prod-cg", "2", selector)).Build()
 	manager.client = client2
 
 	_, err = manager.clusterGroupsForCluster(context.Background(), cluster)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	_, v2Cached := manager.selectorCache.Load(ns + "/prod-cg@2")
 	assert.True(t, v2Cached, "entry for rv=2 should be cached after update")
 	_, v1Cached = manager.selectorCache.Load(ns + "/prod-cg@1")
