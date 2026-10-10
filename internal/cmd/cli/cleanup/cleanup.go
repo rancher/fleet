@@ -135,8 +135,8 @@ func ClusterRegistrations(ctx context.Context, cl client.Client, opts Options) e
 	return nil
 }
 
-func GitJobs(ctx context.Context, cl client.Client, bs int) error {
-	logger := log.FromContext(ctx).WithName("cleanup-jobs").WithValues("batchSize", bs)
+func GitJobs(ctx context.Context, cl client.Client, bs int, retention time.Duration) error {
+	logger := log.FromContext(ctx).WithName("cleanup-jobs").WithValues("batchSize", bs, "retention", retention)
 
 	list := &batchv1.JobList{}
 	if err := cl.List(ctx, list, client.Limit(bs)); err != nil {
@@ -155,14 +155,16 @@ func GitJobs(ctx context.Context, cl client.Client, bs int) error {
 		jobs = append(jobs, list.Items...)
 	}
 
-	if err := cleanupGitJobs(ctx, logger, cl, jobs); err != nil {
+	if err := cleanupGitJobs(ctx, logger, cl, jobs, retention); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func cleanupGitJobs(ctx context.Context, logger logr.Logger, cl client.Client, jobs []batchv1.Job) error {
+func cleanupGitJobs(ctx context.Context, logger logr.Logger, cl client.Client, jobs []batchv1.Job, retention time.Duration) error {
+	now := time.Now()
+
 	for _, job := range jobs {
 		if job.OwnerReferences == nil {
 			continue
@@ -171,8 +173,24 @@ func cleanupGitJobs(ctx context.Context, logger logr.Logger, cl client.Client, j
 			if or.Kind != "GitRepo" || or.APIVersion != "fleet.cattle.io/v1alpha1" {
 				continue
 			}
+
+			shouldDelete := false
+			var deleteReason string
+
+			// Delete successful jobs immediately
 			if job.Status.Succeeded == 1 && job.Status.CompletionTime != nil {
-				logger.V(1).Info("Deleting job", "namespace", job.Namespace, "name", job.Name, "gitrepo", or.Name)
+				shouldDelete = true
+				deleteReason = "succeeded"
+			} else if retention > 0 && job.Status.Failed >= 1 && job.Status.CompletionTime != nil {
+				// Delete failed jobs older than retention period
+				if now.Sub(job.Status.CompletionTime.Time) > retention {
+					shouldDelete = true
+					deleteReason = "failed and older than retention"
+				}
+			}
+
+			if shouldDelete {
+				logger.V(1).Info("Deleting job", "namespace", job.Namespace, "name", job.Name, "gitrepo", or.Name, "reason", deleteReason)
 				err := cl.Delete(ctx, &job, client.PropagationPolicy(metav1.DeletePropagationBackground))
 				if err != nil && !apierrors.IsNotFound(err) {
 					logger.Error(err, "Failed to delete job", "namespace", job.Namespace, "name", job.Name)
