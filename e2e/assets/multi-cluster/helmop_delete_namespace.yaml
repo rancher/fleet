@@ -1,0 +1,17 @@
+apiVersion: fleet.cattle.io/v1alpha1
+kind: HelmOp
+metadata:
+  name: {{.Name}}
+  namespace: {{.Namespace}}
+spec:
+  helm:
+    releaseName: testhelm
+    repo: {{.Repo}}
+    chart: {{.Chart}}
+    version: '{{.Version}}'
+  namespace: {{.TargetNamespace}}
+  deleteNamespace: {{.DeleteNamespace}}
+  keepResources: {{.KeepResources}}
+  targets:
+    - clusterSelector: {}
+
