@@ -305,7 +305,9 @@ func TestClusterGroupsForCluster_NewResourceVersionCreatesNewCacheEntry(t *testi
 
 	// Swap to a client that returns the same CG at rv=4 (simulates an update).
 	client2 := fake.NewClientBuilder().WithScheme(newScheme()).
-		WithRuntimeObjects(makeCGForQuery("prod-cg", "4", selector)).Build()
+		WithRuntimeObjects(
+			makeCGForQuery("prod-cg", "4", selector),
+			makeCGForQuery("other-cg", "1", selector)).Build()
 	manager.client = client2
 
 	_, err = manager.clusterGroupsForCluster(context.Background(), cluster)
@@ -318,4 +320,79 @@ func TestClusterGroupsForCluster_NewResourceVersionCreatesNewCacheEntry(t *testi
 	}
 	_, otherCached := manager.selectorCache.Load(ns + "/other-cg@1")
 	assert.True(t, otherCached, "entries of other ClusterGroups should not be purged")
+}
+
+func TestClusterGroupsForCluster_DeletedClusterGroupPurged(t *testing.T) {
+	selector := &metav1.LabelSelector{MatchLabels: map[string]string{"env": "prod"}}
+	cluster := &fleet.Cluster{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "my-cluster",
+			Namespace: ns,
+			Labels:    map[string]string{"env": "prod"},
+		},
+	}
+
+	client1 := fake.NewClientBuilder().WithScheme(newScheme()).
+		WithRuntimeObjects(
+			makeCGForQuery("prod-cg", "1", selector),
+			makeCGForQuery("gone-cg", "1", selector),
+		).Build()
+	manager := New(client1, client1)
+	manager.selectorCache.Store("other-ns/gone-cg@1", labels.Everything())
+
+	_, err := manager.clusterGroupsForCluster(context.Background(), cluster)
+	require.NoError(t, err)
+	_, goneCached := manager.selectorCache.Load(ns + "/gone-cg@1")
+	assert.True(t, goneCached, "entry for gone-cg should be cached while it exists")
+
+	// Swap to a client where gone-cg has been deleted.
+	client2 := fake.NewClientBuilder().WithScheme(newScheme()).
+		WithRuntimeObjects(makeCGForQuery("prod-cg", "1", selector)).Build()
+	manager.client = client2
+
+	_, err = manager.clusterGroupsForCluster(context.Background(), cluster)
+	require.NoError(t, err)
+	_, goneCached = manager.selectorCache.Load(ns + "/gone-cg@1")
+	assert.False(t, goneCached, "entry for deleted gone-cg should be purged")
+	_, prodCached := manager.selectorCache.Load(ns + "/prod-cg@1")
+	assert.True(t, prodCached, "entry for prod-cg should be kept")
+	_, otherNsCached := manager.selectorCache.Load("other-ns/gone-cg@1")
+	assert.True(t, otherNsCached, "entries in other namespaces should not be purged")
+}
+
+func TestClusterGroupsForCluster_UnusableSelectorPurgesEntries(t *testing.T) {
+	selector := &metav1.LabelSelector{MatchLabels: map[string]string{"env": "prod"}}
+	invalid := &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
+		{Key: "env", Operator: "BadOp", Values: []string{"prod"}},
+	}}
+	cluster := &fleet.Cluster{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "my-cluster",
+			Namespace: ns,
+			Labels:    map[string]string{"env": "prod"},
+		},
+	}
+
+	for name, newSelector := range map[string]*metav1.LabelSelector{"nil": nil, "invalid": invalid} {
+		t.Run(name, func(t *testing.T) {
+			client1 := fake.NewClientBuilder().WithScheme(newScheme()).
+				WithRuntimeObjects(makeCGForQuery("prod-cg", "1", selector)).Build()
+			manager := New(client1, client1)
+
+			_, err := manager.clusterGroupsForCluster(context.Background(), cluster)
+			require.NoError(t, err)
+			_, cached := manager.selectorCache.Load(ns + "/prod-cg@1")
+			assert.True(t, cached, "entry for rv=1 should be cached while the selector is valid")
+
+			// Swap to a client where prod-cg's selector is no longer usable.
+			client2 := fake.NewClientBuilder().WithScheme(newScheme()).
+				WithRuntimeObjects(makeCGForQuery("prod-cg", "2", newSelector)).Build()
+			manager.client = client2
+
+			_, err = manager.clusterGroupsForCluster(context.Background(), cluster)
+			require.NoError(t, err)
+			_, cached = manager.selectorCache.Load(ns + "/prod-cg@1")
+			assert.False(t, cached, "entry for rv=1 should be purged once the selector is unusable")
+		})
+	}
 }
