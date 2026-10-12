@@ -90,39 +90,7 @@ func (m *Manager) getBundlesInScopeForCluster(ctx context.Context, cluster *flee
 }
 
 func (m *Manager) clusterGroupsForCluster(ctx context.Context, cluster *fleet.Cluster) (result []*fleet.ClusterGroup, _ error) {
-	cgs := &fleet.ClusterGroupList{}
-	err := m.client.List(ctx, cgs, client.InNamespace(cluster.Namespace))
-	if err != nil {
-		return nil, err
-	}
-
-	logger := log.FromContext(ctx).WithName("target")
-	for _, cg := range cgs.Items {
-		if cg.Spec.Selector == nil {
-			continue
-		}
-		// Cache key includes ResourceVersion so the selector is recompiled when the ClusterGroup changes.
-		cacheKey := cg.Namespace + "/" + cg.Name + "@" + cg.ResourceVersion
-		var sel labels.Selector
-		if cached, ok := m.selectorCache.Load(cacheKey); ok {
-			sel = cached.(labels.Selector)
-		} else {
-			sel, err = metav1.LabelSelectorAsSelector(cg.Spec.Selector)
-			if err != nil {
-				logger.Error(err, "invalid selector on clusterGroup", "namespace", cg.Namespace, "name", cg.Name,
-					"selector", cg.Spec.Selector)
-				continue
-			}
-			m.selectorCache.Store(cacheKey, sel)
-			purgeObsoleteEntries(&m.selectorCache, cacheKey)
-		}
-		if sel.Matches(labels.Set(cluster.Labels)) {
-			cgCopy := cg
-			result = append(result, &cgCopy)
-		}
-	}
-
-	return result, nil
+	return ClusterGroupsForCluster(ctx, m.client, cluster, &m.selectorCache)
 }
 
 // purgeObsoleteEntries removes cache entries that share the same namespace/name prefix as cacheKey
@@ -141,7 +109,7 @@ func purgeObsoleteEntries(cache *sync.Map, cacheKey string) {
 }
 
 // ClusterGroupsForCluster returns all cluster groups that match the given cluster.
-func ClusterGroupsForCluster(ctx context.Context, c client.Client, cluster *fleet.Cluster) (result []*fleet.ClusterGroup, _ error) {
+func ClusterGroupsForCluster(ctx context.Context, c client.Client, cluster *fleet.Cluster, cache *sync.Map) (result []*fleet.ClusterGroup, _ error) {
 	cgs := &fleet.ClusterGroupList{}
 	err := c.List(ctx, cgs, client.InNamespace(cluster.Namespace))
 	if err != nil {
@@ -153,11 +121,22 @@ func ClusterGroupsForCluster(ctx context.Context, c client.Client, cluster *flee
 		if cg.Spec.Selector == nil {
 			continue
 		}
-		sel, err := metav1.LabelSelectorAsSelector(cg.Spec.Selector)
-		if err != nil {
-			logger.Error(err, "invalid selector on clusterGroup", "namespace", cg.Namespace, "name", cg.Name,
-				"selector", cg.Spec.Selector)
-			continue
+		// Cache key includes ResourceVersion so the selector is recompiled when the ClusterGroup changes.
+		cacheKey := cg.Namespace + "/" + cg.Name + "@" + cg.ResourceVersion
+		var sel labels.Selector
+		if cached, ok := loadSelector(cache, cacheKey); ok {
+			sel = cached
+		} else {
+			sel, err = metav1.LabelSelectorAsSelector(cg.Spec.Selector)
+			if err != nil {
+				logger.Error(err, "invalid selector on clusterGroup", "namespace", cg.Namespace, "name", cg.Name,
+					"selector", cg.Spec.Selector)
+				continue
+			}
+			if cache != nil {
+				cache.Store(cacheKey, sel)
+				purgeObsoleteEntries(cache, cacheKey)
+			}
 		}
 		if sel.Matches(labels.Set(cluster.Labels)) {
 			result = append(result, &cg)
@@ -165,6 +144,17 @@ func ClusterGroupsForCluster(ctx context.Context, c client.Client, cluster *flee
 	}
 
 	return result, nil
+}
+
+func loadSelector(cache *sync.Map, cacheKey string) (labels.Selector, bool) {
+	if cache == nil {
+		return nil, false
+	}
+	cached, ok := cache.Load(cacheKey)
+	if !ok {
+		return nil, false
+	}
+	return cached.(labels.Selector), true
 }
 
 func ClusterGroupsToLabelMap(cgs []*fleet.ClusterGroup) map[string]map[string]string {
