@@ -121,6 +121,7 @@ func ClusterGroupsForCluster(ctx context.Context, c client.Client, cluster *flee
 	}
 
 	logger := log.FromContext(ctx).WithName("target")
+	listed := make(map[string]struct{}, len(cgs.Items))
 	for _, cg := range cgs.Items {
 		if cg.Spec.Selector == nil {
 			continue
@@ -142,12 +143,42 @@ func ClusterGroupsForCluster(ctx context.Context, c client.Client, cluster *flee
 				purgeObsoleteEntries(cache, cacheKey)
 			}
 		}
+		// Only ClusterGroups with a usable selector keep their cache entries; entries from a
+		// previously valid selector are purged once it becomes nil or invalid.
+		listed[cg.Name] = struct{}{}
 		if sel.Matches(labels.Set(cluster.Labels)) {
 			result = append(result, &cg)
 		}
 	}
 
+	if cache != nil {
+		purgeDeletedEntries(cache, cluster.Namespace, listed)
+	}
+
 	return result, nil
+}
+
+// purgeDeletedEntries removes cache entries in namespace for ClusterGroups which are no longer listed,
+// as purgeObsoleteEntries only runs when a ClusterGroup is updated, never when it is deleted.
+func purgeDeletedEntries(cache *sync.Map, namespace string, listed map[string]struct{}) {
+	prefix := namespace + "/"
+	var toPurge []string
+	cache.Range(func(k, _ any) bool {
+		key := k.(string)
+		if !strings.HasPrefix(key, prefix) {
+			return true
+		}
+		// cacheKey format: "namespace/name@resourceVersion"
+		name := key[len(prefix):strings.LastIndex(key, "@")]
+		if _, ok := listed[name]; !ok {
+			toPurge = append(toPurge, key)
+		}
+		return true
+	})
+
+	for _, k := range toPurge {
+		cache.Delete(k)
+	}
 }
 
 func loadSelector(cache *sync.Map, cacheKey string) (labels.Selector, bool) {
