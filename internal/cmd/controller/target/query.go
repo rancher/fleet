@@ -98,14 +98,18 @@ func (m *Manager) clusterGroupsForCluster(ctx context.Context, cluster *fleet.Cl
 func purgeObsoleteEntries(cache *sync.Map, cacheKey string) {
 	// cacheKey format: "namespace/name@resourceVersion"
 	prefix := cacheKey[:strings.LastIndex(cacheKey, "@")]
+	var toPurge []string
 	cache.Range(func(k, _ any) bool {
 		key := k.(string)
 		if key != cacheKey && strings.HasPrefix(key, prefix+"@") {
-			cache.Delete(key)
-			return false
+			toPurge = append(toPurge, key)
 		}
 		return true
 	})
+
+	for _, k := range toPurge {
+		cache.Delete(k)
+	}
 }
 
 // ClusterGroupsForCluster returns all cluster groups that match the given cluster.

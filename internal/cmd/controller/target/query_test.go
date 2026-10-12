@@ -297,15 +297,25 @@ func TestClusterGroupsForCluster_NewResourceVersionCreatesNewCacheEntry(t *testi
 	_, v1Cached := manager.selectorCache.Load(ns + "/prod-cg@1")
 	assert.True(t, v1Cached, "entry for rv=1 should be cached after first call")
 
-	// Swap to a client that returns the same CG at rv=2 (simulates an update).
+	// Leave more stale entries behind, as concurrent updates could, plus one for another CG.
+	for _, rv := range []string{"2", "3"} {
+		manager.selectorCache.Store(ns+"/prod-cg@"+rv, labels.Everything())
+	}
+	manager.selectorCache.Store(ns+"/other-cg@1", labels.Everything())
+
+	// Swap to a client that returns the same CG at rv=4 (simulates an update).
 	client2 := fake.NewClientBuilder().WithScheme(newScheme()).
-		WithRuntimeObjects(makeCGForQuery("prod-cg", "2", selector)).Build()
+		WithRuntimeObjects(makeCGForQuery("prod-cg", "4", selector)).Build()
 	manager.client = client2
 
 	_, err = manager.clusterGroupsForCluster(context.Background(), cluster)
 	require.NoError(t, err)
-	_, v2Cached := manager.selectorCache.Load(ns + "/prod-cg@2")
-	assert.True(t, v2Cached, "entry for rv=2 should be cached after update")
-	_, v1Cached = manager.selectorCache.Load(ns + "/prod-cg@1")
-	assert.False(t, v1Cached, "entry for rv=1 should be purged after update")
+	_, v4Cached := manager.selectorCache.Load(ns + "/prod-cg@4")
+	assert.True(t, v4Cached, "entry for rv=4 should be cached after update")
+	for _, rv := range []string{"1", "2", "3"} {
+		_, cached := manager.selectorCache.Load(ns + "/prod-cg@" + rv)
+		assert.False(t, cached, "entry for rv=%s should be purged after update", rv)
+	}
+	_, otherCached := manager.selectorCache.Load(ns + "/other-cg@1")
+	assert.True(t, otherCached, "entries of other ClusterGroups should not be purged")
 }
