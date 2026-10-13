@@ -12,6 +12,7 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/go-git/go-git/v5/storage/memory"
 	"github.com/go-logr/logr"
+	fleetgithub "github.com/rancher/fleet/internal/github"
 	giturls "github.com/rancher/fleet/pkg/git-urls"
 	corev1 "k8s.io/api/core/v1"
 )
@@ -77,7 +78,17 @@ type Remote struct {
 }
 
 func NewRemote(url string, opts *options) (*Remote, error) {
-	auth, err := GetAuthFromSecret(url, opts.Credential, opts.KnownHosts)
+	caBundle := append([]byte(nil), opts.CABundle...)
+	if proxyCAPEM, ok := os.LookupEnv(ProxyCABundleEnvVar); ok && proxyCAPEM != "" {
+		if len(caBundle) > 0 && caBundle[len(caBundle)-1] != '\n' {
+			caBundle = append(caBundle, '\n')
+		}
+		caBundle = append(caBundle, []byte(proxyCAPEM)...)
+	}
+	auth, err := GetAuthFromSecret(url, opts.Credential, opts.KnownHosts, fleetgithub.TLSConfig{
+		CABundle:           caBundle,
+		InsecureSkipVerify: opts.InsecureTLSVerify,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -90,14 +101,6 @@ func NewRemote(url string, opts *options) (*Remote, error) {
 
 	if auth == nil && strings.HasPrefix(u.String(), "ssh://") {
 		return nil, fmt.Errorf("SSH private key file is required for SSH/SCP-style URLs: %s", url)
-	}
-
-	caBundle := append([]byte(nil), opts.CABundle...) // defensive copy
-	if proxyCAPEM, ok := os.LookupEnv(ProxyCABundleEnvVar); ok && proxyCAPEM != "" {
-		if len(caBundle) > 0 && caBundle[len(caBundle)-1] != '\n' {
-			caBundle = append(caBundle, '\n')
-		}
-		caBundle = append(caBundle, []byte(proxyCAPEM)...)
 	}
 
 	return &Remote{
