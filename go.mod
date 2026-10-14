@@ -82,7 +82,7 @@ require (
 	golang.org/x/sync v0.23.0
 	gonum.org/v1/gonum v0.17.0
 	gotest.tools v2.2.0+incompatible
-	helm.sh/helm/v3 v3.18.6
+	helm.sh/helm/v3 v3.20.2
 	k8s.io/api v0.33.13
 	k8s.io/apiextensions-apiserver v0.33.13
 	k8s.io/apimachinery v0.33.13
