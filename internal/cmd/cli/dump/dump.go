@@ -1009,6 +1009,10 @@ func CreateWithClients(ctx context.Context, cfg *rest.Config, d dynamic.Interfac
 		return fmt.Errorf("failed to close gzip writer: %w", err)
 	}
 
+	if err := tgz.Close(); err != nil {
+		return fmt.Errorf("failed to close %s: %w", path, err)
+	}
+
 	return nil
 }
 
