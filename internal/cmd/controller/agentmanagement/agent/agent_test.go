@@ -5,6 +5,7 @@ package agent_test
 
 import (
 	"context"
+	"slices"
 	"testing"
 
 	"github.com/rancher/fleet/internal/client"
@@ -17,6 +18,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
 )
@@ -27,6 +29,7 @@ func TestAgentWithConfig(t *testing.T) {
 		imagePullSecrets    []corev1.LocalObjectReference
 		cfgImagePullSecrets string
 		propagate           bool
+		missingSecrets      []string
 		expectSecretsInObj  bool
 		expectSecretsInDepl bool
 	}{
@@ -47,6 +50,17 @@ func TestAgentWithConfig(t *testing.T) {
 			propagate:           false,
 			expectSecretsInObj:  false,
 			expectSecretsInDepl: true, // no propagation, but the secret should still be referenced by the agent deployment
+		},
+		{
+			name: "with a missing ImagePullSecret and propagation enabled: remaining secrets should still be copied",
+			imagePullSecrets: []corev1.LocalObjectReference{
+				{Name: "missing-secret"},
+				{Name: "my-pull-secret"},
+			},
+			missingSecrets:      []string{"missing-secret"},
+			propagate:           true,
+			expectSecretsInObj:  true,
+			expectSecretsInDepl: true,
 		},
 		{
 			name:                "with empty ImagePullSecrets and non-empty config secrets: no secrets should be referenced in the deployment",
@@ -143,6 +157,11 @@ systemRegistrationNamespace: cattle-fleet-clusters-system`),
 						Data: map[string][]byte{
 							".dockerconfigjson": []byte(`{"auths":{"registry.example.com":{"auth":"dGVzdDp0ZXN0"}}}`),
 						},
+					}
+					if slices.Contains(tc.missingSecrets, ps.Name) {
+						secretClient.EXPECT().Get(controllerNamespace, ps.Name, gomock.Any()).
+							Return(nil, apierrors.NewNotFound(corev1.Resource("secrets"), ps.Name))
+						continue
 					}
 					secretClient.EXPECT().Get(controllerNamespace, ps.Name, gomock.Any()).Return(pullSecret, nil)
 				}

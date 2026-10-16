@@ -17,10 +17,12 @@ import (
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/apimachinery/pkg/watch"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 type Options struct {
@@ -75,6 +77,12 @@ func AgentWithConfig(
 		}
 
 		source, err := client.Core.Secret().Get(controllerNamespace, ips.Name, metav1.GetOptions{})
+		if apierrors.IsNotFound(err) {
+			// A missing secret must not block cluster registration: skip it and carry on with the others.
+			log.FromContext(ctx).Info("Warning: image pull secret not found in controller namespace, not propagating it",
+				"secret", ips.Name, "namespace", controllerNamespace)
+			continue
+		}
 		if err != nil {
 			return objs, fmt.Errorf("failed to get image pull secret %q from controller namespace: %w", ips.Name, err)
 		}
