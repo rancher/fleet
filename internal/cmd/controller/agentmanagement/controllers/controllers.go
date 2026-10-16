@@ -30,11 +30,16 @@ import (
 
 	"github.com/sirupsen/logrus"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes"
+	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 )
 
@@ -53,6 +58,15 @@ type AppContext struct {
 
 func (a *AppContext) Start(ctx context.Context) error {
 	return start.All(ctx, 50, a.starters...)
+}
+
+func newEventRecorder(k8s kubernetes.Interface, component string) record.EventRecorder {
+	scheme := runtime.NewScheme()
+	utilruntime.Must(v1alpha1.AddToScheme(scheme))
+
+	broadcaster := record.NewBroadcaster()
+	broadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: k8s.CoreV1().Events("")})
+	return broadcaster.NewRecorder(scheme, corev1.EventSource{Component: component})
 }
 
 func Register(ctx context.Context, appCtx *AppContext, systemNamespace string, disableBootstrap bool) error {
@@ -120,7 +134,9 @@ func Register(ctx context.Context, appCtx *AppContext, systemNamespace string, d
 		appCtx.RBAC.Role(),
 		appCtx.RBAC.RoleBinding(),
 		appCtx.ClusterRegistration(),
-		appCtx.Cluster())
+		appCtx.Cluster(),
+		appCtx.ClusterRegistrationToken(),
+		newEventRecorder(appCtx.K8s, "fleet-clusterregistration"))
 
 	clusterregistrationtoken.Register(ctx,
 		systemNamespace,
