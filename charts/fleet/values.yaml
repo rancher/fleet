@@ -57,6 +57,8 @@ deploymentEvents:
   # therefore the highest value with an effect. Causes beyond it are reported as
   # e.g. "(+117 more, see status.summary.nonReadyResources)".
   maxCauses: 3
+# Whether an existing agent-initiated cluster can register again with a registration token other than the one it is registered with.
+allowClusterRegistrationTokenChange: false
 
 # Counts from gitrepo are out of sync with bundleDeployment state.
 # Just retry in a number of seconds as there is no great way to trigger an event that doesn't cause a loop.
