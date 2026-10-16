@@ -121,7 +121,7 @@ jobs:
           go test -v -count=1 -timeout=1h ./e2e/installation -args -ginkgo.github-output -ginkgo.trace -ginkgo.label-filter="!multi-cluster"
       -
         name: Upload Logs
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: failure()
         with:
           name: gha-fleet-e2e-logs-${{ github.sha }}-${{ matrix.k3s.version }}-${{ github.run_id }}
