@@ -28,6 +28,9 @@ noProxy: 127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,.svc,.cluster.local
 # The cluster registration value
 token: ""
 
+# The name of the ClusterRegistrationToken used for this registration
+tokenName: ""
+
 # Labels to add to the cluster upon registration only. They are not added after the fact.
 # labels:
 #   foo: bar
