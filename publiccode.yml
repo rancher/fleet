@@ -24,15 +24,15 @@ description:
     shortDescription: >-
       Fleet is GitOps and HelmOps at scale, designed to manage workloads on multiple Kubernetes clusters
     longDescription: |
-      Fleet is GitOps and HelmOps at scale across a big amount of clusters, deployments and
-      teams in a single organization, but it's lightweight enough at small scale.
+      Fleet is a GitOps and HelmOps solution enabling continuous deployment at scale across large 
+      numbers of clusters.
 
-      Fleet can manage deployments from git of raw Kubernetes YAML, Helm charts, or Kustomize or any
-      combination of the three. Regardless of the source all resources are dynamically turned into
-      Helm charts and Helm is used as the engine to deploy everything in the cluster. This gives a
-      high degree of control, consistency, and auditability. Fleet focuses not only on the ability
-      to scale, but to give one a high degree of control and visibility to exactly what is installed
-      on the cluster.
+      Fleet can manage deployments from Helm repositories, OCI registries, and git repositories 
+      containing raw Kubernetes YAML, Helm charts, Kustomize, or any combination of the three.
+      It relies on a two-step mechanism, where deployments are packaged from their sources on a 
+      management cluster, then pulled by agents on target cluster, which install them as Helm charts.
+      This provides a high degree of control, consistency, and auditability. Fleet focuses on
+      simplicity, scalability, control and visibility over deployments across clusters.
     documentation: https://fleet.rancher.io/how-tos-for-users/gitrepo-add
     apiDocumentation: https://fleet.rancher.io/reference/ref-crds
     features:
