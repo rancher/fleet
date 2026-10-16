@@ -333,3 +333,24 @@ func ownerRef(kind, name, uid string) metav1.OwnerReference {
 		UID:        types.UID(uid),
 	}
 }
+
+func Test_checkContentIssues_OCIContents(t *testing.T) {
+	bd := fleet.BundleDeployment{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "ns", Name: "bd"},
+		Spec: fleet.BundleDeploymentSpec{
+			DeploymentID:       "s-aaa:opts",
+			StagedDeploymentID: "s-bbb:opts",
+		},
+		Status: fleet.BundleDeploymentStatus{AppliedDeploymentID: "s-ccc:opts"},
+	}
+	col := &Collector{}
+
+	if got := col.checkContentIssues([]fleet.BundleDeployment{bd}, nil); len(got) != 1 {
+		t.Fatalf("expected an issue for a missing Content, got %v", got)
+	}
+
+	bd.Spec.OCIContents = true
+	if got := col.checkContentIssues([]fleet.BundleDeployment{bd}, nil); len(got) != 0 {
+		t.Fatalf("expected no issues for OCI contents, got %v", got)
+	}
+}
