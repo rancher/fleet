@@ -33,7 +33,7 @@ description:
       management cluster, then pulled by agents on target cluster, which install them as Helm charts.
       This provides a high degree of control, consistency, and auditability. Fleet focuses on
       simplicity, scalability, control and visibility over deployments across clusters.
-    documentation: https://fleet.rancher.io/how-tos-for-users/gitrepo-add
+    documentation: https://fleet.rancher.io/tutorials/quickstart
     apiDocumentation: https://fleet.rancher.io/reference/ref-crds
     features:
       - Cluster Control
