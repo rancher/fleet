@@ -179,6 +179,41 @@ func TestGenerateValuesAllowsSymlinkedRoot(t *testing.T) {
 	assert.Equal(t, "bar", valuesMap.Data["foo"])
 }
 
+func TestGenerateValuesRejectsGitMetadata(t *testing.T) {
+	for _, test := range []struct {
+		name         string
+		metadataPath string
+		valuesFile   string
+		linkPath     string
+		linkTarget   string
+	}{
+		{name: "root metadata", metadataPath: ".git/values.yaml", valuesFile: "../.git/values.yaml"},
+		{name: "nested metadata", metadataPath: "submodule/.git/values.yaml", valuesFile: "../submodule/.git/values.yaml"},
+		{name: "file symlink", metadataPath: ".git/values.yaml", valuesFile: "values.yaml", linkPath: "bundle/values.yaml", linkTarget: ".git/values.yaml"},
+		{name: "directory symlink", metadataPath: ".git/values.yaml", valuesFile: "alias/values.yaml", linkPath: "bundle/alias", linkTarget: ".git"},
+		{name: "metadata symlink", metadataPath: "shared/values.yaml", valuesFile: "../.git/values.yaml", linkPath: ".git", linkTarget: "shared"},
+		{name: "metadata file", metadataPath: "submodule/.git", valuesFile: "../submodule/.git"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			root := t.TempDir()
+			base := filepath.Join(root, "bundle")
+			require.NoError(t, os.MkdirAll(base, 0755))
+			metadataPath := filepath.Join(root, test.metadataPath)
+			require.NoError(t, os.MkdirAll(filepath.Dir(metadataPath), 0755))
+			require.NoError(t, os.WriteFile(metadataPath, []byte("private: metadata"), 0644))
+			if test.linkPath != "" {
+				require.NoError(t, os.Symlink(filepath.Join(root, test.linkTarget), filepath.Join(root, test.linkPath)))
+			}
+			chart := &fleet.HelmOptions{
+				GitOpsHelmOptions: fleet.GitOpsHelmOptions{ValuesFiles: []string{test.valuesFile}},
+			}
+
+			_, err := generateValues(base, root, chart)
+			require.ErrorContains(t, err, "Git metadata")
+		})
+	}
+}
+
 func TestGenerateValuesRejectsPathOutsideRoot(t *testing.T) {
 	dir := t.TempDir()
 	root := filepath.Join(dir, "root")

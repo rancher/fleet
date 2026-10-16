@@ -218,12 +218,18 @@ func generateValues(base, root string, chart *fleet.HelmOptions) (valuesMap *fle
 		if !pathWithinDir(resolvedRoot, valuesPath) {
 			return nil, fmt.Errorf("invalid values file %q: path escapes repository directory", value)
 		}
+		if containsGitMetadata(resolvedRoot, valuesPath) {
+			return nil, fmt.Errorf("invalid values file %q: path references Git metadata", value)
+		}
 		resolvedValuesPath, err := filepath.EvalSymlinks(valuesPath)
 		if err != nil {
 			return nil, fmt.Errorf("resolving values file %q: %w", valuesPath, err)
 		}
 		if !pathWithinDir(resolvedRoot, resolvedValuesPath) {
 			return nil, fmt.Errorf("invalid values file %q: target escapes repository directory", value)
+		}
+		if containsGitMetadata(resolvedRoot, resolvedValuesPath) {
+			return nil, fmt.Errorf("invalid values file %q: target references Git metadata", value)
 		}
 		valuesByte, err := os.ReadFile(resolvedValuesPath)
 		if err != nil {
@@ -238,6 +244,19 @@ func generateValues(base, root string, chart *fleet.HelmOptions) (valuesMap *fle
 	}
 
 	return valuesMap, nil
+}
+
+func containsGitMetadata(root, path string) bool {
+	relativePath, err := filepath.Rel(root, path)
+	if err != nil {
+		return true
+	}
+	for _, component := range strings.Split(relativePath, string(os.PathSeparator)) {
+		if component == ".git" {
+			return true
+		}
+	}
+	return false
 }
 
 // resolveDir returns the absolute path of dir with symlinks resolved.
