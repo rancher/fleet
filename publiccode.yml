@@ -40,6 +40,9 @@ description:
       - Cluster Monitoring
       - Deployment Management
       - GitOps
+      - HelmOps
+      - Drift correction
+      - Per-cluster customization of deployments
     screenshots:
       - docs/arch.png
     videos:
