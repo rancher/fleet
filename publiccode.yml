@@ -1,0 +1,67 @@
+publiccodeYmlVersion: 0.7.0
+name: Fleet
+applicationSuite: Rancher
+url: https://github.com/rancher/fleet
+landingURL: https://fleet.rancher.io/
+logo: docs/logo.svg
+platforms:
+  - linux
+categories:
+  - cloud-management
+  - fleet-management
+fundedBy:
+  - SUSE
+roadmap: https://github.com/orgs/rancher/projects/12/views/4?filterQuery=-status%3A%22%E2%9C%85+Done%22+repo%3Arancher%2Ffleet
+developmentStatus: stable
+softwareType: addon
+organisation:
+  name: SUSE
+  uri: "https://suse.com"
+description:
+  en:
+    shortDescription: >-
+      Fleet is GitOps and HelmOps at scale, designed to manage workloads on multiple Kubernetes clusters
+    longDescription: |
+      Fleet is a GitOps and HelmOps solution enabling continuous deployment at scale across large
+      numbers of clusters.
+
+      Fleet can manage deployments from Helm repositories, OCI registries, and git repositories
+      containing raw Kubernetes YAML, Helm charts, Kustomize, or any combination of the three.
+      It relies on a two-step mechanism, where deployments are packaged from their sources on a
+      management cluster, then pulled by agents on target cluster, which install them as Helm charts.
+      This provides a high degree of control, consistency, and auditability. Fleet focuses on
+      simplicity, scalability, control and visibility over deployments across clusters.
+    documentation: https://fleet.rancher.io/tutorials/quickstart
+    apiDocumentation: https://fleet.rancher.io/reference/ref-crds
+    features:
+      - Cluster Control
+      - Cluster Monitoring
+      - Deployment Management
+      - GitOps
+      - HelmOps
+      - Drift correction
+      - Per-cluster customization of deployments
+    videos:
+      - https://www.youtube.com/watch?v=Ixtl75LwU2g
+      - https://www.youtube.com/watch?v=VIua9J-aYOo
+legal:
+  license: Apache-2.0
+  mainCopyrightOwner: SUSE LLC
+maintenance:
+  type: internal
+  contacts:
+    - name: Corentin Néau
+      email: fleet@suse.com
+localisation:
+  localisationReady: false
+  availableLanguages:
+    - en
+dependsOn:
+  open:
+    - name: Kubernetes
+      optional: false
+    - name: kubectl
+      optional: true
+    - name: Helm
+      versionMin: "3"
+      optional: true
