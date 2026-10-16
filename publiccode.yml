@@ -1,6 +1,6 @@
 publiccodeYmlVersion: 0.7.0
 name: Fleet
-applicationSuite: kubernetes
+applicationSuite: Rancher
 url: https://github.com/rancher/fleet
 landingURL: https://fleet.rancher.io/
 logo: docs/logo.svg
