@@ -218,15 +218,18 @@ func getDigest(image string, options ...remote.Option) (string, error) {
 		return "", err
 	}
 
-	im, err := remote.Image(nameRef, options...)
+	// Prefer a HEAD request: it returns the digest without fetching the
+	// manifest, so registries do not count it as a pull.
+	if desc, err := remote.Head(nameRef, options...); err == nil {
+		return desc.Digest.String(), nil
+	}
+
+	// Some registries handle HEAD unreliably, fall back to GET.
+	desc, err := remote.Get(nameRef, options...)
 	if err != nil {
 		return "", err
 	}
-	digest, err := im.Digest()
-	if err != nil {
-		return "", err
-	}
-	return digest.String(), nil
+	return desc.Digest.String(), nil
 }
 
 // authFromSecret creates an Authenticator that can be given to the
