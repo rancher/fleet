@@ -157,6 +157,11 @@ func (m *Manager) Targets(ctx context.Context, bundle *fleet.Bundle, manifestID 
 				return nil, false, fmt.Errorf("cluster %s in namespace %s: %w", cluster.Name, cluster.Namespace, err)
 			}
 
+			err = preprocessNamespaceMetadata(&opts, &cluster)
+			if err != nil {
+				return nil, false, fmt.Errorf("cluster %s in namespace %s: %w", cluster.Name, cluster.Namespace, err)
+			}
+
 			deploymentID, err := options.DeploymentID(manifestID, opts)
 			if err != nil {
 				return nil, false, err
@@ -268,7 +273,8 @@ func (m *Manager) getNamespacesForBundle(ctx context.Context, bundle *fleet.Bund
 	return nses.List(), nil
 }
 
-func preprocessHelmValues(logger logr.Logger, opts *fleet.BundleDeploymentOptions, cluster *fleet.Cluster) (err error) {
+// clusterLabelsAndAnnotations returns the cluster labels and annotations exposed to templates.
+func clusterLabelsAndAnnotations(cluster *fleet.Cluster) (map[string]string, map[string]string) {
 	clusterLabels := yaml.CleanAnnotationsForExport(cluster.Labels)
 	clusterAnnotations := yaml.CleanAnnotationsForExport(cluster.Annotations)
 
@@ -277,6 +283,51 @@ func preprocessHelmValues(logger logr.Logger, opts *fleet.BundleDeploymentOption
 			clusterLabels[k] = v
 		}
 	}
+
+	return clusterLabels, clusterAnnotations
+}
+
+// templateContext returns the data available to "${ }" templates for the given cluster.
+func templateContext(cluster *fleet.Cluster, clusterLabels, clusterAnnotations map[string]string) map[string]any {
+	templateValues := map[string]any{}
+	if cluster.Spec.TemplateValues != nil {
+		templateValues = cluster.Spec.TemplateValues.Data
+	}
+
+	return map[string]any{
+		"ClusterNamespace":   cluster.Namespace,
+		"ClusterName":        cluster.Name,
+		"ClusterLabels":      toDict(clusterLabels),
+		"ClusterAnnotations": toDict(clusterAnnotations),
+		"ClusterValues":      templateValues,
+	}
+}
+
+// preprocessNamespaceMetadata renders "${ }" templates in namespaceLabels and namespaceAnnotations,
+// using the same context as helm values. It is skipped when helm.disablePreProcess is set.
+func preprocessNamespaceMetadata(opts *fleet.BundleDeploymentOptions, cluster *fleet.Cluster) (err error) {
+	if opts.Helm != nil && opts.Helm.DisablePreProcess {
+		return nil
+	}
+	if len(opts.NamespaceLabels) == 0 && len(opts.NamespaceAnnotations) == 0 {
+		return nil
+	}
+
+	clusterLabels, clusterAnnotations := clusterLabelsAndAnnotations(cluster)
+	values := templateContext(cluster, clusterLabels, clusterAnnotations)
+
+	if opts.NamespaceLabels, err = processTemplateStrings(opts.NamespaceLabels, values); err != nil {
+		return fmt.Errorf("namespaceLabels: %w", err)
+	}
+	if opts.NamespaceAnnotations, err = processTemplateStrings(opts.NamespaceAnnotations, values); err != nil {
+		return fmt.Errorf("namespaceAnnotations: %w", err)
+	}
+
+	return nil
+}
+
+func preprocessHelmValues(logger logr.Logger, opts *fleet.BundleDeploymentOptions, cluster *fleet.Cluster) (err error) {
+	clusterLabels, clusterAnnotations := clusterLabelsAndAnnotations(cluster)
 	if len(clusterLabels) == 0 {
 		return nil
 	}
@@ -304,18 +355,7 @@ func preprocessHelmValues(logger logr.Logger, opts *fleet.BundleDeploymentOption
 	}
 
 	if !opts.Helm.DisablePreProcess {
-		templateValues := map[string]any{}
-		if cluster.Spec.TemplateValues != nil {
-			templateValues = cluster.Spec.TemplateValues.Data
-		}
-
-		values := map[string]any{
-			"ClusterNamespace":   cluster.Namespace,
-			"ClusterName":        cluster.Name,
-			"ClusterLabels":      toDict(clusterLabels),
-			"ClusterAnnotations": toDict(clusterAnnotations),
-			"ClusterValues":      templateValues,
-		}
+		values := templateContext(cluster, clusterLabels, clusterAnnotations)
 
 		opts.Helm.Values.Data, err = processTemplateValues(opts.Helm.Values.Data, values)
 		if err != nil {
@@ -429,6 +469,37 @@ func processTemplateValuesData(helmTemplateData map[string]string, templateConte
 	}
 
 	return renderedValues, nil
+}
+
+// processTemplateStrings renders each "${ }" template in a string map, e.g. namespace labels.
+// It returns a new map, so maps shared with the bundle are not modified.
+func processTemplateStrings(data map[string]string, templateContext map[string]any) (map[string]string, error) {
+	if data == nil {
+		return nil, nil
+	}
+
+	rendered := make(map[string]string, len(data))
+	for k, v := range data {
+		if !strings.Contains(v, "${") {
+			rendered[k] = v
+			continue
+		}
+
+		tmpl := template.New("value").Funcs(tplFuncMap()).Option("missingkey=error").Delims("${", "}")
+		tmpl, err := tmpl.Parse(v)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse template for key %q: %w", k, err)
+		}
+
+		var b bytes.Buffer
+		if err := tmpl.Execute(&b, templateContext); err != nil {
+			return nil, fmt.Errorf("failed to render template for key %q: %w", k, err)
+		}
+
+		rendered[k] = b.String()
+	}
+
+	return rendered, nil
 }
 
 func processTemplateValues(helmValues map[string]any, templateContext map[string]any) (map[string]any, error) {
