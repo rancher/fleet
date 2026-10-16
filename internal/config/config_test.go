@@ -10,10 +10,75 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/rancher/fleet/internal/config"
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/version"
 )
 
 var _ = Describe("Config", func() {
+	When("applying rancher namespace metadata", func() {
+		It("does not allow user values to override Fleet metadata", func() {
+			ns := &v1.Namespace{ObjectMeta: metav1.ObjectMeta{
+				Labels: map[string]string{fleet.ManagedLabel: "true"},
+				Annotations: map[string]string{
+					fleet.ClusterNamespaceAnnotation: "fleet-default",
+					fleet.ClusterAnnotation:          "cluster-1",
+				},
+			}}
+			cfg := &config.Config{RancherNamespaces: config.RancherNamespaces{
+				Enabled: true,
+				Labels: map[string]string{
+					fleet.ManagedLabel:   "false",
+					"example.com/custom": "value",
+				},
+				Annotations: map[string]string{
+					fleet.ClusterNamespaceAnnotation:  "other-namespace",
+					fleet.ClusterAnnotation:           "other-cluster",
+					config.ManagedNamespaceAnnotation: "false",
+					"example.com/custom":              "value",
+				},
+			}}
+
+			config.Set(cfg)
+			DeferCleanup(func() { config.Set(nil) })
+			config.Get().ApplyRancherNamespaceLabelsAndAnnotations(ns)
+
+			Expect(ns.Labels).To(HaveKeyWithValue(fleet.ManagedLabel, "true"))
+			Expect(ns.Labels).To(HaveKeyWithValue("example.com/custom", "value"))
+			Expect(ns.Annotations).To(HaveKeyWithValue(fleet.ClusterNamespaceAnnotation, "fleet-default"))
+			Expect(ns.Annotations).To(HaveKeyWithValue(fleet.ClusterAnnotation, "cluster-1"))
+			Expect(ns.Annotations).To(HaveKeyWithValue(config.ManagedNamespaceAnnotation, "true"))
+			Expect(ns.Annotations).To(HaveKeyWithValue("example.com/custom", "value"))
+			Expect(cfg.RancherNamespaces.Labels).ToNot(HaveKey(fleet.ManagedLabel))
+			Expect(cfg.RancherNamespaces.Annotations).ToNot(HaveKey(fleet.ClusterNamespaceAnnotation))
+			Expect(cfg.RancherNamespaces.Annotations).ToNot(HaveKey(fleet.ClusterAnnotation))
+			Expect(cfg.RancherNamespaces.Annotations).ToNot(HaveKey(config.ManagedNamespaceAnnotation))
+		})
+	})
+
+	When("the rancher namespace metadata changes", func() {
+		It("adds only current values to new namespaces and keeps old values on existing ones", func() {
+			DeferCleanup(func() { config.Set(nil) })
+			config.Set(&config.Config{RancherNamespaces: config.RancherNamespaces{
+				Enabled: true, Labels: map[string]string{"old": "1"}, Annotations: map[string]string{"old": "1"},
+			}})
+			existing := &v1.Namespace{}
+			config.Get().ApplyRancherNamespaceLabelsAndAnnotations(existing)
+
+			config.Set(&config.Config{RancherNamespaces: config.RancherNamespaces{
+				Enabled: true, Labels: map[string]string{"new": "2"}, Annotations: map[string]string{"new": "2"},
+			}})
+			Expect(config.Get().ApplyRancherNamespaceLabelsAndAnnotations(existing)).To(BeTrue())
+			Expect(existing.Labels).To(And(HaveKey("old"), HaveKey("new")))
+			Expect(existing.Annotations).To(And(HaveKey("old"), HaveKey("new")))
+
+			fresh := &v1.Namespace{}
+			config.Get().ApplyRancherNamespaceLabelsAndAnnotations(fresh)
+			Expect(fresh.Labels).To(Equal(map[string]string{"new": "2"}))
+			Expect(fresh.Annotations).ToNot(HaveKey("old"))
+			Expect(fresh.Annotations).To(HaveKeyWithValue("new", "2"))
+		})
+	})
+
 	When("the configmap on startup has no version annotation", func() {
 		It("loads config anyway", func() {
 			cfg, updated, err := config.ReadConfig(&v1.ConfigMap{
