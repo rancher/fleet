@@ -164,6 +164,26 @@ func TestDeleteNamespace(t *testing.T) {
 			expectDeletedNS: false,
 		},
 		{
+			name:            "target namespace is fleet-local",
+			releaseNS:       "fleet-local",
+			expectDeletedNS: false,
+		},
+		{
+			name:            "target namespace is fleet-default",
+			releaseNS:       "fleet-default",
+			expectDeletedNS: false,
+		},
+		{
+			name:            "target namespace is cattle-fleet-system",
+			releaseNS:       "cattle-fleet-system",
+			expectDeletedNS: false,
+		},
+		{
+			name:            "target namespace is cattle-fleet-clusters-system",
+			releaseNS:       "cattle-fleet-clusters-system",
+			expectDeletedNS: false,
+		},
+		{
 			name: "more than one releases share the target namespace",
 			releases: []releasev1.Release{
 				{

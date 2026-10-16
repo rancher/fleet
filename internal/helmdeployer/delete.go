@@ -258,7 +258,7 @@ func purgeReleaseNamespace(
 	ns string,
 ) {
 	// Ignore default namespaces
-	defaultNamespaces := []string{"cattle-fleet-system", "default"}
+	defaultNamespaces := []string{"fleet-local", "cattle-fleet-system", "fleet-default", "cattle-fleet-clusters-system", "default"}
 	if slices.Contains(defaultNamespaces, ns) {
 		return
 	}
