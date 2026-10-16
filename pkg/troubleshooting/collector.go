@@ -566,6 +566,11 @@ func (col *Collector) checkContentIssues(bundleDeployments []fleet.BundleDeploym
 	}
 
 	for _, bd := range bundleDeployments {
+		// contents live in an OCI registry, there is no Content resource to check
+		if bd.Spec.OCIContents {
+			continue
+		}
+
 		issue := ContentIssue{
 			Namespace: bd.Namespace,
 			Name:      bd.Name,
