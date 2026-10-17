@@ -90,6 +90,27 @@ var _ = Describe("ClusterRegistration OnChange", func() {
 		})
 	})
 
+	Context("Cluster cache lookup by name fails", func() {
+		BeforeEach(func() {
+			request = &fleet.ClusterRegistration{
+				Spec: fleet.ClusterRegistrationSpec{
+					ClientID: "client-id",
+				},
+			}
+			status = fleet.ClusterRegistrationStatus{}
+
+			clusterCache.EXPECT().GetByIndex(gomock.Any(), gomock.Any()).Return(nil, nil)
+			clusterCache.EXPECT().Get(gomock.Any(), gomock.Any()).Return(nil, errors.New("cache failure"))
+		})
+
+		It("returns the error", func() {
+			objs, newStatus, err := h.OnChange(request, status)
+			Expect(err).To(MatchError("cache failure"))
+			Expect(objs).To(BeEmpty())
+			Expect(newStatus.Granted).To(BeFalse())
+		})
+	})
+
 	Context("Cluster is missing", func() {
 		BeforeEach(func() {
 			request = &fleet.ClusterRegistration{
