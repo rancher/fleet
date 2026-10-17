@@ -16,6 +16,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -160,17 +161,21 @@ func credentialGrantObjects(cr *fleet.ClusterRegistration) []client.Object {
 }
 
 var _ = Describe("ClusterRegistration", func() {
-	var regNamespace string
+	var (
+		regNamespace string
+		token        *fleet.ClusterRegistrationToken
+	)
 
 	BeforeEach(func() {
 		ns := newGeneratedNamespace("cluster-registration-test-")
 		Expect(k8sClient.Create(ctx, ns)).To(Succeed())
 		regNamespace = ns.Name
+		token = createSettledToken(regNamespace, "registration-token")
 	})
 
 	Describe("agent-initiated registration", func() {
 		It("creates a cluster for the client ID and grants the registration", func() {
-			cr := newClusterRegistration(regNamespace, "agent-request", "agent-client-id", "random-a")
+			cr := newClusterRegistration(regNamespace, "agent-request", "agent-client-id", "random-a", token.Name)
 			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
 
 			cluster, _ := grantRegistration(cr, "agent-sa-token")
@@ -192,7 +197,7 @@ var _ = Describe("ClusterRegistration", func() {
 		})
 
 		It("writes the agent's upstream credentials to a registration Secret in the system registration namespace", func() {
-			cr := newClusterRegistration(regNamespace, "credential-request", "credential-client-id", "random-b")
+			cr := newClusterRegistration(regNamespace, "credential-request", "credential-client-id", "random-b", token.Name)
 			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
 
 			cluster, _ := grantRegistration(cr, "credential-sa-token")
@@ -216,7 +221,7 @@ var _ = Describe("ClusterRegistration", func() {
 		})
 
 		It("grants the request service account access to the cluster status, bundle deployments and contents", func() {
-			cr := newClusterRegistration(regNamespace, "rbac-request", "rbac-client-id", "random-c")
+			cr := newClusterRegistration(regNamespace, "rbac-request", "rbac-client-id", "random-c", token.Name)
 			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
 
 			cluster, saName := grantRegistration(cr, "rbac-sa-token")
@@ -278,8 +283,7 @@ var _ = Describe("ClusterRegistration", func() {
 		It("lets only the registration token's service account read the new registration Secret", func() {
 			token := createSettledToken(regNamespace, "agent-registration-token")
 
-			cr := newClusterRegistration(regNamespace, "token-labelled-request", "token-labelled-client-id", "random-d")
-			cr.Labels = map[string]string{fleet.RegistrationTokenLabel: token.Name}
+			cr := newClusterRegistration(regNamespace, "token-labelled-request", "token-labelled-client-id", "random-d", token.Name)
 			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
 
 			grantRegistration(cr, "token-labelled-sa-token")
@@ -311,51 +315,113 @@ var _ = Describe("ClusterRegistration", func() {
 			}))
 		})
 
-		It("grants no access to the registration Secret when the registration names no token", func() {
-			cr := newClusterRegistration(regNamespace, "unlabelled-request", "unlabelled-client-id", "random-e")
+		It("keeps the granted registration when a new request names no token", func() {
+			first := newClusterRegistration(regNamespace, "first-request", "unlabelled-client-id", "random-first", token.Name)
+			Expect(k8sClient.Create(ctx, first)).To(Succeed())
+			cluster, saName := grantRegistration(first, "first-sa-token")
+
+			cr := newClusterRegistration(regNamespace, "unlabelled-request", "unlabelled-client-id", "random-e", "")
 			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
 
-			// Granting is the barrier: the handler applies its whole object
-			// set before it records Granted, so anything missing afterwards was
-			// never part of that set.
-			grantRegistration(cr, "unlabelled-sa-token")
-
-			for _, obj := range credentialGrantObjects(cr) {
-				consistently(objectAbsent(obj)).Should(Succeed())
-			}
+			consistently(func(g Gomega) {
+				current := &fleet.ClusterRegistration{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cr), current)).To(Succeed())
+				g.Expect(current.Status.Granted).To(BeFalse())
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(first), &fleet.ClusterRegistration{})).To(Succeed())
+				for _, obj := range credentialGrantObjects(cr) {
+					objectAbsent(obj)(g)
+				}
+				for _, obj := range registrationObjects(first, cluster, saName) {
+					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(obj), obj)).To(Succeed())
+				}
+			}).Should(Succeed())
 		})
 
-		It("still grants the registration when the token it names does not exist", func() {
-			cr := newClusterRegistration(regNamespace, "stale-token-request", "stale-token-client-id", "random-f")
-			cr.Labels = map[string]string{fleet.RegistrationTokenLabel: "expired-registration-token"}
+		It("keeps pending resources and resumes when the missing token appears", func() {
+			first := newClusterRegistration(regNamespace, "first-request", "stale-token-client-id", "random-first", token.Name)
+			Expect(k8sClient.Create(ctx, first)).To(Succeed())
+			cluster, firstSAName := grantRegistration(first, "first-sa-token")
+			Expect(k8sClient.Delete(ctx, token)).To(Succeed())
+			objectGone(token).Should(Succeed())
+
+			waitPastCreationSecond(first.CreationTimestamp)
+			cr := newClusterRegistration(regNamespace, "stale-token-request", "stale-token-client-id", "random-f", token.Name)
 			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
 
-			cluster, saName := grantRegistration(cr, "stale-token-sa-token")
+			saName := names.SafeConcatName(cr.Name, string(cr.UID))
+			sa := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Namespace: cluster.Status.Namespace, Name: saName}}
+			objectExists(sa).Should(Succeed())
+			populateServiceAccountTokenSecret(cluster.Status.Namespace, saName, "stale-token-sa-token")
+			Eventually(func(g Gomega) {
+				current := &fleet.ClusterRegistration{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cr), current)).To(Succeed())
+				g.Expect(current.Status.ClusterName).To(Equal(cluster.Name))
+			}).Should(Succeed())
+			Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(sa), sa)).To(Succeed())
+			saVersion := sa.ResourceVersion
 
-			By("creating everything but the credential Secret grant")
-			for _, obj := range registrationObjects(cr, cluster, saName) {
-				objectExists(obj).Should(Succeed())
-			}
+			consistently(func(g Gomega) {
+				current := &fleet.ClusterRegistration{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cr), current)).To(Succeed())
+				g.Expect(current.Status.Granted).To(BeFalse())
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(sa), sa)).To(Succeed())
+				g.Expect(sa.ResourceVersion).To(Equal(saVersion))
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(first), &fleet.ClusterRegistration{})).To(Succeed())
+				for _, obj := range credentialGrantObjects(cr) {
+					objectAbsent(obj)(g)
+				}
+				for _, obj := range registrationObjects(first, cluster, firstSAName) {
+					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(obj), obj)).To(Succeed())
+				}
+			}).Should(Succeed())
 
-			for _, obj := range credentialGrantObjects(cr) {
-				consistently(objectAbsent(obj)).Should(Succeed())
-			}
+			By("creating the token without changing the pending request or Cluster")
+			createSettledToken(regNamespace, token.Name)
+			grantRegistration(cr, "stale-token-sa-token")
+			objectGone(first).Should(Succeed())
 		})
 	})
 
 	Describe("manager-initiated registration", func() {
+		It("registers an agent-created cluster with its import token after it gets kubeConfigSecret", func() {
+			const clientID = "switched-client-id"
+
+			first := newClusterRegistration(regNamespace, "first-request", clientID, "random-first", token.Name)
+			Expect(k8sClient.Create(ctx, first)).To(Succeed())
+			cluster, _ := grantRegistration(first, "first-sa-token")
+			Expect(cluster.Annotations).To(HaveKeyWithValue(fleet.RegisteredTokenAnnotation, token.Name))
+
+			Eventually(func(g Gomega) {
+				current := &fleet.Cluster{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cluster), current)).To(Succeed())
+				current.Spec.KubeConfigSecret = "missing-kubeconfig"
+				g.Expect(k8sClient.Update(ctx, current)).To(Succeed())
+			}).Should(Succeed())
+			importToken := createSettledToken(regNamespace,
+				names.SafeConcatName(config.ImportTokenPrefix+cluster.Name))
+
+			waitPastCreationSecond(first.CreationTimestamp)
+			cr := newClusterRegistration(regNamespace, "imported-request", clientID, "random-imported", importToken.Name)
+			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
+
+			registered, _ := grantRegistration(cr, "imported-sa-token")
+			Expect(registered.Name).To(Equal(cluster.Name))
+			objectGone(first).Should(Succeed())
+		})
+
 		It("registers against the existing cluster and scopes the import token to the new registration Secret", func() {
 			const clientID = "managed-client-id"
 
 			cluster := newCluster(regNamespace, "managed-cluster")
 			cluster.Spec.ClientID = clientID
+			cluster.Spec.KubeConfigSecret = "missing-kubeconfig"
 			Expect(k8sClient.Create(ctx, cluster)).To(Succeed())
 			Expect(registeredCluster(regNamespace, clientID).Name).To(Equal("managed-cluster"))
 
 			importToken := createSettledToken(regNamespace,
 				names.SafeConcatName(config.ImportTokenPrefix+cluster.Name))
 
-			cr := newClusterRegistration(regNamespace, "managed-request", clientID, "random-g")
+			cr := newClusterRegistration(regNamespace, "managed-request", clientID, "random-g", "")
 			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
 
 			registered, _ := grantRegistration(cr, "managed-sa-token")
@@ -391,7 +457,7 @@ var _ = Describe("ClusterRegistration", func() {
 
 	Describe("cluster labels", func() {
 		It("copies the registration's cluster labels, dropping the ones an agent may not assert", func() {
-			cr := newClusterRegistration(regNamespace, "labelled-request", "labelled-client-id", "random-h")
+			cr := newClusterRegistration(regNamespace, "labelled-request", "labelled-client-id", "random-h", token.Name)
 			cr.Spec.ClusterLabels = map[string]string{
 				"env":                        "test",
 				fleet.CreatedByAgentPodLabel: "agent-pod",
@@ -421,7 +487,7 @@ var _ = Describe("ClusterRegistration", func() {
 			config.Set(&ignoring)
 			DeferCleanup(func() { config.Set(previous) })
 
-			cr := newClusterRegistration(regNamespace, "ignored-labels-request", "ignored-labels-client-id", "random-i")
+			cr := newClusterRegistration(regNamespace, "ignored-labels-request", "ignored-labels-client-id", "random-i", token.Name)
 			cr.Spec.ClusterLabels = map[string]string{"env": "test"}
 			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
 
@@ -448,14 +514,11 @@ var _ = Describe("ClusterRegistration", func() {
 			occupant.Spec.ClientID = "other-client-id"
 			Expect(k8sClient.Create(ctx, occupant)).To(Succeed())
 
-			// Wait until the occupant has been assigned a cluster namespace,
-			// which only happens once the controllers' shared cluster cache has
-			// seen it. Racing that cache would send the handler down its
-			// create-and-retry path instead, where an AlreadyExists error is
-			// answered with a live Get that never re-checks the client ID.
+			// Wait for the cache to observe the occupant so this exercises
+			// the cached lookup rather than the concurrent-creation path.
 			Expect(registeredCluster(regNamespace, "other-client-id").Name).To(Equal(occupant.Name))
 
-			cr := newClusterRegistration(regNamespace, "colliding-request", clientID, "random-m")
+			cr := newClusterRegistration(regNamespace, "colliding-request", clientID, "random-m", token.Name)
 			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
 
 			consistently(func(g Gomega) {
@@ -474,7 +537,7 @@ var _ = Describe("ClusterRegistration", func() {
 
 	Describe("registrations owned by another cluster manager", func() {
 		It("creates neither a cluster nor any resources for them", func() {
-			cr := newClusterRegistration(regNamespace, "externally-managed-request", "externally-managed-client-id", "random-j")
+			cr := newClusterRegistration(regNamespace, "externally-managed-request", "externally-managed-client-id", "random-j", "")
 			cr.Labels = map[string]string{fleet.ClusterManagementLabel: "custom-manager"}
 			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
 
@@ -494,10 +557,133 @@ var _ = Describe("ClusterRegistration", func() {
 	})
 
 	Describe("re-registration", func() {
+		It("records the token of the first granted registration on a pre-created Cluster", func() {
+			const clientID = "pre-created-client-id"
+			precreated := newCluster(regNamespace, "pre-created-cluster")
+			precreated.Spec.ClientID = clientID
+			Expect(k8sClient.Create(ctx, precreated)).To(Succeed())
+			Expect(registeredCluster(regNamespace, clientID).Annotations).NotTo(HaveKey(fleet.RegisteredTokenAnnotation))
+
+			first := newClusterRegistration(regNamespace, "first-request", clientID, "random-first", token.Name)
+			Expect(k8sClient.Create(ctx, first)).To(Succeed())
+			cluster, _ := grantRegistration(first, "first-sa-token")
+			Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cluster), cluster)).To(Succeed())
+			Expect(cluster.Annotations).To(HaveKeyWithValue(fleet.RegisteredTokenAnnotation, token.Name))
+		})
+
+		It("retains the recovered token binding after granted registration history is removed", func() {
+			const clientID = "legacy-client-id"
+			first := newClusterRegistration(regNamespace, "first-request", clientID, "random-first", token.Name)
+			Expect(k8sClient.Create(ctx, first)).To(Succeed())
+			cluster, _ := grantRegistration(first, "first-sa-token")
+
+			By("representing a Cluster registered before the annotation existed")
+			Eventually(func(g Gomega) {
+				current := &fleet.Cluster{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cluster), current)).To(Succeed())
+				delete(current.Annotations, fleet.RegisteredTokenAnnotation)
+				g.Expect(k8sClient.Update(ctx, current)).To(Succeed())
+			}).Should(Succeed())
+
+			second := newClusterRegistration(regNamespace, "second-request", clientID, "random-second", token.Name)
+			Expect(k8sClient.Create(ctx, second)).To(Succeed())
+			saName := names.SafeConcatName(second.Name, string(second.UID))
+			objectExists(&corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{
+				Namespace: cluster.Status.Namespace, Name: saName,
+			}}).Should(Succeed())
+			Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cluster), cluster)).To(Succeed())
+			Expect(cluster.Annotations).To(HaveKeyWithValue(fleet.RegisteredTokenAnnotation, token.Name))
+
+			By("removing history while the replacement has not yet been granted")
+			Expect(k8sClient.Delete(ctx, first)).To(Succeed())
+			objectGone(first).Should(Succeed())
+			selectedToken := createSettledToken(regNamespace, "selected-token")
+			third := newClusterRegistration(regNamespace, "third-request", clientID, "random-third", selectedToken.Name)
+			Expect(k8sClient.Create(ctx, third)).To(Succeed())
+			consistently(func(g Gomega) {
+				current := &fleet.ClusterRegistration{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(third), current)).To(Succeed())
+				g.Expect(current.Status.Granted).To(BeFalse())
+				g.Expect(current.OwnerReferences).To(BeEmpty())
+				currentCluster := &fleet.Cluster{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cluster), currentCluster)).To(Succeed())
+				g.Expect(currentCluster.Annotations).To(HaveKeyWithValue(fleet.RegisteredTokenAnnotation, token.Name))
+			}).Should(Succeed())
+
+			grantRegistration(second, "second-sa-token")
+		})
+
+		It("resumes a blocked registration when token changes are enabled through the ConfigMap", func() {
+			const clientID = "config-client-id"
+			first := newClusterRegistration(regNamespace, "first-request", clientID, "random-first", token.Name)
+			Expect(k8sClient.Create(ctx, first)).To(Succeed())
+			cluster, _ := grantRegistration(first, "first-sa-token")
+			selectedToken := createSettledToken(regNamespace, "selected-token")
+			waitPastCreationSecond(first.CreationTimestamp)
+			second := newClusterRegistration(regNamespace, "second-request", clientID, "random-second", selectedToken.Name)
+			Expect(k8sClient.Create(ctx, second)).To(Succeed())
+
+			Eventually(func(g Gomega) {
+				events := &corev1.EventList{}
+				g.Expect(k8sClient.List(ctx, events, client.InNamespace(regNamespace))).To(Succeed())
+				g.Expect(events.Items).To(ContainElement(And(
+					HaveField("InvolvedObject.Name", cluster.Name),
+					HaveField("Reason", "RegistrationTokenMismatch"),
+				)))
+			}).Should(Succeed())
+			consistently(func(g Gomega) {
+				current := &fleet.ClusterRegistration{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(second), current)).To(Succeed())
+				g.Expect(current.Status.Granted).To(BeFalse())
+				g.Expect(current.OwnerReferences).To(BeEmpty())
+			}).Should(Succeed())
+
+			previous := config.Get()
+			cmKey := types.NamespacedName{Namespace: systemNamespace, Name: config.ManagerConfigName}
+			original := &corev1.ConfigMap{}
+			err := k8sClient.Get(ctx, cmKey, original)
+			wasAbsent := apierrors.IsNotFound(err)
+			if !wasAbsent {
+				Expect(err).NotTo(HaveOccurred())
+			}
+			DeferCleanup(func() {
+				Eventually(func(g Gomega) {
+					current := &corev1.ConfigMap{}
+					g.Expect(k8sClient.Get(ctx, cmKey, current)).To(Succeed())
+					current.Data = newConfigMap(systemNamespace, config.ManagerConfigName, previous).Data
+					g.Expect(k8sClient.Update(ctx, current)).To(Succeed())
+				}).Should(Succeed())
+				Eventually(config.Get).Should(Equal(previous))
+				if wasAbsent {
+					Expect(k8sClient.Delete(ctx, &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{
+						Namespace: cmKey.Namespace, Name: cmKey.Name,
+					}})).To(Succeed())
+					objectGone(&corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{
+						Namespace: cmKey.Namespace, Name: cmKey.Name,
+					}}).Should(Succeed())
+				}
+			})
+
+			enabled := *previous
+			enabled.AllowClusterRegistrationTokenChange = true
+			cm := newConfigMap(systemNamespace, config.ManagerConfigName, &enabled)
+			if wasAbsent {
+				Expect(k8sClient.Create(ctx, cm)).To(Succeed())
+			} else {
+				original.Data = cm.Data
+				Expect(k8sClient.Update(ctx, original)).To(Succeed())
+			}
+			Eventually(func() bool { return config.Get().AllowClusterRegistrationTokenChange }).Should(BeTrue())
+
+			registered, _ := grantRegistration(second, "second-sa-token")
+			Expect(registered.Name).To(Equal(cluster.Name))
+			objectGone(first).Should(Succeed())
+		})
+
 		It("supersedes the older registration for the same client ID and removes everything it was granted", func() {
 			const clientID = "re-registering-client-id"
 
-			first := newClusterRegistration(regNamespace, "first-request", clientID, "random-first")
+			first := newClusterRegistration(regNamespace, "first-request", clientID, "random-first", token.Name)
 			Expect(k8sClient.Create(ctx, first)).To(Succeed())
 			cluster, firstSAName := grantRegistration(first, "first-sa-token")
 
@@ -507,7 +693,7 @@ var _ = Describe("ClusterRegistration", func() {
 			}
 
 			waitPastCreationSecond(first.CreationTimestamp)
-			second := newClusterRegistration(regNamespace, "second-request", clientID, "random-second")
+			second := newClusterRegistration(regNamespace, "second-request", clientID, "random-second", token.Name)
 			Expect(k8sClient.Create(ctx, second)).To(Succeed())
 			Expect(second.CreationTimestamp.Time).To(BeTemporally(">", first.CreationTimestamp.Time),
 				"a registration only supersedes older ones, so the second must be measurably newer")
@@ -530,7 +716,7 @@ var _ = Describe("ClusterRegistration", func() {
 		})
 
 		It("does not touch a granted registration's resources on later reconciles", func() {
-			cr := newClusterRegistration(regNamespace, "settled-request", "settled-client-id", "random-k")
+			cr := newClusterRegistration(regNamespace, "settled-request", "settled-client-id", "random-k", token.Name)
 			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
 
 			cluster, saName := grantRegistration(cr, "settled-sa-token")
@@ -595,8 +781,7 @@ var _ = Describe("ClusterRegistration", func() {
 			// grant is created too, so pruning is asserted over the whole set.
 			token := createSettledToken(regNamespace, "deleted-registration-token")
 
-			cr := newClusterRegistration(regNamespace, "deleted-request", "deleted-client-id", "random-l")
-			cr.Labels = map[string]string{fleet.RegistrationTokenLabel: token.Name}
+			cr := newClusterRegistration(regNamespace, "deleted-request", "deleted-client-id", "random-l", token.Name)
 			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
 
 			cluster, saName := grantRegistration(cr, "deleted-sa-token")

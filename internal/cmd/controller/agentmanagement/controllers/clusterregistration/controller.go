@@ -6,7 +6,9 @@ package clusterregistration
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -30,7 +32,9 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/record"
 )
 
 const (
@@ -50,6 +54,7 @@ type handler struct {
 	secretsCache                corecontrollers.SecretCache
 	secrets                     corecontrollers.SecretController
 	tokenCache                  fleetcontrollers.ClusterRegistrationTokenCache
+	recorder                    record.EventRecorder
 }
 
 func Register(ctx context.Context,
@@ -62,7 +67,8 @@ func Register(ctx context.Context,
 	roleBinding rbaccontrollers.RoleBindingController,
 	clusterRegistration fleetcontrollers.ClusterRegistrationController,
 	clusters fleetcontrollers.ClusterController,
-	clusterRegistrationToken fleetcontrollers.ClusterRegistrationTokenController) {
+	clusterRegistrationToken fleetcontrollers.ClusterRegistrationTokenController,
+	recorder record.EventRecorder) {
 	h := &handler{
 		systemNamespace:             systemNamespace,
 		systemRegistrationNamespace: systemRegistrationNamespace,
@@ -73,6 +79,7 @@ func Register(ctx context.Context,
 		secrets:                     secret,
 		secretsCache:                secret.Cache(),
 		tokenCache:                  clusterRegistrationToken.Cache(),
+		recorder:                    recorder,
 	}
 
 	fleetcontrollers.RegisterClusterRegistrationGeneratingHandler(ctx,
@@ -102,6 +109,35 @@ func Register(ctx context.Context,
 		}, nil
 	})
 	relatedresource.Watch(ctx, "sa-to-cluster-registration", saToClusterRegistration, clusterRegistration, serviceAccount)
+	config.OnChange(ctx, h.OnConfig)
+	clusterRegistrationToken.OnChange(ctx, "token-to-cluster-registration", h.OnTokenChange)
+}
+
+func (h *handler) enqueuePending(namespace string) error {
+	requests, err := h.clusterRegistration.Cache().List(namespace, labels.Everything())
+	if err != nil {
+		return err
+	}
+	for _, request := range requests {
+		if !request.Status.Granted && !skipClusterRegistration(request) {
+			h.clusterRegistration.Enqueue(request.Namespace, request.Name)
+		}
+	}
+	return nil
+}
+
+func (h *handler) OnConfig(cfg *config.Config) error {
+	if !cfg.AllowClusterRegistrationTokenChange {
+		return nil
+	}
+	return h.enqueuePending(metav1.NamespaceAll)
+}
+
+func (h *handler) OnTokenChange(_ string, token *fleet.ClusterRegistrationToken) (*fleet.ClusterRegistrationToken, error) {
+	if token == nil {
+		return nil, nil
+	}
+	return token, h.enqueuePending(token.Namespace)
 }
 
 func saToClusterRegistration(namespace, name string, obj runtime.Object) ([]relatedresource.Key, error) {
@@ -183,6 +219,10 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 	}
 
 	cluster, err := h.createOrGetCluster(request)
+	if h.reportTokenMismatch(err) {
+		// Cluster changes or enabling token changes re-enqueue the request.
+		return nil, status, generic.ErrSkip
+	}
 	if err != nil || cluster == nil {
 		return nil, status, err
 	}
@@ -235,6 +275,25 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 		log.Log.Info(fmt.Sprintf("Cluster registration request '%s/%s', cluster '%s/%s' not granted, waiting for service account token",
 			request.Namespace, request.Name, cluster.Namespace, cluster.Name))
 		return nil, status, nil
+	}
+
+	cluster, err = h.clusters.Get(cluster.Namespace, cluster.Name, metav1.GetOptions{})
+	if err != nil {
+		return nil, status, fmt.Errorf("retrieving cluster before granting registration: %w", err)
+	}
+	credToken, err := h.credentialToken(cluster, request)
+	if err != nil {
+		return nil, status, err
+	}
+	if credToken == nil {
+		status.ClusterName = cluster.Name
+		return []runtime.Object{requestSA(saName, cluster, request)}, status, nil
+	}
+	if err := h.confirmRegisteredToken(cluster, request); err != nil {
+		// Retain the error even on a mismatch: the Cluster-change event that
+		// would re-enqueue the request may already have been processed.
+		h.reportTokenMismatch(err)
+		return nil, status, err
 	}
 
 	// delete old cluster registrations
@@ -348,121 +407,53 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 		},
 	}
 
-	// For manager-initiated imports, grant the import service account access
-	// to the specific credential secret it needs to read. The import token
-	// only exists in manager-initiated flows; agent-initiated flows skip this.
-	importTokenName := names.SafeConcatName(config.ImportTokenPrefix + cluster.Name)
-	importToken, err := h.tokenCache.Get(request.Namespace, importTokenName)
-	if err != nil && !apierrors.IsNotFound(err) {
-		return nil, status, fmt.Errorf("failed to look up import token %s/%s: %w", request.Namespace, importTokenName, err)
+	// Grant the registration token's service account access to the
+	// single credential secret for this request.
+	tokenSAName := names.SafeConcatName(credToken.Name, string(credToken.UID))
+	credRoleName := names.SafeConcatName(request.Name, "creds")
+	if cluster.Spec.KubeConfigSecret != "" {
+		credRoleName = names.SafeConcatName(tokenSAName, "creds")
 	}
-	if err == nil {
-		// Grant access scoped to the single credential secret for this cluster.
-		importSAName := names.SafeConcatName(importTokenName, string(importToken.UID))
-		credRoleName := names.SafeConcatName(importSAName, "creds")
-		objs = append(objs,
-			&rbacv1.Role{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      credRoleName,
-					Namespace: h.systemRegistrationNamespace,
-					Labels: map[string]string{
-						fleet.ManagedLabel: "true",
-					},
-				},
-				Rules: []rbacv1.PolicyRule{
-					{
-						Verbs:         []string{"get"},
-						APIGroups:     []string{""},
-						Resources:     []string{"secrets"},
-						ResourceNames: []string{secret.Name},
-					},
+	objs = append(objs,
+		&rbacv1.Role{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      credRoleName,
+				Namespace: h.systemRegistrationNamespace,
+				Labels: map[string]string{
+					fleet.ManagedLabel: "true",
 				},
 			},
-			&rbacv1.RoleBinding{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      credRoleName,
-					Namespace: h.systemRegistrationNamespace,
-					Labels: map[string]string{
-						fleet.ManagedLabel: "true",
-					},
-				},
-				Subjects: []rbacv1.Subject{
-					{
-						Kind:      "ServiceAccount",
-						Name:      importSAName,
-						Namespace: request.Namespace,
-					},
-				},
-				RoleRef: rbacv1.RoleRef{
-					APIGroup: rbacv1.GroupName,
-					Kind:     "Role",
-					Name:     credRoleName,
+			Rules: []rbacv1.PolicyRule{
+				{
+					Verbs:         []string{"get"},
+					APIGroups:     []string{""},
+					Resources:     []string{"secrets"},
+					ResourceNames: []string{secret.Name},
 				},
 			},
-		)
-	} else {
-		// Agent-initiated: no import-token-<cluster> exists because the cluster
-		// is auto-created at registration time. The ClusterRegistration carries
-		// a label identifying the token that was used, so we can grant only
-		// that token's SA scoped read access to the credential secret.
-		tokenName := request.Labels[fleet.RegistrationTokenLabel]
-		if tokenName == "" {
-			log.Log.Info(fmt.Sprintf("ClusterRegistration '%s/%s' has no %s label; cannot grant credential secret access for agent-initiated registration",
-				request.Namespace, request.Name, fleet.RegistrationTokenLabel))
-		} else {
-			agentToken, tokenErr := h.tokenCache.Get(request.Namespace, tokenName)
-			if tokenErr != nil && !apierrors.IsNotFound(tokenErr) {
-				return nil, status, fmt.Errorf("looking up registration token %s/%s: %w", request.Namespace, tokenName, tokenErr)
-			}
-			if apierrors.IsNotFound(tokenErr) {
-				log.Log.Info(fmt.Sprintf("ClusterRegistration '%s/%s': registration token %s/%s not found (may have expired), skipping credential secret access grant",
-					request.Namespace, request.Name, request.Namespace, tokenName))
-				return objs, status, nil
-			}
-			agentSAName := names.SafeConcatName(tokenName, string(agentToken.UID))
-			credRoleName := names.SafeConcatName(request.Name, "creds")
-			objs = append(objs,
-				&rbacv1.Role{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      credRoleName,
-						Namespace: h.systemRegistrationNamespace,
-						Labels: map[string]string{
-							fleet.ManagedLabel: "true",
-						},
-					},
-					Rules: []rbacv1.PolicyRule{
-						{
-							Verbs:         []string{"get"},
-							APIGroups:     []string{""},
-							Resources:     []string{"secrets"},
-							ResourceNames: []string{secret.Name},
-						},
-					},
+		},
+		&rbacv1.RoleBinding{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      credRoleName,
+				Namespace: h.systemRegistrationNamespace,
+				Labels: map[string]string{
+					fleet.ManagedLabel: "true",
 				},
-				&rbacv1.RoleBinding{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      credRoleName,
-						Namespace: h.systemRegistrationNamespace,
-						Labels: map[string]string{
-							fleet.ManagedLabel: "true",
-						},
-					},
-					Subjects: []rbacv1.Subject{
-						{
-							Kind:      "ServiceAccount",
-							Name:      agentSAName,
-							Namespace: request.Namespace,
-						},
-					},
-					RoleRef: rbacv1.RoleRef{
-						APIGroup: rbacv1.GroupName,
-						Kind:     "Role",
-						Name:     credRoleName,
-					},
+			},
+			Subjects: []rbacv1.Subject{
+				{
+					Kind:      "ServiceAccount",
+					Name:      tokenSAName,
+					Namespace: request.Namespace,
 				},
-			)
-		}
-	}
+			},
+			RoleRef: rbacv1.RoleRef{
+				APIGroup: rbacv1.GroupName,
+				Kind:     "Role",
+				Name:     credRoleName,
+			},
+		},
+	)
 
 	return objs, status, nil
 }
@@ -478,19 +469,16 @@ func shouldDelete(creg fleet.ClusterRegistration, request fleet.ClusterRegistrat
 func (h *handler) createOrGetCluster(request *fleet.ClusterRegistration) (*fleet.Cluster, error) {
 	clusters, err := h.clusterCache.GetByIndex(clusterByClientID, fmt.Sprintf("%s/%s", request.Namespace, request.Spec.ClientID))
 	if err == nil && len(clusters) > 0 {
-		return clusters[0], nil
+		return h.existingCluster(clusters[0], request, true)
 	} else if err != nil && !apierrors.IsNotFound(err) {
 		return nil, err
 	}
 
 	clusterName := names.SafeConcatName("cluster", names.KeyHash(request.Spec.ClientID))
-	if cluster, err := h.clusterCache.Get(request.Namespace, clusterName); !apierrors.IsNotFound(err) {
-		if cluster.Spec.ClientID != request.Spec.ClientID {
-			// This would happen with a hash collision
-			return nil, fmt.Errorf("non-matching ClientID on cluster %s/%s got %s expected %s",
-				request.Namespace, clusterName, cluster.Spec.ClientID, request.Spec.ClientID)
-		}
-		return cluster, err
+	if cluster, err := h.clusterCache.Get(request.Namespace, clusterName); err == nil {
+		return h.existingCluster(cluster, request, true)
+	} else if !apierrors.IsNotFound(err) {
+		return nil, err
 	}
 
 	// need to create the cluster for agent initiated registration, local
@@ -501,23 +489,57 @@ func (h *handler) createOrGetCluster(request *fleet.ClusterRegistration) (*fleet
 	}
 	labels[fleet.ClusterAnnotation] = clusterName
 
+	// Record whatever token label the request carries, including an empty
+	// one, so a later request for the same ClientID must match it exactly.
+	annotations := map[string]string{fleet.RegisteredTokenAnnotation: request.Labels[fleet.RegistrationTokenLabel]}
+
 	cluster, err := h.clusters.Create(&fleet.Cluster{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      clusterName,
-			Namespace: request.Namespace,
-			Labels:    labels,
+			Name:        clusterName,
+			Namespace:   request.Namespace,
+			Labels:      labels,
+			Annotations: annotations,
 		},
 		Spec: fleet.ClusterSpec{
 			ClientID: request.Spec.ClientID,
 		},
 	})
 	if apierrors.IsAlreadyExists(err) {
-		return h.clusters.Get(request.Namespace, clusterName, metav1.GetOptions{})
+		cluster, err = h.clusters.Get(request.Namespace, clusterName, metav1.GetOptions{})
+		if err != nil {
+			return nil, err
+		}
+		return h.existingCluster(cluster, request, false)
 	}
 	if err == nil {
 		log.Log.Info(fmt.Sprintf("Created cluster %s/%s", request.Namespace, clusterName))
 	}
 	return cluster, err
+}
+
+// existingCluster returns cluster if it carries the request's ClientID and the
+// request presents the token the cluster is registered with. cached reports
+// whether cluster was read from the informer cache.
+func (h *handler) existingCluster(cluster *fleet.Cluster, request *fleet.ClusterRegistration, cached bool) (*fleet.Cluster, error) {
+	if cluster.Spec.ClientID != request.Spec.ClientID {
+		// The cluster name is a hash of the ClientID, so this is a collision.
+		return nil, fmt.Errorf("non-matching ClientID on cluster %s/%s got %s expected %s",
+			cluster.Namespace, cluster.Name, cluster.Spec.ClientID, request.Spec.ClientID)
+	}
+	err := h.validateSameRegistrant(cluster, request)
+	// A mismatch with the cached annotation may predate a change of the
+	// annotation or kubeConfigSecret, so confirm it on the live Cluster.
+	_, recorded := cluster.Annotations[fleet.RegisteredTokenAnnotation]
+	if _, mismatch := errors.AsType[*registrantMismatchError](err); mismatch && cached && recorded {
+		if cluster, err = h.clusters.Get(cluster.Namespace, cluster.Name, metav1.GetOptions{}); err != nil {
+			return nil, err
+		}
+		err = h.validateSameRegistrant(cluster, request)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return cluster, nil
 }
 
 // sanitizeClusterLabels copies the agent-supplied ClusterLabels while dropping
@@ -549,6 +571,182 @@ func isReservedLabel(key string) bool {
 		return false
 	}
 	return strings.HasPrefix(key, fleet.ManagementLabelPrefix) || strings.HasPrefix(key, fleet.FleetLabelPrefix)
+}
+
+// registrantMismatchError reports a ClusterRegistration whose token differs
+// from the one its Cluster is registered with.
+type registrantMismatchError struct {
+	cluster    *fleet.Cluster
+	request    *fleet.ClusterRegistration
+	registered string
+	requested  string
+}
+
+func (e *registrantMismatchError) Error() string {
+	return fmt.Sprintf("clusterregistration %s/%s: clientID %q already registered on cluster %s/%s with registration token %q, request uses %q",
+		e.request.Namespace, e.request.Name, e.request.Spec.ClientID, e.cluster.Namespace, e.cluster.Name, e.registered, e.requested)
+}
+
+// tokenMismatch returns a registrantMismatchError if request does not present
+// the registered token.
+func tokenMismatch(cluster *fleet.Cluster, request *fleet.ClusterRegistration, registered string) error {
+	if requested := request.Labels[fleet.RegistrationTokenLabel]; requested != registered {
+		return &registrantMismatchError{cluster: cluster, request: request, registered: registered, requested: requested}
+	}
+	return nil
+}
+
+// reportTokenMismatch logs and records a Warning event if err is a
+// registrantMismatchError, and reports whether it was one.
+func (h *handler) reportTokenMismatch(err error) bool {
+	e, ok := errors.AsType[*registrantMismatchError](err)
+	if !ok {
+		return false
+	}
+	log.Log.Error(e, "ClusterRegistration not granted")
+	h.recorder.Eventf(e.cluster, v1.EventTypeWarning, "RegistrationTokenMismatch",
+		"ClusterRegistration %s uses registration token %q, but the cluster is registered with %q; set annotation %s=%s on the cluster to allow it",
+		e.request.Name, e.requested, e.registered, fleet.RegisteredTokenAnnotation, e.requested)
+	return true
+}
+
+// validateSameRegistrant returns an error for a ClusterRegistration of an already
+// registered ClientID if it presents a different registration token than the
+// one the cluster is registered with.
+func (h *handler) validateSameRegistrant(cluster *fleet.Cluster, request *fleet.ClusterRegistration) error {
+	if config.Get().AllowClusterRegistrationTokenChange {
+		return nil
+	}
+	registered, ok, err := h.registeredToken(cluster)
+	if err != nil || !ok {
+		return err
+	}
+	return tokenMismatch(cluster, request, registered)
+}
+
+// registeredToken returns the registration token a Cluster is bound to.
+// Clusters with kubeConfigSecret are not bound, even if they were created by
+// an agent: Fleet deploys their agent with the import token. Agent-initiated
+// clusters without the annotation, e.g. registered by an older release, are
+// bound to the token of their latest granted registration. If several were
+// granted within that second with different tokens, no request matches until
+// the annotation is set.
+func (h *handler) registeredToken(cluster *fleet.Cluster) (string, bool, error) {
+	if cluster.Spec.KubeConfigSecret != "" {
+		return "", false, nil
+	}
+	if token, ok := cluster.Annotations[fleet.RegisteredTokenAnnotation]; ok {
+		return token, true, nil
+	}
+
+	crs, err := h.clusterRegistration.Cache().GetByIndex(clusterRegistrationByClientID,
+		fmt.Sprintf("%s/%s", cluster.Namespace, cluster.Spec.ClientID))
+	if err != nil {
+		return "", false, err
+	}
+	var (
+		latest metav1.Time
+		tokens []string
+	)
+	for _, cr := range crs {
+		if !cr.Status.Granted {
+			continue
+		}
+		token := cr.Labels[fleet.RegistrationTokenLabel]
+		switch {
+		case len(tokens) == 0 || latest.Before(&cr.CreationTimestamp):
+			latest, tokens = cr.CreationTimestamp, []string{token}
+		case latest.Equal(&cr.CreationTimestamp) && !slices.Contains(tokens, token):
+			tokens = append(tokens, token)
+		}
+	}
+	// Read after the history lookup so a binding persisted before history
+	// cleanup remains visible even when the cluster cache is behind.
+	current, err := h.clusters.Get(cluster.Namespace, cluster.Name, metav1.GetOptions{})
+	if err != nil {
+		return "", false, err
+	}
+	if current.Spec.KubeConfigSecret != "" {
+		return "", false, nil
+	}
+	if token, ok := current.Annotations[fleet.RegisteredTokenAnnotation]; ok {
+		return token, true, nil
+	}
+	switch len(tokens) {
+	case 0:
+		return "", false, nil
+	case 1:
+		if err := h.recordRegisteredToken(current, tokens[0]); err != nil {
+			return "", false, err
+		}
+		return tokens[0], true, nil
+	default:
+		// Timestamps have one-second resolution, so the latest granted
+		// registrations cannot be ordered. Token names cannot contain commas:
+		// the joined names match no request until the annotation selects one.
+		slices.Sort(tokens)
+		return strings.Join(tokens, ","), true, nil
+	}
+}
+
+// confirmRegisteredToken checks the same live Cluster snapshot used to
+// select the credential token. A Cluster without a recorded token is bound
+// to the request's token.
+func (h *handler) confirmRegisteredToken(cluster *fleet.Cluster, request *fleet.ClusterRegistration) error {
+	if cluster.Spec.KubeConfigSecret != "" {
+		return nil
+	}
+	registered, ok := cluster.Annotations[fleet.RegisteredTokenAnnotation]
+	if !ok {
+		return h.recordRegisteredToken(cluster, request.Labels[fleet.RegistrationTokenLabel])
+	}
+	if config.Get().AllowClusterRegistrationTokenChange {
+		return nil
+	}
+	return tokenMismatch(cluster, request, registered)
+}
+
+// recordRegisteredToken sets the registered token annotation with an update
+// checked against the resourceVersion of cluster, so that concurrent
+// reconciles cannot record different tokens.
+func (h *handler) recordRegisteredToken(cluster *fleet.Cluster, token string) error {
+	cluster = cluster.DeepCopy()
+	if cluster.Annotations == nil {
+		cluster.Annotations = map[string]string{}
+	}
+	cluster.Annotations[fleet.RegisteredTokenAnnotation] = token
+	if _, err := h.clusters.Update(cluster); err != nil {
+		return fmt.Errorf("recording registration token on cluster %s/%s: %w",
+			cluster.Namespace, cluster.Name, err)
+	}
+	return nil
+}
+
+// credentialToken returns the registration token whose service account may
+// read the registration secret, or nil if that token does not exist. For a
+// cluster Fleet deploys the agent to, this is always its import token, even
+// if the request names another token.
+func (h *handler) credentialToken(cluster *fleet.Cluster, request *fleet.ClusterRegistration) (*fleet.ClusterRegistrationToken, error) {
+	tokenName := request.Labels[fleet.RegistrationTokenLabel]
+	if cluster.Spec.KubeConfigSecret != "" {
+		tokenName = names.SafeConcatName(config.ImportTokenPrefix + cluster.Name)
+	}
+	if tokenName == "" {
+		log.Log.Info(fmt.Sprintf("ClusterRegistration '%s/%s' not granted: no %s label",
+			request.Namespace, request.Name, fleet.RegistrationTokenLabel))
+		return nil, nil
+	}
+
+	token, err := h.tokenCache.Get(request.Namespace, tokenName)
+	if apierrors.IsNotFound(err) {
+		log.Log.Info(fmt.Sprintf("ClusterRegistration '%s/%s' not granted: registration token %s/%s not found",
+			request.Namespace, request.Name, request.Namespace, tokenName))
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("looking up registration token %s/%s: %w", request.Namespace, tokenName, err)
+	}
+	return token, nil
 }
 
 func (h *handler) authorizeCluster(sa *v1.ServiceAccount, cluster *fleet.Cluster, req *fleet.ClusterRegistration) (*v1.Secret, error) {
