@@ -22,6 +22,9 @@ garbageCollectionInterval: "15m"
 # The cluster registration value
 token: ""
 
+# The name of the ClusterRegistrationToken used for this registration
+tokenName: ""
+
 # Labels to add to the cluster upon registration only. They are not added after the fact.
 # labels:
 #   foo: bar

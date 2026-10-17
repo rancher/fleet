@@ -9,3 +9,7 @@
 {{if not .Values.apiServerURL }}
 {{ fail "apiServerURL is required to be set, and most likely also apiServerCA" }}
 {{end}}
+
+{{if not .Values.tokenName }}
+{{ fail "tokenName is required to be set to the name of the ClusterRegistrationToken used for this registration" }}
+{{end}}
