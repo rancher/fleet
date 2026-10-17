@@ -475,8 +475,10 @@ func (h *handler) createOrGetCluster(request *fleet.ClusterRegistration) (*fleet
 	}
 
 	clusterName := names.SafeConcatName("cluster", names.KeyHash(request.Spec.ClientID))
-	if cluster, err := h.clusterCache.Get(request.Namespace, clusterName); !apierrors.IsNotFound(err) {
+	if cluster, err := h.clusterCache.Get(request.Namespace, clusterName); err == nil {
 		return h.existingCluster(cluster, request, true)
+	} else if !apierrors.IsNotFound(err) {
+		return nil, err
 	}
 
 	// need to create the cluster for agent initiated registration, local
