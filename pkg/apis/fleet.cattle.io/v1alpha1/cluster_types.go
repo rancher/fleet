@@ -32,6 +32,17 @@ var (
 	// ClusterRegistrationTokenAnnotation is the namespace of the
 	// clusterregistration, e.g. "fleet-local".
 	ClusterRegistrationNamespaceAnnotation = "fleet.cattle.io/cluster-registration-namespace"
+	// RegistrationTokenLabel is set on a ClusterRegistration to record which
+	// ClusterRegistrationToken was used. The clusterregistration controller
+	// reads this label to grant only that token's SA scoped read access to
+	// the resulting credential secret.
+	RegistrationTokenLabel = "fleet.cattle.io/registration-token"
+	// RegisteredTokenAnnotation is set on a Cluster, recording which
+	// registration token was used to create it during agent-initiated
+	// registration. A later ClusterRegistration claiming the same ClientID
+	// but presenting a different registration token is not granted. Updating
+	// this annotation to another token name allows registering with it.
+	RegisteredTokenAnnotation = "fleet.cattle.io/registered-token"
 	// ManagedLabel is used for clean up. Cluster namespaces and other
 	// resources with this label will be cleaned up. Used in Rancher to
 	// identify fleet namespaces.

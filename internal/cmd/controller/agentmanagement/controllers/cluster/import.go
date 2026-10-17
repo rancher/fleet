@@ -47,7 +47,7 @@ const (
 )
 
 var (
-	ImportTokenPrefix = "import-token-"
+	ImportTokenPrefix = config.ImportTokenPrefix
 
 	errUnavailableAPIServerURL = errors.New("missing apiServerURL in fleet config for cluster auto registration")
 )
