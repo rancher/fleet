@@ -141,6 +141,9 @@ type Config struct {
 	// IgnoreClusterRegistrationLabels if set to true, the labels on the cluster registration resource will not be copied to the cluster resource.
 	IgnoreClusterRegistrationLabels bool `json:"ignoreClusterRegistrationLabels,omitempty"`
 
+	// AllowClusterRegistrationTokenChange if set to true, an existing cluster can be registered again with any registration token.
+	AllowClusterRegistrationTokenChange bool `json:"allowClusterRegistrationTokenChange,omitempty"`
+
 	// AgentTLSMode supports two values: `system-store` and `strict`. If set to `system-store`, instructs the agent
 	// to trust CA bundles from the operating system's store. If set to `strict`, then the agent shall only connect
 	// to a server which uses the exact CA configured when creating/updating the agent.
