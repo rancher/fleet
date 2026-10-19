@@ -661,6 +661,17 @@ func pushOCIManifest(ctx context.Context, bundle *fleet.Bundle, opts ocistorage.
 	return manifestID, nil
 }
 
+// checkRepoOwner rejects overwriting an existing bundle which is owned by a
+// different GitRepo, e.g. when two GitRepos use the same explicit bundle name.
+func checkRepoOwner(existing, updated *fleet.Bundle) error {
+	have := existing.Labels[fleet.RepoLabel]
+	want := updated.Labels[fleet.RepoLabel]
+	if have != "" && want != "" && have != want {
+		return fmt.Errorf("bundle %q already exists and belongs to GitRepo %q, it cannot be overwritten by GitRepo %q", existing.Name, have, want)
+	}
+	return nil
+}
+
 func save(ctx context.Context, c client.Client, bundle *fleet.Bundle) (*fleet.Bundle, error) {
 	updated := bundle.DeepCopy()
 	result, err := controllerutil.CreateOrUpdate(ctx, c, bundle, func() error {
@@ -670,6 +681,9 @@ func save(ctx context.Context, c client.Client, bundle *fleet.Bundle) (*fleet.Bu
 		// We cannot update a bundle that is going to be deleted, our update would be lost
 		if bundle.DeletionTimestamp != nil {
 			return fmt.Errorf("the bundle %q is being deleted", bundle.Name)
+		}
+		if err := checkRepoOwner(bundle, updated); err != nil {
+			return err
 		}
 
 		if bundle.Spec.ContentsID != "" {
@@ -731,6 +745,9 @@ func saveOCIBundle(ctx context.Context, c client.Client, r record.EventRecorder,
 
 		if bundle.Spec.HelmOpOptions != nil {
 			return fmt.Errorf("a helmOps bundle with name %q already exists", bundle.Name)
+		}
+		if err := checkRepoOwner(bundle, updated); err != nil {
+			return err
 		}
 
 		// If the current manifestID is different from the previous one,

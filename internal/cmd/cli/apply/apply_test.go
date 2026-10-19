@@ -353,3 +353,52 @@ func TestCreateBundlesContinuesAfterWalkError(t *testing.T) {
 		t.Fatalf("did not expect output from the directory walk that failed, got %q", output.String())
 	}
 }
+
+func TestSaveRejectsBundleOwnedByAnotherGitRepo(t *testing.T) {
+	scheme := runtime.NewScheme()
+	if err := fleet.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	newBundle := func(repo, ref string) *fleet.Bundle {
+		return &fleet.Bundle{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "collision-demo",
+				Namespace: "fleet-default",
+				Labels:    map[string]string{fleet.RepoLabel: repo},
+			},
+			Spec: fleet.BundleSpec{
+				BundleDeploymentOptions: fleet.BundleDeploymentOptions{DefaultNamespace: ref},
+			},
+		}
+	}
+
+	c := fake.NewClientBuilder().WithScheme(scheme).Build()
+	ctx := context.Background()
+
+	if _, err := save(ctx, c, newBundle("app-prod", "v1")); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := save(ctx, c, newBundle("app-dev", "dev"))
+	if err == nil || !strings.Contains(err.Error(), `"app-prod"`) || !strings.Contains(err.Error(), `"app-dev"`) {
+		t.Fatalf("expected ownership collision error naming both GitRepos, got %v", err)
+	}
+
+	got := &fleet.Bundle{}
+	if err := c.Get(ctx, types.NamespacedName{Namespace: "fleet-default", Name: "collision-demo"}, got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Labels[fleet.RepoLabel] != "app-prod" || got.Spec.DefaultNamespace != "v1" {
+		t.Fatalf("existing bundle was modified: %v %q", got.Labels, got.Spec.DefaultNamespace)
+	}
+
+	if _, err := save(ctx, c, newBundle("app-prod", "v2")); err != nil {
+		t.Fatalf("update from owner must succeed: %v", err)
+	}
+	if err := c.Get(ctx, types.NamespacedName{Namespace: "fleet-default", Name: "collision-demo"}, got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Spec.DefaultNamespace != "v2" {
+		t.Fatalf("owner update not applied: %q", got.Spec.DefaultNamespace)
+	}
+}
