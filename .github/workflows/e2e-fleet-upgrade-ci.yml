@@ -76,6 +76,9 @@ jobs:
             chmod +x ~/.local/bin/k3d
           fi
       -
+        name: Free Disk Space
+        run: ./.github/scripts/free-disk-space.sh
+      -
         name: Provision k3d Cluster
         run: |
           k3d cluster create upstream --wait \
