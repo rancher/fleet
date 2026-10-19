@@ -48,12 +48,14 @@ func configObjects(controllerNamespace string, co *ConfigOptions) ([]runtime.Obj
 		return nil, err
 	}
 	cm.Name = "fleet-agent"
-	return []runtime.Object{
-		&corev1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: controllerNamespace,
-			},
+	ns := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: controllerNamespace,
 		},
+	}
+	config.Get().ApplyRancherNamespaceLabelsAndAnnotations(ns)
+	return []runtime.Object{
+		ns,
 		cm,
 	}, nil
 }
