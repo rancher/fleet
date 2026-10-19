@@ -39,6 +39,7 @@ data:
         "maxCauses": {{toJson .maxCauses}}
       },
       {{- end }}
+      "allowClusterRegistrationTokenChange": {{.Values.allowClusterRegistrationTokenChange | default false}},
       "bootstrap": {
         "paths": "{{.Values.bootstrap.paths}}",
         "repo": "{{.Values.bootstrap.repo}}",

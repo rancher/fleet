@@ -145,15 +145,19 @@ func newClusterRegistrationToken(namespace, name string, ttl *metav1.Duration) *
 }
 
 // newClusterRegistration returns a ClusterRegistration identifying itself with
-// the given client ID and client random.
-func newClusterRegistration(namespace, name, clientID, clientRandom string) *fleet.ClusterRegistration {
-	return &fleet.ClusterRegistration{
+// the given client ID, client random, and optional registration token.
+func newClusterRegistration(namespace, name, clientID, clientRandom, tokenName string) *fleet.ClusterRegistration {
+	cr := &fleet.ClusterRegistration{
 		ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name},
 		Spec: fleet.ClusterRegistrationSpec{
 			ClientID:     clientID,
 			ClientRandom: clientRandom,
 		},
 	}
+	if tokenName != "" {
+		cr.Labels = map[string]string{fleet.RegistrationTokenLabel: tokenName}
+	}
+	return cr
 }
 
 // populateServiceAccountTokenSecret waits for the "<saName>-token" Secret to
