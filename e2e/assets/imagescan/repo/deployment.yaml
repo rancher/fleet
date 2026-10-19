@@ -1,21 +1,19 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: nginx-deployment
+  name: pause-imagescan
   labels:
-    app: nginx
+    app: pause
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: nginx
+      app: pause
   template:
     metadata:
       labels:
-        app: nginx
+        app: pause
     spec:
       containers:
-      - name: nginx
-        image: public.ecr.aws/nginx/nginx:latest # {"$imagescan": "test-scan:digest"}
-        ports:
-        - containerPort: 80
+      - name: pause
+        image: registry.k8s.io/pause:latest # {"$imagescan": "test-scan:digest"}
