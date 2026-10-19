@@ -21,6 +21,8 @@ const (
 	statusOldTimestamp   = "2026-01-01T00:00:00Z"
 	statusBDNotReadyMsg  = "NotReady(1) [Bundle bd]"
 	statusNoHelmErrMsg   = "helm options are empty in the HelmOp's spec"
+	statusBundleErrMsg   = "targeting error: invalid cluster selector"
+	statusRollingOutMsg  = "WaitApplied(1) [Cluster fleet-local/local]"
 )
 
 func TestStatusReconcile_ReadyCondition(t *testing.T) {
@@ -80,6 +82,47 @@ func TestStatusReconcile_ReadyCondition(t *testing.T) {
 			objs:          []crclient.Object{statusBundleDeployment(false)},
 			expectStatus:  corev1.ConditionFalse,
 			expectMessage: statusBDNotReadyMsg,
+		},
+		// Bundle errors happen before bundle deployments exist, so that they
+		// would otherwise be hidden by an empty, ready summary.
+		"bundle error sets Ready=False": {
+			conditions: []genericcondition.GenericCondition{
+				statusCondition(fleet.HelmOpAcceptedCondition, corev1.ConditionTrue, "", ""),
+			},
+			objs:                 []crclient.Object{statusErrorBundle("helmop")},
+			expectStatus:         corev1.ConditionFalse,
+			expectReason:         "Error",
+			expectMessage:        statusBundleErrMsg,
+			expectKept:           true,
+			expectDisplayMessage: statusBundleErrMsg,
+		},
+		"Accepted=False does not override a bundle error": {
+			conditions: []genericcondition.GenericCondition{
+				statusCondition(fleet.HelmOpAcceptedCondition, corev1.ConditionFalse, "Error", statusAcceptedErrMsg),
+				statusCondition(string(fleet.Ready), corev1.ConditionFalse, "Error", statusAcceptedErrMsg),
+			},
+			objs:                 []crclient.Object{statusErrorBundle("helmop")},
+			expectStatus:         corev1.ConditionFalse,
+			expectReason:         "Error",
+			expectMessage:        statusBundleErrMsg,
+			expectKept:           true,
+			expectDisplayMessage: statusBundleErrMsg,
+		},
+		"bundle error of another HelmOp is ignored": {
+			conditions: []genericcondition.GenericCondition{
+				statusCondition(fleet.HelmOpAcceptedCondition, corev1.ConditionTrue, "", ""),
+			},
+			objs:         []crclient.Object{statusErrorBundle("other")},
+			expectStatus: corev1.ConditionTrue,
+		},
+		"rolling out bundle sets Ready=False without a Display error": {
+			conditions: []genericcondition.GenericCondition{
+				statusCondition(fleet.HelmOpAcceptedCondition, corev1.ConditionTrue, "", ""),
+			},
+			objs:          []crclient.Object{statusWaitAppliedBundleDeployment(), statusRollingOutBundle()},
+			expectStatus:  corev1.ConditionFalse,
+			expectMessage: statusRollingOutMsg,
+			expectKept:    true,
 		},
 		"Ready=False from Accepted is cleared once accepted": {
 			conditions: []genericcondition.GenericCondition{
@@ -194,6 +237,47 @@ func statusBundleDeployment(isReady bool) *fleet.BundleDeployment {
 			AppliedDeploymentID: "id",
 			Ready:               isReady,
 			NonModified:         true,
+		},
+	}
+}
+
+// statusErrorBundle returns a bundle of the given HelmOp which failed before
+// creating any bundle deployment for its matched target.
+func statusErrorBundle(helmop string) *fleet.Bundle {
+	return &fleet.Bundle{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      helmop,
+			Namespace: "fleet-local",
+			Labels:    map[string]string{fleet.HelmOpLabel: helmop},
+		},
+		Status: fleet.BundleStatus{
+			Summary: fleet.BundleSummary{Pending: 1, DesiredReady: 1},
+			Conditions: []genericcondition.GenericCondition{
+				statusCondition(string(fleet.Ready), corev1.ConditionFalse, "Error", statusBundleErrMsg),
+			},
+		},
+	}
+}
+
+func statusWaitAppliedBundleDeployment() *fleet.BundleDeployment {
+	bd := statusBundleDeployment(false)
+	bd.Spec.DeploymentID = "new-id"
+	bd.Spec.StagedDeploymentID = "new-id"
+	return bd
+}
+
+func statusRollingOutBundle() *fleet.Bundle {
+	return &fleet.Bundle{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "helmop",
+			Namespace: "fleet-local",
+			Labels:    map[string]string{fleet.HelmOpLabel: "helmop"},
+		},
+		Status: fleet.BundleStatus{
+			Summary: fleet.BundleSummary{WaitApplied: 1, DesiredReady: 1},
+			Conditions: []genericcondition.GenericCondition{
+				statusCondition(string(fleet.Ready), corev1.ConditionFalse, "", statusRollingOutMsg),
+			},
 		},
 	}
 }

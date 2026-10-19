@@ -94,6 +94,38 @@ func TestStatusReconcile_ReadyCondition(t *testing.T) {
 			expectDisplayMessage: bundleErrMsg,
 			expectTimestamp:      bundleTimestamp,
 		},
+		// A bundle's own summary counts targets, not deployments, so it cannot
+		// tell whether a bundle deployment reports the error already.
+		"bundle error with targets but no bundle deployments sets a Display error": {
+			conditions: []genericcondition.GenericCondition{
+				accepted(corev1.ConditionTrue, ""),
+			},
+			objs:                 []client.Object{withTargets(renderErrorBundle())},
+			expectStatus:         corev1.ConditionFalse,
+			expectReason:         "RenderError",
+			expectMessage:        bundleErrMsg,
+			expectDisplayMessage: bundleErrMsg,
+			expectTimestamp:      bundleTimestamp,
+		},
+		"bundle error with ready bundle deployments from a previous commit sets a Display error": {
+			conditions: []genericcondition.GenericCondition{
+				accepted(corev1.ConditionTrue, ""),
+			},
+			objs:                 []client.Object{bundleDeployment(true), withTargets(renderErrorBundle())},
+			expectStatus:         corev1.ConditionFalse,
+			expectReason:         "RenderError",
+			expectMessage:        bundleErrMsg,
+			expectDisplayMessage: bundleErrMsg,
+			expectTimestamp:      bundleTimestamp,
+		},
+		"bundle error of another GitRepo is ignored": {
+			conditions: []genericcondition.GenericCondition{
+				accepted(corev1.ConditionTrue, ""),
+			},
+			objs:            []client.Object{otherRepo(renderErrorBundle())},
+			expectStatus:    corev1.ConditionTrue,
+			expectTimestamp: updated,
+		},
 		"restriction violation sets Ready=False": {
 			conditions: []genericcondition.GenericCondition{
 				accepted(corev1.ConditionFalse, restrictionErrMsg),
@@ -415,4 +447,16 @@ func rollingOutBundle() *fleet.Bundle {
 			},
 		},
 	}
+}
+
+// withTargets sets the summary the bundle reconciler computes from matched
+// targets, before any bundle deployment exists for them.
+func withTargets(bundle *fleet.Bundle) *fleet.Bundle {
+	bundle.Status.Summary = fleet.BundleSummary{Pending: 1, DesiredReady: 1}
+	return bundle
+}
+
+func otherRepo(bundle *fleet.Bundle) *fleet.Bundle {
+	bundle.Labels[fleet.RepoLabel] = "other"
+	return bundle
 }

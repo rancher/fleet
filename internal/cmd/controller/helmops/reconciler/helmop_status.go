@@ -98,7 +98,12 @@ func (r *HelmOpStatusReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	orig := helmop.DeepCopy()
 
-	err = setStatusHelm(bdList, helmop)
+	notReadyBundle, err := status.NotReadyBundle(ctx, r.Client, helmop.Namespace, fleet.HelmOpLabel, helmop.Name)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	err = setStatusHelm(bdList, notReadyBundle, helmop)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -126,7 +131,7 @@ func (r *HelmOpStatusReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	return ctrl.Result{}, nil
 }
 
-func setStatusHelm(list *fleet.BundleDeploymentList, helmop *fleet.HelmOp) error {
+func setStatusHelm(list *fleet.BundleDeploymentList, notReadyBundle *fleet.Bundle, helmop *fleet.HelmOp) error {
 	// sort bundledeployments so lists in status are always in the same order
 	sort.Slice(list.Items, func(i, j int) bool {
 		return list.Items[i].UID < list.Items[j].UID
@@ -139,7 +144,7 @@ func setStatusHelm(list *fleet.BundleDeploymentList, helmop *fleet.HelmOp) error
 
 	resourcestatus.SetResources(list.Items, &helmop.Status.StatusBase)
 
-	status.SetReadyCondition(&helmop.Status.StatusBase, nil, fleet.HelmOpAcceptedCondition)
+	status.SetReadyCondition(&helmop.Status.StatusBase, notReadyBundle, fleet.HelmOpAcceptedCondition)
 
 	helmop.Status.Display.ReadyBundleDeployments = fmt.Sprintf("%d/%d",
 		helmop.Status.Summary.Ready,

@@ -1,13 +1,43 @@
 package status
 
 import (
+	"context"
+	"sort"
+
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/wrangler/v3/pkg/condition"
 	"github.com/rancher/wrangler/v3/pkg/genericcondition"
 
 	corev1 "k8s.io/api/core/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
+
+// NotReadyBundle returns the first bundle in namespace with the given label
+// which is not ready, or nil. Its Ready condition needs to be made explicitly
+// visible in the status of the GitRepo or HelmOp owning it, since the other
+// statuses are calculated from bundle deployments, which do not exist when
+// rendering manifests or targeting fail.
+func NotReadyBundle(ctx context.Context, c client.Reader, namespace, label, value string) (*fleet.Bundle, error) {
+	bList := &fleet.BundleList{}
+	err := c.List(ctx, bList, client.MatchingLabels{label: value}, client.InNamespace(namespace))
+	if err != nil {
+		return nil, err
+	}
+
+	// Make sure the bundles are always iterated in the same order
+	sort.Slice(bList.Items, func(i, j int) bool {
+		return bList.Items[i].UID < bList.Items[j].UID
+	})
+
+	for i, bundle := range bList.Items {
+		if _, ok := falseCondition(bundle.Status.Conditions, string(fleet.Ready)); ok {
+			return &bList.Items[i], nil
+		}
+	}
+
+	return nil, nil
+}
 
 // SetReadyCondition computes the Ready condition of a GitRepo or HelmOp
 // status, from, in order of precedence:
@@ -32,20 +62,25 @@ import (
 // It expects status.Summary and status.Display to be set from bundle
 // deployments already, see SetFields. When Ready reflects an error which no
 // bundle deployment does, the Display message and error are set from it too.
-// This is not the case for a bundle which has deployments: it is not ready
-// while they are, eg. during a rollout, which is not an error.
+// A bundle is also not ready while its deployments are, eg. during a rollout,
+// which is not an error. Hence a bundle's Ready condition is only displayed as
+// an error when all bundle deployments are ready, or none exist. The bundle's
+// own summary cannot tell those apart: it counts targets, not deployments, and
+// is left stale when the bundle reconciler fails before computing it.
 func SetReadyCondition(status *fleet.StatusBase, notReadyBundle *fleet.Bundle, acceptedType string) {
+	deploymentsReady := summary.ReadyMessage(status.Summary, "Bundle") == ""
+
 	if notReadyBundle != nil {
 		if ready, ok := falseCondition(notReadyBundle.Status.Conditions, string(fleet.Ready)); ok {
 			setCondition(status, ready)
-			if notReadyBundle.Status.Summary.DesiredReady == 0 {
+			if deploymentsReady {
 				setDisplayError(status, ready.Message)
 			}
 			return
 		}
 	}
 
-	if summary.ReadyMessage(status.Summary, "Bundle") == "" {
+	if deploymentsReady {
 		if accepted, ok := falseCondition(status.Conditions, acceptedType); ok {
 			c := condition.Cond(fleet.Ready)
 			c.SetStatusBool(status, false)

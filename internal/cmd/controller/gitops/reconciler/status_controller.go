@@ -11,7 +11,6 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/durations"
 	"github.com/rancher/fleet/pkg/sharding"
-	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -167,43 +166,13 @@ func setStatus(list *fleet.BundleDeploymentList, gitrepo *fleet.GitRepo) error {
 // setReadyCondition computes the GitRepo's Ready condition, see
 // status.SetReadyCondition.
 func (r StatusReconciler) setReadyCondition(ctx context.Context, gitrepo *fleet.GitRepo) error {
-	notReadyBundle, err := r.notReadyBundle(ctx, gitrepo)
+	notReadyBundle, err := status.NotReadyBundle(ctx, r.Client, gitrepo.Namespace, fleet.RepoLabel, gitrepo.Name)
 	if err != nil {
 		return err
 	}
 	status.SetReadyCondition(&gitrepo.Status.StatusBase, notReadyBundle, fleet.GitRepoAcceptedCondition)
 
 	return nil
-}
-
-// notReadyBundle returns the first bundle from the given gitrepo which is not ready, or nil. Its
-// Ready condition needs to be made explicitly visible in the gitrepo status since the other
-// statuses are calculated from bundle deployments, which do not exist when rendering manifests
-// fail.
-func (r StatusReconciler) notReadyBundle(ctx context.Context, gitrepo *fleet.GitRepo) (*fleet.Bundle, error) {
-	bList := &fleet.BundleList{}
-	err := r.List(ctx, bList, client.MatchingLabels{
-		fleet.RepoLabel: gitrepo.Name,
-	}, client.InNamespace(gitrepo.Namespace))
-	if err != nil {
-		return nil, err
-	}
-
-	// Make sure the bundles are always iterated in the same order
-	// The code below will pick the first element matching the condition, so successive executions should produce the same result.
-	sort.Slice(bList.Items, func(i, j int) bool {
-		return bList.Items[i].UID < bList.Items[j].UID
-	})
-
-	for i, bundle := range bList.Items {
-		for _, c := range bundle.Status.Conditions {
-			if c.Type == string(fleet.Ready) && c.Status == v1.ConditionFalse {
-				return &bList.Items[i], nil
-			}
-		}
-	}
-
-	return nil, nil
 }
 
 type forcedDelayingSource[R comparable] struct {
