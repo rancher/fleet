@@ -10,7 +10,10 @@ imageScans:
       order: asc
 
   # specify images to scan
-  image: "public.ecr.aws/nginx/nginx"
+  # not using a Docker Hub or AWS ECR Public image here: AWS ECR Public throttles
+  # anonymous requests with "TOOMANYREQUESTS", which stalls the image scan and
+  # makes this test flaky.
+  image: "registry.k8s.io/pause"
 
   # Specify the tag name, it has to be unique in the same bundle
   tagName: test-scan
