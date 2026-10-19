@@ -49,21 +49,21 @@ var _ = Describe("Image Scan", Label("infra-setup"), func() {
 			Eventually(func() string {
 				out, _ := k.Namespace("default").Get("pods")
 				return out
-			}).Should(ContainSubstring("nginx-"))
+			}).Should(ContainSubstring("pause-imagescan-"))
 
 			By("checking for the original docker reference")
 			Eventually(func() string {
 				out, _ := k.Get("bundles", "imagescan-examples", "-o", "yaml")
 				return out
 			}).Should(
-				MatchRegexp(`image: public\.ecr\.aws\/nginx\/nginx:latest # {"\$imagescan": "test-scan:digest"}`))
+				MatchRegexp(`image: registry\.k8s\.io\/pause:latest # {"\$imagescan": "test-scan:digest"}`))
 
 			By("checking for the updated docker reference")
 			Eventually(func() string {
 				out, _ := k.Get("bundles", "imagescan-examples", "-o", "yaml")
 				return out
 			}).Should(
-				MatchRegexp(`image: public\.ecr\.aws\/nginx\/nginx:[0-9][.0-9]*@sha256:[0-9a-f]{64} # {"\$imagescan": "test-scan:digest"}`))
+				MatchRegexp(`image: registry\.k8s\.io\/pause:[0-9][.0-9]*@sha256:[0-9a-f]{64} # {"\$imagescan": "test-scan:digest"}`))
 
 		})
 	})
