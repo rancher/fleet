@@ -443,26 +443,15 @@ func processTemplateValuesData(helmTemplateData map[string]string, templateConte
 	renderedValues := make(map[string]any, len(helmTemplateData))
 
 	for k, v := range helmTemplateData {
-		// fleet.yaml must be valid yaml, however '{}[]' are YAML control
-		// characters and will be interpreted as JSON data structures. This
-		// causes issues when parsing the fleet.yaml so we change the delims
-		// for templating to '${ }'
-		tmpl := template.New("values").Funcs(tplFuncMap()).Option("missingkey=error").Delims("${", "}")
-		tmpl, err := tmpl.Parse(v)
+		tmpl, err := renderTemplate(v, templateContext)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse helm values template: %w", err)
-		}
-
-		var b bytes.Buffer
-		err = tmpl.Execute(&b, templateContext)
-		if err != nil {
-			return nil, fmt.Errorf("failed to render helm values template: %w", err)
+			return nil, fmt.Errorf("helm values data: %w", err)
 		}
 
 		var value any
-		err = kyaml.Unmarshal(b.Bytes(), &value)
+		err = kyaml.Unmarshal([]byte(tmpl), &value)
 		if err != nil {
-			return nil, fmt.Errorf("failed to interpret rendered template as helm values: %s, %w", b.String(), err)
+			return nil, fmt.Errorf("failed to interpret rendered template as helm values: %s, %w", tmpl, err)
 		}
 
 		renderedValues[k] = value
@@ -471,7 +460,6 @@ func processTemplateValuesData(helmTemplateData map[string]string, templateConte
 	return renderedValues, nil
 }
 
-// processTemplateStrings renders each "${ }" template in a string map, e.g. namespace labels.
 // It returns a new map, so maps shared with the bundle are not modified.
 func processTemplateStrings(data map[string]string, templateContext map[string]any) (map[string]string, error) {
 	if data == nil {
@@ -485,21 +473,31 @@ func processTemplateStrings(data map[string]string, templateContext map[string]a
 			continue
 		}
 
-		tmpl := template.New("value").Funcs(tplFuncMap()).Option("missingkey=error").Delims("${", "}")
-		tmpl, err := tmpl.Parse(v)
+		tmpl, err := renderTemplate(v, templateContext)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse template for key %q: %w", k, err)
+			return nil, fmt.Errorf("key %q: %w", k, err)
 		}
 
-		var b bytes.Buffer
-		if err := tmpl.Execute(&b, templateContext); err != nil {
-			return nil, fmt.Errorf("failed to render template for key %q: %w", k, err)
-		}
-
-		rendered[k] = b.String()
+		rendered[k] = tmpl
 	}
 
 	return rendered, nil
+}
+
+// fleet.yaml must be valid yaml, however '{}[]' are YAML control
+// characters and will be interpreted as JSON data structures. This
+// causes issues when parsing the fleet.yaml so we change the delims
+// for templating to '${ }'
+func renderTemplate(text string, templateContext map[string]any) (string, error) {
+	tmpl, err := template.New("values").Funcs(tplFuncMap()).Option("missingkey=error").Delims("${", "}").Parse(text)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse template: %w", err)
+	}
+	var b bytes.Buffer
+	if err := tmpl.Execute(&b, templateContext); err != nil {
+		return "", fmt.Errorf("failed to render template: %w", err)
+	}
+	return b.String(), nil
 }
 
 func processTemplateValues(helmValues map[string]any, templateContext map[string]any) (map[string]any, error) {
@@ -508,24 +506,13 @@ func processTemplateValues(helmValues map[string]any, templateContext map[string
 		return nil, fmt.Errorf("failed to marshal helm values section into a template: %w", err)
 	}
 
-	// fleet.yaml must be valid yaml, however '{}[]' are YAML control
-	// characters and will be interpreted as JSON data structures. This
-	// causes issues when parsing the fleet.yaml so we change the delims
-	// for templating to '${ }'
-	tmpl := template.New("values").Funcs(tplFuncMap()).Option("missingkey=error").Delims("${", "}")
-	tmpl, err = tmpl.Parse(string(data))
+	tmpl, err := renderTemplate(string(data), templateContext)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse helm values template: %w", err)
-	}
-
-	var b bytes.Buffer
-	err = tmpl.Execute(&b, templateContext)
-	if err != nil {
-		return nil, fmt.Errorf("failed to render helm values template: %w", err)
+		return nil, fmt.Errorf("helm values: %w", err)
 	}
 
 	var renderedValues map[string]any
-	err = kyaml.Unmarshal(b.Bytes(), &renderedValues)
+	err = kyaml.Unmarshal([]byte(tmpl), &renderedValues)
 	if err != nil {
 		return nil, fmt.Errorf("failed to interpret rendered template as helm values: %#v, %w", renderedValues, err)
 	}

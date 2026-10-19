@@ -45,7 +45,7 @@ namespaceLabels:
 			bundleYaml: `namespaceLabels:
   env: "${ .ClusterLabels.missing }"
 `,
-			expectedErr: `namespaceLabels: failed to render template for key "env"`,
+			expectedErr: `namespaceLabels: key "env": failed to render template`,
 		},
 	}
 
