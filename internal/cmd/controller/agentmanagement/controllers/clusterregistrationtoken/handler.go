@@ -130,9 +130,9 @@ func (h *handler) OnChange(token *fleet.ClusterRegistrationToken, status fleet.C
 
 	// Add service account, e.g.: import-token-local in the system
 	// registration namespace. This account is used during registration to
-	// access secrets in the system registration namespace
-	// 'cattle-fleet-clusters-system' and clusterregistrations in the
-	// cluster registration namespace (e.g. 'fleet-default').
+	// create clusterregistrations in the cluster registration namespace
+	// (e.g. 'fleet-default'). The clusterregistration controller grants
+	// access to the specific credential secret separately.
 	return append([]runtime.Object{
 		&corev1.ServiceAccount{
 			ObjectMeta: metav1.ObjectMeta{
@@ -180,37 +180,6 @@ func (h *handler) OnChange(token *fleet.ClusterRegistrationToken, status fleet.C
 				Name:     names.SafeConcatName(saName, "role"),
 			},
 		},
-		&rbacv1.Role{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      names.SafeConcatName(saName, "creds"),
-				Namespace: h.systemRegistrationNamespace,
-			},
-			Rules: []rbacv1.PolicyRule{
-				{
-					Verbs:     []string{"get"},
-					APIGroups: []string{""},
-					Resources: []string{"secrets"},
-				},
-			},
-		},
-		&rbacv1.RoleBinding{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      names.SafeConcatName(saName, "creds"),
-				Namespace: h.systemRegistrationNamespace,
-			},
-			Subjects: []rbacv1.Subject{
-				{
-					Kind:      "ServiceAccount",
-					Name:      saName,
-					Namespace: token.Namespace,
-				},
-			},
-			RoleRef: rbacv1.RoleRef{
-				APIGroup: rbacv1.GroupName,
-				Kind:     "Role",
-				Name:     names.SafeConcatName(saName, "creds"),
-			},
-		},
 	}, secrets...), status, nil
 }
 
@@ -234,6 +203,7 @@ func (h *handler) clusterRegistrationSecret(token *fleet.ClusterRegistrationToke
 		config.APIServerCAKey:         string(config.Get().APIServerCA),
 		"token":                       string(secret.Data["token"]), // from service account
 		"systemRegistrationNamespace": h.systemRegistrationNamespace,
+		"tokenName":                   token.Name,
 	}
 
 	if h.systemNamespace != config.DefaultNamespace {
