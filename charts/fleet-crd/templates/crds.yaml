@@ -5225,6 +5225,11 @@ spec:
                 description: |-
                   KubeConfigSecretNamespace is the namespace of the secret containing the kubeconfig for the downstream cluster.
                   If unset, it will be assumed the secret can be found in the namespace that the Cluster object resides within.
+                  A secret in a different namespace is only used if it carries the label
+                  fleet.cattle.io/kubeconfig-referenceable-from set to the Cluster's namespace,
+                  or, if the fleet-controller setting allowUnlabeledKubeConfigSecretNamespaces
+                  is enabled, if that label is missing or empty and the secret is in one of
+                  Fleet's well-known namespaces.
                 nullable: true
                 type: string
               paused:
