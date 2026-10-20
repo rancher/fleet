@@ -28,13 +28,15 @@ var _ = Describe("Single Cluster Examples", func() {
 		gitrepo := path.Join(tmpdir, "gitrepo.yaml")
 
 		err := testenv.Template(gitrepo, testenv.AssetPath(asset), struct {
-			Repo       string
-			Path       string
-			SecretName string
+			Repo             string
+			Path             string
+			SecretName       string
+			HelmRepoURLRegex string
 		}{
 			"https://github.com/rancher/fleet-test-data",
 			"helm-oci-with-auth",
 			"helm-oci-secret",
+			"oci://.*",
 		})
 		Expect(err).ToNot(HaveOccurred())
 
