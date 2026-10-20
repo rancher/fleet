@@ -144,6 +144,15 @@ type Config struct {
 	// AllowClusterRegistrationTokenChange if set to true, an existing cluster can be registered again with any registration token.
 	AllowClusterRegistrationTokenChange bool `json:"allowClusterRegistrationTokenChange,omitempty"`
 
+	// AllowUnlabeledKubeConfigSecretNamespaces, if set to true, lets a Cluster
+	// reference a kubeconfig secret in one of Fleet's well-known namespaces
+	// from a different namespace without that secret carrying the
+	// fleet.cattle.io/kubeconfig-referenceable-from label, or with an empty
+	// label value. A nonempty label still limits references to its namespace.
+	// Deploying an agent onto the management cluster stays limited to Clusters
+	// in the bootstrap and system namespaces either way.
+	AllowUnlabeledKubeConfigSecretNamespaces bool `json:"allowUnlabeledKubeConfigSecretNamespaces,omitempty"`
+
 	// AgentTLSMode supports two values: `system-store` and `strict`. If set to `system-store`, instructs the agent
 	// to trust CA bundles from the operating system's store. If set to `strict`, then the agent shall only connect
 	// to a server which uses the exact CA configured when creating/updating the agent.
