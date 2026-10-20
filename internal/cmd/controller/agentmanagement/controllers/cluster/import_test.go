@@ -1,6 +1,9 @@
 package cluster
 
 import (
+	"context"
+	"errors"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -10,11 +13,20 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	kubernetesfake "k8s.io/client-go/kubernetes/fake"
 
+	fleetns "github.com/rancher/fleet/internal/cmd/controller/namespace"
 	"github.com/rancher/fleet/internal/config"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
+
+// localBootstrapNamespace is the bootstrap namespace the local cluster lives in
+// throughout these tests; it must match the cluster objects' Namespace for the
+// bootstrap namespace check to recognize them.
+const localBootstrapNamespace = "fleet-local"
 
 func TestOnConfig(t *testing.T) {
 	cases := map[string]struct {
@@ -365,10 +377,11 @@ func TestOnConfig(t *testing.T) {
 	}
 }
 
-func TestOnConfig_DisallowedNamespace(t *testing.T) {
-	// A cluster with kubeConfigSecretNamespace set to a disallowed namespace
-	// must be silently skipped during onConfig — the controller must not read
-	// any secret from that namespace.
+func TestOnConfig_UnreferenceableSecret(t *testing.T) {
+	// A cluster whose kubeconfig secret lives in another namespace and does
+	// not accept references from the cluster's namespace must be skipped
+	// during onConfig: no config change is recorded for it.
+	config.Set(&config.Config{})
 	cfg := config.Config{
 		APIServerCA:  []byte("foo"),
 		APIServerURL: "https://hello.world",
@@ -377,7 +390,9 @@ func TestOnConfig_DisallowedNamespace(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	secretsCache := fake.NewMockCacheInterface[*corev1.Secret](ctrl)
-	// secretsCache.Get must never be called for the disallowed namespace.
+	secretsCache.EXPECT().Get("kube-system", "some-secret").Return(&corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "some-secret", Namespace: "kube-system"},
+	}, nil)
 
 	clustersCache := fake.NewMockCacheInterface[*fleet.Cluster](ctrl)
 	clustersCache.EXPECT().List("", gomock.Eq(labels.Everything())).Return([]*fleet.Cluster{
@@ -390,120 +405,522 @@ func TestOnConfig_DisallowedNamespace(t *testing.T) {
 		},
 	}, nil)
 
+	// clusters is nil: recording a config change would panic.
 	ih := importHandler{clustersCache: clustersCache, secretsCache: secretsCache}
-	// onConfig silently skips clusters with disallowed namespaces (logs a warning
-	// and continues); it does not propagate the error to the caller.
 	if err := ih.onConfig(&cfg); err != nil {
 		t.Errorf("unexpected error: expected nil, got %v", err)
 	}
 }
 
-func TestAllowedKubeConfigSecretNamespace(t *testing.T) {
+func TestOnConfig_KubeConfigReferenceAuthorization(t *testing.T) {
+	t.Cleanup(func() { config.Set(config.DefaultConfig()) })
+
+	cases := map[string]struct {
+		secretNamespace string
+		withSecret      bool
+		wantEnqueue     bool
+	}{
+		"well-known namespace":         {secretNamespace: "fleet-default", withSecret: true, wantEnqueue: true},
+		"system namespace":             {secretNamespace: config.DefaultNamespace, withSecret: true, wantEnqueue: true},
+		"registration namespace":       {secretNamespace: fleetns.SystemRegistrationNamespace(config.DefaultNamespace), withSecret: true, wantEnqueue: true},
+		"implicit own namespace":       {withSecret: true},
+		"explicit own namespace":       {secretNamespace: "team-a", withSecret: true},
+		"other namespace":              {secretNamespace: "team-b", withSecret: true},
+		"generated cluster namespace":  {secretNamespace: "cluster-team-a-cluster", withSecret: true},
+		"agent-initiated registration": {secretNamespace: "fleet-default"},
+	}
+
+	for _, enabled := range []bool{true, false} {
+		direction := "disable compatibility"
+		if enabled {
+			direction = "enable compatibility"
+		}
+		t.Run(direction, func(t *testing.T) {
+			for name, c := range cases {
+				t.Run(name, func(t *testing.T) {
+					cfg := config.Config{
+						AllowUnlabeledKubeConfigSecretNamespaces: !enabled,
+						AgentTLSMode:                             config.AgentTLSModeStrict,
+					}
+					config.Set(&cfg)
+					deployedGeneration := int64(1)
+					cluster := &fleet.Cluster{
+						ObjectMeta: metav1.ObjectMeta{Name: "cluster", Namespace: "team-a"},
+						Spec: fleet.ClusterSpec{
+							KubeConfigSecret:          "kubeconfig",
+							KubeConfigSecretNamespace: c.secretNamespace,
+							RedeployAgentGeneration:   1,
+						},
+						Status: fleet.ClusterStatus{
+							APIServerCAHash:         hashStatusField(cfg.APIServerCA),
+							AgentTLSMode:            cfg.AgentTLSMode,
+							AgentDeployedGeneration: &deployedGeneration,
+						},
+					}
+					if !c.withSecret {
+						cluster.Spec.KubeConfigSecret = ""
+					}
+
+					ctrl := gomock.NewController(t)
+					clustersCache := fake.NewMockCacheInterface[*fleet.Cluster](ctrl)
+					clustersCache.EXPECT().List("", gomock.Eq(labels.Everything())).
+						Return([]*fleet.Cluster{cluster}, nil)
+					secretsCache := fake.NewMockCacheInterface[*corev1.Secret](ctrl)
+					if c.withSecret {
+						secretsCache.EXPECT().Get(kubeConfigSecretNamespace(cluster), "kubeconfig").
+							Return(&corev1.Secret{Data: map[string][]byte{
+								config.APIServerURLKey: []byte("https://cluster.example"),
+							}}, nil)
+					}
+					clustersController := fake.NewMockControllerInterface[*fleet.Cluster, *fleet.ClusterList](ctrl)
+					if c.wantEnqueue {
+						clustersController.EXPECT().Enqueue(cluster.Namespace, cluster.Name)
+					}
+					// No UpdateStatus: API, TLS and GC settings are unchanged.
+					ih := importHandler{
+						clusters:      clustersController,
+						clustersCache: clustersCache,
+						secretsCache:  secretsCache,
+					}
+					cfg.AllowUnlabeledKubeConfigSecretNamespaces = enabled
+					config.Set(&cfg)
+					if err := ih.onConfig(&cfg); err != nil {
+						t.Fatalf("unexpected config change error: %v", err)
+					}
+				})
+			}
+		})
+	}
+}
+
+func TestCheckKubeConfigSecretReference(t *testing.T) {
+	labeled := func(ns, from string) *corev1.Secret {
+		s := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "kubeconfig", Namespace: ns}}
+		if from != "" {
+			s.Labels = map[string]string{fleet.KubeConfigReferenceableFromLabel: from}
+		}
+		return s
+	}
+
 	cases := map[string]struct {
 		clusterNamespace string
-		fieldValue       string
-		wantNS           string
-		wantErrContains  string
+		secretNamespace  string
+		secret           *corev1.Secret
+		allowUnlabeled   bool
+		wantErr          bool
 	}{
-		"empty field returns cluster namespace": {
+		"empty field uses the cluster's namespace": {
 			clusterNamespace: "fleet-default",
-			fieldValue:       "",
-			wantNS:           "fleet-default",
+			secret:           labeled("fleet-default", ""),
 		},
-		"fleet-default is allowed": {
-			clusterNamespace: "fleet-local",
-			fieldValue:       "fleet-default",
-			wantNS:           "fleet-default",
-		},
-		"fleet-local is allowed": {
-			clusterNamespace: "fleet-default",
-			fieldValue:       "fleet-local",
-			wantNS:           "fleet-local",
-		},
-		"cattle-fleet-system is allowed": {
-			clusterNamespace: "fleet-default",
-			fieldValue:       config.DefaultNamespace,
-			wantNS:           config.DefaultNamespace,
-		},
-		"fleet-system (legacy) is allowed": {
-			clusterNamespace: "fleet-default",
-			fieldValue:       config.LegacyDefaultNamespace,
-			wantNS:           config.LegacyDefaultNamespace,
-		},
-		"cattle-fleet-clusters-system is allowed": {
-			clusterNamespace: "fleet-default",
-			fieldValue:       "cattle-fleet-clusters-system",
-			wantNS:           "cattle-fleet-clusters-system",
-		},
-		"fleet-clusters-system (legacy) is allowed": {
-			clusterNamespace: "fleet-default",
-			fieldValue:       "fleet-clusters-system",
-			wantNS:           "fleet-clusters-system",
-		},
-		"cluster-* prefix is allowed": {
-			clusterNamespace: "fleet-default",
-			fieldValue:       "cluster-fleet-default-my-cluster-abc123",
-			wantNS:           "cluster-fleet-default-my-cluster-abc123",
-		},
-		"custom workspace cluster referencing own namespace is allowed": {
+		"explicit own namespace": {
 			clusterNamespace: "my-workspace",
-			fieldValue:       "my-workspace",
-			wantNS:           "my-workspace",
+			secretNamespace:  "my-workspace",
+			secret:           labeled("my-workspace", ""),
 		},
-		"cattle-system cluster can reference own namespace": {
-			clusterNamespace: "cattle-system",
-			fieldValue:       "cattle-system",
-			wantNS:           "cattle-system",
+		"own namespace without secret": {
+			clusterNamespace: "my-workspace",
+			secretNamespace:  "my-workspace",
 		},
-		"kube-system is rejected": {
+		"other namespace, label names cluster namespace": {
+			clusterNamespace: "team-a",
+			secretNamespace:  "fleet-default",
+			secret:           labeled("fleet-default", "team-a"),
+		},
+		"other namespace, unlabeled": {
+			clusterNamespace: "team-a",
+			secretNamespace:  "fleet-default",
+			secret:           labeled("fleet-default", ""),
+			wantErr:          true,
+		},
+		"other namespace, label names a different namespace": {
+			clusterNamespace: "team-b",
+			secretNamespace:  "fleet-default",
+			secret:           labeled("fleet-default", "team-a"),
+			wantErr:          true,
+		},
+		"other namespace, missing secret": {
+			clusterNamespace: "team-a",
+			secretNamespace:  "fleet-default",
+			wantErr:          true,
+		},
+		"management kubeconfig from a workspace namespace": {
+			clusterNamespace: "my-workspace",
+			secretNamespace:  "fleet-local",
+			secret:           labeled("fleet-local", ""),
+			wantErr:          true,
+		},
+		"management kubeconfig from a namespace named like a generated cluster namespace": {
+			clusterNamespace: "cluster-workspace",
+			secretNamespace:  "fleet-local",
+			secret:           labeled("fleet-local", ""),
+			wantErr:          true,
+		},
+		"management kubeconfig from fleet-default": {
 			clusterNamespace: "fleet-default",
-			fieldValue:       "kube-system",
-			wantErrContains:  "not an allowed Fleet namespace",
+			secretNamespace:  "fleet-local",
+			secret:           labeled("fleet-local", ""),
+			wantErr:          true,
 		},
-		"cattle-system is rejected": {
+		"generated cluster namespace, unlabeled": {
 			clusterNamespace: "fleet-default",
-			fieldValue:       "cattle-system",
-			wantErrContains:  "not an allowed Fleet namespace",
+			secretNamespace:  "cluster-fleet-default-my-cluster-abc123",
+			secret:           labeled("cluster-fleet-default-my-cluster-abc123", ""),
+			wantErr:          true,
 		},
-		"arbitrary namespace is rejected": {
-			clusterNamespace: "fleet-default",
-			fieldValue:       "tenant-a-secrets",
-			wantErrContains:  "not an allowed Fleet namespace",
+		"allowUnlabeled: fleet-default from a workspace namespace": {
+			clusterNamespace: "team-a",
+			secretNamespace:  "fleet-default",
+			secret:           labeled("fleet-default", ""),
+			allowUnlabeled:   true,
 		},
-		"default namespace is rejected": {
+		"allowUnlabeled: label names cluster namespace": {
+			clusterNamespace: "team-a",
+			secretNamespace:  "fleet-default",
+			secret:           labeled("fleet-default", "team-a"),
+			allowUnlabeled:   true,
+		},
+		"allowUnlabeled: label names a different namespace": {
+			clusterNamespace: "team-b",
+			secretNamespace:  "fleet-default",
+			secret:           labeled("fleet-default", "team-a"),
+			allowUnlabeled:   true,
+			wantErr:          true,
+		},
+		"allowUnlabeled: empty label": {
+			clusterNamespace: "team-a",
+			secretNamespace:  "fleet-default",
+			secret: &corev1.Secret{ObjectMeta: metav1.ObjectMeta{
+				Name:      "kubeconfig",
+				Namespace: "fleet-default",
+				Labels:    map[string]string{fleet.KubeConfigReferenceableFromLabel: ""},
+			}},
+			allowUnlabeled: true,
+		},
+		"allowUnlabeled: fleet-local from a workspace namespace": {
+			clusterNamespace: "team-a",
+			secretNamespace:  "fleet-local",
+			secret:           labeled("fleet-local", ""),
+			allowUnlabeled:   true,
+		},
+		"allowUnlabeled: system namespaces": {
+			clusterNamespace: "team-a",
+			secretNamespace:  config.DefaultNamespace,
+			allowUnlabeled:   true,
+		},
+		"allowUnlabeled: legacy system namespace": {
+			clusterNamespace: "team-a",
+			secretNamespace:  config.LegacyDefaultNamespace,
+			allowUnlabeled:   true,
+		},
+		"allowUnlabeled: registration namespace": {
+			clusterNamespace: "team-a",
+			secretNamespace:  fleetns.SystemRegistrationNamespace(config.DefaultNamespace),
+			allowUnlabeled:   true,
+		},
+		"allowUnlabeled: generated cluster namespace stays unaccepted": {
 			clusterNamespace: "fleet-default",
-			fieldValue:       "default",
-			wantErrContains:  "not an allowed Fleet namespace",
+			secretNamespace:  "cluster-fleet-default-my-cluster-abc123",
+			secret:           labeled("cluster-fleet-default-my-cluster-abc123", ""),
+			allowUnlabeled:   true,
+			wantErr:          true,
+		},
+		"allowUnlabeled: kube-system stays unaccepted": {
+			clusterNamespace: "fleet-default",
+			secretNamespace:  "kube-system",
+			secret:           labeled("kube-system", ""),
+			allowUnlabeled:   true,
+			wantErr:          true,
+		},
+		"allowUnlabeled: arbitrary namespace stays unaccepted": {
+			clusterNamespace: "fleet-default",
+			secretNamespace:  "tenant-a-secrets",
+			allowUnlabeled:   true,
+			wantErr:          true,
 		},
 	}
 
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
+			config.Set(&config.Config{AllowUnlabeledKubeConfigSecretNamespaces: c.allowUnlabeled})
 			cluster := &fleet.Cluster{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-cluster",
-					Namespace: c.clusterNamespace,
-				},
+				ObjectMeta: metav1.ObjectMeta{Name: "test-cluster", Namespace: c.clusterNamespace},
 				Spec: fleet.ClusterSpec{
-					KubeConfigSecretNamespace: c.fieldValue,
+					KubeConfigSecret:          "kubeconfig",
+					KubeConfigSecretNamespace: c.secretNamespace,
 				},
 			}
 
-			got, err := allowedKubeConfigSecretNamespace(cluster)
-			if c.wantErrContains != "" {
-				if err == nil {
-					t.Errorf("expected error for namespace %q, got nil", c.fieldValue)
-				} else if !strings.Contains(err.Error(), c.wantErrContains) {
-					t.Errorf("expected error containing %q, got %q", c.wantErrContains, err.Error())
+			err := checkKubeConfigSecretReference(cluster, c.secret)
+			if !c.wantErr {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
 				}
 				return
 			}
-			if err != nil {
-				t.Errorf("unexpected error for namespace %q: %v", c.fieldValue, err)
+			if !errors.Is(err, errKubeConfigSecretReference) {
+				t.Fatalf("expected errKubeConfigSecretReference, got %v", err)
+			}
+			for _, want := range []string{c.secretNamespace + "/kubeconfig", c.clusterNamespace + "/test-cluster"} {
+				if !strings.Contains(err.Error(), want) {
+					t.Errorf("expected error %q to name %q", err.Error(), want)
+				}
+			}
+		})
+	}
+}
+
+func TestKubeConfigSecret(t *testing.T) {
+	config.Set(&config.Config{})
+	notFound := apierrors.NewNotFound(corev1.Resource("secrets"), "kubeconfig")
+	labeled := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{
+		Name:      "kubeconfig",
+		Namespace: "fleet-default",
+		Labels:    map[string]string{fleet.KubeConfigReferenceableFromLabel: "team-a"},
+	}}
+
+	cases := map[string]struct {
+		clusterNamespace string
+		secret           *corev1.Secret
+		getErr           error
+		allowUnlabeled   bool
+		wantSecret       bool
+		check            func(error) bool
+	}{
+		"labeled secret in other namespace is returned": {
+			clusterNamespace: "team-a",
+			secret:           labeled,
+			wantSecret:       true,
+		},
+		"labeled secret is not returned to another namespace": {
+			clusterNamespace: "team-b",
+			secret:           labeled,
+			check:            func(err error) bool { return errors.Is(err, errKubeConfigSecretReference) },
+		},
+		"allowUnlabeled: labeled secret is not returned to another namespace": {
+			clusterNamespace: "team-b",
+			secret:           labeled,
+			allowUnlabeled:   true,
+			check:            func(err error) bool { return errors.Is(err, errKubeConfigSecretReference) },
+		},
+		"missing secret in other namespace is reported like an unlabeled one": {
+			clusterNamespace: "team-a",
+			getErr:           notFound,
+			check: func(err error) bool {
+				return errors.Is(err, errKubeConfigSecretReference) && !apierrors.IsNotFound(err)
+			},
+		},
+		"missing secret in own namespace is reported as not found": {
+			clusterNamespace: "fleet-default",
+			getErr:           notFound,
+			check:            apierrors.IsNotFound,
+		},
+		"allowUnlabeled: missing secret in a well-known namespace is reported as not found": {
+			clusterNamespace: "team-a",
+			getErr:           notFound,
+			allowUnlabeled:   true,
+			check:            apierrors.IsNotFound,
+		},
+	}
+
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			config.Set(&config.Config{AllowUnlabeledKubeConfigSecretNamespaces: c.allowUnlabeled})
+			ctrl := gomock.NewController(t)
+			secretsCache := fake.NewMockCacheInterface[*corev1.Secret](ctrl)
+			secretsCache.EXPECT().Get("fleet-default", "kubeconfig").Return(c.secret, c.getErr)
+
+			ih := importHandler{secretsCache: secretsCache}
+			got, err := ih.kubeConfigSecret(&fleet.Cluster{
+				ObjectMeta: metav1.ObjectMeta{Name: "test-cluster", Namespace: c.clusterNamespace},
+				Spec: fleet.ClusterSpec{
+					KubeConfigSecret:          "kubeconfig",
+					KubeConfigSecretNamespace: "fleet-default",
+				},
+			})
+			if c.wantSecret {
+				if err != nil || got != c.secret {
+					t.Fatalf("expected secret, got %v, %v", got, err)
+				}
 				return
 			}
-			if got != c.wantNS {
-				t.Errorf("expected namespace %q, got %q", c.wantNS, got)
+			if got != nil || !c.check(err) {
+				t.Fatalf("unexpected result: %v, %v", got, err)
+			}
+		})
+	}
+}
+
+func TestCheckManagementClusterTarget(t *testing.T) {
+	const (
+		kubeSystem      = "kube-system"
+		systemNamespace = "cattle-fleet-system"
+	)
+
+	cases := map[string]struct {
+		clusterNamespace string
+		// remoteUID is the kube-system UID seen through the Cluster's kubeconfig;
+		// the management cluster's own is "uid-management".
+		remoteUID string
+		localErr  error
+		wantErr   bool
+		// skipsLookup means the namespace alone decides and no cluster
+		// identity lookup happens.
+		skipsLookup bool
+	}{
+		"bootstrap namespace": {
+			clusterNamespace: localBootstrapNamespace,
+			skipsLookup:      true,
+		},
+		"system namespace": {
+			clusterNamespace: systemNamespace,
+			skipsLookup:      true,
+		},
+		"system registration namespace": {
+			clusterNamespace: fleetns.SystemRegistrationNamespace(systemNamespace),
+			skipsLookup:      true,
+		},
+		"workspace namespace targeting the management cluster": {
+			clusterNamespace: "my-workspace",
+			remoteUID:        "uid-management",
+			wantErr:          true,
+		},
+		"fleet-default targeting the management cluster": {
+			clusterNamespace: "fleet-default",
+			remoteUID:        "uid-management",
+			wantErr:          true,
+		},
+		"namespace named like a generated cluster namespace targeting the management cluster": {
+			clusterNamespace: "cluster-workspace",
+			remoteUID:        "uid-management",
+			wantErr:          true,
+		},
+		"legacy system namespace targeting the management cluster": {
+			clusterNamespace: config.LegacyDefaultNamespace,
+			remoteUID:        "uid-management",
+			wantErr:          true,
+		},
+		"workspace namespace targeting a downstream cluster": {
+			clusterNamespace: "my-workspace",
+			remoteUID:        "uid-downstream",
+		},
+		"identity lookup failure": {
+			clusterNamespace: "my-workspace",
+			localErr:         errors.New("boom"),
+			wantErr:          true,
+		},
+	}
+
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			config.Set(&config.Config{Bootstrap: config.Bootstrap{Namespace: localBootstrapNamespace}})
+			ctrl := gomock.NewController(t)
+
+			nsController := fake.NewMockNonNamespacedControllerInterface[*corev1.Namespace, *corev1.NamespaceList](ctrl)
+			if !c.skipsLookup {
+				nsController.EXPECT().Get(kubeSystem, gomock.Any()).Return(&corev1.Namespace{
+					ObjectMeta: metav1.ObjectMeta{Name: kubeSystem, UID: "uid-management"},
+				}, c.localErr)
+			}
+
+			kc := kubernetesfake.NewSimpleClientset(&corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{Name: kubeSystem, UID: types.UID(c.remoteUID)},
+			})
+
+			ih := importHandler{ctx: context.Background(), systemNamespace: systemNamespace, namespaceController: nsController}
+			err := ih.checkManagementClusterTarget(&fleet.Cluster{
+				ObjectMeta: metav1.ObjectMeta{Name: "test-cluster", Namespace: c.clusterNamespace},
+			}, kc)
+			if (err != nil) != c.wantErr {
+				t.Fatalf("checkManagementClusterTarget error = %v, wantErr %v", err, c.wantErr)
+			}
+		})
+	}
+}
+
+func TestImportCluster_DeployedAgentReference(t *testing.T) {
+	// A Cluster whose agent is already deployed is not redeployed, but a
+	// kubeconfig reference that is not accepted is still reported: the
+	// returned error ends up in the Imported condition through the status
+	// handler, while importCluster itself leaves the status unchanged.
+	config.Set(&config.Config{})
+	notFound := apierrors.NewNotFound(corev1.Resource("secrets"), "kubeconfig")
+
+	cases := map[string]struct {
+		clusterNamespace string
+		emptyClientID    bool
+		secret           *corev1.Secret
+		getErr           error
+		wantErr          bool
+	}{
+		"unlabeled secret in other namespace is reported": {
+			clusterNamespace: "my-workspace",
+			secret:           &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "kubeconfig", Namespace: "fleet-local"}},
+			wantErr:          true,
+		},
+		"unlabeled secret in other namespace is reported without client ID": {
+			clusterNamespace: "my-workspace",
+			emptyClientID:    true,
+			secret:           &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "kubeconfig", Namespace: "fleet-local"}},
+			wantErr:          true,
+		},
+		"missing secret in other namespace is reported": {
+			clusterNamespace: "my-workspace",
+			getErr:           notFound,
+			wantErr:          true,
+		},
+		"labeled secret in other namespace is accepted": {
+			clusterNamespace: "my-workspace",
+			secret: &corev1.Secret{ObjectMeta: metav1.ObjectMeta{
+				Name:      "kubeconfig",
+				Namespace: "fleet-local",
+				Labels:    map[string]string{fleet.KubeConfigReferenceableFromLabel: "my-workspace"},
+			}},
+		},
+		"missing secret in own namespace is ignored, as before": {
+			clusterNamespace: "fleet-local",
+			getErr:           notFound,
+		},
+	}
+
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			secretsCache := fake.NewMockCacheInterface[*corev1.Secret](ctrl)
+			secretsCache.EXPECT().Get("fleet-local", "kubeconfig").Return(c.secret, c.getErr)
+
+			generation := int64(0)
+			status := fleet.ClusterStatus{
+				AgentMigrated:           true,
+				CattleNamespaceMigrated: true,
+				AgentNamespaceMigrated:  true,
+				AgentDeployedGeneration: &generation,
+				Agent:                   fleet.AgentStatus{Namespace: "cattle-fleet-system"},
+			}
+			cluster := &fleet.Cluster{
+				ObjectMeta: metav1.ObjectMeta{Name: "test-cluster", Namespace: c.clusterNamespace},
+				Spec: fleet.ClusterSpec{
+					ClientID:                  "client-id",
+					KubeConfigSecret:          "kubeconfig",
+					KubeConfigSecretNamespace: "fleet-local",
+				},
+				Status: status,
+			}
+			if c.emptyClientID {
+				cluster.Spec.ClientID = ""
+			}
+
+			// Only secretsCache is set: any deployment attempt would panic.
+			ih := importHandler{secretsCache: secretsCache}
+			got, err := ih.importCluster(cluster, status)
+			if c.wantErr != errors.Is(err, errKubeConfigSecretReference) {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !c.wantErr && err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !reflect.DeepEqual(got, status) {
+				t.Errorf("status mismatch.\nwant: %#v\ngot:  %#v", status, got)
 			}
 		})
 	}
