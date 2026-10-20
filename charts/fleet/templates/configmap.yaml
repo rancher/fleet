@@ -25,6 +25,7 @@ data:
       "imagePullSecrets": {{toJson .Values.global.cattle.imagePullSecrets}},
       {{ end }}
       "ignoreClusterRegistrationLabels": {{.Values.ignoreClusterRegistrationLabels}},
+      "allowUnlabeledKubeConfigSecretNamespaces": {{ toJson (.Values.allowUnlabeledKubeConfigSecretNamespaces | default false) }},
       {{- with .Values.deploymentEvents }}
       "deploymentEvents": {
         "enabled": {{toJson .enabled}},

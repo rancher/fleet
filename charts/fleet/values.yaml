@@ -30,6 +30,16 @@ garbageCollectionInterval: "15m"
 # Whether you want to allow cluster upon registration to specify their labels.
 ignoreClusterRegistrationLabels: false
 
+# A Cluster referencing a kubeconfig secret in another namespace
+# (spec.kubeConfigSecretNamespace) requires that secret to carry the label
+# fleet.cattle.io/kubeconfig-referenceable-from=<Cluster namespace>.
+# Setting this to true also accepts unlabeled secrets in Fleet's well-known
+# namespaces (fleet-local, fleet-default and the Fleet system namespaces), as
+# in earlier releases. A nonempty reference label still limits access to its
+# named namespace. Agents are only deployed onto the management cluster for
+# Clusters in the bootstrap or Fleet system namespaces, regardless of this value.
+allowUnlabeledKubeConfigSecretNamespaces: false
+
 # Events reporting the deployment state of bundles, on the bundle they are about.
 deploymentEvents:
   # Turns events about the deployment state of bundles on or off. Unsetting it,
