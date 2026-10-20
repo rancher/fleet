@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"strings"
 
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/labels"
@@ -51,6 +50,11 @@ const (
 
 var (
 	errUnavailableAPIServerURL = errors.New("missing apiServerURL in fleet config for cluster auto registration")
+
+	// errKubeConfigSecretReference is returned for a kubeconfig secret in
+	// another namespace that does not accept references from the Cluster's
+	// namespace.
+	errKubeConfigSecretReference = errors.New("kubeconfig secret is not referenceable from the cluster's namespace")
 )
 
 type importHandler struct {
@@ -92,16 +96,14 @@ func RegisterImport(
 	config.OnChange(ctx, h.enqueueLocalClusterOnConfig)
 
 	clustersCache := clusters.Cache()
+	// The index is keyed on the spec only, so that Secret changes (including
+	// changes to KubeConfigReferenceableFromLabel) reach every Cluster
+	// referencing that Secret, whether its reference is currently accepted or not.
 	clustersCache.AddIndexer(clusterForKubeconfigSecretIndexer, func(cluster *fleet.Cluster) ([]string, error) {
 		if cluster == nil || len(cluster.Spec.KubeConfigSecret) == 0 {
 			return []string{}, nil
 		}
-		ns, err := allowedKubeConfigSecretNamespace(cluster)
-		if err != nil {
-			logrus.Debugf("Cluster %s/%s: skipping kubeconfig secret index: %v", cluster.Namespace, cluster.Name, err)
-			return []string{}, nil
-		}
-		secretKey := ns + "/" + cluster.Spec.KubeConfigSecret
+		secretKey := kubeConfigSecretNamespace(cluster) + "/" + cluster.Spec.KubeConfigSecret
 		return []string{secretKey}, nil
 	})
 	secrets.OnChange(ctx, "kubeconfig-secrets-watch", func(key string, secret *corev1.Secret) (*corev1.Secret, error) {
@@ -111,6 +113,11 @@ func RegisterImport(
 		}
 		cfg := config.Get()
 		for _, cluster := range clusters {
+			h.clusters.Enqueue(cluster.Namespace, cluster.Name)
+			if err := checkKubeConfigSecretReference(cluster, secret); err != nil {
+				logrus.WithError(err).Debugf("cluster %s/%s: skipping config change check", cluster.Namespace, cluster.Name)
+				continue
+			}
 			if err := h.checkForConfigChange(cfg, cluster, secret); err != nil {
 				logrus.WithError(err).Errorf("cluster %s/%s: could not check for config changes", cluster.Namespace, cluster.Name)
 			}
@@ -124,7 +131,7 @@ func RegisterImport(
 // onConfig triggers clusters which rely on the fallback config in the
 // fleet-controller config map. This is important for changes to apiServerURL
 // and apiServerCA, as they are needed e.g. to update the fleet-agent-bootstrap
-// secret.
+// secret, and for changes to cross-namespace kubeconfig reference authorization.
 func (i *importHandler) onConfig(cfg *config.Config) error {
 	if cfg == nil {
 		return errors.New("config is nil: this should never happen")
@@ -144,12 +151,19 @@ func (i *importHandler) onConfig(cfg *config.Config) error {
 			continue
 		}
 
-		kubeConfigNS, err := allowedKubeConfigSecretNamespace(cluster)
-		if err != nil {
+		// A config change may toggle AllowUnlabeledKubeConfigSecretNamespaces,
+		// which decides whether unlabeled secrets in well-known Fleet
+		// namespaces may be referenced from other namespaces.
+		ns := kubeConfigSecretNamespace(cluster)
+		if ns != cluster.Namespace && isWellKnownFleetNamespace(ns) {
+			i.clusters.Enqueue(cluster.Namespace, cluster.Name)
+		}
+
+		secret, err := i.kubeConfigSecret(cluster)
+		if errors.Is(err, errKubeConfigSecretReference) {
 			logrus.WithError(err).Warnf("cluster %s/%s: skipping config change check", cluster.Namespace, cluster.Name)
 			continue
 		}
-		secret, err := i.secretsCache.Get(kubeConfigNS, cluster.Spec.KubeConfigSecret)
 		if err != nil {
 			return fmt.Errorf("cluster %s/%s: could not check for config changes: %w", cluster.Namespace, cluster.Name, err)
 		}
@@ -336,25 +350,27 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 	}
 
 	// cluster.spec.KubeConfigSecret is empty when agent-initiated registration is used
-	if cluster.Spec.KubeConfigSecret == "" ||
-		agentDeployed(cluster) ||
-		cluster.Spec.ClientID == "" {
+	if cluster.Spec.KubeConfigSecret == "" {
 		return status, nil
 	}
 
-	kubeConfigSecretNamespace, err := allowedKubeConfigSecretNamespace(cluster)
+	if agentDeployed(cluster) {
+		// Nothing to deploy, but report a reference that is not accepted
+		// (anymore), e.g. for an agent deployed by an earlier release.
+		if _, err := i.kubeConfigSecret(cluster); errors.Is(err, errKubeConfigSecretReference) {
+			return status, err
+		}
+		return status, nil
+	}
+	if cluster.Spec.ClientID == "" {
+		return status, nil
+	}
+
+	secret, err := i.kubeConfigSecret(cluster)
 	if err != nil {
 		return status, err
 	}
-
-	logrus.Debugf("Cluster import for '%s/%s'. Getting kubeconfig from secret in namespace %s", cluster.Namespace, cluster.Name, kubeConfigSecretNamespace)
-
-	secret, err := i.secretsCache.Get(kubeConfigSecretNamespace, cluster.Spec.KubeConfigSecret)
-	if err != nil {
-		return status, err
-	}
-
-	logrus.Debugf("Cluster import for '%s/%s'. Setting up agent with kubeconfig from secret '%s/%s'", cluster.Namespace, cluster.Name, kubeConfigSecretNamespace, cluster.Spec.KubeConfigSecret)
+	logrus.Debugf("Cluster import for '%s/%s'. Setting up agent with kubeconfig from secret '%s/%s'", cluster.Namespace, cluster.Name, secret.Namespace, secret.Name)
 	var (
 		cfg          = config.Get()
 		apiServerURL = string(secret.Data[config.APIServerURLKey])
@@ -389,6 +405,10 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 
 	if err := connection.SmokeTestKubeClientConnection(kc); err != nil {
 		logrus.Errorf("Cluster import for '%s/%s'. Smoke test failed: %v", cluster.Namespace, cluster.Name, err)
+		return status, err
+	}
+
+	if err := i.checkManagementClusterTarget(cluster, kc); err != nil {
 		return status, err
 	}
 
@@ -546,11 +566,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 // teardownLocalAgent removes the fleet-agent and its associated bundle from the
 // local cluster. It is idempotent: NotFound errors from the deletes are ignored.
 func (i *importHandler) teardownLocalAgent(cluster *fleet.Cluster) error {
-	kubeConfigSecretNamespace, err := allowedKubeConfigSecretNamespace(cluster)
-	if err != nil {
-		return err
-	}
-	secret, err := i.secretsCache.Get(kubeConfigSecretNamespace, cluster.Spec.KubeConfigSecret)
+	secret, err := i.kubeConfigSecret(cluster)
 	if err != nil {
 		return err
 	}
@@ -776,25 +792,106 @@ func (i *importHandler) checkForConfigChange(cfg *config.Config, cluster *fleet.
 	return err
 }
 
-// allowedKubeConfigSecretNamespace returns the namespace from which the
-// kubeconfig secret may be read. Only Fleet-managed namespaces are permitted.
-func allowedKubeConfigSecretNamespace(cluster *fleet.Cluster) (string, error) {
-	if cluster.Spec.KubeConfigSecretNamespace == "" || cluster.Spec.KubeConfigSecretNamespace == cluster.Namespace {
-		return cluster.Namespace, nil
+// kubeConfigSecretNamespace returns the namespace in which the kubeconfig
+// secret of the cluster is expected to live.
+func kubeConfigSecretNamespace(cluster *fleet.Cluster) string {
+	return cmp.Or(cluster.Spec.KubeConfigSecretNamespace, cluster.Namespace)
+}
+
+// kubeConfigSecret returns the kubeconfig secret referenced by cluster,
+// provided checkKubeConfigSecretReference accepts the reference.
+func (i *importHandler) kubeConfigSecret(cluster *fleet.Cluster) (*corev1.Secret, error) {
+	ns := kubeConfigSecretNamespace(cluster)
+	secret, err := i.secretsCache.Get(ns, cluster.Spec.KubeConfigSecret)
+	if apierrors.IsNotFound(err) && ns != cluster.Namespace {
+		// Report a missing secret in another namespace like an unlabeled
+		// one, so that Cluster status does not tell which secrets exist there.
+		if refErr := checkKubeConfigSecretReference(cluster, nil); refErr != nil {
+			return nil, refErr
+		}
+	}
+	if err != nil {
+		return nil, err
 	}
 
-	ns := cluster.Spec.KubeConfigSecretNamespace
-	if ns == "fleet-local" ||
+	if err := checkKubeConfigSecretReference(cluster, secret); err != nil {
+		return nil, err
+	}
+	return secret, nil
+}
+
+// checkKubeConfigSecretReference reports whether cluster may use secret, read
+// from the namespace named by its spec, as its kubeconfig. A secret in the
+// Cluster's own namespace is always accepted. A secret in another namespace
+// is accepted if its KubeConfigReferenceableFromLabel names the Cluster's
+// namespace: only writers of the secret's namespace can set that label, so
+// they decide which other namespace may use the credentials stored there.
+// AllowUnlabeledKubeConfigSecretNamespaces additionally accepts unlabeled
+// secrets in Fleet's well-known namespaces, as earlier releases did.
+func checkKubeConfigSecretReference(cluster *fleet.Cluster, secret *corev1.Secret) error {
+	ns := kubeConfigSecretNamespace(cluster)
+	if ns == cluster.Namespace {
+		return nil
+	}
+
+	if secret != nil && secret.Labels[fleet.KubeConfigReferenceableFromLabel] == cluster.Namespace {
+		return nil
+	}
+
+	if config.Get().AllowUnlabeledKubeConfigSecretNamespaces && isWellKnownFleetNamespace(ns) &&
+		(secret == nil || secret.Labels[fleet.KubeConfigReferenceableFromLabel] == "") {
+		return nil
+	}
+
+	return fmt.Errorf("%w: secret %s/%s needs label %s=%s to be used by cluster %s/%s",
+		errKubeConfigSecretReference,
+		ns, cluster.Spec.KubeConfigSecret,
+		fleet.KubeConfigReferenceableFromLabel, cluster.Namespace,
+		cluster.Namespace, cluster.Name,
+	)
+}
+
+// isWellKnownFleetNamespace reports whether ns is one of the namespaces
+// earlier releases accepted kubeconfig secrets from regardless of the
+// referencing Cluster's namespace.
+func isWellKnownFleetNamespace(ns string) bool {
+	return ns == "fleet-local" ||
 		ns == "fleet-default" ||
 		ns == config.DefaultNamespace ||
 		ns == config.LegacyDefaultNamespace ||
 		ns == fleetns.SystemRegistrationNamespace(config.DefaultNamespace) ||
-		ns == fleetns.SystemRegistrationNamespace(config.LegacyDefaultNamespace) ||
-		strings.HasPrefix(ns, "cluster-") {
-		return ns, nil
+		ns == fleetns.SystemRegistrationNamespace(config.LegacyDefaultNamespace)
+}
+
+// checkManagementClusterTarget returns an error if the agent for cluster
+// would be deployed onto the management cluster although cluster lives
+// outside the namespaces reserved for it: the configured bootstrap namespace
+// and the controller's system and registration namespaces. Unlike workspace
+// namespaces, whose names users may choose, these are set up by the operator
+// or by the controller itself. The check applies to every kubeconfig source,
+// including secrets in the Cluster's own namespace.
+func (i *importHandler) checkManagementClusterTarget(cluster *fleet.Cluster, kc kubernetes.Interface) error {
+	if i.isManagementClusterNamespace(cluster.Namespace) {
+		return nil
 	}
 
-	return "", fmt.Errorf("kubeConfigSecretNamespace %q is not an allowed Fleet namespace", ns)
+	isManagement, err := i.isManagementCluster(kc)
+	if err != nil {
+		return fmt.Errorf("cluster %s/%s: could not determine whether its kubeconfig targets the management cluster: %w",
+			cluster.Namespace, cluster.Name, err)
+	}
+	if isManagement {
+		return fmt.Errorf("cluster %s/%s: not deploying agent: its kubeconfig targets the management cluster, "+
+			"which only Clusters in the bootstrap or Fleet system namespaces may do",
+			cluster.Namespace, cluster.Name)
+	}
+	return nil
+}
+
+func (i *importHandler) isManagementClusterNamespace(ns string) bool {
+	return ns == config.Get().Bootstrap.Namespace ||
+		ns == i.systemNamespace ||
+		ns == fleetns.SystemRegistrationNamespace(i.systemNamespace)
 }
 
 func hasGarbageCollectionIntervalChanged(config *config.Config, cluster *fleet.Cluster) bool {
