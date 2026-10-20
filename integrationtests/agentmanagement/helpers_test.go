@@ -5,6 +5,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/rancher/fleet/internal/config"
+	"github.com/rancher/fleet/internal/names"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	corev1 "k8s.io/api/core/v1"
@@ -14,6 +15,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+func newNamespace(name string) *corev1.Namespace {
+	return &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{Name: name},
+	}
+}
+
 // objectExists returns an AsyncAssertion that succeeds when the object can be
 // fetched from the API server.
 func objectExists(obj client.Object) AsyncAssertion {
@@ -21,6 +28,12 @@ func objectExists(obj client.Object) AsyncAssertion {
 	return Eventually(func(g Gomega) {
 		g.Expect(k8sClient.Get(ctx, key, obj)).To(Succeed())
 	})
+}
+
+// namespaceIsGone returns an AsyncAssertion that succeeds when no namespace with
+// the given name exists.
+func namespaceIsGone(name string) AsyncAssertion {
+	return objectGone(newNamespace(name))
 }
 
 // objectGone returns an AsyncAssertion that succeeds once obj can no longer be
@@ -43,6 +56,29 @@ func objectAbsent(obj client.Object) func(Gomega) {
 		err := k8sClient.Get(ctx, key, obj)
 		g.Expect(apierrors.IsNotFound(err)).To(BeTrue(), "expected %s to be absent, got err: %v", key, err)
 	}
+}
+
+// deleteNamespace removes a namespace for good. envtest runs no namespace
+// controller, so a deleted namespace stays Terminating forever unless the
+// kubernetes finalizer is cleared through the finalize subresource.
+func deleteNamespace(name string) {
+	GinkgoHelper()
+
+	ns := newNamespace(name)
+	Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, ns))).To(Succeed())
+
+	Eventually(func(g Gomega) {
+		err := k8sClient.Get(ctx, types.NamespacedName{Name: name}, ns)
+		if apierrors.IsNotFound(err) {
+			return
+		}
+		g.Expect(err).NotTo(HaveOccurred())
+
+		ns.Spec.Finalizers = nil
+		g.Expect(client.IgnoreNotFound(k8sClient.SubResource("finalize").Update(ctx, ns))).To(Succeed())
+	}).Should(Succeed())
+
+	namespaceIsGone(name).Should(Succeed())
 }
 
 // newConfigMap builds the ConfigMap representation of cfg, as expected by the
@@ -115,4 +151,12 @@ func populateServiceAccountTokenSecret(namespace, saName, tokenValue string) {
 		secret.Data[corev1.ServiceAccountTokenKey] = []byte(tokenValue)
 		g.Expect(k8sClient.Update(ctx, secret)).To(Succeed())
 	}).Should(Succeed())
+}
+
+// clusterNamespaceName predicts the generated cluster namespace name for a
+// Cluster identified by its (namespace, name), following the documented
+// format of Cluster.Status.Namespace: "cluster-<namespace>-<name>-<hash>".
+func clusterNamespaceName(namespace, name string) string {
+	return names.SafeConcatName("cluster", namespace, name,
+		names.KeyHash(namespace+"::"+name))
 }
