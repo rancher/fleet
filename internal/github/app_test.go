@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/rancher/fleet/pkg/netx"
 )
 
 const (
@@ -82,7 +84,7 @@ func TestGitHubApp_GetToken_Success(t *testing.T) {
 
 	app := NewApp("https://github.com/foo/bar", 123, 456, []byte(validRSA))
 
-	token, err := app.GetToken(context.Background(), TLSConfig{})
+	token, err := app.GetToken(context.Background(), netx.TLSConfig{})
 	if err != nil {
 		t.Fatalf("GetToken returned error: %v", err)
 	}
@@ -128,7 +130,7 @@ func TestGitHubApp_GetToken_NonGithubDotCom(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			app := NewApp(tc.repoURL, 123, 456, []byte(validRSA))
 
-			_, err := app.GetToken(context.Background(), TLSConfig{})
+			_, err := app.GetToken(context.Background(), netx.TLSConfig{})
 			if err == nil {
 				t.Fatal("expected error when getting token, got nil")
 			}
@@ -144,7 +146,7 @@ func TestGitHubApp_GetToken_NonGithubDotCom(t *testing.T) {
 func TestGitHubApp_GetToken_InvalidPEM(t *testing.T) {
 	app := NewApp("https://github.com/foo/bar", 123, 456, []byte("definitely-not-a-PEM-block"))
 
-	_, err := app.GetToken(context.Background(), TLSConfig{})
+	_, err := app.GetToken(context.Background(), netx.TLSConfig{})
 	if err == nil {
 		t.Fatalf("expected error for invalid PEM, got nil")
 	}
@@ -157,7 +159,7 @@ func TestGitHubApp_GetToken_InvalidPEM(t *testing.T) {
 func TestGitHubApp_GetToken_NotRSA(t *testing.T) {
 	app := NewApp("https://github.com/foo/bar", 123, 456, []byte(notRSA))
 
-	_, err := app.GetToken(context.Background(), TLSConfig{})
+	_, err := app.GetToken(context.Background(), netx.TLSConfig{})
 	if err == nil {
 		t.Fatalf("expected error for not RSA PEM, got nil")
 	}
@@ -170,7 +172,7 @@ func TestGitHubApp_GetToken_NotRSA(t *testing.T) {
 func TestGitHubApp_GetToken_InvalidRSA(t *testing.T) {
 	app := NewApp("https://github.com/foo/bar", 123, 456, []byte(invalidRSA))
 
-	_, err := app.GetToken(context.Background(), TLSConfig{})
+	_, err := app.GetToken(context.Background(), netx.TLSConfig{})
 	if err == nil {
 		t.Fatalf("expected error for not RSA PEM, got nil")
 	}
@@ -181,14 +183,14 @@ func TestGitHubApp_GetToken_InvalidRSA(t *testing.T) {
 }
 
 func TestTransportWithTLS_Defaults_ReturnsDefaultTransportUnchanged(t *testing.T) {
-	tr := transportWithTLS(TLSConfig{})
+	tr := transportWithTLS(netx.TLSConfig{})
 	if tr != http.DefaultTransport {
-		t.Fatal("expected http.DefaultTransport to be returned unchanged for default TLSConfig")
+		t.Fatal("expected http.DefaultTransport to be returned unchanged for default netx.TLSConfig")
 	}
 }
 
 func TestTransportWithTLS_InvalidPEM_IsTolerated(t *testing.T) {
-	tr := transportWithTLS(TLSConfig{CABundle: []byte("this is not a valid PEM certificate")})
+	tr := transportWithTLS(netx.TLSConfig{CABundle: []byte("this is not a valid PEM certificate")})
 
 	httpTr, ok := tr.(*http.Transport)
 	if !ok {
@@ -200,7 +202,7 @@ func TestTransportWithTLS_InvalidPEM_IsTolerated(t *testing.T) {
 }
 
 func TestTransportWithTLS_ValidBundle_BuildsTransportWithPoolAndMinVersion(t *testing.T) {
-	tr := transportWithTLS(TLSConfig{CABundle: []byte(testCACertPEM)})
+	tr := transportWithTLS(netx.TLSConfig{CABundle: []byte(testCACertPEM)})
 
 	httpTr, ok := tr.(*http.Transport)
 	if !ok {
@@ -221,7 +223,7 @@ func TestTransportWithTLS_ValidBundle_BuildsTransportWithPoolAndMinVersion(t *te
 }
 
 func TestTransportWithTLS_InsecureOnly_SetsInsecureSkipVerify(t *testing.T) {
-	tr := transportWithTLS(TLSConfig{InsecureSkipVerify: true})
+	tr := transportWithTLS(netx.TLSConfig{InsecureSkipVerify: true})
 
 	httpTr, ok := tr.(*http.Transport)
 	if !ok {
@@ -237,7 +239,7 @@ func TestTransportWithTLS_NonHTTPTransportDefault_KeepsProxyFromEnvironment(t *t
 	http.DefaultTransport = &fakeRT{}
 	t.Cleanup(func() { http.DefaultTransport = orig })
 
-	tr := transportWithTLS(TLSConfig{CABundle: []byte(testCACertPEM)})
+	tr := transportWithTLS(netx.TLSConfig{CABundle: []byte(testCACertPEM)})
 
 	httpTr, ok := tr.(*http.Transport)
 	if !ok {
