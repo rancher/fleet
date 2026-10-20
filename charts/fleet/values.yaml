@@ -1,11 +1,11 @@
 image:
   repository: rancher/fleet
-  tag: v0.16.3-beta.2
+  tag: v0.16.3-rc.1
   imagePullPolicy: IfNotPresent
 
 agentImage:
   repository: rancher/fleet-agent
-  tag: v0.16.3-beta.2
+  tag: v0.16.3-rc.1
   imagePullPolicy: IfNotPresent
 
 # For cluster registration the public URL of the Kubernetes API server must be set here
@@ -29,6 +29,19 @@ garbageCollectionInterval: "15m"
 
 # Whether you want to allow cluster upon registration to specify their labels.
 ignoreClusterRegistrationLabels: false
+
+# Whether an existing agent-initiated cluster can register again with a registration token other than the one it is registered with.
+allowClusterRegistrationTokenChange: false
+
+# A Cluster referencing a kubeconfig secret in another namespace
+# (spec.kubeConfigSecretNamespace) requires that secret to carry the label
+# fleet.cattle.io/kubeconfig-referenceable-from=<Cluster namespace>.
+# Setting this to true also accepts unlabeled secrets in Fleet's well-known
+# namespaces (fleet-local, fleet-default and the Fleet system namespaces), as
+# in earlier releases. A nonempty reference label still limits access to its
+# named namespace. Agents are only deployed onto the management cluster for
+# Clusters in the bootstrap or Fleet system namespaces, regardless of this value.
+allowUnlabeledKubeConfigSecretNamespaces: false
 
 # Counts from gitrepo are out of sync with bundleDeployment state.
 # Just retry in a number of seconds as there is no great way to trigger an event that doesn't cause a loop.

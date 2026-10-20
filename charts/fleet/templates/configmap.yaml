@@ -23,6 +23,8 @@ data:
       "imagePullSecrets": {{toJson .Values.global.cattle.imagePullSecrets}},
       {{ end }}
       "ignoreClusterRegistrationLabels": {{.Values.ignoreClusterRegistrationLabels}},
+      "allowClusterRegistrationTokenChange": {{.Values.allowClusterRegistrationTokenChange | default false}},
+      "allowUnlabeledKubeConfigSecretNamespaces": {{ toJson (.Values.allowUnlabeledKubeConfigSecretNamespaces | default false) }},
       "bootstrap": {
         "paths": "{{.Values.bootstrap.paths}}",
         "repo": "{{.Values.bootstrap.repo}}",
