@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	httpgit "github.com/go-git/go-git/v5/plumbing/transport/http"
+	"github.com/rancher/fleet/pkg/netx"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -19,12 +20,12 @@ const (
 var ErrNotGithubAppSecret = errors.New("not a GitHub App secret")
 
 type AppAuthGetter interface {
-	Get(repo string, appID, insID int64, pem []byte, tlsCfg TLSConfig) (*httpgit.BasicAuth, error)
+	Get(repo string, appID, insID int64, pem []byte, tlsCfg netx.TLSConfig) (*httpgit.BasicAuth, error)
 }
 
 type DefaultAppAuthGetter struct{}
 
-func (DefaultAppAuthGetter) Get(repo string, appID, insID int64, pem []byte, tlsCfg TLSConfig) (*httpgit.BasicAuth, error) {
+func (DefaultAppAuthGetter) Get(repo string, appID, insID int64, pem []byte, tlsCfg netx.TLSConfig) (*httpgit.BasicAuth, error) {
 	tok, err := NewApp(repo, appID, insID, pem).GetToken(context.Background(), tlsCfg)
 	if err != nil {
 		return nil, fmt.Errorf("could not authenticate as GitHub App installation: %w", err)
@@ -36,7 +37,7 @@ func (DefaultAppAuthGetter) Get(repo string, appID, insID int64, pem []byte, tls
 	}, nil
 }
 
-func GetGithubAppAuthFromSecret(repo string, creds *corev1.Secret, getter AppAuthGetter, tlsCfg TLSConfig) (*httpgit.BasicAuth, error) {
+func GetGithubAppAuthFromSecret(repo string, creds *corev1.Secret, getter AppAuthGetter, tlsCfg netx.TLSConfig) (*httpgit.BasicAuth, error) {
 	idBytes, okID := creds.Data[GitHubAppAuthIDKey]
 	insBytes, okIns := creds.Data[GitHubAppAuthInstallationIDKey]
 	pemBytes, okPem := creds.Data[GitHubAppAuthPrivateKeyKey]

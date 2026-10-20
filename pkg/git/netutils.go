@@ -9,11 +9,11 @@ import (
 
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	httpgit "github.com/go-git/go-git/v5/plumbing/transport/http"
-	giturls "github.com/rancher/fleet/pkg/git-urls"
-	corev1 "k8s.io/api/core/v1"
-
 	fleetgithub "github.com/rancher/fleet/internal/github"
 	fleetssh "github.com/rancher/fleet/internal/ssh"
+	giturls "github.com/rancher/fleet/pkg/git-urls"
+	"github.com/rancher/fleet/pkg/netx"
+	corev1 "k8s.io/api/core/v1"
 )
 
 var GitHubAppGetter fleetgithub.AppAuthGetter = fleetgithub.DefaultAppAuthGetter{}
@@ -22,7 +22,7 @@ var GitHubAppGetter fleetgithub.AppAuthGetter = fleetgithub.DefaultAppAuthGetter
 // Known hosts are sourced from the creds, if provided there. Otherwise, they will be sourced from the provided
 // knownHosts if non-empty.
 // The credentials secret is expected to be either basic-auth or ssh-auth (with extra known_hosts data option)
-func GetAuthFromSecret(url string, creds *corev1.Secret, knownHosts string, tlsCfg fleetgithub.TLSConfig) (transport.AuthMethod, error) {
+func GetAuthFromSecret(url string, creds *corev1.Secret, knownHosts string, tlsCfg netx.TLSConfig) (transport.AuthMethod, error) {
 	if creds == nil {
 		// no auth information was provided
 		return nil, nil

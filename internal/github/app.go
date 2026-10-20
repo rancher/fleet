@@ -13,12 +13,8 @@ import (
 	"time"
 
 	"github.com/bradleyfalzon/ghinstallation/v2"
+	"github.com/rancher/fleet/pkg/netx"
 )
-
-type TLSConfig struct {
-	CABundle           []byte
-	InsecureSkipVerify bool
-}
 
 type GitHubApp struct {
 	repoURL          string
@@ -35,7 +31,7 @@ func NewApp(repo string, appID, installID int64, pem []byte) *GitHubApp {
 // GetToken retrieves a GitHub App installation token using the provided app ID,
 // installation ID, and private key (PEM format). It returns the token as a string
 // or an error if the process fails.
-func (app *GitHubApp) GetToken(ctx context.Context, tlsCfg TLSConfig) (string, error) {
+func (app *GitHubApp) GetToken(ctx context.Context, tlsCfg netx.TLSConfig) (string, error) {
 	err := app.checkIfPrivateKeyIsValid()
 	if err != nil {
 		return "", err
@@ -56,7 +52,7 @@ func (app *GitHubApp) GetToken(ctx context.Context, tlsCfg TLSConfig) (string, e
 	return token, nil
 }
 
-func transportWithTLS(cfg TLSConfig) http.RoundTripper {
+func transportWithTLS(cfg netx.TLSConfig) http.RoundTripper {
 	if len(cfg.CABundle) == 0 && !cfg.InsecureSkipVerify {
 		return http.DefaultTransport
 	}
