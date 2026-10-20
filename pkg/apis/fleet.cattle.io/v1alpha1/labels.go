@@ -18,4 +18,10 @@ const (
 	// never used for targeting or authorization. It is the one FleetLabelPrefix
 	// label an agent is allowed to assert.
 	CreatedByAgentPodLabel = "fleet.cattle.io/created-by-agent-pod"
+
+	// KubeConfigReferenceableFromLabel is set on a kubeconfig Secret to name
+	// the one namespace whose Clusters may reference that Secret through
+	// spec.kubeConfigSecretNamespace from a different namespace. Only writers
+	// of the Secret's own namespace can set it.
+	KubeConfigReferenceableFromLabel = "fleet.cattle.io/kubeconfig-referenceable-from"
 )
