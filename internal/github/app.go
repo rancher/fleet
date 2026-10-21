@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/bradleyfalzon/ghinstallation/v2"
-	"github.com/rancher/fleet/pkg/netx"
+	"github.com/rancher/fleet/internal/netx"
 )
 
 type GitHubApp struct {

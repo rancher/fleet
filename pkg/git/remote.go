@@ -13,8 +13,8 @@ import (
 	"github.com/go-git/go-git/v5/storage/memory"
 	"github.com/go-logr/logr"
 
+	"github.com/rancher/fleet/internal/netx"
 	giturls "github.com/rancher/fleet/pkg/git-urls"
-	"github.com/rancher/fleet/pkg/netx"
 	corev1 "k8s.io/api/core/v1"
 )
 

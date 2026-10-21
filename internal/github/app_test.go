@@ -10,7 +10,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/rancher/fleet/pkg/netx"
+	"github.com/rancher/fleet/internal/netx"
 )
 
 const (

@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	httpgit "github.com/go-git/go-git/v5/plumbing/transport/http"
-	"github.com/rancher/fleet/pkg/netx"
+	"github.com/rancher/fleet/internal/netx"
 	corev1 "k8s.io/api/core/v1"
 )
 

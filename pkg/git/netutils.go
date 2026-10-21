@@ -10,9 +10,9 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	httpgit "github.com/go-git/go-git/v5/plumbing/transport/http"
 	fleetgithub "github.com/rancher/fleet/internal/github"
+	"github.com/rancher/fleet/internal/netx"
 	fleetssh "github.com/rancher/fleet/internal/ssh"
 	giturls "github.com/rancher/fleet/pkg/git-urls"
-	"github.com/rancher/fleet/pkg/netx"
 	corev1 "k8s.io/api/core/v1"
 )
 
