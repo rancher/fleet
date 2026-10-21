@@ -13,8 +13,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	fleetgithub "github.com/rancher/fleet/internal/github"
+	"github.com/rancher/fleet/internal/netx"
 	"github.com/rancher/fleet/pkg/git"
-	"github.com/rancher/fleet/pkg/netx"
 )
 
 type fakeGetter struct {

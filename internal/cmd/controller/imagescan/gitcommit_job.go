@@ -27,9 +27,9 @@ import (
 
 	"github.com/rancher/fleet/internal/cmd/controller/imagescan/update"
 	fleetgithub "github.com/rancher/fleet/internal/github"
+	"github.com/rancher/fleet/internal/netx"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/durations"
-	"github.com/rancher/fleet/pkg/netx"
 
 	"github.com/rancher/wrangler/v3/pkg/condition"
 	"github.com/rancher/wrangler/v3/pkg/kstatus"

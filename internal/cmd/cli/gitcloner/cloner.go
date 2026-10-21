@@ -15,10 +15,10 @@ import (
 
 	"github.com/rancher/fleet/internal/cmd/cli/gitcloner/submodule"
 	fleetgithub "github.com/rancher/fleet/internal/github"
+	"github.com/rancher/fleet/internal/netx"
 	fleetssh "github.com/rancher/fleet/internal/ssh"
 	fleetgit "github.com/rancher/fleet/pkg/git"
 	giturls "github.com/rancher/fleet/pkg/git-urls"
-	"github.com/rancher/fleet/pkg/netx"
 )
 
 const defaultBranch = "master"
