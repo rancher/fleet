@@ -9,10 +9,10 @@ annotations:
   catalog.cattle.io/release-name: fleet-agent
   helm.sh/images: |
     - name: fleet-agent
-      image: rancher/fleet-agent:v0.15.8-rc.2
+      image: rancher/fleet-agent:v0.15.8-rc.3
 apiVersion: v2
-appVersion: 0.15.8-rc.2
+appVersion: 0.15.8-rc.3
 description: Fleet Agent - GitOps at Scale
 icon: https://charts.rancher.io/assets/logos/fleet.svg
 name: fleet-agent
-version: 0.15.8-rc.2
+version: 0.15.8-rc.3
