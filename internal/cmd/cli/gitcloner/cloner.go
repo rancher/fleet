@@ -15,6 +15,7 @@ import (
 
 	"github.com/rancher/fleet/internal/cmd/cli/gitcloner/submodule"
 	fleetgithub "github.com/rancher/fleet/internal/github"
+	"github.com/rancher/fleet/pkg/netx"
 	fleetssh "github.com/rancher/fleet/internal/ssh"
 	fleetgit "github.com/rancher/fleet/pkg/git"
 	giturls "github.com/rancher/fleet/pkg/git-urls"
@@ -288,7 +289,7 @@ func createAuthFromOpts(opts *GitCloner, caBundle []byte) (transport.AuthMethod,
 			return nil, fmt.Errorf("failed to read GitHub app private key from file: %w", err)
 		}
 
-		auth, err := appAuthGetter.Get(opts.Repo, opts.GitHubAppID, opts.GitHubAppInstallation, key, fleetgithub.TLSConfig{
+		auth, err := appAuthGetter.Get(opts.Repo, opts.GitHubAppID, opts.GitHubAppInstallation, key, netx.Config{
 			CABundle:           caBundle,
 			InsecureSkipVerify: opts.InsecureSkipTLS,
 		})

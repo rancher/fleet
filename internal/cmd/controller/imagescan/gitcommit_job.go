@@ -27,6 +27,7 @@ import (
 
 	"github.com/rancher/fleet/internal/cmd/controller/imagescan/update"
 	fleetgithub "github.com/rancher/fleet/internal/github"
+	"github.com/rancher/fleet/pkg/netx"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/durations"
 
@@ -317,7 +318,7 @@ func readAuth(ctx context.Context, logger logr.Logger, c client.Client, gitrepo 
 		}
 		return publicKey, nil
 	default:
-		auth, err := fleetgithub.GetGithubAppAuthFromSecret(gitrepo.Spec.Repo, secret, fleetgithub.DefaultAppAuthGetter{}, fleetgithub.TLSConfig{
+		auth, err := fleetgithub.GetGithubAppAuthFromSecret(gitrepo.Spec.Repo, secret, fleetgithub.DefaultAppAuthGetter{}, netx.Config{
 			CABundle:           gitrepo.Spec.CABundle,
 			InsecureSkipVerify: gitrepo.Spec.InsecureSkipTLSverify,
 		})

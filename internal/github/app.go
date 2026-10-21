@@ -2,23 +2,21 @@ package github
 
 import (
 	"context"
-	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
-	"net"
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 
 	"github.com/bradleyfalzon/ghinstallation/v2"
+	"github.com/rancher/fleet/pkg/netx"
 )
 
-type TLSConfig struct {
-	CABundle           []byte
-	InsecureSkipVerify bool
-}
+// type TLSConfig struct {
+// 	CABundle           []byte
+// 	InsecureSkipVerify bool
+// }
 
 type GitHubApp struct {
 	repoURL          string
@@ -35,7 +33,7 @@ func NewApp(repo string, appID, installID int64, pem []byte) *GitHubApp {
 // GetToken retrieves a GitHub App installation token using the provided app ID,
 // installation ID, and private key (PEM format). It returns the token as a string
 // or an error if the process fails.
-func (app *GitHubApp) GetToken(ctx context.Context, tlsCfg TLSConfig) (string, error) {
+func (app *GitHubApp) GetToken(ctx context.Context, tlsCfg netx.Config) (string, error) {
 	err := app.checkIfPrivateKeyIsValid()
 	if err != nil {
 		return "", err
@@ -56,47 +54,12 @@ func (app *GitHubApp) GetToken(ctx context.Context, tlsCfg TLSConfig) (string, e
 	return token, nil
 }
 
-func transportWithTLS(cfg TLSConfig) http.RoundTripper {
+func transportWithTLS(cfg netx.Config) http.RoundTripper {
 	if len(cfg.CABundle) == 0 && !cfg.InsecureSkipVerify {
 		return http.DefaultTransport
 	}
 
-	tlsConfig := &tls.Config{
-		MinVersion:         tls.VersionTLS12,
-		InsecureSkipVerify: cfg.InsecureSkipVerify, //nolint:gosec
-	}
-
-	if len(cfg.CABundle) > 0 {
-		pool, err := x509.SystemCertPool()
-		if err != nil || pool == nil {
-			pool = x509.NewCertPool()
-		}
-		pool.AppendCertsFromPEM(cfg.CABundle)
-		tlsConfig.RootCAs = pool
-	}
-
-	base, ok := http.DefaultTransport.(*http.Transport)
-	if ok {
-		base = base.Clone()
-	} else {
-		// Another component has replaced the global default transport: keep the
-		// stdlib defaults, notably proxy settings from the environment.
-		base = &http.Transport{
-			Proxy: http.ProxyFromEnvironment,
-			DialContext: (&net.Dialer{
-				Timeout:   30 * time.Second,
-				KeepAlive: 30 * time.Second,
-			}).DialContext,
-			ForceAttemptHTTP2:     true,
-			MaxIdleConns:          100,
-			IdleConnTimeout:       90 * time.Second,
-			TLSHandshakeTimeout:   10 * time.Second,
-			ExpectContinueTimeout: 1 * time.Second,
-		}
-	}
-	base.TLSClientConfig = tlsConfig
-
-	return base
+	return netx.NewTransport(cfg)
 }
 
 func (app *GitHubApp) checkIfPrivateKeyIsValid() error {

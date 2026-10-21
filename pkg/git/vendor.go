@@ -7,6 +7,8 @@ import (
 	"net/http"
 	neturl "net/url"
 	"strings"
+
+	"github.com/rancher/fleet/pkg/netx"
 )
 
 // getVendorCommitsURL returns the commits url for supported
@@ -57,7 +59,7 @@ func getRancherCommitsURL(url *neturl.URL, branch string) string {
 
 // latestCommitFromCommitsURL returns the latest commit using the given commits url
 func latestCommitFromCommitsURL(ctx context.Context, commitsUrl string, opts *options) (string, error) {
-	client, err := GetHTTPClientFromSecret(
+	client, err := netx.NewHTTPClientFromSecret(
 		opts.Credential,
 		opts.CABundle,
 		opts.InsecureTLSVerify,
