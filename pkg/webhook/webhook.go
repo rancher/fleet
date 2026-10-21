@@ -159,11 +159,11 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	// A payload can yield several URLs (e.g. a web URL and an SSH URL), and more
 	// than one can match the same GitRepo (most commonly when the SSH host equals
-	// the web host, github.com). Track the GitRepos already updated in `seen` so
+	// the web host, github.com). Track the GitRepos already processed in `seen` so
 	// each is processed once per request, no matter how many URLs resolve to it.
 	seen := make(map[types.NamespacedName]struct{})
 	var authenticated, rejected int
-	var authErr error // first authentication failure, reported if no GitRepo authenticated
+	var authErr error // most severe authentication failure, reported if no GitRepo authenticated
 	for _, repo := range repoURLs {
 		u, err := url.Parse(repo)
 		if err != nil {
@@ -205,7 +205,7 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 			if revision == "" {
 				continue
 			}
-
+			seen[gitrepoResource] = struct{}{}
 			// Authenticate the request against this GitRepo's secret, even if the
 			// GitRepo is already up to date: the response must tell the sender
 			// whether any GitRepo accepted it, not only whether one changed.
@@ -217,10 +217,9 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 					"gitrepo", gitrepo.Name,
 					"namespace", gitrepo.Namespace,
 				)
-				if authErr == nil {
+				if authErr == nil || getErrorCodeFromErr(err) > getErrorCodeFromErr(authErr) {
 					authErr = err
 				}
-				seen[gitrepoResource] = struct{}{}
 				continue
 			}
 			if !ok {
@@ -233,7 +232,6 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 				// Skip only this GitRepo: other GitRepos matching the
 				// same URL may have their own secret.
 				rejected++
-				seen[gitrepoResource] = struct{}{}
 				continue
 			}
 			authenticated++
@@ -243,7 +241,6 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 					return
 				}
 			}
-			seen[gitrepoResource] = struct{}{}
 		}
 	}
 
@@ -254,7 +251,7 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	//   rejected  authenticated  authErr  response
 	//   0         0              no       200   no matching GitRepo
 	//   any       ≥1             any      200   at least one GitRepo verified the request
-	//   any       0              yes      error code from the first failure (401 or 500)
+	//   any       0              yes      error code from the most severe failure (500 over 401)
 	//   ≥1        0              no       401   no matching GitRepo has a secret to verify with
 	if authErr != nil && authenticated == 0 {
 		http.Error(rw, "Webhook processing failed", getErrorCodeFromErr(authErr))

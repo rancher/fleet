@@ -48,6 +48,13 @@ func getValue(secret *corev1.Secret, key string) (string, error) {
 	if secret == nil {
 		return "", errors.New("secret is nil")
 	}
+	s, ok := secret.Data[key]
+	if !ok {
+		return "", fmt.Errorf("secret key %q not found in secret %q", key, secret.Name)
+	}
+	if len(s) == 0 {
+		return "", fmt.Errorf("secret key %q in secret %q is empty", key, secret.Name)
+	}
 
 	value, ok := secret.Data[key]
 	if !ok {
