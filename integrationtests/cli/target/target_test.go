@@ -22,6 +22,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8syaml "k8s.io/apimachinery/pkg/util/yaml"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -123,10 +124,24 @@ var _ = Describe("Fleet CLI target", func() {
 	})
 
 	When("two GitRepos reuse dependency templates on the same target cluster", func() {
-		It("generates distinct bundle names and resolves each instance's own prerequisites", func() {
+		DescribeTable("generates distinct bundle names and resolves each instance's own prerequisites", func(sourceRepoLabel string) {
 			By("preparing shared source and an operator-managed target cluster")
 			source := GinkgoT().TempDir()
 			Expect(os.CopyFS(filepath.Join(source, "app"), os.DirFS(clihelper.AssetsPath+"dependency-templates"))).To(Succeed())
+			if sourceRepoLabel != "" {
+				By("adding a conflicting repository label to the shared source")
+				for _, component := range []string{"configs", "secrets", "application"} {
+					file := filepath.Join(source, "app", component, "fleet.yaml")
+					data, err := os.ReadFile(file)
+					Expect(err).NotTo(HaveOccurred())
+					fy := &fleetv1.FleetYAML{}
+					Expect(yaml.Unmarshal(data, fy)).To(Succeed())
+					fy.Labels[fleetv1.RepoLabel] = sourceRepoLabel
+					data, err = yaml.Marshal(fy)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(os.WriteFile(file, data, 0600)).To(Succeed())
+				}
+			}
 			GinkgoT().Chdir(source)
 			Expect(schemes.Register(fleetv1.AddToScheme)).To(Succeed())
 
@@ -160,7 +175,7 @@ var _ = Describe("Fleet CLI target", func() {
 			})
 			Expect(err).NotTo(HaveOccurred())
 			Expect(os.WriteFile(targetsFile, targets, 0600)).To(Succeed())
-			applications := []*fleetv1.BundleDeployment{}
+			applications := map[string]*fleetv1.BundleDeployment{}
 			for _, name := range []string{"application-dev", "application-qa"} {
 				By("generating and targeting " + name + " without explicit bundle names")
 				repo := &fleetv1.GitRepo{
@@ -183,6 +198,7 @@ var _ = Describe("Fleet CLI target", func() {
 				for _, bundle := range bundles {
 					component := bundle.Labels["example.com/component"]
 					Expect(bundle.Name).To(Equal(name + "-app-" + component))
+					Expect(bundle.Labels).To(HaveKeyWithValue(fleetv1.RepoLabel, repo.Name))
 					Expect(k8sClient.Create(ctx, bundle)).To(Succeed())
 					input, err := json.Marshal(bundle)
 					Expect(err).NotTo(HaveOccurred())
@@ -209,6 +225,7 @@ var _ = Describe("Fleet CLI target", func() {
 						bd := deployments[0]
 						Expect(bd.Name).To(Equal(bundle.Name))
 						Expect(bd.Namespace).To(Equal(deploymentNamespace))
+						Expect(bd.Labels).To(HaveKeyWithValue(fleetv1.RepoLabel, repo.Name))
 						Expect(bd.Spec.Options.TargetNamespace).To(Equal(name))
 						spec, err := json.Marshal(bd.Spec)
 						Expect(err).NotTo(HaveOccurred())
@@ -216,7 +233,7 @@ var _ = Describe("Fleet CLI target", func() {
 							originalSpec = spec
 							Expect(k8sClient.Create(ctx, bd)).To(Succeed())
 							if component == "application" {
-								applications = append(applications, bd)
+								applications[repo.Name] = bd
 							}
 						} else {
 							Expect(spec).To(MatchJSON(originalSpec))
@@ -229,8 +246,7 @@ var _ = Describe("Fleet CLI target", func() {
 			Expect(k8sClient.List(ctx, all, client.InNamespace(deploymentNamespace))).To(Succeed())
 			Expect(all.Items).To(HaveLen(6))
 			Expect(applications).To(HaveLen(2))
-			for _, application := range applications {
-				name := application.Labels[fleetv1.RepoLabel]
+			for name, application := range applications {
 				Expect(application.Spec.DependsOn).To(HaveLen(2))
 				for _, dependency := range application.Spec.DependsOn {
 					Expect(dependency.Selector.MatchLabels).To(HaveKeyWithValue(fleetv1.RepoLabel, name))
@@ -240,13 +256,17 @@ var _ = Describe("Fleet CLI target", func() {
 					matches := &fleetv1.BundleDeploymentList{}
 					Expect(k8sClient.List(ctx, matches, client.InNamespace(deploymentNamespace), client.MatchingLabelsSelector{Selector: selector})).To(Succeed())
 					Expect(matches.Items).To(HaveLen(1))
+					Expect(matches.Items[0].Labels).To(HaveKeyWithValue(fleetv1.RepoLabel, name))
 					Expect(matches.Items[0].Name).To(Equal(name + "-app-" + dependency.Selector.MatchLabels["example.com/component"]))
 				}
 				bundle := &fleetv1.Bundle{}
 				Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: application.Name}, bundle)).To(Succeed())
 				Expect(bundle.Spec.DependsOn[0].Selector.MatchLabels[fleetv1.RepoLabel]).To(Equal("${ .GitRepo.Name }"))
 			}
-		})
+		},
+			Entry("without a source repository label", ""),
+			Entry("with a source repository label pointing to QA", "application-qa"),
+		)
 	})
 
 	When("Matching a cluster in namespace", func() {
