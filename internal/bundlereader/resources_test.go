@@ -280,6 +280,26 @@ func TestGenerateValuesRejectsSymlinkPointingOutsideRoot(t *testing.T) {
 	assert.Contains(t, err.Error(), "escapes repository directory")
 }
 
+// A symlink target must not leave root, even if ".." components return to it.
+func TestGenerateValuesRejectsSymlinkDetourOutsideRoot(t *testing.T) {
+	dir := t.TempDir()
+	root := filepath.Join(dir, "root")
+	base := filepath.Join(root, "bundle")
+	require.NoError(t, os.MkdirAll(base, 0755))
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "outside", "sub"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "values.yaml"), []byte("foo: bar"), 0644))
+	require.NoError(t, os.Symlink(dir+"/outside/sub/../../root/values.yaml", filepath.Join(base, "values.yaml")))
+
+	chart := &fleet.HelmOptions{
+		GitOpsHelmOptions: fleet.GitOpsHelmOptions{
+			ValuesFiles: []string{"values.yaml"},
+		},
+	}
+
+	_, err := generateValues(base, root, chart)
+	require.ErrorContains(t, err, "escapes repository directory")
+}
+
 // A root that does not contain the bundle directory must not widen access.
 func TestGenerateValuesIgnoresRootNotContainingBase(t *testing.T) {
 	dir := t.TempDir()

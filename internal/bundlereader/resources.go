@@ -218,7 +218,7 @@ func generateValues(base, root string, chart *fleet.HelmOptions) (valuesMap *fle
 		if !pathWithinDir(resolvedRoot, valuesPath) {
 			return nil, fmt.Errorf("invalid values file %q: path escapes repository directory", value)
 		}
-		resolvedValuesPath, err := resolveValuesFile(resolvedBase, cleanValue)
+		resolvedValuesPath, err := resolveValuesFile(resolvedRoot, resolvedBase, cleanValue)
 		if err != nil {
 			return nil, fmt.Errorf("resolving values file %q: %w", valuesPath, err)
 		}
@@ -240,10 +240,12 @@ func generateValues(base, root string, chart *fleet.HelmOptions) (valuesMap *fle
 	return valuesMap, nil
 }
 
-// resolveValuesFile resolves rel against the canonical base, rejecting Git
-// metadata in each traversed component, including intermediate symlink targets
-// which EvalSymlinks would hide. Ancestors of base are not checked.
-func resolveValuesFile(base, rel string) (string, error) {
+// resolveValuesFile resolves rel against the canonical base, checking each
+// traversed component, including intermediate symlink targets which
+// EvalSymlinks would hide. Components must not be Git metadata and must stay
+// within root; ancestors of root are allowed so absolute targets and ".." can
+// be followed back into it. Ancestors of base are not checked for metadata.
+func resolveValuesFile(root, base, rel string) (string, error) {
 	resolved := base
 	pending := strings.Split(rel, string(os.PathSeparator))
 	links := 0
@@ -260,6 +262,9 @@ func resolveValuesFile(base, rel string) (string, error) {
 			return "", errors.New("path references Git metadata")
 		}
 		next := filepath.Join(resolved, component)
+		if !pathWithinDir(root, next) && !pathWithinDir(next, root) {
+			return "", errors.New("path escapes repository directory")
+		}
 		info, err := os.Lstat(next)
 		if err != nil {
 			return "", err
