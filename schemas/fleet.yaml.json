@@ -276,7 +276,7 @@
             "type": "string"
           },
           "type": "array",
-          "description": "ValuesFiles is a list of files to load values from."
+          "description": "ValuesFiles lists values files relative to the bundle directory, including\nshared files within the checkout. Absolute paths, Git metadata (.git), and\nsymlinks escaping the checkout are rejected. For fleet apply, the nearest\nancestor with a .git entry defines the checkout, regardless of the working\ndirectory; without one, files must stay within the bundle directory."
         },
         "chart": {
           "type": "string",

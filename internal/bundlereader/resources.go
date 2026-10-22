@@ -218,7 +218,7 @@ func generateValues(base, root string, chart *fleet.HelmOptions) (valuesMap *fle
 		if !pathWithinDir(resolvedRoot, valuesPath) {
 			return nil, fmt.Errorf("invalid values file %q: path escapes repository directory", value)
 		}
-		resolvedValuesPath, err := filepath.EvalSymlinks(valuesPath)
+		resolvedValuesPath, err := resolveValuesFile(resolvedBase, cleanValue)
 		if err != nil {
 			return nil, fmt.Errorf("resolving values file %q: %w", valuesPath, err)
 		}
@@ -238,6 +238,55 @@ func generateValues(base, root string, chart *fleet.HelmOptions) (valuesMap *fle
 	}
 
 	return valuesMap, nil
+}
+
+// resolveValuesFile resolves rel against the canonical base, rejecting Git
+// metadata in each traversed component, including intermediate symlink targets
+// which EvalSymlinks would hide. Ancestors of base are not checked.
+func resolveValuesFile(base, rel string) (string, error) {
+	resolved := base
+	pending := strings.Split(rel, string(os.PathSeparator))
+	links := 0
+	for len(pending) > 0 {
+		component := pending[0]
+		pending = pending[1:]
+		switch {
+		case component == "" || component == ".":
+			continue
+		case component == "..":
+			resolved = filepath.Dir(resolved)
+			continue
+		case strings.EqualFold(component, ".git"):
+			return "", errors.New("path references Git metadata")
+		}
+		next := filepath.Join(resolved, component)
+		info, err := os.Lstat(next)
+		if err != nil {
+			return "", err
+		}
+		if info.Mode()&os.ModeSymlink == 0 {
+			if len(pending) > 0 && !info.IsDir() {
+				return "", fmt.Errorf("%q is not a directory", next)
+			}
+			resolved = next
+			continue
+		}
+		links++
+		if links > 255 {
+			return "", errors.New("too many symlinks")
+		}
+		target, err := os.Readlink(next)
+		if err != nil {
+			return "", err
+		}
+		if filepath.IsAbs(target) {
+			volume := filepath.VolumeName(target)
+			resolved = volume + string(os.PathSeparator)
+			target = target[len(volume):]
+		}
+		pending = append(strings.Split(target, string(os.PathSeparator)), pending...)
+	}
+	return resolved, nil
 }
 
 // resolveDir returns the absolute path of dir with symlinks resolved.

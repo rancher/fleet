@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/rancher/fleet/internal/ocistorage"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -20,6 +23,88 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
+
+func TestNewBundleConfinesValuesToCheckout(t *testing.T) {
+	for _, test := range []struct {
+		name       string
+		checkout   bool
+		gitFile    bool
+		symlink    bool
+		nested     bool
+		valuesFile string
+		wantError  bool
+	}{
+		{name: "outside checkout", checkout: true, valuesFile: "../../../outside.yaml", wantError: true},
+		{name: "shared checkout values", checkout: true, valuesFile: "../../values.yaml"},
+		{name: "checkout pointer cannot widen root", gitFile: true, valuesFile: "../../../outside.yaml", wantError: true},
+		{name: "shared worktree values", gitFile: true, valuesFile: "../../values.yaml"},
+		{name: "symlinked bundle", checkout: true, symlink: true, valuesFile: "../../values.yaml"},
+		{name: "no checkout marker", valuesFile: "../../values.yaml", wantError: true},
+		{name: "bundle-only values", valuesFile: "values.yaml"},
+		{name: "nearest checkout wins", checkout: true, nested: true, valuesFile: "../../values.yaml", wantError: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			parent := t.TempDir()
+			root := filepath.Join(parent, "repo")
+			base := filepath.Join(root, "charts", "chart1")
+			require.NoError(t, os.MkdirAll(base, 0755))
+			if test.checkout {
+				require.NoError(t, os.Mkdir(filepath.Join(root, ".git"), 0755))
+			}
+			if test.gitFile {
+				require.NoError(t, os.WriteFile(filepath.Join(root, ".git"), []byte("gitdir: "+parent+"\n"), 0644))
+			}
+			if test.nested {
+				require.NoError(t, os.Mkdir(filepath.Join(root, "charts", ".git"), 0755))
+			}
+			require.NoError(t, os.WriteFile(filepath.Join(parent, "outside.yaml"), []byte("private: outside"), 0644))
+			require.NoError(t, os.WriteFile(filepath.Join(root, "values.yaml"), []byte("shared: allowed"), 0644))
+			require.NoError(t, os.WriteFile(filepath.Join(base, "values.yaml"), []byte("shared: allowed"), 0644))
+			require.NoError(t, os.Mkdir(filepath.Join(base, "chart"), 0755))
+			require.NoError(t, os.WriteFile(filepath.Join(base, "chart", "Chart.yaml"), []byte("apiVersion: v2\nname: test\nversion: 0.1.0\n"), 0644))
+			config := fmt.Sprintf("helm:\n  chart: ./chart\n  valuesFiles: [%q]\ntargetCustomizations:\n- name: test\n  helm:\n    valuesFiles: [%q]\n", test.valuesFile, test.valuesFile)
+			require.NoError(t, os.WriteFile(filepath.Join(base, "fleet.yaml"), []byte(config), 0644))
+			if test.symlink {
+				alias := filepath.Join(parent, "alias")
+				require.NoError(t, os.Symlink(base, alias))
+				base = alias
+			}
+			for _, cwd := range []string{root, parent, string(filepath.Separator)} {
+				t.Run(cwd, func(t *testing.T) {
+					t.Chdir(cwd)
+					relativeBase, err := filepath.Rel(cwd, base)
+					require.NoError(t, err)
+					bundle, _, err := newBundle(context.Background(), "test", relativeBase, Options{})
+					if test.wantError {
+						require.ErrorContains(t, err, "escapes repository directory")
+						require.Nil(t, bundle)
+					} else {
+						require.NoError(t, err)
+						require.Equal(t, "allowed", bundle.Spec.Helm.Values.Data["shared"])
+						require.Equal(t, "allowed", bundle.Spec.Targets[0].Helm.Values.Data["shared"])
+					}
+				})
+			}
+		})
+	}
+}
+
+func TestNewBundleRejectsTargetMetadata(t *testing.T) {
+	root := t.TempDir()
+	base := filepath.Join(root, "bundle")
+	require.NoError(t, os.Mkdir(base, 0755))
+	shared := filepath.Join(root, "shared")
+	require.NoError(t, os.Mkdir(shared, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(shared, "values.yaml"), []byte("private: metadata"), 0644))
+	require.NoError(t, os.Symlink("shared", filepath.Join(root, ".git")))
+	require.NoError(t, os.Symlink(".git", filepath.Join(root, "alias")))
+	config := "targetCustomizations:\n- name: test\n  helm:\n    valuesFiles: [../alias/values.yaml]\n"
+	require.NoError(t, os.WriteFile(filepath.Join(base, "fleet.yaml"), []byte(config), 0644))
+
+	bundle, _, err := newBundle(context.Background(), "test", base, Options{})
+	require.ErrorContains(t, err, "Git metadata")
+	require.Nil(t, bundle)
+}
 
 type failFirstBundleClient struct {
 	client.Client
