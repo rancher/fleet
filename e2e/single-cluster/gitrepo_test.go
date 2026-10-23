@@ -43,6 +43,7 @@ type gitRepoTestValues struct {
 	HelmSecretName         string
 	HelmSecretNameForPaths string
 	InsecureSkipTLSVerify  bool
+	WebhookSecret          string
 }
 
 var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"), func() {
@@ -236,6 +237,11 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 	})
 
 	When("updating a git repository monitored via webhook", func() {
+		const (
+			webhookSecretName  = "webhook-test-secret"
+			webhookSecretValue = "webhook-test-value"
+		)
+
 		BeforeEach(func() {
 			localRepoName = "webhook-test"
 			targetNamespace = testenv.NewNamespaceName("target", r)
@@ -266,9 +272,11 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 			hookScript := path.Join(tmpDir, "hook_script")
 
 			err = testenv.Template(hookScript, testenv.AssetPath("gitrepo/post-receive.sh"), struct {
-				RepoURL string
+				RepoURL       string
+				WebhookSecret string
 			}{
 				inClusterRepoURL,
+				webhookSecretValue,
 			})
 			Expect(err).ToNot(HaveOccurred())
 
@@ -300,6 +308,15 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 				return err
 			}).ShouldNot(HaveOccurred(), out)
 
+			// gitjob rejects unauthenticated webhook calls, so give the GitRepo a
+			// secret for the post-receive hook to sign its calls with.
+			out, err = k.Create("secret", "generic", webhookSecretName,
+				"--from-literal=github="+webhookSecretValue)
+			Expect(err).ToNot(HaveOccurred(), out)
+			DeferCleanup(func() {
+				_, _ = k.Delete("secret", webhookSecretName)
+			})
+
 			// Create the GitRepo resource first, before pushing content
 			// This ensures the webhook will find the GitRepo when the push triggers it
 			err = testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo.yaml"), gitRepoTestValues{
@@ -308,6 +325,7 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 				Branch:          gh.Branch,
 				PollingInterval: "24h",           // prevent polling
 				TargetNamespace: targetNamespace, // to avoid conflicts with other tests
+				WebhookSecret:   webhookSecretName,
 			})
 			Expect(err).ToNot(HaveOccurred())
 
