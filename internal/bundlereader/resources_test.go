@@ -179,6 +179,52 @@ func TestGenerateValuesAllowsSymlinkedRoot(t *testing.T) {
 	assert.Equal(t, "bar", valuesMap.Data["foo"])
 }
 
+func TestGenerateValuesRejectsGitMetadata(t *testing.T) {
+	for _, test := range []struct {
+		name         string
+		metadataPath string
+		valuesFile   string
+		links        map[string]string
+		relative     bool
+	}{
+		{name: "root metadata", metadataPath: ".git/values.yaml", valuesFile: "../.git/values.yaml"},
+		{name: "nested metadata", metadataPath: "submodule/.git/values.yaml", valuesFile: "../submodule/.git/values.yaml"},
+		{name: "file symlink", metadataPath: ".git/values.yaml", valuesFile: "values.yaml", links: map[string]string{"bundle/values.yaml": ".git/values.yaml"}},
+		{name: "directory symlink", metadataPath: ".git/values.yaml", valuesFile: "alias/values.yaml", links: map[string]string{"bundle/alias": ".git"}},
+		{name: "metadata symlink", metadataPath: "shared/values.yaml", valuesFile: "../.git/values.yaml", links: map[string]string{".git": "shared"}},
+		{name: "metadata file", metadataPath: "submodule/.git", valuesFile: "../submodule/.git"},
+		{name: "case-insensitive metadata", metadataPath: ".GIT/values.yaml", valuesFile: "../.GIT/values.yaml"},
+		{name: "aliased metadata directory", metadataPath: "shared/values.yaml", valuesFile: "alias/values.yaml", links: map[string]string{".git": "shared", "bundle/alias": ".git"}},
+		{name: "aliased metadata file", metadataPath: "shared/values.yaml", valuesFile: "values.yaml", links: map[string]string{".git": "shared", "bundle/values.yaml": ".git/values.yaml"}, relative: true},
+		{name: "nested metadata chain", metadataPath: "submodule/shared/values.yaml", valuesFile: "alias/values.yaml", links: map[string]string{"submodule/.git": "submodule/shared", "bundle/alias": "bundle/indirect", "bundle/indirect": "submodule/.git"}, relative: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			root := t.TempDir()
+			base := filepath.Join(root, "bundle")
+			require.NoError(t, os.MkdirAll(base, 0755))
+			metadataPath := filepath.Join(root, test.metadataPath)
+			require.NoError(t, os.MkdirAll(filepath.Dir(metadataPath), 0755))
+			require.NoError(t, os.WriteFile(metadataPath, []byte("private: metadata"), 0644))
+			for path, target := range test.links {
+				link := filepath.Join(root, path)
+				target = filepath.Join(root, target)
+				if test.relative {
+					var err error
+					target, err = filepath.Rel(filepath.Dir(link), target)
+					require.NoError(t, err)
+				}
+				require.NoError(t, os.Symlink(target, link))
+			}
+			chart := &fleet.HelmOptions{
+				GitOpsHelmOptions: fleet.GitOpsHelmOptions{ValuesFiles: []string{test.valuesFile}},
+			}
+
+			_, err := generateValues(base, root, chart)
+			require.ErrorContains(t, err, "Git metadata")
+		})
+	}
+}
+
 func TestGenerateValuesRejectsPathOutsideRoot(t *testing.T) {
 	dir := t.TempDir()
 	root := filepath.Join(dir, "root")
@@ -234,6 +280,26 @@ func TestGenerateValuesRejectsSymlinkPointingOutsideRoot(t *testing.T) {
 	assert.Contains(t, err.Error(), "escapes repository directory")
 }
 
+// A symlink target must not leave root, even if ".." components return to it.
+func TestGenerateValuesRejectsSymlinkDetourOutsideRoot(t *testing.T) {
+	dir := t.TempDir()
+	root := filepath.Join(dir, "root")
+	base := filepath.Join(root, "bundle")
+	require.NoError(t, os.MkdirAll(base, 0755))
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "outside", "sub"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "values.yaml"), []byte("foo: bar"), 0644))
+	require.NoError(t, os.Symlink(dir+"/outside/sub/../../root/values.yaml", filepath.Join(base, "values.yaml")))
+
+	chart := &fleet.HelmOptions{
+		GitOpsHelmOptions: fleet.GitOpsHelmOptions{
+			ValuesFiles: []string{"values.yaml"},
+		},
+	}
+
+	_, err := generateValues(base, root, chart)
+	require.ErrorContains(t, err, "escapes repository directory")
+}
+
 // A root that does not contain the bundle directory must not widen access.
 func TestGenerateValuesIgnoresRootNotContainingBase(t *testing.T) {
 	dir := t.TempDir()
@@ -274,8 +340,10 @@ func TestGenerateValuesRejectsSymlinkPointingOutsideBase(t *testing.T) {
 	assert.Contains(t, err.Error(), "escapes repository directory")
 }
 
+// Git metadata checks only apply below base, not to where the checkout lives.
 func TestGenerateValuesReadsFileWithinBase(t *testing.T) {
-	base := t.TempDir()
+	base := filepath.Join(t.TempDir(), ".git", "checkout")
+	require.NoError(t, os.MkdirAll(base, 0755))
 	require.NoError(t, os.WriteFile(filepath.Join(base, "values.yaml"), []byte("foo: bar"), 0644))
 
 	chart := &fleet.HelmOptions{
@@ -309,6 +377,49 @@ func TestGenerateValuesAllowsAbsoluteSymlinkWithinRelativeBase(t *testing.T) {
 	valuesMap, err := generateValues(".", "", chart)
 	require.NoError(t, err)
 	assert.Equal(t, "bar", valuesMap.Data["foo"])
+}
+
+func TestGenerateValuesSymlinkChains(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		target   string
+		absolute bool
+		wantErr  string
+	}{
+		{name: "relative chain", target: "shared/indirect.yaml"},
+		{name: "absolute chain", target: "shared/indirect.yaml", absolute: true},
+		{name: "parent after symlink", target: "alias/../values.yaml"},
+		{name: "metadata before parent", target: ".git/../shared/values.yaml", wantErr: "Git metadata"},
+		{name: "cycle", target: "values.yaml", wantErr: "too many symlinks"},
+		{name: "dangling", target: "missing.yaml", wantErr: "no such file"},
+		{name: "non-directory", target: "shared/values.yaml/child", wantErr: "not a directory"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			base := t.TempDir()
+			require.NoError(t, os.MkdirAll(filepath.Join(base, "shared", "nested"), 0755))
+			require.NoError(t, os.WriteFile(filepath.Join(base, "shared", "values.yaml"), []byte("foo: bar"), 0644))
+			require.NoError(t, os.Symlink("shared/nested", filepath.Join(base, "alias")))
+			require.NoError(t, os.Symlink("shared", filepath.Join(base, ".git")))
+			require.NoError(t, os.Symlink("values.yaml", filepath.Join(base, "shared", "indirect.yaml")))
+			target := test.target
+			if test.absolute {
+				target = filepath.Join(base, target)
+			}
+			require.NoError(t, os.Symlink(target, filepath.Join(base, "values.yaml")))
+			chart := &fleet.HelmOptions{
+				GitOpsHelmOptions: fleet.GitOpsHelmOptions{ValuesFiles: []string{"values.yaml"}},
+			}
+
+			values, err := generateValues(base, "", chart)
+			if test.wantErr != "" {
+				require.ErrorContains(t, err, test.wantErr)
+				require.Nil(t, values)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, "bar", values.Data["foo"])
+			}
+		})
+	}
 }
 
 func TestShouldAddAuthToRequest(t *testing.T) {
