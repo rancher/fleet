@@ -75,6 +75,19 @@ func registeredCluster(namespace, clientID string) *fleet.Cluster {
 	return found
 }
 
+// deleteClusterOnCleanup deletes cluster once the current spec ends. A cluster
+// left referencing a kubeConfigSecret that does not exist makes every later
+// global config change fail in the import handler's config callback; the
+// global-config handler then retries for the rest of the suite, re-applying
+// the ConfigMap's config over what later specs set and, as callbacks run in
+// random order and stop at the first error, starving the others.
+func deleteClusterOnCleanup(cluster *fleet.Cluster) {
+	DeferCleanup(func() {
+		Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, cluster))).To(Succeed())
+		objectGone(cluster).Should(Succeed())
+	})
+}
+
 // grantRegistration drives cr through to the granted state and returns the
 // Cluster it registered against together with the name of the request
 // ServiceAccount created for it.
@@ -391,6 +404,7 @@ var _ = Describe("ClusterRegistration", func() {
 			cluster, _ := grantRegistration(first, "first-sa-token")
 			Expect(cluster.Annotations).To(HaveKeyWithValue(fleet.RegisteredTokenAnnotation, token.Name))
 
+			deleteClusterOnCleanup(cluster)
 			Eventually(func(g Gomega) {
 				current := &fleet.Cluster{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cluster), current)).To(Succeed())
@@ -416,6 +430,7 @@ var _ = Describe("ClusterRegistration", func() {
 			cluster.Spec.ClientID = clientID
 			cluster.Spec.KubeConfigSecret = "missing-kubeconfig"
 			Expect(k8sClient.Create(ctx, cluster)).To(Succeed())
+			deleteClusterOnCleanup(cluster)
 			Expect(registeredCluster(regNamespace, clientID).Name).To(Equal("managed-cluster"))
 
 			importToken := createSettledToken(regNamespace,
