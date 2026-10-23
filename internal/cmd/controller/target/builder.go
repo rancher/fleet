@@ -1,7 +1,6 @@
 package target
 
 import (
-	"bytes"
 	"cmp"
 	"context"
 	"fmt"
@@ -152,7 +151,13 @@ func (m *Manager) Targets(ctx context.Context, bundle *fleet.Bundle, manifestID 
 				opts.CreateNamespace = createNamespace
 			}
 
-			err = preprocessHelmValues(logger, &opts, &cluster)
+			templateContext := newTemplateContext(bundle, &cluster)
+			dependsOn, err := preprocessDependencies(bundle.Spec.DependsOn, templateContext)
+			if err != nil {
+				return nil, false, fmt.Errorf("bundle %s/%s, cluster %s/%s: %w", bundle.Namespace, bundle.Name, cluster.Namespace, cluster.Name, err)
+			}
+
+			err = preprocessHelmValues(logger, &opts, &cluster, templateContext)
 			if err != nil {
 				return nil, false, fmt.Errorf("cluster %s in namespace %s: %w", cluster.Name, cluster.Namespace, err)
 			}
@@ -168,6 +173,7 @@ func (m *Manager) Targets(ctx context.Context, bundle *fleet.Bundle, manifestID 
 				Bundle:        bundle,
 				Options:       opts,
 				DeploymentID:  deploymentID,
+				DependsOn:     dependsOn,
 			})
 		}
 	}
@@ -268,9 +274,8 @@ func (m *Manager) getNamespacesForBundle(ctx context.Context, bundle *fleet.Bund
 	return nses.List(), nil
 }
 
-func preprocessHelmValues(logger logr.Logger, opts *fleet.BundleDeploymentOptions, cluster *fleet.Cluster) (err error) {
+func preprocessHelmValues(logger logr.Logger, opts *fleet.BundleDeploymentOptions, cluster *fleet.Cluster, templateContext map[string]any) (err error) {
 	clusterLabels := yaml.CleanAnnotationsForExport(cluster.Labels)
-	clusterAnnotations := yaml.CleanAnnotationsForExport(cluster.Annotations)
 
 	for k, v := range cluster.Labels {
 		if strings.HasPrefix(k, fleet.FleetLabelPrefix) || strings.HasPrefix(k, fleet.ManagementLabelPrefix) {
@@ -304,25 +309,12 @@ func preprocessHelmValues(logger logr.Logger, opts *fleet.BundleDeploymentOption
 	}
 
 	if !opts.Helm.DisablePreProcess {
-		templateValues := map[string]any{}
-		if cluster.Spec.TemplateValues != nil {
-			templateValues = cluster.Spec.TemplateValues.Data
-		}
-
-		values := map[string]any{
-			"ClusterNamespace":   cluster.Namespace,
-			"ClusterName":        cluster.Name,
-			"ClusterLabels":      toDict(clusterLabels),
-			"ClusterAnnotations": toDict(clusterAnnotations),
-			"ClusterValues":      templateValues,
-		}
-
-		opts.Helm.Values.Data, err = processTemplateValues(opts.Helm.Values.Data, values)
+		opts.Helm.Values.Data, err = processTemplateValues(opts.Helm.Values.Data, templateContext)
 		if err != nil {
 			return err
 		}
 
-		templatedData, err := processTemplateValuesData(opts.Helm.TemplateValues, values)
+		templatedData, err := processTemplateValuesData(opts.Helm.TemplateValues, templateContext)
 		if err != nil {
 			return err
 		}
@@ -407,22 +399,15 @@ func processTemplateValuesData(helmTemplateData map[string]string, templateConte
 		// characters and will be interpreted as JSON data structures. This
 		// causes issues when parsing the fleet.yaml so we change the delims
 		// for templating to '${ }'
-		tmpl := template.New("values").Funcs(tplFuncMap()).Option("missingkey=error").Delims("${", "}")
-		tmpl, err := tmpl.Parse(v)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse helm values template: %w", err)
-		}
-
-		var b bytes.Buffer
-		err = tmpl.Execute(&b, templateContext)
+		rendered, err := renderTemplate(v, templateContext)
 		if err != nil {
 			return nil, fmt.Errorf("failed to render helm values template: %w", err)
 		}
 
 		var value any
-		err = kyaml.Unmarshal(b.Bytes(), &value)
+		err = kyaml.Unmarshal([]byte(rendered), &value)
 		if err != nil {
-			return nil, fmt.Errorf("failed to interpret rendered template as helm values: %s, %w", b.String(), err)
+			return nil, fmt.Errorf("failed to interpret rendered template as helm values: %s, %w", rendered, err)
 		}
 
 		renderedValues[k] = value
@@ -441,20 +426,13 @@ func processTemplateValues(helmValues map[string]any, templateContext map[string
 	// characters and will be interpreted as JSON data structures. This
 	// causes issues when parsing the fleet.yaml so we change the delims
 	// for templating to '${ }'
-	tmpl := template.New("values").Funcs(tplFuncMap()).Option("missingkey=error").Delims("${", "}")
-	tmpl, err = tmpl.Parse(string(data))
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse helm values template: %w", err)
-	}
-
-	var b bytes.Buffer
-	err = tmpl.Execute(&b, templateContext)
+	rendered, err := renderTemplate(string(data), templateContext)
 	if err != nil {
 		return nil, fmt.Errorf("failed to render helm values template: %w", err)
 	}
 
 	var renderedValues map[string]any
-	err = kyaml.Unmarshal(b.Bytes(), &renderedValues)
+	err = kyaml.Unmarshal([]byte(rendered), &renderedValues)
 	if err != nil {
 		return nil, fmt.Errorf("failed to interpret rendered template as helm values: %#v, %w", renderedValues, err)
 	}

@@ -1,0 +1,13 @@
+labels:
+  example.com/component: application
+dependsOn:
+  - selector:
+      matchLabels:
+        fleet.cattle.io/repo-name: "${ .GitRepo.Name }"
+        fleet.cattle.io/bundle-namespace: "${ .GitRepo.Namespace }"
+        example.com/component: configs
+  - selector:
+      matchLabels:
+        fleet.cattle.io/repo-name: "${ .GitRepo.Name }"
+        fleet.cattle.io/bundle-namespace: "${ .GitRepo.Namespace }"
+        example.com/component: secrets
