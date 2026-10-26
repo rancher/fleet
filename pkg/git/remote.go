@@ -158,10 +158,13 @@ func (r *Remote) LatestBranchCommit(ctx context.Context, branch string) (string,
 	if commitsURL != "" {
 		// it is supported. Get the last commit with the vendor's url
 		// (this is faster than running a whole ls-remote like operation)
-		if commit, err := latestCommitFromCommitsURL(ctx, commitsURL, r.Options); err == nil {
+		commit, err := latestCommitFromCommitsURL(ctx, commitsURL, r.Options)
+		if err == nil {
 			// in case of error it tries the full List operation
 			return commit, nil
 		}
+		r.Options.log.Error(err, "Fast commit lookup failed, falling back to a full ref listing",
+			"commitsURL", commitsURL, "branch", branch)
 	}
 
 	refBranch := formatRefForBranch(branch)

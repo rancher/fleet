@@ -99,15 +99,13 @@ func GetHTTPClientFromSecret(creds *corev1.Secret, bundleCA []byte, insecureTLSV
 	}
 
 	if len(bundleCA) > 0 {
-		cert, err := x509.ParseCertificate(bundleCA)
-		if err != nil {
-			return nil, err
-		}
 		pool, err := x509.SystemCertPool()
 		if err != nil {
 			pool = x509.NewCertPool()
 		}
-		pool.AddCert(cert)
+		if !pool.AppendCertsFromPEM(bundleCA) {
+			return nil, errors.New("x509: malformed certificate")
+		}
 		tlsConfig.RootCAs = pool
 	}
 

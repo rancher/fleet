@@ -3,6 +3,7 @@ package git_test
 import (
 	"encoding/pem"
 	"net/http"
+	"net/http/httptest"
 	"time"
 
 	httpgit "github.com/go-git/go-git/v5/plumbing/transport/http"
@@ -556,9 +557,7 @@ LgGheQaRnUi/wr4CMEfDFXuxoJGZSZOoPHzoRgaLLPIxAJSdYsiJvRmEFOml+wG4
 DXZDjC5Ty3zfDBeWUA==
 -----END CERTIFICATE-----`)
 
-		block, _ := pem.Decode(caBundlePEM)
-		Expect(block).ToNot(BeNil())
-		client, err := git.GetHTTPClientFromSecret(nil, block.Bytes, true, gitClientTimeout)
+		client, err := git.GetHTTPClientFromSecret(nil, caBundlePEM, true, gitClientTimeout)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(client).ToNot(BeNil())
 		expectedTransport, ok := client.Transport.(*http.Transport)
@@ -579,6 +578,26 @@ DXZDjC5Ty3zfDBeWUA==
 		It("returns a client's transport no rootCAs", func() {
 			// no auth is set by the transport RoundTrip
 			Expect(expectedTransport.TLSClientConfig.RootCAs).ToNot(BeNil())
+		})
+
+		It("uses PEM certificates from the CA bundle to verify TLS connections", func() {
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusNoContent)
+			}))
+			defer server.Close()
+
+			caBundle := pem.EncodeToMemory(&pem.Block{
+				Type:  "CERTIFICATE",
+				Bytes: server.Certificate().Raw,
+			})
+			client, err := git.GetHTTPClientFromSecret(nil, caBundle, false, gitClientTimeout)
+			Expect(err).ToNot(HaveOccurred())
+
+			response, err := client.Get(server.URL)
+			Expect(err).ToNot(HaveOccurred())
+			statusCode := response.StatusCode
+			Expect(response.Body.Close()).To(Succeed())
+			Expect(statusCode).To(Equal(http.StatusNoContent))
 		})
 	})
 
