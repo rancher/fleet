@@ -4,14 +4,12 @@ import (
 	"cmp"
 	"context"
 	"crypto/sha256"
-	"crypto/tls"
 	"crypto/x509"
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -22,6 +20,7 @@ import (
 	"github.com/Masterminds/semver/v3"
 	"github.com/rancher/fleet/internal/helmversion"
 	"github.com/rancher/fleet/internal/httputils"
+	"github.com/rancher/fleet/internal/netx"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleetgit "github.com/rancher/fleet/pkg/git"
 	"golang.org/x/sync/singleflight"
@@ -376,38 +375,8 @@ func transportForAuth(insecureSkipVerify bool, caBundle []byte) http.RoundTrippe
 	}
 
 	// Create new transport
-	baseTransport, ok := http.DefaultTransport.(*http.Transport)
-	if !ok {
-		// Another component has replaced the global default transport.
-		// Construct a transport that preserves the standard proxy and timeout
-		// defaults so runtime behaviour stays close to the stdlib baseline.
-		baseTransport = &http.Transport{
-			Proxy: http.ProxyFromEnvironment,
-			DialContext: (&net.Dialer{
-				Timeout:   30 * time.Second,
-				KeepAlive: 30 * time.Second,
-			}).DialContext,
-			ForceAttemptHTTP2:     true,
-			MaxIdleConns:          100,
-			IdleConnTimeout:       90 * time.Second,
-			TLSHandshakeTimeout:   10 * time.Second,
-			ExpectContinueTimeout: 1 * time.Second,
-		}
-	}
-	transport := baseTransport.Clone()
-	transport.TLSClientConfig = &tls.Config{
-		InsecureSkipVerify: insecureSkipVerify, //nolint:gosec
-	}
-	if caBundle != nil {
-		pool, err := x509.SystemCertPool()
-		if err != nil {
-			pool = x509.NewCertPool()
-		}
-		pool.AppendCertsFromPEM(caBundle)
-
-		transport.TLSClientConfig.RootCAs = pool
-		transport.TLSClientConfig.MinVersion = tls.VersionTLS12
-	}
+	transport := netx.NewTransport(netx.TLSConfig{CABundle: caBundle,
+		InsecureSkipVerify: insecureSkipVerify})
 
 	transportsCache[hash] = transport
 	return transport
