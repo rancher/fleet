@@ -74,6 +74,8 @@ func readResources(ctx context.Context, spec *fleet.BundleSpec, compress bool, b
 	loadOpts := loadOpts{
 		compress:           compress,
 		disableDepsUpdate:  disableDepsUpdate,
+		helmAuth:           auth,
+		helmRepoURLRegex:   helmRepoURLRegex,
 		ignoreApplyConfigs: ignoreApplyConfigs(bundleFile, spec.Helm, spec.Targets...),
 	}
 	resources, err := loadDirectories(ctx, loadOpts, directories...)
@@ -95,8 +97,13 @@ func readResources(ctx context.Context, spec *fleet.BundleSpec, compress bool, b
 }
 
 type loadOpts struct {
-	compress           bool
-	disableDepsUpdate  bool
+	compress          bool
+	disableDepsUpdate bool
+	// helmAuth and helmRepoURLRegex are the bundle's Helm credentials and the
+	// repositories they may be sent to; they apply to the dependencies of
+	// charts stored in the bundle as they do to remote charts.
+	helmAuth           Auth
+	helmRepoURLRegex   string
 	ignoreApplyConfigs []string
 }
 

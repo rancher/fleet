@@ -169,7 +169,12 @@ func readFleetIgnore(path string) ([]string, error) {
 func loadDirectory(ctx context.Context, opts loadOpts, dir directory) ([]fleet.BundleResource, error) {
 	var resources []fleet.BundleResource
 
-	files, err := GetContent(ctx, dir.base, dir.source, dir.version, dir.auth, opts.disableDepsUpdate, opts.ignoreApplyConfigs)
+	deps := depsOptions{
+		disable:          opts.disableDepsUpdate,
+		auth:             opts.helmAuth,
+		helmRepoURLRegex: opts.helmRepoURLRegex,
+	}
+	files, err := getContent(ctx, dir.base, dir.source, dir.version, dir.auth, deps, opts.ignoreApplyConfigs)
 	if err != nil {
 		return nil, maybeAddHelmRepoURLRegexHint(err, dir)
 	}
@@ -208,8 +213,41 @@ func maybeAddHelmRepoURLRegexHint(err error, dir directory) error {
 	return fmt.Errorf("%w: %s", err, helmRepoURLRegexUIHint)
 }
 
+// depsOptions controls the update of the dependencies of the charts stored in
+// a bundle directory.
+type depsOptions struct {
+	disable bool
+	// auth and helmRepoURLRegex are the bundle's Helm credentials and the
+	// repositories they may be sent to.
+	auth             Auth
+	helmRepoURLRegex string
+}
+
+// registryAuth returns the credentials to log in to the registries of OCI
+// dependencies, or nil when the bundle provides none.
+func (d depsOptions) registryAuth() *helmupdater.RegistryAuth {
+	if d.auth.Username == "" || d.auth.Password == "" {
+		return nil
+	}
+	regex := d.helmRepoURLRegex
+	return &helmupdater.RegistryAuth{
+		Username:           d.auth.Username,
+		Password:           d.auth.Password,
+		InsecureSkipVerify: d.auth.InsecureSkipVerify,
+		PlainHTTP:          d.auth.BasicHTTP,
+		HTTPClient:         getHTTPClientForHelmRegistry(d.auth),
+		Applies: func(repoURL string) (bool, error) {
+			return shouldAddAuthToRequest(regex, repoURL, "")
+		},
+	}
+}
+
 // GetContent uses fetchToDir (and Helm for OCI) to read the files from directories and servers.
 func GetContent(ctx context.Context, base, source, version string, auth Auth, disableDepsUpdate bool, ignoreApplyConfigs []string) (map[string][]byte, error) {
+	return getContent(ctx, base, source, version, auth, depsOptions{disable: disableDepsUpdate}, ignoreApplyConfigs)
+}
+
+func getContent(ctx context.Context, base, source, version string, auth Auth, deps depsOptions, ignoreApplyConfigs []string) (map[string][]byte, error) {
 	temp, err := os.MkdirTemp("", "fleet")
 	if err != nil {
 		return nil, err
@@ -269,8 +307,8 @@ func GetContent(ctx context.Context, base, source, version string, auth Auth, di
 		if info.IsDir() {
 			// If the folder is a helm chart and dependency updates are not disabled,
 			// try to update possible dependencies.
-			if !disableDepsUpdate && helmupdater.ChartYAMLExists(path) {
-				if err = helmupdater.UpdateHelmDependencies(path); err != nil {
+			if !deps.disable && helmupdater.ChartYAMLExists(path) {
+				if err = helmupdater.UpdateHelmDependencies(path, deps.registryAuth()); err != nil {
 					return fmt.Errorf("updating helm dependencies: %w", err)
 				}
 			}
