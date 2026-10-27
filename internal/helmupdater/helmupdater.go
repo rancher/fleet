@@ -147,18 +147,25 @@ func UpdateHelmDependencies(path string, auth *RegistryAuth) error {
 	return man.Update()
 }
 
-// ociHostsNeedingAuth returns the registries of the OCI dependencies the
-// credentials apply to, each once, in the order of the dependencies.
+// ociHostsNeedingAuth returns the registries the credentials are sent to,
+// each once, in the order of the dependencies. A login is per registry, not
+// per repository, so a registry is only returned when the credentials apply
+// to every OCI dependency hosted on it; otherwise the login would also cover
+// the dependencies helmRepoURLRegex excludes.
 func ociHostsNeedingAuth(chartName string, deps []*v2chart.Dependency, auth *RegistryAuth) ([]string, error) {
 	if !auth.hasCredentials() {
 		return nil, nil
 	}
 
 	var hosts []string
-	seen := map[string]struct{}{}
+	excluded := map[string]bool{}
 	for _, dep := range deps {
 		if !registry.IsOCI(dep.Repository) {
 			continue
+		}
+		u, err := url.Parse(dep.Repository)
+		if err != nil {
+			return nil, fmt.Errorf("parsing the repository of dependency %s of chart %s: %w", dep.Name, chartName, err)
 		}
 		ok, err := auth.Applies(dep.Repository)
 		if err != nil {
@@ -166,19 +173,26 @@ func ociHostsNeedingAuth(chartName string, deps []*v2chart.Dependency, auth *Reg
 		}
 		if !ok {
 			log.Log.Info(fmt.Sprintf(
-				"helmRepoURLRegex does not match the repository %q of dependency %s of chart %s: Helm credentials will not be forwarded to it",
-				dep.Repository, dep.Name, chartName))
+				"helmRepoURLRegex does not match the repository %q of dependency %s of chart %s: Helm credentials will not be forwarded to %s",
+				dep.Repository, dep.Name, chartName, u.Host))
+			excluded[u.Host] = true
 			continue
 		}
-		u, err := url.Parse(dep.Repository)
-		if err != nil {
-			return nil, fmt.Errorf("parsing the repository of dependency %s of chart %s: %w", dep.Name, chartName, err)
+		if _, known := excluded[u.Host]; !known {
+			excluded[u.Host] = false
+			hosts = append(hosts, u.Host)
 		}
-		if _, dup := seen[u.Host]; dup {
-			continue
-		}
-		seen[u.Host] = struct{}{}
-		hosts = append(hosts, u.Host)
 	}
-	return hosts, nil
+
+	allowed := hosts[:0]
+	for _, host := range hosts {
+		if excluded[host] {
+			log.Log.Info(fmt.Sprintf(
+				"helmRepoURLRegex matches only some of the dependencies of chart %s hosted on %s: Helm credentials will not be forwarded to that registry",
+				chartName, host))
+			continue
+		}
+		allowed = append(allowed, host)
+	}
+	return allowed, nil
 }

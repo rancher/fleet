@@ -28,6 +28,7 @@ func TestOCIHostsNeedingAuth(t *testing.T) {
 		{Name: "http-dep", Repository: "https://charts.example.com"},
 		{Name: "grafana", Repository: "oci://registry-1.docker.io/acme"},
 		{Name: "loki", Repository: "oci://registry-1.docker.io/acme"},
+		{Name: "tempo", Repository: "oci://registry-1.docker.io/other"},
 		{Name: "local", Repository: "oci://registry.internal:5000/charts"},
 		{Name: "other", Repository: "oci://ghcr.io/other"},
 	}
@@ -57,6 +58,13 @@ func TestOCIHostsNeedingAuth(t *testing.T) {
 		{
 			name: "nothing matches",
 			auth: &RegistryAuth{Username: "user", Password: "pass", Applies: applyTo("oci://quay.io")},
+		},
+		{
+			name: "registry with a matching and a non-matching dependency is left out",
+			auth: &RegistryAuth{Username: "user", Password: "pass", Applies: func(repoURL string) (bool, error) {
+				return repoURL == "oci://registry-1.docker.io/acme" || strings.HasPrefix(repoURL, "oci://registry.internal"), nil
+			}},
+			hosts: []string{"registry.internal:5000"},
 		},
 		{
 			name: "matcher error",
