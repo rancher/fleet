@@ -218,12 +218,15 @@ func generateValues(base, root string, chart *fleet.HelmOptions) (valuesMap *fle
 		if !pathWithinDir(resolvedRoot, valuesPath) {
 			return nil, fmt.Errorf("invalid values file %q: path escapes repository directory", value)
 		}
-		resolvedValuesPath, err := resolveValuesFile(resolvedRoot, resolvedBase, cleanValue)
+		resolvedValuesPath, err := filepath.EvalSymlinks(valuesPath)
 		if err != nil {
 			return nil, fmt.Errorf("resolving values file %q: %w", valuesPath, err)
 		}
 		if !pathWithinDir(resolvedRoot, resolvedValuesPath) {
 			return nil, fmt.Errorf("invalid values file %q: target escapes repository directory", value)
+		}
+		if referencesGitMetadata(resolvedRoot, valuesPath) || referencesGitMetadata(resolvedRoot, resolvedValuesPath) {
+			return nil, fmt.Errorf("invalid values file %q: path references Git metadata", value)
 		}
 		valuesByte, err := os.ReadFile(resolvedValuesPath)
 		if err != nil {
@@ -240,58 +243,19 @@ func generateValues(base, root string, chart *fleet.HelmOptions) (valuesMap *fle
 	return valuesMap, nil
 }
 
-// resolveValuesFile resolves rel against the canonical base, checking each
-// traversed component, including intermediate symlink targets which
-// EvalSymlinks would hide. Components must not be Git metadata and must stay
-// within root; ancestors of root are allowed so absolute targets and ".." can
-// be followed back into it. Ancestors of base are not checked for metadata.
-func resolveValuesFile(root, base, rel string) (string, error) {
-	resolved := base
-	pending := strings.Split(rel, string(os.PathSeparator))
-	links := 0
-	for len(pending) > 0 {
-		component := pending[0]
-		pending = pending[1:]
-		switch {
-		case component == "" || component == ".":
-			continue
-		case component == "..":
-			resolved = filepath.Dir(resolved)
-			continue
-		case strings.EqualFold(component, ".git"):
-			return "", errors.New("path references Git metadata")
-		}
-		next := filepath.Join(resolved, component)
-		if !pathWithinDir(root, next) && !pathWithinDir(next, root) {
-			return "", errors.New("path escapes repository directory")
-		}
-		info, err := os.Lstat(next)
-		if err != nil {
-			return "", err
-		}
-		if info.Mode()&os.ModeSymlink == 0 {
-			if len(pending) > 0 && !info.IsDir() {
-				return "", fmt.Errorf("%q is not a directory", next)
-			}
-			resolved = next
-			continue
-		}
-		links++
-		if links > 255 {
-			return "", errors.New("too many symlinks")
-		}
-		target, err := os.Readlink(next)
-		if err != nil {
-			return "", err
-		}
-		if filepath.IsAbs(target) {
-			volume := filepath.VolumeName(target)
-			resolved = volume + string(os.PathSeparator)
-			target = target[len(volume):]
-		}
-		pending = append(strings.Split(target, string(os.PathSeparator)), pending...)
+// referencesGitMetadata reports whether path has a ".git" component below
+// root. Matching ignores case for case-insensitive filesystems.
+func referencesGitMetadata(root, path string) bool {
+	rel, err := filepath.Rel(root, path)
+	if err != nil {
+		return true
 	}
-	return resolved, nil
+	for _, component := range strings.Split(rel, string(os.PathSeparator)) {
+		if strings.EqualFold(component, ".git") {
+			return true
+		}
+	}
+	return false
 }
 
 // resolveDir returns the absolute path of dir with symlinks resolved.

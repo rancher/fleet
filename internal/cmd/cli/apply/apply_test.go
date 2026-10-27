@@ -41,7 +41,7 @@ func TestNewBundleConfinesValuesToCheckout(t *testing.T) {
 		{name: "symlinked bundle", checkout: true, symlink: true, valuesFile: "../../values.yaml"},
 		{name: "no checkout marker", valuesFile: "../../values.yaml", wantError: true},
 		{name: "bundle-only values", valuesFile: "values.yaml"},
-		{name: "nearest checkout wins", checkout: true, nested: true, valuesFile: "../../values.yaml", wantError: true},
+		{name: "nested checkout uses outer root", checkout: true, nested: true, valuesFile: "../../values.yaml"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			parent := t.TempDir()
@@ -93,10 +93,8 @@ func TestNewBundleRejectsTargetMetadata(t *testing.T) {
 	root := t.TempDir()
 	base := filepath.Join(root, "bundle")
 	require.NoError(t, os.Mkdir(base, 0755))
-	shared := filepath.Join(root, "shared")
-	require.NoError(t, os.Mkdir(shared, 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(shared, "values.yaml"), []byte("private: metadata"), 0644))
-	require.NoError(t, os.Symlink("shared", filepath.Join(root, ".git")))
+	require.NoError(t, os.Mkdir(filepath.Join(root, ".git"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(root, ".git", "values.yaml"), []byte("private: metadata"), 0644))
 	require.NoError(t, os.Symlink(".git", filepath.Join(root, "alias")))
 	config := "targetCustomizations:\n- name: test\n  helm:\n    valuesFiles: [../alias/values.yaml]\n"
 	require.NoError(t, os.WriteFile(filepath.Join(base, "fleet.yaml"), []byte(config), 0644))

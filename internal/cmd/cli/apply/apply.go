@@ -518,6 +518,9 @@ func newBundle(ctx context.Context, name, baseDir string, opts Options) (*fleet.
 	return bundle, scans, nil
 }
 
+// valuesRoot returns the outermost ancestor of baseDir containing ".git", so
+// bundles in submodules or nested repositories can share values files of the
+// enclosing checkout. Without such an ancestor, baseDir is returned.
 func valuesRoot(baseDir string) (string, error) {
 	base, err := filepath.Abs(baseDir)
 	if err != nil {
@@ -527,14 +530,15 @@ func valuesRoot(baseDir string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	root := base
 	for directory := base; ; directory = filepath.Dir(directory) {
 		if _, err := os.Lstat(filepath.Join(directory, ".git")); err == nil {
-			return directory, nil
+			root = directory
 		} else if !os.IsNotExist(err) {
 			return "", err
 		}
 		if filepath.Dir(directory) == directory {
-			return base, nil
+			return root, nil
 		}
 	}
 }

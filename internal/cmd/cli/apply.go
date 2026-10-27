@@ -40,7 +40,7 @@ func NewApply() *cobra.Command {
 		Long: `Create bundles from directories, and output them or apply them on a cluster.
 
 Helm valuesFiles paths are relative to the bundle directory and must stay within
-the nearest ancestor directory containing a .git entry. Without a .git entry,
+the outermost ancestor directory containing a .git entry. Without a .git entry,
 values files must stay within the bundle directory. Absolute paths, paths into
 .git metadata, and symlinks escaping these boundaries are rejected. The current
 working directory does not determine the values-file boundary.`,
