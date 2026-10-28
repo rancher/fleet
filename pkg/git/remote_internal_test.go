@@ -38,7 +38,7 @@ func TestLatestBranchCommitLogsFastLookupFailure(t *testing.T) {
 		Hash: "bdb35e1950b5829c88df134810a0aa9a7da9bc22",
 	}}}
 	remote := &Remote{
-		URL: "https://github.com/rancher/fleet.git",
+		URL: "https://github.com/repo/example.git",
 		Options: &options{
 			CABundle: []byte("not a PEM certificate"),
 			log:      logr.New(sink),
