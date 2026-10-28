@@ -2,7 +2,10 @@ package singlecluster_test
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
+	"net/http"
+	"net/http/httptrace"
 	"os"
 	"os/exec"
 	"path"
@@ -244,14 +247,18 @@ func setupRepo(k kubectl.Command, tmpdir, clonedir, repoDir string) (*git.Reposi
 	return repo, gh
 }
 
+// tagAndPushImage tags the image and pushes it to ttl.sh, retrying on failure.
+// ttl.sh is unreliable, so the spec is skipped, reporting probe data, once 3
+// pushes have timed out or a probe after a failed push finds ttl.sh unhealthy.
+// Otherwise it keeps retrying and then fails, since it could be a real problem.
 func tagAndPushImage(baseImage, image, tag string) string {
 	imageTag := fmt.Sprintf("%s:%s", image, tag)
-	// tag the image and push it to ttl.sh
 	cmd := exec.CommandContext(context.Background(), "docker", "tag", baseImage, imageTag)
 	err := cmd.Run()
 	Expect(err).ToNot(HaveOccurred())
 	const pushTimeout = 30 * time.Second
-
+	timeout := 0
+	maxTimeouts := 3
 	Eventually(func() error {
 		ctx, cancel := context.WithTimeout(context.Background(), pushTimeout)
 		defer cancel()
@@ -259,11 +266,23 @@ func tagAndPushImage(baseImage, image, tag string) string {
 		// CombinedOutput, so a failing push reports the registry's reason
 		// instead of a bare exit status.
 		out, err := exec.CommandContext(ctx, "docker", "push", imageTag).CombinedOutput()
-		if err != nil {
-			return fmt.Errorf("docker push %s: %s: %w", imageTag, out, err)
+		if err == nil {
+			return nil
+		}
+		if ctx.Err() == context.DeadlineExceeded {
+			timeout++
+		}
+		p, errProbe := probeRegistry("https://ttl.sh/v2/")
+		if errProbe != nil {
+			fmt.Println(errProbe)
 		}
 
-		return nil
+		// Too many timeouts or an unhealthy probe: ttl.sh is the likely cause.
+		if timeout == maxTimeouts || errProbe != nil || p.statusCode >= http.StatusInternalServerError || p.statusCode == http.StatusTooManyRequests {
+			Skip(fmt.Sprintf("ttl.sh unavailable: docker push %s: %s: %v\nprobe: %s (probe error: %v)",
+				imageTag, out, err, p.toString(), errProbe))
+		}
+		return fmt.Errorf("docker push %s: %s: %w\nttl.sh probe: %s", imageTag, out, err, p.toString())
 	}, 2*time.Minute, time.Second).Should(Succeed())
 	return imageTag
 }
@@ -302,4 +321,49 @@ func applyTemplateValues(assetdir, tmpRepoDir, image, imageTag string) {
 		imageTag,
 	})
 	Expect(err).ToNot(HaveOccurred())
+}
+
+// Probe holds the status code and the time from the start of the request to
+// each connection phase. A zero duration means the phase did not complete or
+// was skipped because a connection was reused.
+type Probe struct {
+	statusCode                    int
+	dns, conn, tlsDone, firstByte time.Duration
+}
+
+func (p Probe) toString() string {
+	// fmt.Printf("status=%d dns=%s connect=%s tls=%s ttfb=%s",
+	// p.statusCode, p.dns, p.conn, p.tlsDone, p.firstByte)
+	return fmt.Sprintf("status=%d dns=%s connect=%s tls=%s ttfb=%s",
+		p.statusCode, p.dns, p.conn, p.tlsDone, p.firstByte)
+}
+func probeRegistry(url string) (Probe, error) {
+	var dns, conn, tlsDone, firstByte time.Duration
+	start := time.Now()
+	trace := &httptrace.ClientTrace{
+		DNSDone:              func(httptrace.DNSDoneInfo) { dns = time.Since(start) },
+		ConnectDone:          func(string, string, error) { conn = time.Since(start) },
+		TLSHandshakeDone:     func(tls.ConnectionState, error) { tlsDone = time.Since(start) },
+		GotFirstResponseByte: func() { firstByte = time.Since(start) },
+	}
+	ctx, cancel := context.WithTimeout(httptrace.WithClientTrace(context.Background(), trace), 10*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return Probe{}, fmt.Errorf("probe %s: %w", url, err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	p := Probe{-1, dns, conn, tlsDone, firstByte}
+	if err != nil {
+		return p, fmt.Errorf("probe %s: %w", url, err)
+	}
+	resp.Body.Close()
+	sc := resp.StatusCode
+	return Probe{
+		sc,
+		dns,
+		conn,
+		tlsDone,
+		firstByte,
+	}, nil
 }
