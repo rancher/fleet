@@ -280,6 +280,13 @@ jobs:
 
           go test -v -count=1 -timeout=1h ./e2e/require-secrets -args -ginkgo.github-output -ginkgo.trace
       -
+        # Setup failures happen before any spec runs, so FailAndGather never
+        # writes tmp/upstream and the uploaded artifact would be empty.
+        name: Collect Cluster Diagnostics
+        if: failure()
+        run: |
+          [ -d tmp/upstream ] || crust-gather collect --exclude-namespace=kube-system --exclude-kind=Lease --duration=10s -verror -f tmp/upstream/setup-failure || true
+      -
         name: Upload Logs
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: failure()
