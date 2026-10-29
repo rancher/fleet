@@ -63,6 +63,7 @@ jobs:
         env:
           BRANCH: ${{steps.branch.outputs.version}}
           NUM: ${{ github.event.inputs.version }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           rancher_minor_member=$(( $NUM - 1 ))
           sed -Ei "/\"main\",/a \"$BRANCH\"," .github/renovate.json
@@ -86,6 +87,11 @@ jobs:
           mv formatted.json .github/renovate.json
 
           git --no-pager diff .github/renovate.json
+
+          git add .github/renovate.json
+          git commit -m "Add Renovate support to branch $BRANCH"
+
+          git push -u origin $BRANCH
 
       - name: checkout rancher/fleet-test-data
         if: steps.branch.outputs.version != ''
@@ -121,6 +127,7 @@ jobs:
       - name: update benchmarks assets to point to rancher/fleet-test-data release branch
         if: steps.branch.outputs.version != '' && steps.test_branch.outputs.branch_exists == 1
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BRANCH: ${{steps.branch.outputs.version}}
         run: |
           cd ../fleet
@@ -128,3 +135,8 @@ jobs:
           find benchmarks/assets -type f -exec sed -i "s,branch:.*$,branch: $BRANCH," {} \;
 
           git --no-pager diff benchmarks/assets
+
+          git add benchmarks/assets
+          git commit -m "Point benchmarks assets to $BRANCH"
+
+          git push -u origin $BRANCH
