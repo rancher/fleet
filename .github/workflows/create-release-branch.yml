@@ -42,6 +42,12 @@ jobs:
 
           version="release/v0.$NUM"
 
+          if [ ! -e ~/.gitconfig ]; then
+            echo "Configuring git username and email"
+            git config --global user.name "fleet-bot"
+            git config --global user.email fleet@suse.de
+          fi
+
           if ! git checkout -b $version; then
             echo "Could not create branch $version. Skipping."
           else
