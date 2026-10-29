@@ -1657,6 +1657,36 @@ func TestValidateBundleSpec(t *testing.T) {
 			},
 			err: `spec.targets[1].diff.comparePatches[0].jsonPointers[0]: invalid JSON pointer "": must not be empty`,
 		},
+		{
+			name: "valid helm.preserveOnReplace",
+			spec: fleet.BundleSpec{
+				BundleDeploymentOptions: fleet.BundleDeploymentOptions{Helm: &fleet.HelmOptions{
+					Chart: "chart",
+					PreserveOnReplace: []fleet.PreserveOnReplaceRule{{
+						APIVersion: "v1", Kind: "PersistentVolumeClaim",
+						Paths: []fleet.PreservedPath{{Path: "/spec/volumeName"}},
+					}},
+				}},
+			},
+		},
+		{
+			name: "helm.preserveOnReplace on the second target",
+			spec: fleet.BundleSpec{
+				Targets: []fleet.BundleTarget{
+					{Name: "first"},
+					{
+						Name: "second",
+						BundleDeploymentOptions: fleet.BundleDeploymentOptions{Helm: &fleet.HelmOptions{
+							PreserveOnReplace: []fleet.PreserveOnReplaceRule{{
+								APIVersion: "v1", Kind: "Pod", NameRegex: "a(b",
+								Paths: []fleet.PreservedPath{{Path: "/spec/nodeName"}},
+							}},
+						}},
+					},
+				},
+			},
+			err: `spec.targets[1].helm.preserveOnReplace[0].nameRegex: invalid regular expression "a(b"`,
+		},
 	}
 
 	for _, c := range cases {

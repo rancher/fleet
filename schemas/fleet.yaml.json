@@ -320,6 +320,13 @@
           "type": "boolean",
           "description": "Force allows to override immutable resources. This could be dangerous."
         },
+        "preserveOnReplace": {
+          "items": {
+            "$ref": "#/$defs/PreserveOnReplaceRule"
+          },
+          "type": "array",
+          "description": "PreserveOnReplace lists fields which are kept from the live object when\nan object is replaced, which happens with helm.force or\ncorrectDrift.force. A replace sends the whole object, so fields set on\nthe server after its creation (e.g. the volumeName of a bound\nPersistentVolumeClaim) would otherwise be cleared, which the API server\nmay reject. A field is only copied when the deployed manifest leaves it\nunset, except for a list with a mergeKey (see PreservedPath). Without\nhelm.force or correctDrift.force, this has no effect. Rules from the\nbundle and from matching target customizations are combined, and all\nrules matching an object apply, so their paths add up; identical rules\nare deduplicated. Changing these rules redeploys the bundle."
+        },
         "takeOwnership": {
           "type": "boolean",
           "description": "TakeOwnership makes helm skip the check for its own annotations"
@@ -554,6 +561,63 @@
       "additionalProperties": false,
       "type": "object",
       "description": "Partition defines a separate rollout strategy for a set of clusters."
+    },
+    "PreserveOnReplaceRule": {
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "APIVersion is the apiVersion of the objects to match, e.g. v1. It must\nequal the apiVersion the chart renders: apps/v1beta1 does not match an\nobject rendered as apps/v1."
+        },
+        "kind": {
+          "type": "string",
+          "description": "Kind is the kind of the objects to match, e.g. PersistentVolumeClaim."
+        },
+        "namespace": {
+          "type": "string",
+          "description": "Namespace is the namespace of the objects to match, exactly. Empty\nmatches any namespace."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name is the name of the objects to match, exactly. It takes precedence\nover NameRegex: if both are set, NameRegex is ignored. Empty, with no\nNameRegex, matches any name."
+        },
+        "nameRegex": {
+          "type": "string",
+          "description": "NameRegex is an unanchored Go regular expression matching the names of\nthe objects to match. As it is unanchored, pvc-1 also matches my-pvc-10:\nuse ^pvc-1$, or Name, to match one name only. It is ignored, and not\nvalidated, if Name is set."
+        },
+        "paths": {
+          "items": {
+            "$ref": "#/$defs/PreservedPath"
+          },
+          "type": "array",
+          "description": "Paths are the fields to keep from the live object."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "apiVersion",
+        "kind",
+        "paths"
+      ],
+      "description": "PreserveOnReplaceRule matches objects and lists the fields to keep from their live version when they are replaced."
+    },
+    "PreservedPath": {
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Path is a JSON pointer (RFC 6901) to the field, e.g. /spec/volumeName.\nA \"[key]\" token iterates over the items of a list, pairing each item of\nthe deployed object with the live item which has the same value of field\nkey, e.g. /spec/containers/[name]/volumeMounts. A \"[key]\" token must\nfollow a field and be followed by one, so lists of lists cannot be\naddressed, and neither can a field whose name starts with \"[\" and ends\nwith \"]\". The live value is copied when the deployed object leaves the\nfield unset or null, unless MergeKey is set. Helm always sets some\nannotations and labels, e.g. meta.helm.sh/release-name, so\n/metadata/annotations and /metadata/labels are never unset: use\n/metadata/annotations/\u003ckey\u003e to keep one annotation. Paths below\n/status, /apiVersion, /kind, /metadata/name, /metadata/namespace,\n/metadata/uid, /metadata/resourceVersion, /metadata/generation,\n/metadata/creationTimestamp, /metadata/deletionTimestamp and\n/metadata/managedFields are not allowed."
+        },
+        "mergeKey": {
+          "type": "string",
+          "description": "MergeKey, if set, merges a list of objects instead of copying it only\nwhen unset: live items whose MergeKey field has a value not found in the\ndeployed list are appended to it. It only applies to lists of objects:\nlive items which are not objects are not merged, although a live list\nis still copied whole when the deployed object leaves it unset. As long\nas the rule exists, an item removed from the manifest is added back from\nthe live object on every replace."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "path"
+      ],
+      "description": "PreservedPath is a field kept from the live object when an object is replaced."
     },
     "RolloutStrategy": {
       "properties": {

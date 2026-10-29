@@ -421,6 +421,103 @@ spec:
                         description: MaxHistory limits the maximum number of revisions
                           saved per release by Helm.
                         type: integer
+                      preserveOnReplace:
+                        description: |-
+                          PreserveOnReplace lists fields which are kept from the live object when
+                          an object is replaced, which happens with helm.force or
+                          correctDrift.force. A replace sends the whole object, so fields set on
+                          the server after its creation (e.g. the volumeName of a bound
+                          PersistentVolumeClaim) would otherwise be cleared, which the API server
+                          may reject. A field is only copied when the deployed manifest leaves it
+                          unset, except for a list with a mergeKey (see PreservedPath). Without
+                          helm.force or correctDrift.force, this has no effect. Rules from the
+                          bundle and from matching target customizations are combined, and all
+                          rules matching an object apply, so their paths add up; identical rules
+                          are deduplicated. Changing these rules redeploys the bundle.
+                        items:
+                          description: |-
+                            PreserveOnReplaceRule matches objects and lists the fields to keep from
+                            their live version when they are replaced.
+                          properties:
+                            apiVersion:
+                              description: |-
+                                APIVersion is the apiVersion of the objects to match, e.g. v1. It must
+                                equal the apiVersion the chart renders: apps/v1beta1 does not match an
+                                object rendered as apps/v1.
+                              minLength: 1
+                              type: string
+                            kind:
+                              description: Kind is the kind of the objects to match,
+                                e.g. PersistentVolumeClaim.
+                              minLength: 1
+                              type: string
+                            name:
+                              description: |-
+                                Name is the name of the objects to match, exactly. It takes precedence
+                                over NameRegex: if both are set, NameRegex is ignored. Empty, with no
+                                NameRegex, matches any name.
+                              type: string
+                            nameRegex:
+                              description: |-
+                                NameRegex is an unanchored Go regular expression matching the names of
+                                the objects to match. As it is unanchored, pvc-1 also matches my-pvc-10:
+                                use ^pvc-1$, or Name, to match one name only. It is ignored, and not
+                                validated, if Name is set.
+                              type: string
+                            namespace:
+                              description: |-
+                                Namespace is the namespace of the objects to match, exactly. Empty
+                                matches any namespace.
+                              type: string
+                            paths:
+                              description: Paths are the fields to keep from the live
+                                object.
+                              items:
+                                description: |-
+                                  PreservedPath is a field kept from the live object when an object is
+                                  replaced.
+                                properties:
+                                  mergeKey:
+                                    description: |-
+                                      MergeKey, if set, merges a list of objects instead of copying it only
+                                      when unset: live items whose MergeKey field has a value not found in the
+                                      deployed list are appended to it. It only applies to lists of objects:
+                                      live items which are not objects are not merged, although a live list
+                                      is still copied whole when the deployed object leaves it unset. As long
+                                      as the rule exists, an item removed from the manifest is added back from
+                                      the live object on every replace.
+                                    type: string
+                                  path:
+                                    description: |-
+                                      Path is a JSON pointer (RFC 6901) to the field, e.g. /spec/volumeName.
+                                      A "[key]" token iterates over the items of a list, pairing each item of
+                                      the deployed object with the live item which has the same value of field
+                                      key, e.g. /spec/containers/[name]/volumeMounts. A "[key]" token must
+                                      follow a field and be followed by one, so lists of lists cannot be
+                                      addressed, and neither can a field whose name starts with "[" and ends
+                                      with "]". The live value is copied when the deployed object leaves the
+                                      field unset or null, unless MergeKey is set. Helm always sets some
+                                      annotations and labels, e.g. meta.helm.sh/release-name, so
+                                      /metadata/annotations and /metadata/labels are never unset: use
+                                      /metadata/annotations/<key> to keep one annotation. Paths below
+                                      /status, /apiVersion, /kind, /metadata/name, /metadata/namespace,
+                                      /metadata/uid, /metadata/resourceVersion, /metadata/generation,
+                                      /metadata/creationTimestamp, /metadata/deletionTimestamp and
+                                      /metadata/managedFields are not allowed.
+                                    minLength: 2
+                                    type: string
+                                required:
+                                - path
+                                type: object
+                              minItems: 1
+                              type: array
+                          required:
+                          - apiVersion
+                          - kind
+                          - paths
+                          type: object
+                        nullable: true
+                        type: array
                       releaseName:
                         description: |-
                           ReleaseName sets a custom release name to deploy the chart as. If
@@ -863,6 +960,103 @@ spec:
                         description: MaxHistory limits the maximum number of revisions
                           saved per release by Helm.
                         type: integer
+                      preserveOnReplace:
+                        description: |-
+                          PreserveOnReplace lists fields which are kept from the live object when
+                          an object is replaced, which happens with helm.force or
+                          correctDrift.force. A replace sends the whole object, so fields set on
+                          the server after its creation (e.g. the volumeName of a bound
+                          PersistentVolumeClaim) would otherwise be cleared, which the API server
+                          may reject. A field is only copied when the deployed manifest leaves it
+                          unset, except for a list with a mergeKey (see PreservedPath). Without
+                          helm.force or correctDrift.force, this has no effect. Rules from the
+                          bundle and from matching target customizations are combined, and all
+                          rules matching an object apply, so their paths add up; identical rules
+                          are deduplicated. Changing these rules redeploys the bundle.
+                        items:
+                          description: |-
+                            PreserveOnReplaceRule matches objects and lists the fields to keep from
+                            their live version when they are replaced.
+                          properties:
+                            apiVersion:
+                              description: |-
+                                APIVersion is the apiVersion of the objects to match, e.g. v1. It must
+                                equal the apiVersion the chart renders: apps/v1beta1 does not match an
+                                object rendered as apps/v1.
+                              minLength: 1
+                              type: string
+                            kind:
+                              description: Kind is the kind of the objects to match,
+                                e.g. PersistentVolumeClaim.
+                              minLength: 1
+                              type: string
+                            name:
+                              description: |-
+                                Name is the name of the objects to match, exactly. It takes precedence
+                                over NameRegex: if both are set, NameRegex is ignored. Empty, with no
+                                NameRegex, matches any name.
+                              type: string
+                            nameRegex:
+                              description: |-
+                                NameRegex is an unanchored Go regular expression matching the names of
+                                the objects to match. As it is unanchored, pvc-1 also matches my-pvc-10:
+                                use ^pvc-1$, or Name, to match one name only. It is ignored, and not
+                                validated, if Name is set.
+                              type: string
+                            namespace:
+                              description: |-
+                                Namespace is the namespace of the objects to match, exactly. Empty
+                                matches any namespace.
+                              type: string
+                            paths:
+                              description: Paths are the fields to keep from the live
+                                object.
+                              items:
+                                description: |-
+                                  PreservedPath is a field kept from the live object when an object is
+                                  replaced.
+                                properties:
+                                  mergeKey:
+                                    description: |-
+                                      MergeKey, if set, merges a list of objects instead of copying it only
+                                      when unset: live items whose MergeKey field has a value not found in the
+                                      deployed list are appended to it. It only applies to lists of objects:
+                                      live items which are not objects are not merged, although a live list
+                                      is still copied whole when the deployed object leaves it unset. As long
+                                      as the rule exists, an item removed from the manifest is added back from
+                                      the live object on every replace.
+                                    type: string
+                                  path:
+                                    description: |-
+                                      Path is a JSON pointer (RFC 6901) to the field, e.g. /spec/volumeName.
+                                      A "[key]" token iterates over the items of a list, pairing each item of
+                                      the deployed object with the live item which has the same value of field
+                                      key, e.g. /spec/containers/[name]/volumeMounts. A "[key]" token must
+                                      follow a field and be followed by one, so lists of lists cannot be
+                                      addressed, and neither can a field whose name starts with "[" and ends
+                                      with "]". The live value is copied when the deployed object leaves the
+                                      field unset or null, unless MergeKey is set. Helm always sets some
+                                      annotations and labels, e.g. meta.helm.sh/release-name, so
+                                      /metadata/annotations and /metadata/labels are never unset: use
+                                      /metadata/annotations/<key> to keep one annotation. Paths below
+                                      /status, /apiVersion, /kind, /metadata/name, /metadata/namespace,
+                                      /metadata/uid, /metadata/resourceVersion, /metadata/generation,
+                                      /metadata/creationTimestamp, /metadata/deletionTimestamp and
+                                      /metadata/managedFields are not allowed.
+                                    minLength: 2
+                                    type: string
+                                required:
+                                - path
+                                type: object
+                              minItems: 1
+                              type: array
+                          required:
+                          - apiVersion
+                          - kind
+                          - paths
+                          type: object
+                        nullable: true
+                        type: array
                       releaseName:
                         description: |-
                           ReleaseName sets a custom release name to deploy the chart as. If
@@ -1789,6 +1983,103 @@ spec:
                     description: MaxHistory limits the maximum number of revisions
                       saved per release by Helm.
                     type: integer
+                  preserveOnReplace:
+                    description: |-
+                      PreserveOnReplace lists fields which are kept from the live object when
+                      an object is replaced, which happens with helm.force or
+                      correctDrift.force. A replace sends the whole object, so fields set on
+                      the server after its creation (e.g. the volumeName of a bound
+                      PersistentVolumeClaim) would otherwise be cleared, which the API server
+                      may reject. A field is only copied when the deployed manifest leaves it
+                      unset, except for a list with a mergeKey (see PreservedPath). Without
+                      helm.force or correctDrift.force, this has no effect. Rules from the
+                      bundle and from matching target customizations are combined, and all
+                      rules matching an object apply, so their paths add up; identical rules
+                      are deduplicated. Changing these rules redeploys the bundle.
+                    items:
+                      description: |-
+                        PreserveOnReplaceRule matches objects and lists the fields to keep from
+                        their live version when they are replaced.
+                      properties:
+                        apiVersion:
+                          description: |-
+                            APIVersion is the apiVersion of the objects to match, e.g. v1. It must
+                            equal the apiVersion the chart renders: apps/v1beta1 does not match an
+                            object rendered as apps/v1.
+                          minLength: 1
+                          type: string
+                        kind:
+                          description: Kind is the kind of the objects to match, e.g.
+                            PersistentVolumeClaim.
+                          minLength: 1
+                          type: string
+                        name:
+                          description: |-
+                            Name is the name of the objects to match, exactly. It takes precedence
+                            over NameRegex: if both are set, NameRegex is ignored. Empty, with no
+                            NameRegex, matches any name.
+                          type: string
+                        nameRegex:
+                          description: |-
+                            NameRegex is an unanchored Go regular expression matching the names of
+                            the objects to match. As it is unanchored, pvc-1 also matches my-pvc-10:
+                            use ^pvc-1$, or Name, to match one name only. It is ignored, and not
+                            validated, if Name is set.
+                          type: string
+                        namespace:
+                          description: |-
+                            Namespace is the namespace of the objects to match, exactly. Empty
+                            matches any namespace.
+                          type: string
+                        paths:
+                          description: Paths are the fields to keep from the live
+                            object.
+                          items:
+                            description: |-
+                              PreservedPath is a field kept from the live object when an object is
+                              replaced.
+                            properties:
+                              mergeKey:
+                                description: |-
+                                  MergeKey, if set, merges a list of objects instead of copying it only
+                                  when unset: live items whose MergeKey field has a value not found in the
+                                  deployed list are appended to it. It only applies to lists of objects:
+                                  live items which are not objects are not merged, although a live list
+                                  is still copied whole when the deployed object leaves it unset. As long
+                                  as the rule exists, an item removed from the manifest is added back from
+                                  the live object on every replace.
+                                type: string
+                              path:
+                                description: |-
+                                  Path is a JSON pointer (RFC 6901) to the field, e.g. /spec/volumeName.
+                                  A "[key]" token iterates over the items of a list, pairing each item of
+                                  the deployed object with the live item which has the same value of field
+                                  key, e.g. /spec/containers/[name]/volumeMounts. A "[key]" token must
+                                  follow a field and be followed by one, so lists of lists cannot be
+                                  addressed, and neither can a field whose name starts with "[" and ends
+                                  with "]". The live value is copied when the deployed object leaves the
+                                  field unset or null, unless MergeKey is set. Helm always sets some
+                                  annotations and labels, e.g. meta.helm.sh/release-name, so
+                                  /metadata/annotations and /metadata/labels are never unset: use
+                                  /metadata/annotations/<key> to keep one annotation. Paths below
+                                  /status, /apiVersion, /kind, /metadata/name, /metadata/namespace,
+                                  /metadata/uid, /metadata/resourceVersion, /metadata/generation,
+                                  /metadata/creationTimestamp, /metadata/deletionTimestamp and
+                                  /metadata/managedFields are not allowed.
+                                minLength: 2
+                                type: string
+                            required:
+                            - path
+                            type: object
+                          minItems: 1
+                          type: array
+                      required:
+                      - apiVersion
+                      - kind
+                      - paths
+                      type: object
+                    nullable: true
+                    type: array
                   releaseName:
                     description: |-
                       ReleaseName sets a custom release name to deploy the chart as. If
@@ -2685,6 +2976,103 @@ spec:
                           description: MaxHistory limits the maximum number of revisions
                             saved per release by Helm.
                           type: integer
+                        preserveOnReplace:
+                          description: |-
+                            PreserveOnReplace lists fields which are kept from the live object when
+                            an object is replaced, which happens with helm.force or
+                            correctDrift.force. A replace sends the whole object, so fields set on
+                            the server after its creation (e.g. the volumeName of a bound
+                            PersistentVolumeClaim) would otherwise be cleared, which the API server
+                            may reject. A field is only copied when the deployed manifest leaves it
+                            unset, except for a list with a mergeKey (see PreservedPath). Without
+                            helm.force or correctDrift.force, this has no effect. Rules from the
+                            bundle and from matching target customizations are combined, and all
+                            rules matching an object apply, so their paths add up; identical rules
+                            are deduplicated. Changing these rules redeploys the bundle.
+                          items:
+                            description: |-
+                              PreserveOnReplaceRule matches objects and lists the fields to keep from
+                              their live version when they are replaced.
+                            properties:
+                              apiVersion:
+                                description: |-
+                                  APIVersion is the apiVersion of the objects to match, e.g. v1. It must
+                                  equal the apiVersion the chart renders: apps/v1beta1 does not match an
+                                  object rendered as apps/v1.
+                                minLength: 1
+                                type: string
+                              kind:
+                                description: Kind is the kind of the objects to match,
+                                  e.g. PersistentVolumeClaim.
+                                minLength: 1
+                                type: string
+                              name:
+                                description: |-
+                                  Name is the name of the objects to match, exactly. It takes precedence
+                                  over NameRegex: if both are set, NameRegex is ignored. Empty, with no
+                                  NameRegex, matches any name.
+                                type: string
+                              nameRegex:
+                                description: |-
+                                  NameRegex is an unanchored Go regular expression matching the names of
+                                  the objects to match. As it is unanchored, pvc-1 also matches my-pvc-10:
+                                  use ^pvc-1$, or Name, to match one name only. It is ignored, and not
+                                  validated, if Name is set.
+                                type: string
+                              namespace:
+                                description: |-
+                                  Namespace is the namespace of the objects to match, exactly. Empty
+                                  matches any namespace.
+                                type: string
+                              paths:
+                                description: Paths are the fields to keep from the
+                                  live object.
+                                items:
+                                  description: |-
+                                    PreservedPath is a field kept from the live object when an object is
+                                    replaced.
+                                  properties:
+                                    mergeKey:
+                                      description: |-
+                                        MergeKey, if set, merges a list of objects instead of copying it only
+                                        when unset: live items whose MergeKey field has a value not found in the
+                                        deployed list are appended to it. It only applies to lists of objects:
+                                        live items which are not objects are not merged, although a live list
+                                        is still copied whole when the deployed object leaves it unset. As long
+                                        as the rule exists, an item removed from the manifest is added back from
+                                        the live object on every replace.
+                                      type: string
+                                    path:
+                                      description: |-
+                                        Path is a JSON pointer (RFC 6901) to the field, e.g. /spec/volumeName.
+                                        A "[key]" token iterates over the items of a list, pairing each item of
+                                        the deployed object with the live item which has the same value of field
+                                        key, e.g. /spec/containers/[name]/volumeMounts. A "[key]" token must
+                                        follow a field and be followed by one, so lists of lists cannot be
+                                        addressed, and neither can a field whose name starts with "[" and ends
+                                        with "]". The live value is copied when the deployed object leaves the
+                                        field unset or null, unless MergeKey is set. Helm always sets some
+                                        annotations and labels, e.g. meta.helm.sh/release-name, so
+                                        /metadata/annotations and /metadata/labels are never unset: use
+                                        /metadata/annotations/<key> to keep one annotation. Paths below
+                                        /status, /apiVersion, /kind, /metadata/name, /metadata/namespace,
+                                        /metadata/uid, /metadata/resourceVersion, /metadata/generation,
+                                        /metadata/creationTimestamp, /metadata/deletionTimestamp and
+                                        /metadata/managedFields are not allowed.
+                                      minLength: 2
+                                      type: string
+                                  required:
+                                  - path
+                                  type: object
+                                minItems: 1
+                                type: array
+                            required:
+                            - apiVersion
+                            - kind
+                            - paths
+                            type: object
+                          nullable: true
+                          type: array
                         releaseName:
                           description: |-
                             ReleaseName sets a custom release name to deploy the chart as. If
@@ -7020,6 +7408,103 @@ spec:
                     description: MaxHistory limits the maximum number of revisions
                       saved per release by Helm.
                     type: integer
+                  preserveOnReplace:
+                    description: |-
+                      PreserveOnReplace lists fields which are kept from the live object when
+                      an object is replaced, which happens with helm.force or
+                      correctDrift.force. A replace sends the whole object, so fields set on
+                      the server after its creation (e.g. the volumeName of a bound
+                      PersistentVolumeClaim) would otherwise be cleared, which the API server
+                      may reject. A field is only copied when the deployed manifest leaves it
+                      unset, except for a list with a mergeKey (see PreservedPath). Without
+                      helm.force or correctDrift.force, this has no effect. Rules from the
+                      bundle and from matching target customizations are combined, and all
+                      rules matching an object apply, so their paths add up; identical rules
+                      are deduplicated. Changing these rules redeploys the bundle.
+                    items:
+                      description: |-
+                        PreserveOnReplaceRule matches objects and lists the fields to keep from
+                        their live version when they are replaced.
+                      properties:
+                        apiVersion:
+                          description: |-
+                            APIVersion is the apiVersion of the objects to match, e.g. v1. It must
+                            equal the apiVersion the chart renders: apps/v1beta1 does not match an
+                            object rendered as apps/v1.
+                          minLength: 1
+                          type: string
+                        kind:
+                          description: Kind is the kind of the objects to match, e.g.
+                            PersistentVolumeClaim.
+                          minLength: 1
+                          type: string
+                        name:
+                          description: |-
+                            Name is the name of the objects to match, exactly. It takes precedence
+                            over NameRegex: if both are set, NameRegex is ignored. Empty, with no
+                            NameRegex, matches any name.
+                          type: string
+                        nameRegex:
+                          description: |-
+                            NameRegex is an unanchored Go regular expression matching the names of
+                            the objects to match. As it is unanchored, pvc-1 also matches my-pvc-10:
+                            use ^pvc-1$, or Name, to match one name only. It is ignored, and not
+                            validated, if Name is set.
+                          type: string
+                        namespace:
+                          description: |-
+                            Namespace is the namespace of the objects to match, exactly. Empty
+                            matches any namespace.
+                          type: string
+                        paths:
+                          description: Paths are the fields to keep from the live
+                            object.
+                          items:
+                            description: |-
+                              PreservedPath is a field kept from the live object when an object is
+                              replaced.
+                            properties:
+                              mergeKey:
+                                description: |-
+                                  MergeKey, if set, merges a list of objects instead of copying it only
+                                  when unset: live items whose MergeKey field has a value not found in the
+                                  deployed list are appended to it. It only applies to lists of objects:
+                                  live items which are not objects are not merged, although a live list
+                                  is still copied whole when the deployed object leaves it unset. As long
+                                  as the rule exists, an item removed from the manifest is added back from
+                                  the live object on every replace.
+                                type: string
+                              path:
+                                description: |-
+                                  Path is a JSON pointer (RFC 6901) to the field, e.g. /spec/volumeName.
+                                  A "[key]" token iterates over the items of a list, pairing each item of
+                                  the deployed object with the live item which has the same value of field
+                                  key, e.g. /spec/containers/[name]/volumeMounts. A "[key]" token must
+                                  follow a field and be followed by one, so lists of lists cannot be
+                                  addressed, and neither can a field whose name starts with "[" and ends
+                                  with "]". The live value is copied when the deployed object leaves the
+                                  field unset or null, unless MergeKey is set. Helm always sets some
+                                  annotations and labels, e.g. meta.helm.sh/release-name, so
+                                  /metadata/annotations and /metadata/labels are never unset: use
+                                  /metadata/annotations/<key> to keep one annotation. Paths below
+                                  /status, /apiVersion, /kind, /metadata/name, /metadata/namespace,
+                                  /metadata/uid, /metadata/resourceVersion, /metadata/generation,
+                                  /metadata/creationTimestamp, /metadata/deletionTimestamp and
+                                  /metadata/managedFields are not allowed.
+                                minLength: 2
+                                type: string
+                            required:
+                            - path
+                            type: object
+                          minItems: 1
+                          type: array
+                      required:
+                      - apiVersion
+                      - kind
+                      - paths
+                      type: object
+                    nullable: true
+                    type: array
                   releaseName:
                     description: |-
                       ReleaseName sets a custom release name to deploy the chart as. If
@@ -7946,6 +8431,103 @@ spec:
                           description: MaxHistory limits the maximum number of revisions
                             saved per release by Helm.
                           type: integer
+                        preserveOnReplace:
+                          description: |-
+                            PreserveOnReplace lists fields which are kept from the live object when
+                            an object is replaced, which happens with helm.force or
+                            correctDrift.force. A replace sends the whole object, so fields set on
+                            the server after its creation (e.g. the volumeName of a bound
+                            PersistentVolumeClaim) would otherwise be cleared, which the API server
+                            may reject. A field is only copied when the deployed manifest leaves it
+                            unset, except for a list with a mergeKey (see PreservedPath). Without
+                            helm.force or correctDrift.force, this has no effect. Rules from the
+                            bundle and from matching target customizations are combined, and all
+                            rules matching an object apply, so their paths add up; identical rules
+                            are deduplicated. Changing these rules redeploys the bundle.
+                          items:
+                            description: |-
+                              PreserveOnReplaceRule matches objects and lists the fields to keep from
+                              their live version when they are replaced.
+                            properties:
+                              apiVersion:
+                                description: |-
+                                  APIVersion is the apiVersion of the objects to match, e.g. v1. It must
+                                  equal the apiVersion the chart renders: apps/v1beta1 does not match an
+                                  object rendered as apps/v1.
+                                minLength: 1
+                                type: string
+                              kind:
+                                description: Kind is the kind of the objects to match,
+                                  e.g. PersistentVolumeClaim.
+                                minLength: 1
+                                type: string
+                              name:
+                                description: |-
+                                  Name is the name of the objects to match, exactly. It takes precedence
+                                  over NameRegex: if both are set, NameRegex is ignored. Empty, with no
+                                  NameRegex, matches any name.
+                                type: string
+                              nameRegex:
+                                description: |-
+                                  NameRegex is an unanchored Go regular expression matching the names of
+                                  the objects to match. As it is unanchored, pvc-1 also matches my-pvc-10:
+                                  use ^pvc-1$, or Name, to match one name only. It is ignored, and not
+                                  validated, if Name is set.
+                                type: string
+                              namespace:
+                                description: |-
+                                  Namespace is the namespace of the objects to match, exactly. Empty
+                                  matches any namespace.
+                                type: string
+                              paths:
+                                description: Paths are the fields to keep from the
+                                  live object.
+                                items:
+                                  description: |-
+                                    PreservedPath is a field kept from the live object when an object is
+                                    replaced.
+                                  properties:
+                                    mergeKey:
+                                      description: |-
+                                        MergeKey, if set, merges a list of objects instead of copying it only
+                                        when unset: live items whose MergeKey field has a value not found in the
+                                        deployed list are appended to it. It only applies to lists of objects:
+                                        live items which are not objects are not merged, although a live list
+                                        is still copied whole when the deployed object leaves it unset. As long
+                                        as the rule exists, an item removed from the manifest is added back from
+                                        the live object on every replace.
+                                      type: string
+                                    path:
+                                      description: |-
+                                        Path is a JSON pointer (RFC 6901) to the field, e.g. /spec/volumeName.
+                                        A "[key]" token iterates over the items of a list, pairing each item of
+                                        the deployed object with the live item which has the same value of field
+                                        key, e.g. /spec/containers/[name]/volumeMounts. A "[key]" token must
+                                        follow a field and be followed by one, so lists of lists cannot be
+                                        addressed, and neither can a field whose name starts with "[" and ends
+                                        with "]". The live value is copied when the deployed object leaves the
+                                        field unset or null, unless MergeKey is set. Helm always sets some
+                                        annotations and labels, e.g. meta.helm.sh/release-name, so
+                                        /metadata/annotations and /metadata/labels are never unset: use
+                                        /metadata/annotations/<key> to keep one annotation. Paths below
+                                        /status, /apiVersion, /kind, /metadata/name, /metadata/namespace,
+                                        /metadata/uid, /metadata/resourceVersion, /metadata/generation,
+                                        /metadata/creationTimestamp, /metadata/deletionTimestamp and
+                                        /metadata/managedFields are not allowed.
+                                      minLength: 2
+                                      type: string
+                                  required:
+                                  - path
+                                  type: object
+                                minItems: 1
+                                type: array
+                            required:
+                            - apiVersion
+                            - kind
+                            - paths
+                            type: object
+                          nullable: true
+                          type: array
                         releaseName:
                           description: |-
                             ReleaseName sets a custom release name to deploy the chart as. If
