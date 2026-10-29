@@ -89,6 +89,7 @@ jobs:
           path: fleet-test-data
 
       - name: create release branch in fleet-test-data
+        id: test_branch
         if: steps.branch.outputs.version != ''
         env:
           BRANCH: ${{steps.branch.outputs.version}}
@@ -101,9 +102,14 @@ jobs:
             git push -u origin $BRANCH
           fi
 
-          # FIXME run this only if branch exists
+          if git checkout $BRANCH; then
+            echo "branch_exists=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "branch_exists=0" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: update benchmarks assets to point to rancher/fleet-test-data release branch
-        if: steps.branch.outputs.version != ''
+        if: steps.branch.outputs.version != '' && steps.test_branch.outputs.branch_exists == 1
         env:
           BRANCH: ${{steps.branch.outputs.version}}
         run: |
