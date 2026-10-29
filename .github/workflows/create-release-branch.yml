@@ -1,0 +1,114 @@
+name: Create Release Branch
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: New version number (e.g. 42); will be prefixed with `release/v0.` by the workflow
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  GOARCH: amd64
+  CGO_ENABLED: 0
+
+jobs:
+  create-release-branch:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: create release branch
+        id: branch
+        env:
+          NUM: ${{ github.event.inputs.version }}
+        run: |
+          if ! [[ $NUM =~ ^[0-9]+$ ]]; then
+             echo "${NUM} is not a number"
+             exit 1
+          fi
+
+          if [ $NUM -lt 1 ]; then
+            echo "${NUM} is too small; will not match a Rancher version number"
+            exit 1
+          fi
+
+          version="release/v0.$NUM"
+
+          if ! git checkout -b $version; then
+            echo "Could not create branch $version. Skipping."
+          else
+            git push -u origin $version
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: add Renovate support to new release branch
+        if: steps.branch.outputs.version != ''
+        env:
+          BRANCH: ${{steps.branch.outputs.version}}
+          NUM: ${{ github.event.inputs.version }}
+        run: |
+          rancher_minor_member=$(( $NUM - 1 ))
+          sed -Ei "/\"main\",/a \"$BRANCH\"," .github/renovate.json
+          cat <<EOF >renovate_block.json
+              {
+                "matchBaseBranches": [
+                  "$BRANCH"
+                ],
+                "extends": [
+                  "github>rancher/renovate-config//rancher-2.$rancher_minor_member#main"
+                ]
+              },
+          EOF
+
+          # Add the new block once, after the first existing block (terminated by `},`)
+          sed -i "0,/},/{/},/ r renovate_block.json
+          }" .github/renovate.json
+
+          # Indent the file properly
+          jq . .github/renovate.json > formatted.json
+          mv formatted.json .github/renovate.json
+
+          git --no-pager diff .github/renovate.json
+
+      - name: checkout rancher/fleet-test-data
+        if: steps.branch.outputs.version != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          repository: "rancher/fleet-test-data"
+          path: fleet-test-data
+
+      - name: create release branch in fleet-test-data
+        if: steps.branch.outputs.version != ''
+        env:
+          BRANCH: ${{steps.branch.outputs.version}}
+        run: |
+          cd fleet-test-data
+
+          if ! git checkout -b $BRANCH; then
+            echo "Could not create branch $version. Skipping."
+          else
+            git push -u origin $BRANCH
+          fi
+
+          # FIXME run this only if branch exists
+      - name: update benchmarks assets to point to rancher/fleet-test-data release branch
+        if: steps.branch.outputs.version != ''
+        env:
+          BRANCH: ${{steps.branch.outputs.version}}
+        run: |
+          cd ../fleet
+
+          find benchmarks/assets -type f -exec sed -i "s,branch:.*$,branch: $BRANCH," {} \;
+
+          git --no-pager diff benchmarks/assets
