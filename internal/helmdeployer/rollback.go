@@ -20,7 +20,12 @@ func (h *Helm) RemoveExternalChanges(ctx context.Context, bd *fleet.BundleDeploy
 	log.FromContext(ctx).WithName("remove-external-changes").Info("Drift correction: rollback")
 
 	_, defaultNamespace, releaseName := h.getOpts(bd.Name, bd.Spec.Options)
-	cfg, err := h.getCfg(ctx, defaultNamespace, bd.Spec.Options.ServiceAccount)
+	var preserveRules []preserveRule
+	if bd.Spec.Options.Helm != nil {
+		// Invalid rules were reported when the release was deployed.
+		preserveRules = preserveRulesFor(ctx, bd.Spec.Options.Helm.PreserveOnReplace, false)
+	}
+	cfg, err := h.getCfg(ctx, defaultNamespace, bd.Spec.Options.ServiceAccount, preserveRules)
 	if err != nil {
 		return "", err
 	}

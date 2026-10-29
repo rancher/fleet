@@ -101,7 +101,7 @@ func (h *Helm) deleteByRelease(
 		}
 	}
 
-	cfg, err := h.getCfg(ctx, releaseNamespace, serviceAccountName)
+	cfg, err := h.getCfg(ctx, releaseNamespace, serviceAccountName, nil)
 	if err != nil {
 		return err
 	}
@@ -168,7 +168,7 @@ func (h *Helm) delete(ctx context.Context, bundleID string, options fleet.Bundle
 	}
 
 	serviceAccountName := r.Chart.Metadata.Annotations[ServiceAccountNameAnnotation]
-	cfg, err := h.getCfg(ctx, r.Namespace, serviceAccountName)
+	cfg, err := h.getCfg(ctx, r.Namespace, serviceAccountName, nil)
 	if err != nil {
 		return err
 	}

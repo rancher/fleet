@@ -120,7 +120,10 @@ func (h *Helm) getOpts(bundleID string, options fleet.BundleDeploymentOptions) (
 	return timeout, ns, names.HelmReleaseName(bundleID)
 }
 
-func (h *Helm) getCfg(ctx context.Context, namespace, serviceAccountName string) (*action.Configuration, error) {
+// getCfg returns the Helm configuration to deploy a release with. The objects
+// matched by preserveRules keep the listed fields of their live version when
+// Helm replaces them (see preservingGetter).
+func (h *Helm) getCfg(ctx context.Context, namespace, serviceAccountName string, preserveRules []preserveRule) (*action.Configuration, error) {
 	var getter = h.getter
 
 	if h.useGlobalCfg {
@@ -139,7 +142,14 @@ func (h *Helm) getCfg(ctx context.Context, namespace, serviceAccountName string)
 		}
 	}
 
-	kClient := kube.New(getter)
+	// Only the client Helm applies objects with gets the rules. Release
+	// storage (createCfg) and cfg.RESTClientGetter keep the plain getter.
+	applyGetter := getter
+	if len(preserveRules) > 0 {
+		applyGetter = newPreservingGetter(getter, preserveRules, log.FromContext(ctx).WithName("preserve-on-replace"))
+	}
+
+	kClient := kube.New(applyGetter)
 	kClient.Namespace = namespace
 
 	cfg, err := h.createCfg(ctx, namespace, getter)
