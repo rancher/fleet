@@ -5,7 +5,7 @@ go 1.27.0
 toolchain go1.27.3
 
 require (
-	github.com/rancher/wrangler/v3 v3.7.2
+	github.com/rancher/wrangler/v3 v3.8.0-rc.3
 	k8s.io/api v0.37.1
 	k8s.io/apimachinery v0.37.1
 )

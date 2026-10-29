@@ -100,10 +100,10 @@ jobs:
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
 
       - name: Install Slsactl
-        uses: rancherlabs/slsactl/actions/install-slsactl@3f45aa7d9f3b57c8588efa460b40a82c8538f794 # v0.1.44
+        uses: rancherlabs/slsactl/actions/install-slsactl@dbd56ea689022a324a6e9f16392a4da4353d821e # v0.1.45
         with:
           # renovate: datasource=github-tags depName=rancherlabs/slsactl
-          version: v0.1.44
+          version: v0.1.45
 
       - name: "Read Vault Secrets"
         uses: rancher-eio/read-vault-secrets@0da85151ad1f19ed7986c41587e45aac1ace74b6 # v3
@@ -339,7 +339,7 @@ jobs:
             secret/data/github/repo/${{ github.repository }}/github/workflow-dispatcher/app-credentials privateKey | PRIVATE_KEY
 
       - name: Create App Token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         id: app-token
         with:
           app-id: ${{ env.APP_ID }}

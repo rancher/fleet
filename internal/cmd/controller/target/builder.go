@@ -157,6 +157,11 @@ func (m *Manager) Targets(ctx context.Context, bundle *fleet.Bundle, manifestID 
 				return nil, false, fmt.Errorf("cluster %s in namespace %s: %w", cluster.Name, cluster.Namespace, err)
 			}
 
+			err = preprocessNamespaceMetadata(&opts, &cluster)
+			if err != nil {
+				return nil, false, fmt.Errorf("cluster %s in namespace %s: %w", cluster.Name, cluster.Namespace, err)
+			}
+
 			deploymentID, err := options.DeploymentID(manifestID, opts)
 			if err != nil {
 				return nil, false, err
@@ -268,7 +273,8 @@ func (m *Manager) getNamespacesForBundle(ctx context.Context, bundle *fleet.Bund
 	return nses.List(), nil
 }
 
-func preprocessHelmValues(logger logr.Logger, opts *fleet.BundleDeploymentOptions, cluster *fleet.Cluster) (err error) {
+// clusterLabelsAndAnnotations returns the cluster labels and annotations exposed to templates.
+func clusterLabelsAndAnnotations(cluster *fleet.Cluster) (map[string]string, map[string]string) {
 	clusterLabels := yaml.CleanAnnotationsForExport(cluster.Labels)
 	clusterAnnotations := yaml.CleanAnnotationsForExport(cluster.Annotations)
 
@@ -277,6 +283,51 @@ func preprocessHelmValues(logger logr.Logger, opts *fleet.BundleDeploymentOption
 			clusterLabels[k] = v
 		}
 	}
+
+	return clusterLabels, clusterAnnotations
+}
+
+// templateContext returns the data available to "${ }" templates for the given cluster.
+func templateContext(cluster *fleet.Cluster, clusterLabels, clusterAnnotations map[string]string) map[string]any {
+	templateValues := map[string]any{}
+	if cluster.Spec.TemplateValues != nil {
+		templateValues = cluster.Spec.TemplateValues.Data
+	}
+
+	return map[string]any{
+		"ClusterNamespace":   cluster.Namespace,
+		"ClusterName":        cluster.Name,
+		"ClusterLabels":      toDict(clusterLabels),
+		"ClusterAnnotations": toDict(clusterAnnotations),
+		"ClusterValues":      templateValues,
+	}
+}
+
+// preprocessNamespaceMetadata renders "${ }" templates in namespaceLabels and namespaceAnnotations,
+// using the same context as helm values. It is skipped when helm.disablePreProcess is set.
+func preprocessNamespaceMetadata(opts *fleet.BundleDeploymentOptions, cluster *fleet.Cluster) (err error) {
+	if opts.Helm != nil && opts.Helm.DisablePreProcess {
+		return nil
+	}
+	if len(opts.NamespaceLabels) == 0 && len(opts.NamespaceAnnotations) == 0 {
+		return nil
+	}
+
+	clusterLabels, clusterAnnotations := clusterLabelsAndAnnotations(cluster)
+	values := templateContext(cluster, clusterLabels, clusterAnnotations)
+
+	if opts.NamespaceLabels, err = processTemplateStrings(opts.NamespaceLabels, values); err != nil {
+		return fmt.Errorf("namespaceLabels: %w", err)
+	}
+	if opts.NamespaceAnnotations, err = processTemplateStrings(opts.NamespaceAnnotations, values); err != nil {
+		return fmt.Errorf("namespaceAnnotations: %w", err)
+	}
+
+	return nil
+}
+
+func preprocessHelmValues(logger logr.Logger, opts *fleet.BundleDeploymentOptions, cluster *fleet.Cluster) (err error) {
+	clusterLabels, clusterAnnotations := clusterLabelsAndAnnotations(cluster)
 	if len(clusterLabels) == 0 {
 		return nil
 	}
@@ -304,18 +355,7 @@ func preprocessHelmValues(logger logr.Logger, opts *fleet.BundleDeploymentOption
 	}
 
 	if !opts.Helm.DisablePreProcess {
-		templateValues := map[string]any{}
-		if cluster.Spec.TemplateValues != nil {
-			templateValues = cluster.Spec.TemplateValues.Data
-		}
-
-		values := map[string]any{
-			"ClusterNamespace":   cluster.Namespace,
-			"ClusterName":        cluster.Name,
-			"ClusterLabels":      toDict(clusterLabels),
-			"ClusterAnnotations": toDict(clusterAnnotations),
-			"ClusterValues":      templateValues,
-		}
+		values := templateContext(cluster, clusterLabels, clusterAnnotations)
 
 		opts.Helm.Values.Data, err = processTemplateValues(opts.Helm.Values.Data, values)
 		if err != nil {
@@ -403,26 +443,15 @@ func processTemplateValuesData(helmTemplateData map[string]string, templateConte
 	renderedValues := make(map[string]any, len(helmTemplateData))
 
 	for k, v := range helmTemplateData {
-		// fleet.yaml must be valid yaml, however '{}[]' are YAML control
-		// characters and will be interpreted as JSON data structures. This
-		// causes issues when parsing the fleet.yaml so we change the delims
-		// for templating to '${ }'
-		tmpl := template.New("values").Funcs(tplFuncMap()).Option("missingkey=error").Delims("${", "}")
-		tmpl, err := tmpl.Parse(v)
+		tmpl, err := renderTemplate(v, templateContext)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse helm values template: %w", err)
-		}
-
-		var b bytes.Buffer
-		err = tmpl.Execute(&b, templateContext)
-		if err != nil {
-			return nil, fmt.Errorf("failed to render helm values template: %w", err)
+			return nil, fmt.Errorf("helm values data: %w", err)
 		}
 
 		var value any
-		err = kyaml.Unmarshal(b.Bytes(), &value)
+		err = kyaml.Unmarshal([]byte(tmpl), &value)
 		if err != nil {
-			return nil, fmt.Errorf("failed to interpret rendered template as helm values: %s, %w", b.String(), err)
+			return nil, fmt.Errorf("failed to interpret rendered template as helm values: %s, %w", tmpl, err)
 		}
 
 		renderedValues[k] = value
@@ -431,30 +460,59 @@ func processTemplateValuesData(helmTemplateData map[string]string, templateConte
 	return renderedValues, nil
 }
 
+// It returns a new map, so maps shared with the bundle are not modified.
+func processTemplateStrings(data map[string]string, templateContext map[string]any) (map[string]string, error) {
+	if data == nil {
+		return nil, nil
+	}
+
+	rendered := make(map[string]string, len(data))
+	for k, v := range data {
+		if !strings.Contains(v, "${") {
+			rendered[k] = v
+			continue
+		}
+
+		tmpl, err := renderTemplate(v, templateContext)
+		if err != nil {
+			return nil, fmt.Errorf("key %q: %w", k, err)
+		}
+
+		rendered[k] = tmpl
+	}
+
+	return rendered, nil
+}
+
+// fleet.yaml must be valid yaml, however '{}[]' are YAML control
+// characters and will be interpreted as JSON data structures. This
+// causes issues when parsing the fleet.yaml so we change the delims
+// for templating to '${ }'
+func renderTemplate(text string, templateContext map[string]any) (string, error) {
+	tmpl, err := template.New("values").Funcs(tplFuncMap()).Option("missingkey=error").Delims("${", "}").Parse(text)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse template: %w", err)
+	}
+	var b bytes.Buffer
+	if err := tmpl.Execute(&b, templateContext); err != nil {
+		return "", fmt.Errorf("failed to render template: %w", err)
+	}
+	return b.String(), nil
+}
+
 func processTemplateValues(helmValues map[string]any, templateContext map[string]any) (map[string]any, error) {
 	data, err := kyaml.Marshal(helmValues)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal helm values section into a template: %w", err)
 	}
 
-	// fleet.yaml must be valid yaml, however '{}[]' are YAML control
-	// characters and will be interpreted as JSON data structures. This
-	// causes issues when parsing the fleet.yaml so we change the delims
-	// for templating to '${ }'
-	tmpl := template.New("values").Funcs(tplFuncMap()).Option("missingkey=error").Delims("${", "}")
-	tmpl, err = tmpl.Parse(string(data))
+	tmpl, err := renderTemplate(string(data), templateContext)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse helm values template: %w", err)
-	}
-
-	var b bytes.Buffer
-	err = tmpl.Execute(&b, templateContext)
-	if err != nil {
-		return nil, fmt.Errorf("failed to render helm values template: %w", err)
+		return nil, fmt.Errorf("helm values: %w", err)
 	}
 
 	var renderedValues map[string]any
-	err = kyaml.Unmarshal(b.Bytes(), &renderedValues)
+	err = kyaml.Unmarshal([]byte(tmpl), &renderedValues)
 	if err != nil {
 		return nil, fmt.Errorf("failed to interpret rendered template as helm values: %#v, %w", renderedValues, err)
 	}
