@@ -29,6 +29,7 @@ jobs:
         id: branch
         env:
           NUM: ${{ github.event.inputs.version }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if ! [[ $NUM =~ ^[0-9]+$ ]]; then
              echo "${NUM} is not a number"
@@ -51,6 +52,7 @@ jobs:
           if ! git checkout -b $version; then
             echo "Could not create branch $version. Skipping."
           else
+            git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git"
             git push -u origin $version
           fi
 
@@ -98,6 +100,7 @@ jobs:
         id: test_branch
         if: steps.branch.outputs.version != ''
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BRANCH: ${{steps.branch.outputs.version}}
         run: |
           cd fleet-test-data
@@ -105,6 +108,7 @@ jobs:
           if ! git checkout -b $BRANCH; then
             echo "Could not create branch $version. Skipping."
           else
+            git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/rancher/fleet-test-data.git"
             git push -u origin $BRANCH
           fi
 
