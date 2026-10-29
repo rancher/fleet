@@ -3,6 +3,7 @@
   "extends": ["github>rancher/renovate-config//default#main"],
   "baseBranchPatterns": [
     "main",
+    "release/v0.17",
     "release/v0.16",
     "release/v0.15",
     "release/v0.14",
@@ -19,6 +20,14 @@
       ],
       "extends": [
         "github>rancher/renovate-config//rancher-main#main"
+      ]
+    },
+    {
+      "matchBaseBranches": [
+        "release/v0.17"
+      ],
+      "extends": [
+        "github>rancher/renovate-config//rancher-2.16#main"
       ]
     },
     {
@@ -65,6 +74,7 @@
       "description": "Activate automerge for eligible updates",
       "matchBaseBranches": [
         "main",
+        "release/v0.17",
         "release/v0.16",
         "release/v0.15",
         "release/v0.14",
