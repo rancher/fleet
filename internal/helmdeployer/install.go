@@ -294,7 +294,12 @@ func (h *Helm) runUpgrade(
 	logger := log.FromContext(ctx)
 	u := action.NewUpgrade(cfg)
 
-	h.configureUpgradeAction(u, namespace, timeout, options, pr, dryRunCfg)
+	lastRelease, err := getLastRelease(cfg.Releases, releaseName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get last release to determine apply method: %w", err)
+	}
+
+	h.configureUpgradeAction(u, namespace, timeout, options, pr, dryRunCfg, lastRelease.ApplyMethod)
 
 	if !dryRunCfg.DryRun {
 		logger.Info("Upgrading helm release")
@@ -313,22 +318,16 @@ func (h *Helm) runUpgrade(
 
 // configureUpgradeAction configures a Helm Upgrade action with Fleet-specific options,
 // including timeout, wait strategies, and drift correction settings.
-func (h *Helm) configureUpgradeAction(u *action.Upgrade, namespace string, timeout time.Duration, options fleet.BundleDeploymentOptions, pr *postRender, dryRunCfg dryRunConfig) {
+// lastApplyMethod is the apply method recorded in the last release, used to
+// decide whether server-side apply is used.
+func (h *Helm) configureUpgradeAction(u *action.Upgrade, namespace string, timeout time.Duration, options fleet.BundleDeploymentOptions, pr *postRender, dryRunCfg dryRunConfig, lastApplyMethod string) {
 	u.TakeOwnership = true
 	u.EnableDNS = !options.Helm.DisableDNS
 	u.ForceReplace = options.Helm.Force
 	if options.CorrectDrift != nil {
 		u.ForceReplace = u.ForceReplace || options.CorrectDrift.Force
 	}
-	// When using ForceReplace, must disable ServerSideApply.
-	// ForceReplace and ServerSideApply cannot be used together in Helm v4.
-	// Set to "false" (not "auto") to explicitly disable server-side apply.
-	// Otherwise use "auto" to respect the previous release's apply method.
-	if u.ForceReplace {
-		u.ServerSideApply = "false"
-	} else {
-		u.ServerSideApply = "auto"
-	}
+	u.ServerSideApply, u.ForceConflicts = upgradeApplyMethod(u.ForceReplace, lastApplyMethod)
 	u.RollbackOnFailure = options.Helm.Atomic
 	u.MaxHistory = options.Helm.MaxHistory
 	if u.MaxHistory == 0 {
@@ -348,6 +347,30 @@ func (h *Helm) configureUpgradeAction(u *action.Upgrade, namespace string, timeo
 	} else {
 		u.WaitStrategy = kube.HookOnlyStrategy
 	}
+}
+
+// upgradeApplyMethod returns the ServerSideApply and ForceConflicts values for
+// an upgrade.
+//
+// Server-side apply is used when the last release used it, as Helm's "auto"
+// mode does, unless ForceReplace is set: Helm v4 rejects ForceReplace together
+// with server-side apply.
+//
+// With server-side apply, conflicts are always forced. Fleet then takes
+// ownership of the fields it renders when another field manager holds them
+// with a different value, e.g. when taking over a release installed by the
+// Helm CLI, instead of failing the upgrade. Fields Fleet does not render are
+// left alone. This is similar to client-side apply for built-in types; for
+// custom resources, client-side apply only patches fields the chart changed,
+// whereas forced server-side apply re-asserts every rendered field.
+//
+// "auto" is resolved here rather than by Helm, because Helm rejects
+// ForceConflicts without server-side apply. The explicit value is also
+// inherited by Helm's rollback on failure (atomic), which would otherwise
+// resolve "auto" from the revision it rolls back to.
+func upgradeApplyMethod(forceReplace bool, lastApplyMethod string) (serverSideApply string, forceConflicts bool) {
+	ssa := !forceReplace && lastApplyMethod == string(releasev1.ApplyMethodServerSideApply)
+	return strconv.FormatBool(ssa), ssa
 }
 
 // retryUpgradeAfterRollback handles the case where a Helm upgrade is interrupted and retries
