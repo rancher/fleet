@@ -11,6 +11,9 @@ FLEET_E2E_DS_CLUSTER_COUNT=${FLEET_E2E_DS_CLUSTER_COUNT:-1}
 # Cleans with settings sourced, so it should be rather selective.
 ./dev/k3d-clean
 
+# Needed by the image scan tests
+eval "$(./.github/scripts/imagescan-registry.sh create)"
+
 PORT_OFFSET=0
 if [ -z "$external_ip" ];
 then

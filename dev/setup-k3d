@@ -48,6 +48,11 @@ EOF
   args="$args --registry-config $TMP_CONFIG"
 fi
 
+# Needed by the image scan tests
+if [ -n "${IMAGESCAN_REGISTRY_PULL:-}" ]; then
+  args="$args --registry-use $IMAGESCAN_REGISTRY_PULL"
+fi
+
 k3d cluster create "$name" \
   --servers 3 \
   --api-port "$unique_api_port" \

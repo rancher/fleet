@@ -110,6 +110,10 @@ jobs:
             chmod +x ~/.local/bin/k3d
           fi
       -
+        name: Create Image Scan Registry
+        if: ${{ matrix.test_type.name == 'infra-setup-git' }}
+        run: ./.github/scripts/imagescan-registry.sh create
+      -
         name: Provision k3d Cluster
         run: |
           # Retry cluster creation up to 3 times to handle transient network issues
@@ -120,6 +124,7 @@ jobs:
             if k3d cluster create upstream --wait \
               --agents 1 \
               --network "nw01" \
+              ${IMAGESCAN_REGISTRY_PULL:+--registry-use "$IMAGESCAN_REGISTRY_PULL"} \
               --image docker.io/rancher/k3s:${{matrix.k3s.version}} \
               --k3s-arg "--kubelet-arg=image-gc-high-threshold=100@all" \
               --k3s-arg "--cluster-init@server:0"; then
@@ -279,6 +284,13 @@ jobs:
           echo "${{ secrets.CI_SSH_PUBKEY }}" > "$GIT_SSH_PUBKEY"
 
           go test -v -count=1 -timeout=1h ./e2e/require-secrets -args -ginkgo.github-output -ginkgo.trace
+      -
+        # Setup failures happen before any spec runs, so FailAndGather never
+        # writes tmp/upstream and the uploaded artifact would be empty.
+        name: Collect Cluster Diagnostics
+        if: failure()
+        run: |
+          [ -d tmp/upstream ] || crust-gather collect --exclude-namespace=kube-system --exclude-kind=Lease --duration=10s -verror -f tmp/upstream/setup-failure || true
       -
         name: Upload Logs
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

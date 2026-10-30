@@ -6,11 +6,20 @@ export CUSTOM_CONFIG_FILE="env.single-cluster"
 # shellcheck source=dev/setup-cluster-config
 source ./dev/setup-cluster-config
 
+# Needed by the image scan tests; creates the registry and exports its address
+# for dev/setup-k3d.
+setup_imagescan_registry() {
+    eval "$(./.github/scripts/imagescan-registry.sh create)"
+}
+
 if [ $1 = "--reuse" ]; then
     ./dev/remove-fleet
+    setup_imagescan_registry
 else
     # Cleans with settings sourced, so it should be rather selective.
     ./dev/k3d-clean
+
+    setup_imagescan_registry
 
     PORT_OFFSET=0
     if [ -z "$external_ip" ];
