@@ -110,6 +110,10 @@ jobs:
             chmod +x ~/.local/bin/k3d
           fi
       -
+        name: Create Image Scan Registry
+        if: ${{ matrix.test_type.name == 'infra-setup-git' }}
+        run: ./.github/scripts/imagescan-registry.sh create
+      -
         name: Provision k3d Cluster
         run: |
           # Retry cluster creation up to 3 times to handle transient network issues
@@ -120,6 +124,7 @@ jobs:
             if k3d cluster create upstream --wait \
               --agents 1 \
               --network "nw01" \
+              ${IMAGESCAN_REGISTRY_PULL:+--registry-use "$IMAGESCAN_REGISTRY_PULL"} \
               --image docker.io/rancher/k3s:${{matrix.k3s.version}} \
               --k3s-arg "--kubelet-arg=image-gc-high-threshold=100@all" \
               --k3s-arg "--cluster-init@server:0"; then
