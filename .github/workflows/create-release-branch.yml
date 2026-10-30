@@ -31,6 +31,9 @@ jobs:
           NUM: ${{ github.event.inputs.version }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # Remove leading 0s, if any
+          NUM=$(echo $NUM | sed 's/^0\+//g')
+
           if ! [[ $NUM =~ ^[0-9]+$ ]]; then
              echo "${NUM} is not a number"
              exit 1
@@ -63,13 +66,14 @@ jobs:
             git push -u origin $version
           fi
 
+          echo "num=$NUM" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: add Renovate support to new release branch
         if: steps.branch.outputs.version != ''
         env:
           BRANCH: ${{steps.branch.outputs.version}}
-          NUM: ${{ github.event.inputs.version }}
+          NUM: ${{steps.branch.outputs.num}}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           rancher_minor_member=$(( $NUM - 1 ))
