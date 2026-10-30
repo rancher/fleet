@@ -76,6 +76,11 @@ jobs:
           NUM: ${{steps.branch.outputs.num}}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          if grep -q "$BRANCH" .github/renovate.json; then
+            echo "Renovate config already set for $BRANCH; skipping."
+            exit 0
+          fi
+
           rancher_minor_member=$(( $NUM - 1 ))
           sed -Ei "/\"main\",/a \"$BRANCH\"," .github/renovate.json
           cat <<EOF >renovate_block.json
