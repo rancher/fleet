@@ -143,6 +143,11 @@ jobs:
         run: |
           cd ../fleet
 
+          if grep -Rq "$BRANCH" benchmarks/assets; then
+            echo "Benchmark assets already point to $BRANCH; skipping."
+            exit 0
+          fi
+
           find benchmarks/assets -type f -exec sed -i "s,branch:.*$,branch: $BRANCH," {} \;
 
           git --no-pager diff benchmarks/assets
