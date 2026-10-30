@@ -7,7 +7,7 @@ Fleet does accept external contributions in general, however the team's time is 
 
 ## Genuine Investment in Fleet
 
-Maintainer time and project resources are limited. We only accept pull requests from contributors who use Fleet or are genuinely invested in its success and willing to follow through on their contributions. This applies whether or not AI tools are used. New contributors are welcome; no prior contribution history is required.
+Maintainer time and project resources are limited. We only accept pull requests from contributors who use Fleet or are genuinely invested and willing to follow through on their contributions. This applies whether or not AI tools are used. New contributors are welcome; no prior contribution history is required.
 
 Explain how your changes benefit Fleet, respond to review feedback, and stay involved after merge to help address questions or regressions related to your changes. The goal is lasting collaboration, not submissions that leave maintainers with all the follow-up work.
 
