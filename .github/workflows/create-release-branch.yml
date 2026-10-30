@@ -49,8 +49,15 @@ jobs:
             git config --global user.email fleet@suse.de
           fi
 
-          if ! git checkout -b $version; then
-            echo "Could not create branch $version. Skipping."
+          err_file=/tmp/branch_create_err
+
+          if ! git checkout -b $version &>$err_file; then
+            if ! grep -q 'already exists' $err_file; then
+              echo "Could not create branch $version. Skipping."
+              echo "version=" >> "$GITHUB_OUTPUT"
+
+              exit 1
+            fi
           else
             git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git"
             git push -u origin $version
