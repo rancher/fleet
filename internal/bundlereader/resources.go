@@ -225,6 +225,9 @@ func generateValues(base, root string, chart *fleet.HelmOptions) (valuesMap *fle
 		if !pathWithinDir(resolvedRoot, resolvedValuesPath) {
 			return nil, fmt.Errorf("invalid values file %q: target escapes repository directory", value)
 		}
+		if referencesGitMetadata(resolvedRoot, valuesPath) || referencesGitMetadata(resolvedRoot, resolvedValuesPath) {
+			return nil, fmt.Errorf("invalid values file %q: path references Git metadata", value)
+		}
 		valuesByte, err := os.ReadFile(resolvedValuesPath)
 		if err != nil {
 			return nil, fmt.Errorf("reading values file %q: %w", resolvedValuesPath, err)
@@ -238,6 +241,21 @@ func generateValues(base, root string, chart *fleet.HelmOptions) (valuesMap *fle
 	}
 
 	return valuesMap, nil
+}
+
+// referencesGitMetadata reports whether path has a ".git" component below
+// root. Matching ignores case for case-insensitive filesystems.
+func referencesGitMetadata(root, path string) bool {
+	rel, err := filepath.Rel(root, path)
+	if err != nil {
+		return true
+	}
+	for _, component := range strings.Split(rel, string(os.PathSeparator)) {
+		if strings.EqualFold(component, ".git") {
+			return true
+		}
+	}
+	return false
 }
 
 // resolveDir returns the absolute path of dir with symlinks resolved.

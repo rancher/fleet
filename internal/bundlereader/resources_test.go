@@ -179,6 +179,41 @@ func TestGenerateValuesAllowsSymlinkedRoot(t *testing.T) {
 	assert.Equal(t, "bar", valuesMap.Data["foo"])
 }
 
+func TestGenerateValuesRejectsGitMetadata(t *testing.T) {
+	for _, test := range []struct {
+		name         string
+		metadataPath string
+		valuesFile   string
+		links        map[string]string
+	}{
+		{name: "root metadata", metadataPath: ".git/values.yaml", valuesFile: "../.git/values.yaml"},
+		{name: "nested metadata", metadataPath: "submodule/.git/values.yaml", valuesFile: "../submodule/.git/values.yaml"},
+		{name: "file symlink", metadataPath: ".git/values.yaml", valuesFile: "values.yaml", links: map[string]string{"bundle/values.yaml": ".git/values.yaml"}},
+		{name: "directory symlink", metadataPath: ".git/values.yaml", valuesFile: "alias/values.yaml", links: map[string]string{"bundle/alias": ".git"}},
+		{name: "metadata symlink", metadataPath: "shared/values.yaml", valuesFile: "../.git/values.yaml", links: map[string]string{".git": "shared"}},
+		{name: "metadata file", metadataPath: "submodule/.git", valuesFile: "../submodule/.git"},
+		{name: "case-insensitive metadata", metadataPath: ".GIT/values.yaml", valuesFile: "../.GIT/values.yaml"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			root := t.TempDir()
+			base := filepath.Join(root, "bundle")
+			require.NoError(t, os.MkdirAll(base, 0755))
+			metadataPath := filepath.Join(root, test.metadataPath)
+			require.NoError(t, os.MkdirAll(filepath.Dir(metadataPath), 0755))
+			require.NoError(t, os.WriteFile(metadataPath, []byte("private: metadata"), 0644))
+			for path, target := range test.links {
+				require.NoError(t, os.Symlink(filepath.Join(root, target), filepath.Join(root, path)))
+			}
+			chart := &fleet.HelmOptions{
+				GitOpsHelmOptions: fleet.GitOpsHelmOptions{ValuesFiles: []string{test.valuesFile}},
+			}
+
+			_, err := generateValues(base, root, chart)
+			require.ErrorContains(t, err, "Git metadata")
+		})
+	}
+}
+
 func TestGenerateValuesRejectsPathOutsideRoot(t *testing.T) {
 	dir := t.TempDir()
 	root := filepath.Join(dir, "root")
@@ -274,8 +309,10 @@ func TestGenerateValuesRejectsSymlinkPointingOutsideBase(t *testing.T) {
 	assert.Contains(t, err.Error(), "escapes repository directory")
 }
 
+// Git metadata checks only apply below base, not to where the checkout lives.
 func TestGenerateValuesReadsFileWithinBase(t *testing.T) {
-	base := t.TempDir()
+	base := filepath.Join(t.TempDir(), ".git", "checkout")
+	require.NoError(t, os.MkdirAll(base, 0755))
 	require.NoError(t, os.WriteFile(filepath.Join(base, "values.yaml"), []byte("foo: bar"), 0644))
 
 	chart := &fleet.HelmOptions{
