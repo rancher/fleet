@@ -142,9 +142,9 @@ jobs:
           fi
 
           # renovate: datasource=github-releases depName=goreleaser/goreleaser
-          GORELEASER_VERSION="v2.18.3"
-          # renovate: datasource=github-release-attachments depName=goreleaser/goreleaser digestVersion=v2.18.3
-          GORELEASER_CHECKSUM_amd64="b8dee4728bca1aba0d71a832a17cd0a3799f75372878e7ffa36aef2343bce0bc"
+          GORELEASER_VERSION="v2.19.0"
+          # renovate: datasource=github-release-attachments depName=goreleaser/goreleaser digestVersion=v2.19.0
+          GORELEASER_CHECKSUM_amd64="ebc3194ad1d1b1787614405285a0039665cd4c5bd3305215a1b201600f90630b"
 
           ARCH=$(uname -m)
           CHECKSUM="${GORELEASER_CHECKSUM_amd64}"
