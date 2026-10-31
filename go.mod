@@ -100,6 +100,7 @@ require (
 	k8s.io/kubectl v0.37.1
 	k8s.io/kubernetes v1.37.1
 	k8s.io/streaming v0.37.1
+	k8s.io/utils v0.0.0-20260626114624-be93311217bd
 	oras.land/oras-go/v2 v2.6.4
 	sigs.k8s.io/cli-utils v0.37.2
 	sigs.k8s.io/controller-runtime v0.25.2
@@ -270,7 +271,6 @@ require (
 	k8s.io/gengo v0.0.0-20250130153323-76c5745d3511 // indirect
 	k8s.io/gengo/v2 v2.0.0-20260408192533-25e2208e0dc3 // indirect
 	k8s.io/kubelet v0.36.1 // indirect
-	k8s.io/utils v0.0.0-20260626114624-be93311217bd // indirect
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
 )

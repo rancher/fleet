@@ -48,6 +48,7 @@ var BundleDeploymentOptionChecks = []func(path string, opts *fleet.BundleDeploym
 	ValidateComparePatchOperations,
 	ValidateComparePatchOperationPaths,
 	ValidateComparePatchJSONPointers,
+	ValidatePreserveOnReplace,
 }
 
 // ValidateComparePatchNames checks that every diff.comparePatches[].name in opts compiles

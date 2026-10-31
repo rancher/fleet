@@ -96,7 +96,10 @@ func (h *Helm) install(ctx context.Context, bundleID string, manifest *manifest.
 	logger := log.FromContext(ctx).WithName("helm-deployer").WithName("install").WithValues("commit", manifest.Commit, "dryRun", dryRunCfg.DryRun)
 	timeout, defaultNamespace, releaseName := h.getOpts(bundleID, options)
 
-	cfg, err := h.getCfg(ctx, defaultNamespace, options.ServiceAccount)
+	// Invalid rules are reported once per deployment, by the install which is
+	// not a dry run.
+	preserveRules := preserveRulesFor(ctx, options.Helm.PreserveOnReplace, !dryRunCfg.DryRun)
+	cfg, err := h.getCfg(ctx, defaultNamespace, options.ServiceAccount, preserveRules)
 	if err != nil {
 		return nil, err
 	}
