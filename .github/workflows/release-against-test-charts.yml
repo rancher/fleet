@@ -82,6 +82,9 @@ jobs:
           go-version-file: 'fleet/go.mod'
 
       - name: Build fleet binaries
+        env:
+          # Must match the image tag set in the test charts.
+          FLEET_VERSION: 1h
         run: |
           cd ./fleet
           ./.github/scripts/build-fleet-binaries.sh
