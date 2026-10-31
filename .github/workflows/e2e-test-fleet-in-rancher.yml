@@ -222,16 +222,28 @@ jobs:
           kubectl wait --for=condition=Available deployment --timeout=2m -n cert-manager --all
 
           helm repo add rancher-latest https://releases.rancher.com/server-charts/latest
+
+          # Run the latest Rancher image of the minor version the chart ships
+          # instead of its appVersion. Released charts predate the kubeconfig
+          # secret labeling that Fleet's cross-namespace kubeconfig check needs.
+          # The tag name stays the same across rebuilds, so also check the
+          # image that is actually running below.
+          rancher_minor="$(helm search repo rancher-latest/rancher --fail-on-no-result --devel -o=json | jq -r '.[0]["app_version"]' | grep -oE 'v[0-9]+\.[0-9]+')"
+          rancher_image_tag="${rancher_minor}-head"
+          echo "RANCHER_MINOR=${rancher_minor}" >> "$GITHUB_ENV"
+
+          docker manifest inspect "rancher/rancher:${rancher_image_tag}" >/dev/null
+
           # set CATTLE_SERVER_URL and CATTLE_BOOTSTRAP_PASSWORD to get rancher out of "bootstrap" mode
           helm upgrade rancher rancher-latest/rancher \
             --install --wait \
             --devel \
             --create-namespace \
             --namespace cattle-system \
+            --set "image.tag=${rancher_image_tag}" \
             --set replicas=1 \
             --set "hostname=${ip}.sslip.io" \
             --set bootstrapPassword=admin \
-            --set agentTLSMode=system-store \
             --set "extraEnv[0].name=CATTLE_CHART_DEFAULT_URL" \
             --set "extraEnv[0].value=https://github.com/${charts_repo}" \
             --set "extraEnv[1].name=CATTLE_CHART_DEFAULT_BRANCH" \
@@ -243,6 +255,16 @@ jobs:
 
           # wait for deployment of rancher
           kubectl -n cattle-system rollout status deploy/rancher
+
+          running_image="$(kubectl -n cattle-system get pods -l app=rancher -o jsonpath='{.items[0].spec.containers[0].image}')"
+          echo "Rancher image in use: ${running_image}"
+          case "${running_image}" in
+            *":${rancher_image_tag}") ;;
+            *)
+              echo "Expected Rancher image tagged ${rancher_image_tag}, got ${running_image}" >&2
+              exit 1
+              ;;
+          esac
 
           # wait for rancher to create fleet namespace, deployment and controller
           until kubectl get deployments -n cattle-fleet-system | grep -q "fleet"; do sleep 3; done
@@ -263,7 +285,9 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
           repository: rancher/rancher
-          ref: main
+          # Test the branch the installed Rancher image was built from, so the
+          # provisioning tests do not use fields unknown to that server.
+          ref: release/${{ env.RANCHER_MINOR }}
           path: rancher
 
       -
@@ -310,11 +334,14 @@ jobs:
           go test -v -count=1 -timeout=1h ./e2e/multi-cluster -args -ginkgo.github-output -ginkgo.trace
 
       -
-        name: Dump Failed Downstream Environment
+        name: Dump Failed Environment
         if: failure()
         run: |
+          # crust-gather exits non-zero on partial collection errors; keep both dumps.
+          kubectl config use-context k3d-upstream
+          crust-gather collect --exclude-namespace=kube-system --exclude-kind=Lease --duration=5s -f tmp/upstream || true
           kubectl config use-context k3d-downstream
-          crust-gather collect --exclude-namespace=kube-system --exclude-kind=Lease --duration=5s -f tmp/downstream
+          crust-gather collect --exclude-namespace=kube-system --exclude-kind=Lease --duration=5s -f tmp/downstream || true
 
       -
         name: Upload logs
