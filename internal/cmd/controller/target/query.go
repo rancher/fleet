@@ -97,7 +97,7 @@ func (m *Manager) clusterGroupsForCluster(ctx context.Context, cluster *fleet.Cl
 // but differ in ResourceVersion. This bounds memory growth when a ClusterGroup is updated repeatedly.
 func purgeObsoleteEntries(cache *sync.Map, cacheKey string) {
 	// cacheKey format: "namespace/name@resourceVersion"
-	prefix := cacheKey[:strings.LastIndex(cacheKey, "@")]
+	prefix, _, _ := strings.Cut(cacheKey, "@")
 	var toPurge []string
 	cache.Range(func(k, _ any) bool {
 		key := k.(string)
@@ -169,10 +169,11 @@ func purgeDeletedEntries(cache *sync.Map, namespace string, listed map[string]st
 			return true
 		}
 		// cacheKey format: "namespace/name@resourceVersion"
-		name := key[len(prefix):strings.LastIndex(key, "@")]
+		name, _, _ := strings.Cut(key[len(prefix):], "@")
 		if _, ok := listed[name]; !ok {
 			toPurge = append(toPurge, key)
 		}
+
 		return true
 	})
 
