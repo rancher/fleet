@@ -66,7 +66,7 @@ jobs:
               exit 1
             fi
           else
-            git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git"
+            gh auth setup-git
             git push -u origin $version
           fi
 
@@ -134,7 +134,7 @@ jobs:
           if ! git checkout -b $BRANCH; then
             echo "Could not create branch $version. Skipping."
           else
-            git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/rancher/fleet-test-data.git"
+            gh auth setup-git
             git push -u origin $BRANCH
           fi
 
