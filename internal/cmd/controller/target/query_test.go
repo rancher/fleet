@@ -147,8 +147,7 @@ func TestClusterGroupsForCluster_SelectorCachedAfterFirstCall(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, result1, 1)
 
-	cacheKey := ns + "/prod-cg@42"
-	cached, ok := manager.selectorCache.Load(cacheKey)
+	cached, ok := manager.selectorCache.Get(ns, "prod-cg", "42")
 	assert.True(t, ok, "selector should be in selectorCache after first call")
 	assert.Implements(t, (*labels.Selector)(nil), cached)
 
@@ -179,7 +178,7 @@ func TestClusterGroupsForCluster_InvalidSelectorNotCached(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, result)
 
-	_, cached := manager.selectorCache.Load(ns + "/bad-cg@1")
+	_, cached := manager.selectorCache.Get(ns, "bad-cg", "1")
 	assert.False(t, cached, "invalid selector must not be stored in selectorCache")
 }
 
@@ -275,7 +274,7 @@ func TestBundlesForCluster_MultipleBundlesUseSameHoistedCGS(t *testing.T) {
 	assert.Empty(t, cleanup)
 }
 
-func TestClusterGroupsForCluster_NewResourceVersionCreatesNewCacheEntry(t *testing.T) {
+func TestClusterGroupsForCluster_NewResourceVersionReplacesNewCacheEntry(t *testing.T) {
 	// When a ClusterGroup is updated (ResourceVersion bumped), a new cache entry
 	// must be created so the updated selector is compiled rather than served stale.
 	selector := &metav1.LabelSelector{MatchLabels: map[string]string{"env": "prod"}}
@@ -294,14 +293,10 @@ func TestClusterGroupsForCluster_NewResourceVersionCreatesNewCacheEntry(t *testi
 
 	_, err := manager.clusterGroupsForCluster(context.Background(), cluster)
 	require.NoError(t, err)
-	_, v1Cached := manager.selectorCache.Load(ns + "/prod-cg@1")
+	_, v1Cached := manager.selectorCache.Get(ns, "prod-cg", "1")
 	assert.True(t, v1Cached, "entry for rv=1 should be cached after first call")
 
-	// Leave more stale entries behind, as concurrent updates could, plus one for another CG.
-	for _, rv := range []string{"2", "3"} {
-		manager.selectorCache.Store(ns+"/prod-cg@"+rv, labels.Everything())
-	}
-	manager.selectorCache.Store(ns+"/other-cg@1", labels.Everything())
+	manager.selectorCache.Set(ns, "other-cg", "1", labels.Everything())
 
 	// Swap to a client that returns the same CG at rv=4 (simulates an update).
 	client2 := fake.NewClientBuilder().WithScheme(newScheme()).
@@ -312,13 +307,11 @@ func TestClusterGroupsForCluster_NewResourceVersionCreatesNewCacheEntry(t *testi
 
 	_, err = manager.clusterGroupsForCluster(context.Background(), cluster)
 	require.NoError(t, err)
-	_, v4Cached := manager.selectorCache.Load(ns + "/prod-cg@4")
+	_, v4Cached := manager.selectorCache.Get(ns, "prod-cg", "4")
 	assert.True(t, v4Cached, "entry for rv=4 should be cached after update")
-	for _, rv := range []string{"1", "2", "3"} {
-		_, cached := manager.selectorCache.Load(ns + "/prod-cg@" + rv)
-		assert.False(t, cached, "entry for rv=%s should be purged after update", rv)
-	}
-	_, otherCached := manager.selectorCache.Load(ns + "/other-cg@1")
+	_, cached := manager.selectorCache.Get(ns, "prod-cg", "1")
+	assert.False(t, cached, "entry for rv=%s should be purged after update", "1")
+	_, otherCached := manager.selectorCache.Get(ns, "other-cg", "1")
 	assert.True(t, otherCached, "entries of other ClusterGroups should not be purged")
 }
 
@@ -338,11 +331,11 @@ func TestClusterGroupsForCluster_DeletedClusterGroupPurged(t *testing.T) {
 			makeCGForQuery("gone-cg", "1", selector),
 		).Build()
 	manager := New(client1, client1)
-	manager.selectorCache.Store("other-ns/gone-cg@1", labels.Everything())
+	manager.selectorCache.Set("other-ns", "gone-cg", "1", labels.Everything())
 
 	_, err := manager.clusterGroupsForCluster(context.Background(), cluster)
 	require.NoError(t, err)
-	_, goneCached := manager.selectorCache.Load(ns + "/gone-cg@1")
+	_, goneCached := manager.selectorCache.Get(ns, "gone-cg", "1")
 	assert.True(t, goneCached, "entry for gone-cg should be cached while it exists")
 
 	// Swap to a client where gone-cg has been deleted.
@@ -352,11 +345,11 @@ func TestClusterGroupsForCluster_DeletedClusterGroupPurged(t *testing.T) {
 
 	_, err = manager.clusterGroupsForCluster(context.Background(), cluster)
 	require.NoError(t, err)
-	_, goneCached = manager.selectorCache.Load(ns + "/gone-cg@1")
+	_, goneCached = manager.selectorCache.Get(ns, "gone-cg", "1")
 	assert.False(t, goneCached, "entry for deleted gone-cg should be purged")
-	_, prodCached := manager.selectorCache.Load(ns + "/prod-cg@1")
+	_, prodCached := manager.selectorCache.Get(ns, "prod-cg", "1")
 	assert.True(t, prodCached, "entry for prod-cg should be kept")
-	_, otherNsCached := manager.selectorCache.Load("other-ns/gone-cg@1")
+	_, otherNsCached := manager.selectorCache.Get("other-ns", "gone-cg", "1")
 	assert.True(t, otherNsCached, "entries in other namespaces should not be purged")
 }
 
@@ -381,7 +374,7 @@ func TestClusterGroupsForCluster_UnusableSelectorPurgesEntries(t *testing.T) {
 
 			_, err := manager.clusterGroupsForCluster(context.Background(), cluster)
 			require.NoError(t, err)
-			_, cached := manager.selectorCache.Load(ns + "/prod-cg@1")
+			_, cached := manager.selectorCache.Get(ns, "prod-cg", "1")
 			assert.True(t, cached, "entry for rv=1 should be cached while the selector is valid")
 
 			// Swap to a client where prod-cg's selector is no longer usable.
@@ -391,7 +384,7 @@ func TestClusterGroupsForCluster_UnusableSelectorPurgesEntries(t *testing.T) {
 
 			_, err = manager.clusterGroupsForCluster(context.Background(), cluster)
 			require.NoError(t, err)
-			_, cached = manager.selectorCache.Load(ns + "/prod-cg@1")
+			_, cached = manager.selectorCache.Get(ns, "prod-cg", "1")
 			assert.False(t, cached, "entry for rv=1 should be purged once the selector is unusable")
 		})
 	}
