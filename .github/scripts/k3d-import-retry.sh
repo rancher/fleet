@@ -18,12 +18,18 @@ while [ $# -gt 0 ]; do
     shift 2
     ;;
   *)
-    # Skip images this job did not build, e.g. nginx-git:test.
-    docker image inspect "$1" >/dev/null 2>&1 && images+=("$1")
+    if docker image inspect "$1" >/dev/null 2>&1; then
+      images+=("$1")
+    else
+      # Some jobs do not build every image, e.g. nginx-git:test.
+      echo "image $1 does not exist locally, skipping it" >&2
+    fi
     shift
     ;;
   esac
 done
+
+[ ${#images[@]} -gt 0 ] || { echo "no local images to import"; exit 1; }
 
 nodes=$(docker ps -a --filter "label=k3d.cluster=$cluster" \
   --format '{{.Label "k3d.role"}} {{.Names}}' |
