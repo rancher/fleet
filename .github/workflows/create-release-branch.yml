@@ -3,9 +3,10 @@ name: Create Release Branch
 on:
   workflow_dispatch:
     inputs:
-      version:
-        description: New version number (e.g. 42); will be prefixed with `release/v0.` by the workflow
-        required: true
+      major:
+        description: True if a new branch must be created for a major release, false otherwise. Patch releases do not require new release branches.
+        default: false
+        required: false
 
 permissions:
   contents: write
@@ -28,23 +29,26 @@ jobs:
       - name: create release branch
         id: branch
         env:
-          NUM: ${{ github.event.inputs.version }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Remove leading 0s, if any
-          NUM=$(echo $NUM | sed 's/^0\+//g')
+          latest=$(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1)
 
-          if ! [[ $NUM =~ ^[0-9]+$ ]]; then
-             echo "${NUM} is not a number"
-             exit 1
-          fi
-
-          if [ $NUM -lt 1 ]; then
-            echo "${NUM} is too small; will not match a Rancher version number"
+          if [ -z "$latest" ]; then
+            echo "Could not extract latest version from repo; aborting."
             exit 1
           fi
 
-          version="release/v0.$NUM"
+          members=${latest#v}
+          major_member=$(echo $members | cut -d'.' -f1)
+          minor_member=$(echo $members | cut -d'.' -f2)
+
+          if [ ${{ github.event.inputs.major }} ]; then
+            new_version="$(( major_member + 1 )).0.0"
+          else
+            new_version="$major_member.$(( minor_member + 1 )).0"
+          fi
+
+          version="release/v$new_version"
 
           if [ ! -e ~/.gitconfig ]; then
             echo "Configuring git username and email"
