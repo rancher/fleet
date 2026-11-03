@@ -336,7 +336,7 @@ ARG NVM_VERSION=v0.40.7
 ARG NODE_VERSION=24.19.0
 
 RUN apt update && apt upgrade -y
-RUN apt install -y wget curl git jq zstd make file
+RUN apt install -y wget curl git jq zstd make file gh
 
 WORKDIR /tmp
 
