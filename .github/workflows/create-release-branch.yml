@@ -70,14 +70,21 @@ jobs:
             git push -u origin $version
           fi
 
-          echo "num=$NUM" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: checkout rancher/renovate-config
+        if: steps.branch.outputs.version != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          repository: "rancher/renovate-config"
+          path: renovate-config
+          ref: main
 
       - name: add Renovate support to new release branch
         if: steps.branch.outputs.version != ''
         env:
           BRANCH: ${{steps.branch.outputs.version}}
-          NUM: ${{steps.branch.outputs.num}}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if grep -q "$BRANCH" .github/renovate.json; then
@@ -85,7 +92,20 @@ jobs:
             exit 0
           fi
 
-          rancher_minor_member=$(( $NUM - 1 ))
+          rancher_minor_member=$(( $(echo $BRANCH | cut -d'.' -f2) - 1 ))
+
+          # Check existence of renovate config file for Rancher release branch
+          path="rancher-2.$rancher_minor_member"
+          pushd renovate-config
+
+          if ! git cat-file -e origin/main:$path.json; then
+            echo "File $path does not exist in rancher/renovate-config's main branch. Exiting."
+            popd
+            exit 1
+          fi
+
+          popd
+
           sed -Ei "/\"main\",/a \"$BRANCH\"," .github/renovate.json
           cat <<EOF >renovate_block.json
               {
@@ -93,7 +113,7 @@ jobs:
                   "$BRANCH"
                 ],
                 "extends": [
-                  "github>rancher/renovate-config//rancher-2.$rancher_minor_member#main"
+                  "github>rancher/renovate-config//$path#main"
                 ]
               },
           EOF
