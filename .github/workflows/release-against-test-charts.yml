@@ -52,6 +52,12 @@ jobs:
       target_branch: ${{ steps.compute_target_branch.outputs.target_branch }}
       charts_repo: ${{ steps.compute_env.outputs.charts_repo }}
     steps:
+      - name: Checkout rancher/fleet
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          path: fleet
+
       - name: Set environment variables
         id: compute_env
         env:
@@ -61,9 +67,11 @@ jobs:
           charts_base_branch="${INPUT_CHARTS_BASE_BRANCH}"
 
           if [ -z "$charts_base_branch" ]; then
-            helm repo add rancher-latest https://releases.rancher.com/server-charts/latest
-            latest_rancher_minor_chart="$(helm search repo rancher-latest/rancher --fail-on-no-result --devel -o=json | jq '.[0]["app_version"]' | grep -oE 'v[0-9]+\.[0-9]+')"
-            charts_base_branch="dev-$latest_rancher_minor_chart"
+            # Target the Rancher minor the Fleet chart is meant for, as declared
+            # by its rancher-version annotation.
+            rancher_minor="$(sed -nE "s@.*catalog\.cattle\.io/rancher-version: '>= ([0-9]+\.[0-9]+).*@\1@p" ./fleet/charts/fleet/Chart.yaml)"
+            : "${rancher_minor:?no rancher-version annotation found in charts/fleet/Chart.yaml}"
+            charts_base_branch="dev-v${rancher_minor}"
           fi
 
           charts_repo="${INPUT_CHARTS_REPO:-fleetrepoci/charts}"
@@ -71,17 +79,14 @@ jobs:
           echo "charts_base_branch=$charts_base_branch" >> "$GITHUB_OUTPUT"
           echo "charts_repo=$charts_repo" >> "$GITHUB_OUTPUT"
 
-      - name: Checkout rancher/fleet
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          path: fleet
-
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: 'fleet/go.mod'
 
       - name: Build fleet binaries
+        env:
+          # Must match the image tag set in the test charts.
+          FLEET_VERSION: 1h
         run: |
           cd ./fleet
           ./.github/scripts/build-fleet-binaries.sh
