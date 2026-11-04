@@ -81,11 +81,28 @@ jobs:
               --field "sha=$(jq -r '.sha' <<< "${tag_object}")" >/dev/null
           done
 
-      - name: Set up Go
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
-        with:
-          go-version-file: 'go.mod'
-          cache: false
+      - name: Set up Go from Rancher AppCo image
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Same behavior as `go-version-file: go.mod`, which prefers the toolchain directive.
+          go_version=$(awk '$1 == "toolchain" { sub(/^go/, "", $2); print $2; exit }' go.mod)
+          go_version=${go_version:-$(awk '$1 == "go" { print $2; exit }' go.mod)}
+          image="registry.rancher.com/rancher/appco-go:${go_version}"
+
+          container=$(docker create --platform "linux/${GOARCH}" "${image}")
+          docker cp "${container}:/usr/local/go/." "${RUNNER_TEMP}/goroot"
+          docker rm "${container}"
+
+          echo "GOROOT=${RUNNER_TEMP}/goroot" >> "${GITHUB_ENV}"
+          echo "${RUNNER_TEMP}/goroot/bin" >> "${GITHUB_PATH}"
+
+          installed=$("${RUNNER_TEMP}/goroot/bin/go" env GOVERSION)
+          if [[ "${installed}" != "go${go_version}" ]]; then
+            echo "ERROR: ${image} provides ${installed}, expected go${go_version}" >&2
+            exit 1
+          fi
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4.1.0
