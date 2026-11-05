@@ -19,6 +19,7 @@ env:
 jobs:
   e2e-fleet-mc-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 40
 
     steps:
       -
@@ -86,9 +87,16 @@ jobs:
             chmod +x ~/.local/bin/k3d
           fi
       -
+        # Inotify instances are host-wide, so all three clusters share one pool
+        # of 128 on ubuntu-26.04, which no longer applies the image's
+        # /etc/sysctl.conf. Roughly 48 per cluster make the third one fail.
+        # https://github.com/actions/runner-images/issues/15108
+        name: Raise Inotify Limits
+        run: sudo sysctl -w fs.inotify.max_user_instances=8192
+      -
         name: Provision k3d Cluster
         run: |
-          k3d cluster create upstream --wait \
+          k3d cluster create upstream --wait --timeout 5m \
             -p "80:80@agent:0:direct" \
             -p "443:443@agent:0:direct" \
             --api-port 6443 \
@@ -97,7 +105,7 @@ jobs:
       -
         name: Provision k3d Downstream Cluster for agent-initiated registration
         run: |
-          k3d cluster create downstream --wait \
+          k3d cluster create downstream --wait --timeout 5m \
             -p "81:80@agent:0:direct" \
             -p "444:443@agent:0:direct" \
             --api-port 6644 \
@@ -106,7 +114,7 @@ jobs:
       -
         name: Provision k3d Downstream Cluster for manager-initiated registration
         run: |
-          k3d cluster create managed-downstream --wait \
+          k3d cluster create managed-downstream --wait --timeout 5m \
             -p "82:80@agent:0:direct" \
             -p "445:443@agent:0:direct" \
             --api-port 6645 \
