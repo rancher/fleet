@@ -27,6 +27,7 @@ import (
 	"github.com/rancher/fleet/internal/config"
 
 	appsv1 "k8s.io/api/apps/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	policyv1 "k8s.io/api/policy/v1"
 	schedulingv1 "k8s.io/api/scheduling/v1"
 	"k8s.io/client-go/rest"
@@ -71,6 +72,19 @@ var _ = BeforeSuite(func() {
 	Expect(schemes.Register(appsv1.AddToScheme)).To(Succeed())
 	Expect(schemes.Register(policyv1.AddToScheme)).To(Succeed())
 	Expect(schemes.Register(schedulingv1.AddToScheme)).To(Succeed())
+	// The agent manifest embedded in the agent bundle contains a
+	// NetworkPolicy; without its kind the manifest cannot be exported. The
+	// controller binary registers it through the generated networking
+	// controllers it imports.
+	Expect(schemes.Register(networkingv1.AddToScheme)).To(Succeed())
+
+	// The agent bundle embeds the agent's leader election settings, which the
+	// controller reads from its own environment. A real deployment always sets
+	// them (the chart passes its agent.leaderElection values through); without
+	// them the agent bundle cannot be built at all. Mirror the chart defaults.
+	GinkgoT().Setenv("FLEET_AGENT_ELECTION_LEASE_DURATION", "30s")
+	GinkgoT().Setenv("FLEET_AGENT_ELECTION_RETRY_PERIOD", "10s")
+	GinkgoT().Setenv("FLEET_AGENT_ELECTION_RENEW_DEADLINE", "25s")
 
 	// Seed global config before any controller fires so config.Get() never panics.
 	Expect(config.SetAndTrigger(config.DefaultConfig())).To(Succeed())
