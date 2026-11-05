@@ -28,7 +28,7 @@ jobs:
       IS_HOTFIX: ${{ contains(github.ref, '-hotfix-') }}
 
     container:
-      image: ghcr.io/rancher/ci-image/go1.27:1.27.3@sha256:3955bdfa96ada02f05033937269d9a239fb3bec9c1ebddea511aff72c2fd72c0
+      image: ghcr.io/rancher/ci-image/go1.27:1.27.3
       # GoReleaser publishes images with buildx, which needs the runner's Docker daemon.
       options: --volume /var/run/docker.sock:/var/run/docker.sock
 
