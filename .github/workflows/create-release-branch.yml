@@ -27,7 +27,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: create release branch
+      - name: compute new release version number
         id: branch
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -51,27 +51,69 @@ jobs:
 
           version="release/v$new_version"
 
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: checkout rancher/fleet-test-data
+        if: steps.branch.outputs.version != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          repository: "rancher/fleet-test-data"
+          path: fleet-test-data
+
+      - name: create release branch in fleet-test-data
+        id: test_branch
+        if: steps.branch.outputs.version != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: ${{steps.branch.outputs.version}}
+        working-directory: ./fleet-test-data/
+        run: |
+          if ! git checkout -b $BRANCH; then
+            echo "Could not create branch $version. Skipping."
+          else
+            gh auth setup-git
+            git push -u origin $BRANCH
+          fi
+
+          if git checkout $BRANCH; then
+            echo "branch_exists=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "branch_exists=0" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: configure git
+        id: git_config
+        if: steps.branch.outputs.version != ''
+        env:
+          BRANCH: ${{steps.branch.outputs.version}}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
           if [ ! -e ~/.gitconfig ]; then
             echo "Configuring git username and email"
             git config --global user.name "fleet-bot"
             git config --global user.email fleet@suse.de
           fi
 
+          gh auth setup-git
+
           err_file=/tmp/branch_create_err
 
-          if ! git checkout -b $version &>$err_file; then
+          branch=$BRANCH
+
+          if ! git checkout -b $BRANCH &>$err_file; then
             if ! grep -q 'already exists' $err_file; then
               echo "Could not create branch $version. Skipping."
-              echo "version=" >> "$GITHUB_OUTPUT"
 
               exit 1
             fi
-          else
-            gh auth setup-git
-            git push -u origin $version
+
+            # branch already exists; pushes will require a PR, so create a feature branch
+            branch="${BRANCH//\//-}-$(date +'%s')"
           fi
 
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "work_branch=$branch" >> "$GITHUB_OUTPUT"
 
       - name: checkout rancher/renovate-config
         if: steps.branch.outputs.version != ''
@@ -86,8 +128,12 @@ jobs:
         if: steps.branch.outputs.version != ''
         env:
           BRANCH: ${{steps.branch.outputs.version}}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WORK_BRANCH: ${{steps.git_config.outputs.work_branch}}
         run: |
+          if [ "$WORK_BRANCH" != "$BRANCH" ]; then
+            git checkout -b "$WORK_BRANCH"
+          fi
+
           if grep -q "$BRANCH" .github/renovate.json; then
             echo "Renovate config already set for $BRANCH; skipping."
             exit 0
@@ -132,47 +178,13 @@ jobs:
           git add .github/renovate.json
           git commit -m "Add Renovate support to branch $BRANCH"
 
-          git push -u origin $BRANCH
-
-      - name: checkout rancher/fleet-test-data
-        if: steps.branch.outputs.version != ''
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-          repository: "rancher/fleet-test-data"
-          path: fleet-test-data
-
-      - name: create release branch in fleet-test-data
-        id: test_branch
-        if: steps.branch.outputs.version != ''
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          BRANCH: ${{steps.branch.outputs.version}}
-        run: |
-          cd fleet-test-data
-
-          if ! git checkout -b $BRANCH; then
-            echo "Could not create branch $version. Skipping."
-          else
-            gh auth setup-git
-            git push -u origin $BRANCH
-          fi
-
-          if git checkout $BRANCH; then
-            echo "branch_exists=1" >> "$GITHUB_OUTPUT"
-          else
-            echo "branch_exists=0" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: update benchmarks assets to point to rancher/fleet-test-data release branch
         if: steps.branch.outputs.version != '' && steps.test_branch.outputs.branch_exists == 1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BRANCH: ${{steps.branch.outputs.version}}
+          WORK_BRANCH: ${{steps.git_config.outputs.work_branch}}
         run: |
-          cd ../fleet
-
           if grep -Rq "$BRANCH" benchmarks/assets; then
             echo "Benchmark assets already point to $BRANCH; skipping."
             exit 0
@@ -185,4 +197,21 @@ jobs:
           git add benchmarks/assets
           git commit -m "Point benchmarks assets to $BRANCH"
 
-          git push -u origin $BRANCH
+      - name: push changes
+        if: steps.branch.outputs.version == steps.git_config.outputs.work_branch
+        env:
+          BRANCH: ${{steps.branch.outputs.version}}
+        run: |
+            # the release branch does not already exist; directly pushing it should succeed.
+            git push -u origin $BRANCH
+
+      - name: submit a PR
+        if: steps.branch.outputs.version != steps.git_config.outputs.work_branch
+        env:
+          BRANCH: ${{steps.branch.outputs.version}}
+        run: |
+          # The branch already exists: it cannot be directly pushed to because
+          # it is protected, so create a PR against it
+          gh pr create --title "[$BRANCH] Update Renovate config" \
+                       --body "Update Renovate config in ${BRANCH} to point to ${path}"$'\n\n'"Update benchmark testing assets to point to `rancher/fleet-test-data`'s ``{$BRANCH}`` branch." \
+                       --base "${BRANCH}"
