@@ -189,15 +189,10 @@ jobs:
           git add benchmarks/assets
           git commit -m "Point benchmarks assets to $BRANCH"
 
-      - name: push changes
-        if: steps.git_config.outputs.work_branch != '' && steps.branch.outputs.version == steps.git_config.outputs.work_branch
-        env:
-          BRANCH: ${{steps.branch.outputs.version}}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-            # the release branch does not already exist; directly pushing it should succeed.
-            gh auth setup-git
-            git push -u origin $BRANCH
+          # Regardless of which branch we're on (new release branch, or feature branch), it must be pushed;
+          # Either we're done here, or in the case of a feature branch, we'll need a PR.
+          gh auth setup-git
+          git push -u origin $WORK_BRANCH
 
       - name: submit a PR
         if: steps.git_config.outputs.work_branch != '' && steps.branch.outputs.version != steps.git_config.outputs.work_branch
@@ -207,7 +202,6 @@ jobs:
         run: |
           # The branch already exists: it cannot be directly pushed to because
           # it is protected, so create a PR against it
-          gh auth setup-git
           gh pr create --title "[$BRANCH] Update Renovate config" \
                        --body "Update Renovate config in ${BRANCH} to point to ${path}"$'\n\n'"Update benchmark testing assets to point to `rancher/fleet-test-data`'s ``{$BRANCH}`` branch." \
                        --base "${BRANCH}"
