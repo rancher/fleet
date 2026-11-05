@@ -1,6 +1,12 @@
 package agentmanagement_test
 
 import (
+	"bufio"
+	"bytes"
+	"errors"
+	"io"
+	"strings"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -9,12 +15,17 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/version"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	utilyaml "k8s.io/apimachinery/pkg/util/yaml"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
 )
 
 func newNamespace(name string) *corev1.Namespace {
@@ -182,4 +193,148 @@ func populateServiceAccountTokenSecret(namespace, saName, tokenValue string) {
 		secret.Data[corev1.ServiceAccountTokenKey] = []byte(tokenValue)
 		g.Expect(k8sClient.Update(ctx, secret)).To(Succeed())
 	}).Should(Succeed())
+}
+
+// agentBundleName returns the name of the agent bundle Fleet maintains for a
+// cluster: the well-known agent name joined with the cluster name.
+func agentBundleName(clusterName string) string {
+	return names.SafeConcatName("fleet-agent", clusterName)
+}
+
+// agentBundle fetches the agent bundle of a cluster, failing the spec if it
+// does not exist (yet).
+func agentBundle(namespace, clusterName string) *fleet.Bundle {
+	GinkgoHelper()
+
+	bundle := &fleet.Bundle{}
+	key := types.NamespacedName{Namespace: namespace, Name: agentBundleName(clusterName)}
+	Expect(k8sClient.Get(ctx, key, bundle)).To(Succeed())
+	return bundle
+}
+
+// agentBundleExists returns an AsyncAssertion that succeeds once the agent
+// bundle of a cluster exists.
+func agentBundleExists(namespace, clusterName string) AsyncAssertion {
+	return objectExists(&fleet.Bundle{
+		ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: agentBundleName(clusterName)},
+	})
+}
+
+// agentManifestObjects decodes the multi-document manifest the agent bundle
+// carries as its single "agent.yaml" resource.
+func agentManifestObjects(bundle *fleet.Bundle) []*unstructured.Unstructured {
+	GinkgoHelper()
+
+	Expect(bundle.Spec.Resources).To(HaveLen(1))
+	Expect(bundle.Spec.Resources[0].Name).To(Equal("agent.yaml"))
+
+	var objs []*unstructured.Unstructured
+	reader := utilyaml.NewYAMLReader(bufio.NewReader(strings.NewReader(bundle.Spec.Resources[0].Content)))
+	for {
+		doc, err := reader.Read()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		Expect(err).NotTo(HaveOccurred())
+		if len(bytes.TrimSpace(doc)) == 0 {
+			continue
+		}
+		obj := &unstructured.Unstructured{}
+		Expect(yaml.Unmarshal(doc, &obj.Object)).To(Succeed())
+		objs = append(objs, obj)
+	}
+	return objs
+}
+
+// agentManifestKinds lists "<kind>/<namespace>/<name>" for every object in the
+// agent manifest, so a spec can assert on the shape of the whole manifest.
+func agentManifestKinds(bundle *fleet.Bundle) []string {
+	GinkgoHelper()
+
+	var out []string
+	for _, obj := range agentManifestObjects(bundle) {
+		out = append(out, strings.Join([]string{obj.GetKind(), obj.GetNamespace(), obj.GetName()}, "/"))
+	}
+	return out
+}
+
+// agentDeployment returns the agent Deployment carried by the agent bundle.
+func agentDeployment(bundle *fleet.Bundle) *appsv1.Deployment {
+	GinkgoHelper()
+
+	for _, obj := range agentManifestObjects(bundle) {
+		if obj.GetKind() != "Deployment" {
+			continue
+		}
+		deployment := &appsv1.Deployment{}
+		Expect(runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, deployment)).To(Succeed())
+		return deployment
+	}
+
+	Fail("the agent manifest carries no Deployment")
+	return nil
+}
+
+// agentContainer returns the agent container of the Deployment carried by the
+// agent bundle.
+func agentContainer(bundle *fleet.Bundle) corev1.Container {
+	GinkgoHelper()
+
+	containers := agentDeployment(bundle).Spec.Template.Spec.Containers
+	Expect(containers).To(HaveLen(1))
+	return containers[0]
+}
+
+// touchNamespace applies a label to a namespace, standing in for any change a
+// cluster administrator may make to it.
+func touchNamespace(name, value string) {
+	GinkgoHelper()
+
+	Eventually(func(g Gomega) {
+		ns := &corev1.Namespace{}
+		g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: name}, ns)).To(Succeed())
+		if ns.Labels == nil {
+			ns.Labels = map[string]string{}
+		}
+		ns.Labels["fleet-integration-tests/touched"] = value
+		g.Expect(k8sClient.Update(ctx, ns)).To(Succeed())
+	}).Should(Succeed())
+}
+
+// updateCluster applies mutate to a cluster, retrying on conflict with the
+// controllers that write the same object.
+func updateCluster(namespace, name string, mutate func(*fleet.Cluster)) {
+	GinkgoHelper()
+
+	Eventually(func(g Gomega) {
+		cluster := &fleet.Cluster{}
+		g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, cluster)).To(Succeed())
+		mutate(cluster)
+		g.Expect(k8sClient.Update(ctx, cluster)).To(Succeed())
+	}).Should(Succeed())
+}
+
+// getCluster fetches a cluster inside an Eventually or Consistently body.
+func getCluster(g Gomega, namespace, name string) *fleet.Cluster {
+	cluster := &fleet.Cluster{}
+	g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, cluster)).To(Succeed())
+	return cluster
+}
+
+// setConfig replaces the global configuration for the duration of the current
+// spec and restores it afterwards. mutate works on a shallow copy, so it must
+// replace maps and slices rather than change them in place, or the change
+// leaks into the configuration that is restored.
+func setConfig(mutate func(*config.Config)) {
+	GinkgoHelper()
+
+	previous := config.Get()
+	restore := *previous
+	DeferCleanup(func() {
+		config.Set(&restore)
+	})
+
+	updated := *previous
+	mutate(&updated)
+	config.Set(&updated)
 }
