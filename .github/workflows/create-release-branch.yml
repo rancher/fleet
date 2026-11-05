@@ -222,7 +222,7 @@ jobs:
       - name: push work branch
         env:
           BRANCH: ${{steps.branch.outputs.version}}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.CI_PUSH_FLEET_WORKFLOWS_PRS }}
           WORK_BRANCH: ${{steps.git_config.outputs.work_branch}}
         run: |
           if [[ "${WORK_BRANCH}" != "${BRANCH}" && -z "$(git diff ${WORK_BRANCH} ${BRANCH})" ]]; then
@@ -239,7 +239,7 @@ jobs:
         if: steps.git_config.outputs.work_branch != '' && steps.branch.outputs.version != steps.git_config.outputs.work_branch
         env:
           BRANCH: ${{steps.branch.outputs.version}}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.CI_PUSH_FLEET_WORKFLOWS_PRS }}
         run: |
           # The branch already exists: it cannot be directly pushed to because
           # it is protected, so create a PR against it
