@@ -249,6 +249,11 @@ jobs:
           # (simpler than incrementally populating the body from each step actually pushing a commit).
           body="$(git log --pretty='%s' ${BRANCH}..${WORK_BRANCH} | sed ':a;N;$!ba;s/\n/"$'"'"'\\n\\n'"'"'"/g')"
 
+          if [ -z "$body" ]; then
+            echo "No changes to submit; skipping PR creation."
+            exit 0
+          fi
+
           gh pr create --title "[$BRANCH] Update release branch config" \
                        --body "$body" \
                        --base "${BRANCH}"
