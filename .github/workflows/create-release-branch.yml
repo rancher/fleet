@@ -44,9 +44,9 @@ jobs:
           minor_member=$(echo $members | cut -d'.' -f2)
 
           if [ ${{ github.event.inputs.major }} = 'true' ]; then
-            new_version="$(( major_member + 1 )).0.0"
+            new_version="$(( major_member + 1 )).0"
           else
-            new_version="$major_member.$(( minor_member + 1 )).0"
+            new_version="$major_member.$(( minor_member + 1 ))"
           fi
 
           version="release/v$new_version"
