@@ -194,6 +194,17 @@ jobs:
           git add benchmarks/assets
           git commit -m "Point benchmarks assets to $BRANCH"
 
+      - name: push work branch
+        env:
+          BRANCH: ${{steps.branch.outputs.version}}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WORK_BRANCH: ${{steps.git_config.outputs.work_branch}}
+        run: |
+          if [[ "${WORK_BRANCH}" != "${BRANCH}" && -z "$(git diff ${WORK_BRANCH} ${BRANCH})" ]]; then
+            echo "Branch ${WORK_BRANCH} is up-to-date with ${BRANCH}. Not pushing ${WORK_BRANCH}."
+            exit 0
+          fi
+
           # Regardless of which branch we're on (new release branch, or feature branch), it must be pushed;
           # Either we're done here, or in the case of a feature branch, we'll need a PR.
           gh auth setup-git
