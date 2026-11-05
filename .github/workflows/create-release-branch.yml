@@ -203,5 +203,5 @@ jobs:
           # The branch already exists: it cannot be directly pushed to because
           # it is protected, so create a PR against it
           gh pr create --title "[$BRANCH] Update Renovate config" \
-                       --body "Update Renovate config in ${BRANCH} to point to ${path}"$'\n\n'"Update benchmark testing assets to point to `rancher/fleet-test-data`'s ``{$BRANCH}`` branch." \
+                       --body "Update Renovate config in ${BRANCH} to point to ${path}"$'\n\n'"Update benchmark testing assets to point to \`rancher/fleet-test-data\`'s ``{$BRANCH}`` branch." \
                        --base "${BRANCH}"
