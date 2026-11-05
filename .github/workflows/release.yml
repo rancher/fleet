@@ -24,6 +24,11 @@ jobs:
     env:
       IS_HOTFIX: ${{ contains(github.ref, '-hotfix-') }}
 
+    container:
+      image: ghcr.io/rancher/ci-image/go1.26:1.26.10
+      # GoReleaser publishes images with buildx, which needs the runner's Docker daemon.
+      options: --volume /var/run/docker.sock:/var/run/docker.sock
+
     if: github.repository == 'rancher/fleet'
     steps:
       - name: Check out Fleet
@@ -103,7 +108,7 @@ jobs:
               --field "sha=$(jq -r '.sha' <<< "${tag_object}")" >/dev/null
           done
 
-      - name: Set up Go from Rancher AppCo image
+      - name: Check Go toolchain
         shell: bash
         run: |
           set -euo pipefail
@@ -111,18 +116,10 @@ jobs:
           # Same behavior as `go-version-file: go.mod`, which prefers the toolchain directive.
           go_version=$(awk '$1 == "toolchain" { sub(/^go/, "", $2); print $2; exit }' go.mod)
           go_version=${go_version:-$(awk '$1 == "go" { print $2; exit }' go.mod)}
-          image="registry.rancher.com/rancher/appco-go:${go_version}"
 
-          container=$(docker create --platform "linux/${GOARCH}" "${image}")
-          docker cp "${container}:/usr/local/go/." "${RUNNER_TEMP}/goroot"
-          docker rm "${container}"
-
-          echo "GOROOT=${RUNNER_TEMP}/goroot" >> "${GITHUB_ENV}"
-          echo "${RUNNER_TEMP}/goroot/bin" >> "${GITHUB_PATH}"
-
-          installed=$("${RUNNER_TEMP}/goroot/bin/go" env GOVERSION)
+          installed=$(go env GOVERSION)
           if [[ "${installed}" != "go${go_version}" ]]; then
-            echo "ERROR: ${image} provides ${installed}, expected go${go_version}" >&2
+            echo "ERROR: container provides ${installed}, go.mod requires go${go_version}" >&2
             exit 1
           fi
 
@@ -134,15 +131,6 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
-
-      - name: Install Cosign
-        uses: sigstore/cosign-installer@ba7bc0a3fef59531c69a25acd34668d6d3fe6f22 # v4.1.0
-
-      - name: Install Slsactl
-        uses: rancherlabs/slsactl/actions/install-slsactl@a5177a3699b7cabfa4797e883314dde7e40523cc # v0.1.22
-        with:
-          # renovate: datasource=github-releases depName=rancherlabs/slsactl
-          version: v0.1.22
 
       - name: "Read Vault Secrets"
         uses: rancher-eio/read-vault-secrets@0da85151ad1f19ed7986c41587e45aac1ace74b6 # v3
@@ -168,42 +156,6 @@ jobs:
           username: ${{ env.STAGE_REGISTRY_USERNAME }}
           password: ${{ env.STAGE_REGISTRY_PASSWORD }}
           registry: ${{ env.STAGE_REGISTRY }}
-
-      - name: Setup goreleaser
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          OS="Linux"
-          if [[ ${RUNNER_OS} != "Linux" ]]; then
-            echo "Unsupported OS: ${RUNNER_OS}"
-            exit 1
-          fi
-
-          # renovate-local: goreleaser-x86_64
-          GORELEASER_VERSION="v2.14.3"
-          # renovate-local: goreleaser-x86_64=v2.14.3
-          GORELEASER_CHECKSUM_x86_64="dc7faeeeb6da8bdfda788626263a4ae725892a8c7504b975c3234127d4a44579"
-
-          ARCH=$(uname -m)
-          CHECKSUM="${GORELEASER_CHECKSUM_x86_64}"
-          if [[ "${ARCH}" != "x86_64" ]]; then
-            echo "Unsupported architecture: ${ARCH}"
-            exit 1
-          fi
-
-          FILE="goreleaser_${OS}_${ARCH}.tar.gz"
-
-          echo "Installing ${FILE}"
-          curl --fail --location -O "https://github.com/goreleaser/goreleaser/releases/download/${GORELEASER_VERSION}/${FILE}"
-          echo "${CHECKSUM} ${FILE}" | sha256sum -c
-          tar -xf "${FILE}" goreleaser
-
-          mkdir -p "${HOME}/.local/bin"
-          install -m 755 goreleaser "${HOME}/.local/bin/goreleaser"
-          echo "${HOME}/.local/bin" >> "${GITHUB_PATH}"
-
-          rm -f "${FILE}" goreleaser
 
       - name: Run GoReleaser
         id: goreleaser
