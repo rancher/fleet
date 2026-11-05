@@ -106,7 +106,7 @@ jobs:
           echo "work_branch=$branch" >> "$GITHUB_OUTPUT"
 
       - name: checkout rancher/renovate-config
-        if: steps.branch.outputs.version != ''
+        if: steps.git_config.outputs.work_branch != ''
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -115,7 +115,7 @@ jobs:
           ref: main
 
       - name: add Renovate support to new release branch
-        if: steps.branch.outputs.version != ''
+        if: steps.git_config.outputs.work_branch != ''
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BRANCH: ${{steps.branch.outputs.version}}
@@ -171,7 +171,7 @@ jobs:
           git commit -m "Add Renovate support to branch $BRANCH"
 
       - name: update benchmarks assets to point to rancher/fleet-test-data release branch
-        if: steps.branch.outputs.version != '' && steps.test_branch.outputs.branch_exists == 1
+        if: steps.git_config.outputs.work_branch != '' && steps.test_branch.outputs.branch_exists == 1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BRANCH: ${{steps.branch.outputs.version}}
@@ -190,7 +190,7 @@ jobs:
           git commit -m "Point benchmarks assets to $BRANCH"
 
       - name: push changes
-        if: steps.branch.outputs.version == steps.git_config.outputs.work_branch
+        if: steps.git_config.outputs.work_branch != '' && steps.branch.outputs.version == steps.git_config.outputs.work_branch
         env:
           BRANCH: ${{steps.branch.outputs.version}}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -200,7 +200,7 @@ jobs:
             git push -u origin $BRANCH
 
       - name: submit a PR
-        if: steps.branch.outputs.version != steps.git_config.outputs.work_branch
+        if: steps.git_config.outputs.work_branch != '' && steps.branch.outputs.version != steps.git_config.outputs.work_branch
         env:
           BRANCH: ${{steps.branch.outputs.version}}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
