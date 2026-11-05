@@ -240,9 +240,15 @@ jobs:
         env:
           BRANCH: ${{steps.branch.outputs.version}}
           GITHUB_TOKEN: ${{ secrets.CI_PUSH_FLEET_WORKFLOWS_PRS }}
+          WORK_BRANCH: ${{steps.git_config.outputs.work_branch}}
         run: |
           # The branch already exists: it cannot be directly pushed to because
           # it is protected, so create a PR against it
-          gh pr create --title "[$BRANCH] Update Renovate config" \
-                       --body "Update Renovate config in ${BRANCH} to point to ${path}"$'\n\n'"Update benchmark testing assets to point to \`rancher/fleet-test-data\`'s ``{$BRANCH}`` branch." \
+
+          # Format PR description from commit titles
+          # (simpler than incrementally populating the body from each step actually pushing a commit).
+          body="$(git log --pretty='%s' ${BRANCH}..${WORK_BRANCH} | sed ':a;N;$!ba;s/\n/"$'"'"'\\n\\n'"'"'"/g')"
+
+          gh pr create --title "[$BRANCH] Update release branch config" \
+                       --body "$body" \
                        --base "${BRANCH}"
