@@ -170,11 +170,9 @@ jobs:
 
           git add .github/renovate.json
 
-          if [ ! -e ~/.gitconfig ]; then
-            echo "Configuring git username and email"
-            git config --global user.name "fleet-bot"
-            git config --global user.email fleet@suse.de
-          fi
+          echo "Configuring git username and email"
+          git config --global user.name "fleet-bot"
+          git config --global user.email fleet@suse.de
 
           gh auth setup-git
           git commit -m "Add Renovate support to branch $BRANCH"
