@@ -83,21 +83,13 @@ jobs:
             echo "branch_exists=0" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: configure git
+      - name: compute working branch
         id: git_config
         if: steps.branch.outputs.version != ''
         env:
           BRANCH: ${{steps.branch.outputs.version}}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if [ ! -e ~/.gitconfig ]; then
-            echo "Configuring git username and email"
-            git config --global user.name "fleet-bot"
-            git config --global user.email fleet@suse.de
-          fi
-
-          gh auth setup-git
-
           err_file=/tmp/branch_create_err
 
           branch=$BRANCH
@@ -127,6 +119,7 @@ jobs:
       - name: add Renovate support to new release branch
         if: steps.branch.outputs.version != ''
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BRANCH: ${{steps.branch.outputs.version}}
           WORK_BRANCH: ${{steps.git_config.outputs.work_branch}}
         run: |
@@ -176,6 +169,14 @@ jobs:
           git --no-pager diff .github/renovate.json
 
           git add .github/renovate.json
+
+          if [ ! -e ~/.gitconfig ]; then
+            echo "Configuring git username and email"
+            git config --global user.name "fleet-bot"
+            git config --global user.email fleet@suse.de
+          fi
+
+          gh auth setup-git
           git commit -m "Add Renovate support to branch $BRANCH"
 
       - name: update benchmarks assets to point to rancher/fleet-test-data release branch
