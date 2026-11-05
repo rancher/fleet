@@ -137,6 +137,12 @@ jobs:
           fi
 
       -
+        # All clusters of a job share the host-wide inotify instance pool,
+        # which ubuntu-26.04 leaves at 128. See actions/runner-images#15108
+        name: Raise Inotify Limits
+        run: sudo sysctl -w fs.inotify.max_user_instances=8192
+
+      -
         name: Set up k3d control-plane cluster
         run: |
           k3d cluster create upstream --wait \
