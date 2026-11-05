@@ -174,7 +174,6 @@ jobs:
           git config --global user.name "fleet-bot"
           git config --global user.email fleet@suse.de
 
-          gh auth setup-git
           git commit -m "Add Renovate support to branch $BRANCH"
 
       - name: update benchmarks assets to point to rancher/fleet-test-data release branch
@@ -200,17 +199,21 @@ jobs:
         if: steps.branch.outputs.version == steps.git_config.outputs.work_branch
         env:
           BRANCH: ${{steps.branch.outputs.version}}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
             # the release branch does not already exist; directly pushing it should succeed.
+            gh auth setup-git
             git push -u origin $BRANCH
 
       - name: submit a PR
         if: steps.branch.outputs.version != steps.git_config.outputs.work_branch
         env:
           BRANCH: ${{steps.branch.outputs.version}}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # The branch already exists: it cannot be directly pushed to because
           # it is protected, so create a PR against it
+          gh auth setup-git
           gh pr create --title "[$BRANCH] Update Renovate config" \
                        --body "Update Renovate config in ${BRANCH} to point to ${path}"$'\n\n'"Update benchmark testing assets to point to `rancher/fleet-test-data`'s ``{$BRANCH}`` branch." \
                        --base "${BRANCH}"
