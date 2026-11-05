@@ -12,6 +12,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  actions: write
 
 env:
   GOARCH: amd64
@@ -174,6 +175,30 @@ jobs:
           git config --global user.email fleet@suse.de
 
           git commit -m "Add Renovate support to branch $BRANCH"
+
+      - name: add new release branch to candidates for releasing against Rancher
+        if: steps.git_config.outputs.work_branch != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: ${{steps.branch.outputs.version}}
+          WORK_BRANCH: ${{steps.git_config.outputs.work_branch}}
+        run: |
+          if grep -Rq "$BRANCH" .github/workflows/release-against-rancher.yml; then
+            echo "Candidate release branches for release against Rancher already include $BRANCH; skipping."
+            exit 0
+          fi
+
+          sed -i "s,- main,&\n          - $BRANCH," .github/workflows/release-against-rancher.yml
+
+          git --no-pager diff .github/workflows
+
+          git add .github/workflows
+
+          echo "Configuring git username and email"
+          git config --global user.name "fleet-bot"
+          git config --global user.email fleet@suse.de
+
+          git commit -m "Add $BRANCH to candidates for release against Rancher"
 
       - name: update benchmarks assets to point to rancher/fleet-test-data release branch
         if: steps.git_config.outputs.work_branch != '' && steps.test_branch.outputs.branch_exists == 1
