@@ -96,6 +96,10 @@ jobs:
           if git branch -a | grep -q origin/$BRANCH; then
             # branch already exists; pushes will require a PR, so create a feature branch
             branch="${BRANCH//\//-}-$(date +'%s')"
+
+            # ensure diffs will be computed against the existing release branch,
+            # to prevent effort duplication
+            git checkout $BRANCH
           fi
 
           if ! git checkout -b $branch; then
