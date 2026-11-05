@@ -83,26 +83,24 @@ jobs:
             echo "branch_exists=0" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: compute working branch
+      - name: compute work branch
         id: git_config
         if: steps.branch.outputs.version != ''
         env:
           BRANCH: ${{steps.branch.outputs.version}}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          err_file=/tmp/branch_create_err
-
           branch=$BRANCH
 
-          if ! git checkout -b $BRANCH &>$err_file; then
-            if ! grep -q 'already exists' $err_file; then
-              echo "Could not create branch $version. Skipping."
-
-              exit 1
-            fi
-
+          if git branch -a | grep -q origin/$BRANCH; then
             # branch already exists; pushes will require a PR, so create a feature branch
             branch="${BRANCH//\//-}-$(date +'%s')"
+          fi
+
+          if ! git checkout -b $branch; then
+            echo "Could not create branch $branch. Skipping."
+
+            exit 1
           fi
 
           echo "work_branch=$branch" >> "$GITHUB_OUTPUT"
@@ -123,10 +121,6 @@ jobs:
           BRANCH: ${{steps.branch.outputs.version}}
           WORK_BRANCH: ${{steps.git_config.outputs.work_branch}}
         run: |
-          if [ "$WORK_BRANCH" != "$BRANCH" ]; then
-            git checkout -b "$WORK_BRANCH"
-          fi
-
           if grep -q "$BRANCH" .github/renovate.json; then
             echo "Renovate config already set for $BRANCH; skipping."
             exit 0
