@@ -1,0 +1,51 @@
+{{- if .Values.gitops.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: gitjob
+spec:
+  ports:
+    - name: http-80
+      port: 80
+      protocol: TCP
+      targetPort: 8080
+  selector:
+    app: "gitjob"
+---
+{{- if .Values.metrics.enabled }}
+{{- $shards := list (dict "id" "" "nodeSelector" dict) -}}
+{{- $uniqueShards := list -}}
+{{- if .Values.shards -}}
+  {{- range .Values.shards -}}
+    {{- if not (has .id $uniqueShards) -}}
+      {{- $shards = append $shards . -}}
+      {{- $uniqueShards = append $uniqueShards .id -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+
+{{ range $shard := $shards }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: "monitoring-gitjob{{if $shard.id }}-shard-{{ $shard.id }}{{end}}"
+  labels:
+    app: gitjob
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8081
+    targetPort: 8081
+    protocol: TCP
+    name: metrics
+  selector:
+    app: gitjob
+    {{- if empty $shard.id }}
+    fleet.cattle.io/shard-default: "true"
+    {{- else }}
+    fleet.cattle.io/shard-id: "{{ $shard.id }}"
+    {{- end }}
+---
+{{- end }}
+{{- end }}
+{{- end }}
