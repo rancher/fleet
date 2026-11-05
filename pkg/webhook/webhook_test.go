@@ -30,6 +30,7 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	cfake "sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	"net/http"
 	"net/http/httptest"
@@ -263,16 +264,18 @@ func TestAzureDevopsWebhookWithSSHURL(t *testing.T) {
 const testSecretValue = "supersecretvalue"
 
 // testWebhookSecret returns the global webhook secret, holding the same value
-// for every provider, so that signTestRequest can authenticate any request.
+// for every provider except Bitbucket Cloud, so that signTestRequest can
+// authenticate requests from those providers.
 func testWebhookSecret(namespace string) *corev1.Secret {
 	return &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{Name: webhookSecretName, Namespace: namespace},
 		Data: map[string][]byte{
-			githubKey:     []byte(testSecretValue),
-			gitlabKey:     []byte(testSecretValue),
-			gogsKey:       []byte(testSecretValue),
-			azureUsername: []byte(testSecretValue),
-			azurePassword: []byte(testSecretValue),
+			githubKey:          []byte(testSecretValue),
+			gitlabKey:          []byte(testSecretValue),
+			gogsKey:            []byte(testSecretValue),
+			azureUsername:      []byte(testSecretValue),
+			azurePassword:      []byte(testSecretValue),
+			bitbucketServerKey: []byte(testSecretValue),
 		},
 	}
 }
@@ -290,6 +293,8 @@ func signTestRequest(req *http.Request, body []byte) {
 		req.Header.Set("X-Gitlab-Token", testSecretValue)
 	case req.Header.Get("X-Gogs-Event") != "":
 		req.Header.Set("X-Gogs-Signature", sig)
+	case req.Header.Get("X-Event-Key") != "":
+		req.Header.Set("X-Hub-Signature", "sha256="+sig)
 	default:
 		req.SetBasicAuth(testSecretValue, testSecretValue)
 	}
@@ -577,34 +582,56 @@ func TestNoWebhookSecretRejected(t *testing.T) {
 	}
 }
 
-func TestUnauthenticatedGitRepoDoesNotBlockOthers(t *testing.T) {
-	// Both GitRepos match the payload. No global secret exists, so only the one
-	// referencing its own webhook secret authenticates the request. The
-	// unauthenticated one is listed first and rejected; the request must still
-	// succeed, and the authenticated one is patched only if its commit changed.
+func TestFailedGitRepoDoesNotBlockOthers(t *testing.T) {
+	// Both GitRepos match the payload and no global secret exists. The failing
+	// one is listed first and its failure sets the response code, but the one
+	// referencing a valid webhook secret is still patched if its commit changed.
 	const commit = "af69d162de5a276abc86e0686b2b44033cd3f442"
 
 	tests := map[string]struct {
+		failingSecret string // Spec.WebhookSecret of the failing GitRepo
+		failPatch     bool   // fail the status patch of the failing GitRepo
+		wantStatus    int
 		webhookCommit string // initial Status.WebhookCommit of the authenticated GitRepo
 		wantPatched   bool
 	}{
-		"fresh push": {
-			webhookCommit: "",
-			wantPatched:   true,
+		"no secret": {
+			wantStatus:  http.StatusUnauthorized,
+			wantPatched: true,
 		},
 		// Same as a redelivery of an already processed push: the handler keeps
 		// no state between requests, only the GitRepo status.
-		"authenticated GitRepo already up to date": {
+		"no secret, authenticated GitRepo already up to date": {
+			wantStatus:    http.StatusUnauthorized,
 			webhookCommit: commit,
 			wantPatched:   false,
+		},
+		"broken secret": {
+			failingSecret: "deleted-secret",
+			wantStatus:    http.StatusInternalServerError,
+			wantPatched:   true,
+		},
+		"signature mismatch": {
+			failingSecret: "other-secret",
+			wantStatus:    http.StatusUnauthorized,
+			wantPatched:   true,
+		},
+		"status patch failure": {
+			failingSecret: "own-secret",
+			failPatch:     true,
+			wantStatus:    http.StatusInternalServerError,
+			wantPatched:   true,
 		},
 	}
 
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			unauthenticated := &v1alpha1.GitRepo{
-				ObjectMeta: metav1.ObjectMeta{Name: "a-unauthenticated", Namespace: "default"},
-				Spec:       v1alpha1.GitRepoSpec{Repo: "https://github.com/example/repo"},
+			failing := &v1alpha1.GitRepo{
+				ObjectMeta: metav1.ObjectMeta{Name: "a-failing", Namespace: "default"},
+				Spec: v1alpha1.GitRepoSpec{
+					Repo:          "https://github.com/example/repo",
+					WebhookSecret: tt.failingSecret,
+				},
 			}
 			authenticated := &v1alpha1.GitRepo{
 				ObjectMeta: metav1.ObjectMeta{Name: "b-authenticated", Namespace: "default"},
@@ -614,15 +641,36 @@ func TestUnauthenticatedGitRepoDoesNotBlockOthers(t *testing.T) {
 				},
 				Status: v1alpha1.GitRepoStatus{WebhookCommit: tt.webhookCommit},
 			}
-			secret := testWebhookSecret("default")
-			secret.Name = "own-secret"
+
+			ownSecret := testWebhookSecret("default")
+			ownSecret.Name = "own-secret"
+			otherSecret := testWebhookSecret("default")
+			otherSecret.Name = "other-secret"
+			otherSecret.Data[githubKey] = []byte("anothervalue")
 
 			sch := runtime.NewScheme()
 			utilruntime.Must(corev1.AddToScheme(sch))
 			utilruntime.Must(v1alpha1.AddToScheme(sch))
+
+			authenticateCount := 0
+			funcs := interceptor.Funcs{
+				Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+					if _, ok := obj.(*corev1.Secret); ok {
+						authenticateCount++
+					}
+					return c.Get(ctx, key, obj, opts...)
+				},
+				SubResourcePatch: func(ctx context.Context, c client.Client, subResourceName string, obj client.Object, patch client.Patch, opts ...client.SubResourcePatchOption) error {
+					if tt.failPatch && obj.GetName() == failing.Name {
+						return errors.New("status patch failed")
+					}
+					return c.SubResource(subResourceName).Patch(ctx, obj, patch, opts...)
+				},
+			}
 			client := cfake.NewClientBuilder().WithScheme(sch).
-				WithRuntimeObjects(unauthenticated, authenticated, secret).
-				WithStatusSubresource(unauthenticated, authenticated).Build()
+				WithRuntimeObjects(failing, authenticated, ownSecret, otherSecret).
+				WithStatusSubresource(failing, authenticated).
+				WithInterceptorFuncs(funcs).Build()
 			w := &Webhook{client: client, namespace: "default"}
 
 			body := []byte(`
@@ -630,7 +678,9 @@ func TestUnauthenticatedGitRepoDoesNotBlockOthers(t *testing.T) {
 				"ref":"refs/heads/main",
 				"after":"` + commit + `",
 				"repository":{
-					"html_url":"https://github.com/example/repo"
+					"html_url":"https://github.com/example/repo",
+					"ssh_url":"git@github.com:example/repo.git",
+					"another_url":"http:://github.com/me/repo"
 				}
 			}`)
 			req, err := http.NewRequestWithContext(
@@ -647,15 +697,18 @@ func TestUnauthenticatedGitRepoDoesNotBlockOthers(t *testing.T) {
 			rr := httptest.NewRecorder()
 			w.ServeHTTP(rr, req)
 
-			if status := rr.Code; status != http.StatusOK {
-				t.Fatalf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
+			if status := rr.Code; status != tt.wantStatus {
+				t.Fatalf("handler returned wrong status code: got %v want %v", status, tt.wantStatus)
+			}
+			if authenticateCount != 2 {
+				t.Errorf("expected 2 authentications, one per GitRepo: got %d", authenticateCount)
 			}
 
 			// LastWebhookTime and PollingInterval are only ever written by the
 			// handler's status and spec patches, so they show whether a patch happened.
 			for gitRepo, wantPatched := range map[string]bool{
-				unauthenticated.Name: false,
-				authenticated.Name:   tt.wantPatched,
+				failing.Name:       false,
+				authenticated.Name: tt.wantPatched,
 			} {
 				var got v1alpha1.GitRepo
 				if err := client.Get(context.TODO(), types.NamespacedName{Name: gitRepo, Namespace: "default"}, &got); err != nil {
@@ -1138,6 +1191,23 @@ func TestGitRepoURLMatch(t *testing.T) {
 			eventHeader:     "X-Gogs-Event",
 			eventValue:      "push",
 			body:            `{"ref":"refs/heads/main","after":"` + expectedCommit + `","repository":{"html_url":"https://gogs.example.com/example/repo","ssh_url":"git@gogs-ssh.example.com:example/repo.git"}}`,
+			matchedRepoName: "intended-gitrepo",
+		},
+		"bitbucket server web and SSH URLs match once": {
+			gitRepos: []v1alpha1.GitRepo{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "intended-gitrepo", Namespace: "my-namespace"},
+					Spec:       v1alpha1.GitRepoSpec{Repo: "https://bitbucket.example.com/scm/proj/repo.git"},
+					Status:     v1alpha1.GitRepoStatus{WebhookCommit: "12345abcdef"},
+				},
+				ignoredGitRepo,
+			},
+			eventHeader: "X-Event-Key",
+			eventValue:  "repo:refs_changed",
+			body: `{"repository":{"links":{"clone":[` +
+				`{"name":"http","href":"https://bitbucket.example.com/scm/proj/repo.git"},` +
+				`{"name":"ssh","href":"ssh://git@bitbucket.example.com:7999/proj/repo.git"}]}},` +
+				`"changes":[{"refId":"refs/heads/main","toHash":"` + expectedCommit + `"}]}`,
 			matchedRepoName: "intended-gitrepo",
 		},
 	}

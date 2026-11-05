@@ -157,13 +157,17 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	hasPrecedence := func(authErr, err error) bool {
+		return authErr == nil || getErrorCodeFromErr(err) > getErrorCodeFromErr(authErr)
+	}
+
 	// A payload can yield several URLs (e.g. a web URL and an SSH URL), and more
 	// than one can match the same GitRepo (most commonly when the SSH host equals
 	// the web host, github.com). Track the GitRepos already processed in `seen` so
 	// each is processed once per request, no matter how many URLs resolve to it.
 	seen := make(map[types.NamespacedName]struct{})
-	var authenticated, rejected int
-	var authErr error // most severe authentication failure, reported if no GitRepo authenticated
+	var rejected int
+	var authErr error // most severe authentication failure
 	for _, repo := range repoURLs {
 		u, err := url.Parse(repo)
 		if err != nil {
@@ -207,8 +211,8 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 			}
 			seen[gitrepoResource] = struct{}{}
 			// Authenticate the request against this GitRepo's secret, even if the
-			// GitRepo is already up to date: the response must tell the sender
-			// whether any GitRepo accepted it, not only whether one changed.
+			// GitRepo is already up to date: the response depends on the outcome
+			// for each matching GitRepo, not only for those that changed.
 			ok, err := w.authenticate(ctx, r, body, gitrepo)
 			if err != nil {
 				// Skip only this GitRepo, like an unauthenticated one: a broken
@@ -217,7 +221,7 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 					"gitrepo", gitrepo.Name,
 					"namespace", gitrepo.Namespace,
 				)
-				if authErr == nil || getErrorCodeFromErr(err) > getErrorCodeFromErr(authErr) {
+				if hasPrecedence(authErr, err) {
 					authErr = err
 				}
 				continue
@@ -234,30 +238,32 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 				rejected++
 				continue
 			}
-			authenticated++
 			if gitrepo.Status.WebhookCommit != revision {
 				if err := w.recordWebhookCommit(ctx, gitrepo, revision); err != nil {
-					w.logAndReturn(rw, err)
-					return
+					w.log.Error(err, "Failed to record webhook commit",
+						"gitrepo", gitrepo.Name,
+						"namespace", gitrepo.Namespace,
+					)
+					if hasPrecedence(authErr, err) {
+						authErr = err
+					}
 				}
 			}
 		}
 	}
 
-	// An up-to-date GitRepo still authenticates the request, so authenticated is
-	// counted for every matching GitRepo, changed or not. 0/0 therefore means only
-	// that no GitRepo matched (wrong URL, branch, or an empty revision).
+	// Any failure on a matching GitRepo is reported, even if another GitRepo
+	// verified the request and was updated.
 	//
-	//   rejected  authenticated  authErr  response
-	//   0         0              no       200   no matching GitRepo
-	//   any       ≥1             any      200   at least one GitRepo verified the request
-	//   any       0              yes      error code from the most severe failure (500 over 401)
-	//   ≥1        0              no       401   no matching GitRepo has a secret to verify with
-	if authErr != nil && authenticated == 0 {
+	//   rejected  authErr  response
+	//   any       yes      error code from the most severe failure (500 over 401)
+	//   ≥1        no       401   a matching GitRepo has no secret to verify with
+	//   0         no       200   no failures, or no matching GitRepo
+	if authErr != nil {
 		http.Error(rw, "Webhook processing failed", getErrorCodeFromErr(authErr))
 		return
 	}
-	if rejected > 0 && authenticated == 0 {
+	if rejected > 0 {
 		http.Error(rw, "Webhook secret required", http.StatusUnauthorized)
 		return
 	}
