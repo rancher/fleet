@@ -29,3 +29,9 @@ else
     # shellcheck source=/dev/null
     source "$DEFAULT_CONFIG"
 fi
+
+setup_imagescan_registry() {
+    local exports
+    exports=$(./.github/scripts/imagescan-registry.sh create) || exit 1
+    eval "$exports"
+}
