@@ -56,9 +56,9 @@ func newChartRepo() string {
 	return svr.URL
 }
 
-// newHelmOp returns a HelmOp carrying a shard-ref label, which keeps the
-// manager-run reconcilers (using the default, unsharded ShardID) away from it so
-// that the only writers are the ones a test drives explicitly.
+// newHelmOp labels both the HelmOp and its generated Bundle with a shard-ref.
+// This keeps the manager-run reconcilers (using the default, unsharded ShardID)
+// away from them so that the only writers are the ones a test drives explicitly.
 func newHelmOp(name types.NamespacedName, shard, chart string) *fleet.HelmOp {
 	return &fleet.HelmOp{
 		ObjectMeta: metav1.ObjectMeta{
@@ -67,6 +67,7 @@ func newHelmOp(name types.NamespacedName, shard, chart string) *fleet.HelmOp {
 			Labels:    map[string]string{sharding.ShardingRefLabel: shard},
 		},
 		Spec: fleet.HelmOpSpec{
+			Labels: map[string]string{sharding.ShardingRefLabel: shard},
 			BundleSpec: fleet.BundleSpec{
 				BundleDeploymentOptions: fleet.BundleDeploymentOptions{
 					Helm: &fleet.HelmOptions{
