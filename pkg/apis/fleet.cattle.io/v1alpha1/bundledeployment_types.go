@@ -318,9 +318,10 @@ type HelmOptions struct {
 type GitOpsHelmOptions struct {
 	// ValuesFiles lists values files relative to the bundle directory, including
 	// shared files within the checkout. Absolute paths, Git metadata (.git), and
-	// symlinks escaping the checkout are rejected. For fleet apply, the outermost
-	// ancestor with a .git entry defines the checkout, regardless of the working
-	// directory; without one, files must stay within the bundle directory.
+	// symlinks escaping the checkout are rejected. For fleet apply, the nearest
+	// ancestor with a .git directory defines the checkout, regardless of the
+	// working directory; submodule .git files are passed. Without a .git entry,
+	// files must stay within the bundle directory.
 	// +nullable
 	ValuesFiles []string `json:"valuesFiles,omitempty"`
 }

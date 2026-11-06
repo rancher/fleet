@@ -30,7 +30,8 @@ func TestNewBundleConfinesValuesToCheckout(t *testing.T) {
 		checkout   bool
 		gitFile    bool
 		symlink    bool
-		nested     bool
+		submodule  bool
+		outerRepo  bool
 		valuesFile string
 		wantError  bool
 	}{
@@ -41,7 +42,8 @@ func TestNewBundleConfinesValuesToCheckout(t *testing.T) {
 		{name: "symlinked bundle", checkout: true, symlink: true, valuesFile: "../../values.yaml"},
 		{name: "no checkout marker", valuesFile: "../../values.yaml", wantError: true},
 		{name: "bundle-only values", valuesFile: "values.yaml"},
-		{name: "nested checkout uses outer root", checkout: true, nested: true, valuesFile: "../../values.yaml"},
+		{name: "submodule uses enclosing checkout", checkout: true, submodule: true, valuesFile: "../../values.yaml"},
+		{name: "enclosing repository cannot widen root", checkout: true, outerRepo: true, valuesFile: "../../../outside.yaml", wantError: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			parent := t.TempDir()
@@ -54,8 +56,11 @@ func TestNewBundleConfinesValuesToCheckout(t *testing.T) {
 			if test.gitFile {
 				require.NoError(t, os.WriteFile(filepath.Join(root, ".git"), []byte("gitdir: "+parent+"\n"), 0644))
 			}
-			if test.nested {
-				require.NoError(t, os.Mkdir(filepath.Join(root, "charts", ".git"), 0755))
+			if test.submodule {
+				require.NoError(t, os.WriteFile(filepath.Join(root, "charts", ".git"), []byte("gitdir: ../.git/modules/charts\n"), 0644))
+			}
+			if test.outerRepo {
+				require.NoError(t, os.Mkdir(filepath.Join(parent, ".git"), 0755))
 			}
 			require.NoError(t, os.WriteFile(filepath.Join(parent, "outside.yaml"), []byte("private: outside"), 0644))
 			require.NoError(t, os.WriteFile(filepath.Join(root, "values.yaml"), []byte("shared: allowed"), 0644))
