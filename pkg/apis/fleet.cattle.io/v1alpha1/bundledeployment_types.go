@@ -316,7 +316,12 @@ type HelmOptions struct {
 
 // GitOpsHelmOptions contains Helm options which only make sense for GitOps.
 type GitOpsHelmOptions struct {
-	// ValuesFiles is a list of files to load values from.
+	// ValuesFiles lists values files relative to the bundle directory, including
+	// shared files within the checkout. Absolute paths, Git metadata (.git), and
+	// symlinks escaping the checkout are rejected. For fleet apply, the nearest
+	// ancestor with a .git directory defines the checkout, regardless of the
+	// working directory; submodule .git files are passed. Without a .git entry,
+	// files must stay within the bundle directory.
 	// +nullable
 	ValuesFiles []string `json:"valuesFiles,omitempty"`
 }

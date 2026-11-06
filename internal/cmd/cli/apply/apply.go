@@ -485,10 +485,9 @@ func newBundle(ctx context.Context, name, baseDir string, opts Options) (*fleet.
 			return nil, nil, fmt.Errorf("decoding bundle %s: %w", name, err)
 		}
 	} else {
-		// fleet apply runs from the repository checkout root.
-		rootDir, err := os.Getwd()
+		rootDir, err := valuesRoot(baseDir)
 		if err != nil {
-			return nil, nil, fmt.Errorf("getting working directory: %w", err)
+			return nil, nil, fmt.Errorf("finding values root: %w", err)
 		}
 		bundle, scans, err = bundlereader.NewBundle(ctx, name, baseDir, opts.BundleFile, &bundlereader.Options{
 			BundleFile:       opts.BundleFile,
@@ -517,6 +516,37 @@ func newBundle(ctx context.Context, name, baseDir string, opts Options) (*fleet.
 	}
 	bundle.Namespace = opts.Namespace
 	return bundle, scans, nil
+}
+
+// valuesRoot returns the nearest ancestor of baseDir with a ".git" directory.
+// ".git" files of submodules and linked worktrees are passed so submodule
+// bundles can share values files of the enclosing checkout, while unrelated
+// enclosing repositories, such as a versioned home directory, are not.
+// Without a ".git" directory, the outermost ".git" file location or baseDir
+// is returned.
+func valuesRoot(baseDir string) (string, error) {
+	base, err := filepath.Abs(baseDir)
+	if err != nil {
+		return "", err
+	}
+	base, err = filepath.EvalSymlinks(base)
+	if err != nil {
+		return "", err
+	}
+	root := base
+	for directory := base; ; directory = filepath.Dir(directory) {
+		if info, err := os.Lstat(filepath.Join(directory, ".git")); err == nil {
+			root = directory
+			if info.IsDir() {
+				return root, nil
+			}
+		} else if !os.IsNotExist(err) {
+			return "", err
+		}
+		if filepath.Dir(directory) == directory {
+			return root, nil
+		}
+	}
 }
 
 // bundleFromDir reads a specific directory and produces a bundle and image scans.
