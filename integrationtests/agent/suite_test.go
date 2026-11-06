@@ -422,6 +422,20 @@ data:
 				Encoding: "",
 			},
 		},
+		"BundleDeploymentConfigMapV2": []v1alpha1.BundleResource{
+			{
+				Name: "configmap.yaml",
+				Content: `apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cm1
+data:
+  key: value
+  key2: value2
+`,
+				Encoding: "",
+			},
+		},
 		"v1": []v1alpha1.BundleResource{
 			{
 				Name:     "deployment-v1.yaml",

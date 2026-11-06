@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"helm.sh/helm/v4/pkg/action"
 	"helm.sh/helm/v4/pkg/kube"
+	releasev1 "helm.sh/helm/v4/pkg/release/v1"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -123,6 +124,7 @@ func TestAtomicMapsToRollbackOnFailure(t *testing.T) {
 				},
 				nil,
 				dryRunConfig{DryRun: false},
+				"",
 			)
 			a.Equal(tt.expected, upgradeAction.RollbackOnFailure, "Upgrade: Atomic should map to RollbackOnFailure")
 		})
@@ -164,6 +166,7 @@ func TestForceMapsToForceReplace(t *testing.T) {
 				},
 				nil,
 				dryRunConfig{DryRun: false},
+				"",
 			)
 			a.Equal(tt.expected, upgradeAction.ForceReplace, "Force should map to ForceReplace")
 		})
@@ -272,6 +275,7 @@ func TestDryRunStrategyMapping(t *testing.T) {
 					DryRun:       tt.dryRun,
 					DryRunOption: tt.dryRunOption,
 				},
+				"",
 			)
 			a.Equal(tt.expectedUpgrade, upgradeAction.DryRunStrategy,
 				"Upgrade: %s - expected DryRunStrategy=%v, got %v",
@@ -331,6 +335,7 @@ func TestWaitStrategyConfiguration(t *testing.T) {
 				},
 				nil,
 				dryRunConfig{DryRun: false},
+				"",
 			)
 			a.Equal(tt.expectedUpgrade, upgradeAction.WaitStrategy, "Upgrade: WaitStrategy should be set based on timeout")
 		})
@@ -377,22 +382,87 @@ func TestServerSideApplyConfiguration(t *testing.T) {
 			dryRunConfig{DryRun: false},
 		)
 		a.True(installAction.ServerSideApply, "ServerSideApply should be true when TakeOwnership and ForceReplace are false")
+		// On install, ForceConflicts would apply both to CRDs in crds/, where
+		// it could overwrite a newer CRD installed by someone else, and to
+		// adopted resources annotated for this release. It is left off, so
+		// reinstalling over leftover resources still fails on conflicts.
+		a.False(installAction.ForceConflicts, "ForceConflicts should not be set on install")
 	})
 
-	t.Run("Upgrade uses auto mode for ServerSideApply", func(t *testing.T) {
-		upgradeAction := &action.Upgrade{}
-		h.configureUpgradeAction(
-			upgradeAction,
-			"test-namespace",
-			time.Duration(0),
-			fleet.BundleDeploymentOptions{
-				Helm: &fleet.HelmOptions{},
-			},
-			nil,
-			dryRunConfig{DryRun: false},
-		)
-		a.Equal("auto", upgradeAction.ServerSideApply, "Upgrade should use 'auto' mode for ServerSideApply")
-	})
+	upgradeTests := []struct {
+		name                    string
+		helmForce               bool
+		driftForce              bool
+		lastApplyMethod         string
+		expectedServerSideApply string
+		expectedForceConflicts  bool
+	}{
+		{
+			name:                    "last release used server-side apply",
+			lastApplyMethod:         string(releasev1.ApplyMethodServerSideApply),
+			expectedServerSideApply: "true",
+			expectedForceConflicts:  true,
+		},
+		{
+			name:                    "last release used client-side apply",
+			lastApplyMethod:         string(releasev1.ApplyMethodClientSideApply),
+			expectedServerSideApply: "false",
+			expectedForceConflicts:  false,
+		},
+		{
+			name:                    "last release has no apply method",
+			lastApplyMethod:         "",
+			expectedServerSideApply: "false",
+			expectedForceConflicts:  false,
+		},
+		{
+			name:                    "last release has an unknown apply method",
+			lastApplyMethod:         "foo",
+			expectedServerSideApply: "false",
+			expectedForceConflicts:  false,
+		},
+		{
+			name:                    "Helm.Force disables server-side apply",
+			helmForce:               true,
+			lastApplyMethod:         string(releasev1.ApplyMethodServerSideApply),
+			expectedServerSideApply: "false",
+			expectedForceConflicts:  false,
+		},
+		{
+			name:                    "CorrectDrift.Force disables server-side apply",
+			driftForce:              true,
+			lastApplyMethod:         string(releasev1.ApplyMethodServerSideApply),
+			expectedServerSideApply: "false",
+			expectedForceConflicts:  false,
+		},
+	}
+
+	for _, tt := range upgradeTests {
+		t.Run("Upgrade: "+tt.name, func(t *testing.T) {
+			upgradeAction := &action.Upgrade{}
+			h.configureUpgradeAction(
+				upgradeAction,
+				"test-namespace",
+				time.Duration(0),
+				fleet.BundleDeploymentOptions{
+					Helm: &fleet.HelmOptions{
+						Force: tt.helmForce,
+					},
+					CorrectDrift: &fleet.CorrectDrift{
+						Force: tt.driftForce,
+					},
+				},
+				nil,
+				dryRunConfig{DryRun: false},
+				tt.lastApplyMethod,
+			)
+			// Never "auto": Helm's rollback on failure inherits this value and
+			// would resolve "auto" from the target revision, which may not match
+			// ForceConflicts.
+			a.Equal(tt.expectedServerSideApply, upgradeAction.ServerSideApply)
+			a.Equal(tt.expectedForceConflicts, upgradeAction.ForceConflicts)
+		})
+	}
 }
 
 func TestCorrectDriftForceOption(t *testing.T) {
@@ -449,6 +519,7 @@ func TestCorrectDriftForceOption(t *testing.T) {
 					},
 					nil,
 					dryRunConfig{DryRun: false},
+					"",
 				)
 				a.Equal(tt.expectedForce, upgradeAction.ForceReplace, "ForceReplace should combine Helm.Force and CorrectDrift.Force")
 			})
