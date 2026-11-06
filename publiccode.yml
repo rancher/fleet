@@ -1,4 +1,4 @@
-publiccodeYmlVersion: 0.7.0
+publiccodeYmlVersion: 0.8.0
 name: Fleet
 applicationSuite: Rancher
 url: https://github.com/rancher/fleet
@@ -42,9 +42,6 @@ description:
       - HelmOps
       - Drift correction
       - Per-cluster customization of deployments
-    videos:
-      - https://www.youtube.com/watch?v=Ixtl75LwU2g
-      - https://www.youtube.com/watch?v=VIua9J-aYOo
 legal:
   license: Apache-2.0
   mainCopyrightOwner: SUSE LLC
@@ -57,12 +54,3 @@ localisation:
   localisationReady: false
   availableLanguages:
     - en
-dependsOn:
-  open:
-    - name: Kubernetes
-      optional: false
-    - name: kubectl
-      optional: true
-    - name: Helm
-      versionMin: "3"
-      optional: true
