@@ -10,7 +10,8 @@ categories:
   - cloud-management
   - fleet-management
 fundedBy:
-  - SUSE
+  - name: SUSE
+    uri: "https://suse.com"
 roadmap: https://github.com/orgs/rancher/projects/12/views/4?filterQuery=-status%3A%22%E2%9C%85+Done%22+repo%3Arancher%2Ffleet
 developmentStatus: stable
 softwareType: standalone/backend
