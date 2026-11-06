@@ -71,11 +71,12 @@ jobs:
           BRANCH: ${{steps.branch.outputs.version}}
         working-directory: ./fleet-test-data/
         run: |
-          if ! git checkout -b $BRANCH; then
-            echo "Could not create branch $version. Skipping."
+          if git branch -a | grep -q origin/$BRANCH; then
+            echo "Branch $BRANCH already exists; skipping creation"
           else
-            gh auth setup-git
-            git push -u origin $BRANCH
+            if ! git checkout -b $BRANCH; then
+              echo "Could not create branch $BRANCH."
+            fi
           fi
 
           if git checkout $BRANCH; then
