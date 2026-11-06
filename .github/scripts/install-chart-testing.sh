@@ -10,7 +10,7 @@ CT_SUM_amd64="467561730f25fe09d5e6cd09a3e1f6aa759871c657a57602947c716d9be2c583"
 # renovate: datasource=pypi depName=yamale
 YAMALE_VERSION="6.1.0"
 # renovate: datasource=pypi depName=yamllint
-YAMLLINT_VERSION="1.33.0"
+YAMLLINT_VERSION="1.38.0"
 
 set -euo pipefail
 
