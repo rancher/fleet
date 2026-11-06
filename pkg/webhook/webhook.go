@@ -374,13 +374,19 @@ func parsePayload(payload any) (revision, branch, tag string, repoURLs []string)
 			tag = change.New.Name
 		}
 	case bitbucketserver.RepositoryReferenceChangedPayload:
-		for _, l := range t.Repository.Links["clone"].([]any) {
-			link := l.(map[string]any)
-			if link["name"] == "http" {
-				repoURLs = append(repoURLs, link["href"].(string))
+		// links are untyped JSON; skip anything malformed instead of panicking
+		cloneLinks, _ := t.Repository.Links["clone"].([]any)
+		for _, l := range cloneLinks {
+			link, ok := l.(map[string]any)
+			if !ok {
+				continue
 			}
-			if link["name"] == "ssh" {
-				repoURLs = append(repoURLs, link["href"].(string))
+			href, ok := link["href"].(string)
+			if !ok {
+				continue
+			}
+			if link["name"] == "http" || link["name"] == "ssh" {
+				repoURLs = append(repoURLs, href)
 			}
 		}
 		for _, change := range t.Changes {
