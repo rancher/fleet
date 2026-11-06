@@ -4,9 +4,9 @@
 # the release checksum before placing anything on PATH.
 #
 # renovate: datasource=github-releases depName=helm/chart-testing
-CT_VERSION="v3.12.0"
-# renovate: datasource=github-release-attachments depName=helm/chart-testing digestVersion=v3.12.0
-CT_SUM_amd64="8b450caac147de6838bde818f6923324c60585295181198eeb624b22c02894f4"
+CT_VERSION="v3.15.0"
+# renovate: datasource=github-release-attachments depName=helm/chart-testing digestVersion=v3.15.0
+CT_SUM_amd64="467561730f25fe09d5e6cd09a3e1f6aa759871c657a57602947c716d9be2c583"
 # renovate: datasource=pypi depName=yamale
 YAMALE_VERSION="6.1.0"
 # renovate: datasource=pypi depName=yamllint
