@@ -368,7 +368,7 @@ func (r *ScheduleReconciler) getClusterSchedules(
 		return nil, fmt.Errorf("%w, listing schedules: %w", fleetutil.ErrRetryable, err)
 	}
 
-	groups, err := target.ClusterGroupsForCluster(ctx, r.Client, cluster)
+	groups, err := target.ClusterGroupsForCluster(ctx, r.Client, cluster, nil)
 	if err != nil {
 		return nil, fmt.Errorf("%w, getting cluster groups from clusters: %w", fleetutil.ErrRetryable, err)
 	}
