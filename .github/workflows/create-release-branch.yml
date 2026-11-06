@@ -12,7 +12,6 @@ on:
 permissions:
   contents: write
   pull-requests: write
-  actions: write
 
 env:
   GOARCH: amd64
@@ -179,7 +178,7 @@ jobs:
       - name: add new release branch to candidates for releasing against Rancher
         if: steps.git_config.outputs.work_branch != ''
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.CI_PUSH_FLEET_WORKFLOWS_PRS }}
           BRANCH: ${{steps.branch.outputs.version}}
           WORK_BRANCH: ${{steps.git_config.outputs.work_branch}}
         run: |
