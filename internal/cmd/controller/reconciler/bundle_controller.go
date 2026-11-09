@@ -93,6 +93,7 @@ func (r *BundleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 					predicate.AnnotationChangedPredicate{},
 					predicate.LabelChangedPredicate{},
 				),
+				sharding.FilterByShardID(r.ShardID),
 			),
 		).
 		// Note: Maybe improve with WatchesMetadata, does it have access to labels?
@@ -100,7 +101,7 @@ func (r *BundleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			// Fan out from bundledeployment to bundle, this is useful to update the
 			// bundle's status fields.
 			&fleet.BundleDeployment{}, handler.EnqueueRequestsFromMapFunc(BundleDeploymentMapFunc(r)),
-			builder.WithPredicates(bundleDeploymentStatusChangedPredicate()),
+			builder.WithPredicates(bundleDeploymentStatusChangedPredicate(), sharding.FilterByShardID(r.ShardID)),
 		).
 		Watches(
 			// Fan out from cluster to bundle, this is useful for targeting and templating.
@@ -126,9 +127,19 @@ func (r *BundleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 				return requests
 			}),
-			builder.WithPredicates(clusterChangedPredicate()),
+			builder.WithPredicates(clusterChangedPredicate(), sharding.FilterByShardID(r.ShardID)),
 		).
-		WithEventFilter(sharding.FilterByShardID(r.ShardID)).
+		Watches(
+			// Fan out from policy to bundle. A Bundle refused by Policy is not
+			// requeued, so a Policy change must trigger the check again, and a
+			// new or stricter Policy must apply to Bundles already deployed.
+			// Policies carry no shard label, so the sharding filter is not
+			// applied here: policyMapFunc only enqueues this shard's Bundles.
+			// This is why the filter is set per watch, not with WithEventFilter.
+			&fleet.Policy{},
+			handler.EnqueueRequestsFromMapFunc(r.policyMapFunc),
+			builder.WithPredicates(predicate.GenerationChangedPredicate{}),
+		).
 		WithOptions(controller.Options{MaxConcurrentReconciles: r.Workers}).
 		Complete(r)
 }
@@ -180,6 +191,9 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// This closes the direct fleet-apply bypass path: a Bundle that violates policy is
 	// never deployed regardless of how it was created.
 	if err := r.authorizeBundle(ctx, bundle); err != nil {
+		if done, res, ctrlErr := CheckRetryable(err, logger); done {
+			return res, ctrlErr
+		}
 		return ctrl.Result{}, r.updateErrorStatus(ctx, bundleOrig, bundle, err)
 	}
 
@@ -764,15 +778,18 @@ func (r *BundleReconciler) handleContentAccessSecrets(ctx context.Context, bundl
 }
 
 // authorizeBundle validates the Bundle against Policy objects and records a
-// warning event if a violation is found. Returns a non-nil error on violation.
+// warning event if a violation is found. Returns a non-nil error on violation,
+// or a retryable error, without an event, if the check could not be completed.
 func (r *BundleReconciler) authorizeBundle(ctx context.Context, bundle *fleet.Bundle) error {
 	if err := AuthorizeBundle(ctx, r.Client, bundle); err != nil {
-		r.Recorder.Event(
-			bundle,
-			fleetevent.Warning,
-			"PolicyViolation",
-			fmt.Sprintf("Bundle in namespace %s violates Policy: %v", bundle.Namespace, err),
-		)
+		if !errors.Is(err, fleetutil.ErrRetryable) {
+			r.Recorder.Event(
+				bundle,
+				fleetevent.Warning,
+				"PolicyViolation",
+				fmt.Sprintf("Bundle in namespace %s violates Policy: %v", bundle.Namespace, err),
+			)
+		}
 		return err
 	}
 	return nil
@@ -919,6 +936,30 @@ func (r *BundleReconciler) computeResult(
 	SetCondition(string(fleet.Ready), &bundle.Status, err)
 
 	return ctrl.Result{}, r.updateErrorStatus(ctx, bundleOrig, bundle, err)
+}
+
+// policyMapFunc returns a reconcile request for every Bundle in the namespace
+// of the Policy obj, as each Policy applies to its whole namespace.
+func (r *BundleReconciler) policyMapFunc(ctx context.Context, obj client.Object) []reconcile.Request {
+	bundleList := &fleet.BundleList{}
+	if err := r.List(ctx, bundleList, client.InNamespace(obj.GetNamespace())); err != nil {
+		return nil
+	}
+
+	requests := make([]reconcile.Request, 0, len(bundleList.Items))
+	for _, bundle := range bundleList.Items {
+		if !sharding.ShouldProcess(&bundle, r.ShardID) {
+			continue
+		}
+		requests = append(requests, reconcile.Request{
+			NamespacedName: types.NamespacedName{
+				Namespace: bundle.Namespace,
+				Name:      bundle.Name,
+			},
+		})
+	}
+
+	return requests
 }
 
 func batchDeleteBundleDeployments(ctx context.Context, c client.Client, list []fleet.BundleDeployment) error {
