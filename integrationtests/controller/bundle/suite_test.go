@@ -10,6 +10,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/rancher/fleet/integrationtests/utils"
+	"github.com/rancher/fleet/internal/cmd/controller"
 	"github.com/rancher/fleet/internal/cmd/controller/reconciler"
 	"github.com/rancher/fleet/internal/cmd/controller/target"
 	"github.com/rancher/fleet/internal/manifest"
@@ -74,9 +75,14 @@ var _ = BeforeSuite(func() {
 		Builder:   builder,
 		Store:     store,
 		Query:     builder,
+		Recorder:  mgr.GetEventRecorder("fleet-bundle-ctrl"),
 		Workers:   50,
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred(), "failed to set up manager")
+
+	// The Secret and ConfigMap watches rely on this index to find Bundles
+	// referencing them in downstreamResources.
+	Expect(controller.AddBundleDownstreamResourceIndexer(ctx, mgr)).To(Succeed())
 
 	err = (&reconciler.BundleDeploymentReconciler{
 		Client:  mgr.GetClient(),
