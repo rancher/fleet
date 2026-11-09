@@ -1,7 +1,6 @@
 package git_test
 
 import (
-	"encoding/pem"
 	"net/http"
 	"time"
 
@@ -489,8 +488,7 @@ YcwLYudAztZeA/A4aM5Y0MA6PlNIeoHohuMkSZNOBcvkNEWdzGBpKb34yLfMarNm
 
 var _ = Describe("git's GetHTTPClientFromSecret tests", func() {
 	When("using a nil secret, no caBudle and InsecureSkipVerify = false", func() {
-		var caBundle []byte
-		client, err := git.GetHTTPClientFromSecret(nil, caBundle, false, gitClientTimeout)
+		client, err := git.GetHTTPClientFromSecret(nil, nil, false, gitClientTimeout)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(client).ToNot(BeNil())
 		expectedTransport, ok := client.Transport.(*http.Transport)
@@ -515,8 +513,7 @@ var _ = Describe("git's GetHTTPClientFromSecret tests", func() {
 	})
 
 	When("using a nil secret, no caBudle and InsecureSkipVerify = true", func() {
-		var caBundle []byte
-		client, err := git.GetHTTPClientFromSecret(nil, caBundle, true, gitClientTimeout)
+		client, err := git.GetHTTPClientFromSecret(nil, nil, true, gitClientTimeout)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(client).ToNot(BeNil())
 		expectedTransport, ok := client.Transport.(*http.Transport)
@@ -556,9 +553,7 @@ LgGheQaRnUi/wr4CMEfDFXuxoJGZSZOoPHzoRgaLLPIxAJSdYsiJvRmEFOml+wG4
 DXZDjC5Ty3zfDBeWUA==
 -----END CERTIFICATE-----`)
 
-		block, _ := pem.Decode(caBundlePEM)
-		Expect(block).ToNot(BeNil())
-		client, err := git.GetHTTPClientFromSecret(nil, block.Bytes, true, gitClientTimeout)
+		client, err := git.GetHTTPClientFromSecret(nil, caBundlePEM, true, gitClientTimeout)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(client).ToNot(BeNil())
 		expectedTransport, ok := client.Transport.(*http.Transport)
@@ -590,7 +585,7 @@ SUPER FAKE CERT
 		It("returns an error", func() {
 			Expect(err).To(HaveOccurred())
 			Expect(client).To(BeNil())
-			Expect(err.Error()).To(Equal("x509: malformed certificate"))
+			Expect(err.Error()).To(Equal("no valid certificates in CA bundle"))
 		})
 	})
 
@@ -604,6 +599,7 @@ SUPER FAKE CERT
 				corev1.BasicAuthPasswordKey: password,
 			},
 		}
+
 		client, err := git.GetHTTPClientFromSecret(secret, nil, false, gitClientTimeout)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(client).ToNot(BeNil())
@@ -669,6 +665,7 @@ THIS IS NOT A VALID KEY
 				corev1.TLSPrivateKeyKey: []byte(keyPEM),
 			},
 		}
+
 		_, err := git.GetHTTPClientFromSecret(secret, nil, false, gitClientTimeout)
 
 		It("returns an error", func() {

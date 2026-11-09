@@ -37,14 +37,20 @@ func TestTransportForAuth_ProxyCABundle(t *testing.T) {
 	transportsCacheMutex.Unlock()
 
 	t.Setenv(fleetgit.ProxyCABundleEnvVar, "")
-	rtWithout := transportForAuth(false, nil)
+	rtWithout, err := transportForAuth(false, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Change the env var to a valid cert — the hash must change, producing a
 	// new cache entry.  If PROXY_CA_BUNDLE were not included in the hash, both
 	// calls would return the same cached instance and the assertion below would
 	// catch the regression.
 	t.Setenv(fleetgit.ProxyCABundleEnvVar, caPEM)
-	rtWith := transportForAuth(false, nil)
+	rtWith, err := transportForAuth(false, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if rtWithout == rtWith {
 		t.Error("expected different transports when PROXY_CA_BUNDLE changes, got the same instance")
@@ -72,10 +78,14 @@ func TestTransportForAuthNonDefaultTransport(t *testing.T) {
 	transportsCache = map[string]http.RoundTripper{}
 	transportsCacheMutex.Unlock()
 
-	var result http.RoundTripper
+	var (
+		result http.RoundTripper
+		err    error
+	)
 	require.NotPanics(t, func() {
-		result = transportForAuth(false, nil)
+		result, err = transportForAuth(false, nil)
 	}, "transportForAuth must not panic when http.DefaultTransport is not *http.Transport")
+	require.NoError(t, err)
 	require.NotNil(t, result)
 
 	// The fallback transport must carry proxy and timeout settings, not bare &http.Transport{}.
@@ -86,12 +96,21 @@ func TestTransportForAuthNonDefaultTransport(t *testing.T) {
 	assert.Greater(t, tr.TLSHandshakeTimeout, tr.IdleConnTimeout*0, "TLSHandshakeTimeout must be positive")
 
 	// Also verify the custom-CA path does not panic.
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	defer ts.Close()
+	caPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: ts.TLS.Certificates[0].Certificate[0]})
+
 	transportsCacheMutex.Lock()
 	transportsCache = map[string]http.RoundTripper{}
 	transportsCacheMutex.Unlock()
 
 	require.NotPanics(t, func() {
-		result = transportForAuth(false, []byte("not-a-real-cert"))
+		result, err = transportForAuth(false, caPEM)
+		require.NoError(t, err)
 		assert.NotNil(t, result)
 	}, "transportForAuth must not panic with a CA bundle when DefaultTransport is not *http.Transport")
+
+	// An invalid CA bundle is rejected instead of being silently ignored.
+	_, err = transportForAuth(false, []byte("not-a-real-cert"))
+	require.Error(t, err)
 }
