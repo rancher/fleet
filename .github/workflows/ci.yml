@@ -28,14 +28,21 @@ jobs:
 
       -
         name: Set up chart-testing
-        uses: helm/chart-testing-action@0d28d3144d3a25ea2cc349d6e59901c4ff469b3b # v2.7.0
+        run: |
+          ./.github/scripts/install-chart-testing.sh
+          echo "$HOME/.local/share/chart-testing-venv/bin" >> "$GITHUB_PATH"
       -
         name: Run chart-testing (lint)
         run: ct lint --all --validate-maintainers=false charts/
       -
         name: helm-unittest
         run: |
-          helm plugin install https://github.com/helm-unittest/helm-unittest.git --version v1.0.2
+          plugin_args=()
+          if [[ "$(helm version --template '{{.Version}}')" == v4.* ]]; then
+            # Helm 4 refuses to install git-sourced plugins unless signature verification is explicitly disabled, and its VCS installer does not support verification. Helm 3 has no such flag.
+            plugin_args+=(--verify=false)
+          fi
+          helm plugin install https://github.com/helm-unittest/helm-unittest.git --version v1.0.2 "${plugin_args[@]}"
           helm unittest ./charts/fleet
           helm unittest ./charts/fleet-agent
       -
