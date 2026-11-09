@@ -29,7 +29,10 @@ UixxouFflOm/k5xi79QB9jFoQa9U
 )
 
 func TestTLSClientConfig_EmptyConfig(t *testing.T) {
-	cfg := TLSConfig{}.TLSClientConfig()
+	cfg, err := TLSConfig{}.TLSClientConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if cfg.InsecureSkipVerify == true {
 		t.Fatal("expected InsecureSkipVerify to be false")
@@ -51,27 +54,31 @@ func TestTLSClientConfig_Empty_Config_And_CABundle(t *testing.T) {
 		t.Fatal("test CA did not parse")
 	}
 
-	cfg := TLSConfig{CABundle: []byte(testCACertPEM)}.TLSClientConfig()
+	cfg, err := TLSConfig{CABundle: []byte(testCACertPEM)}.TLSClientConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if !cfg.RootCAs.Equal(want) {
 		t.Fatal("expected RootCAs to be the system pool plus the test CA")
 	}
 }
 
 func TestTLSClientConfig_EmptyCABundle(t *testing.T) {
-	cfg := TLSConfig{CABundle: []byte{}}.TLSClientConfig()
+	cfg, err := TLSConfig{CABundle: []byte{}}.TLSClientConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if cfg.RootCAs != nil {
 		t.Fatal("expected RootCAs to be nil for an empty CABundle")
 	}
 }
 
 func TestTLSClientConfig_Invalid_PEM(t *testing.T) {
-	want, err := x509.SystemCertPool()
-	if err != nil {
-		t.Fatal(err)
+	cfg, err := TLSConfig{CABundle: []byte(`-----BEGIN CERTIFICATE-----`)}.TLSClientConfig()
+	if err == nil {
+		t.Fatal("expected an error for a CA bundle without valid certificates")
 	}
-
-	cfg := TLSConfig{CABundle: []byte(`-----BEGIN CERTIFICATE-----`)}.TLSClientConfig()
-	if !cfg.RootCAs.Equal(want) {
-		t.Fatal("expected RootCAs to be just the system pool")
+	if cfg != nil {
+		t.Fatal("expected no tls.Config on error")
 	}
 }

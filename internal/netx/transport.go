@@ -7,7 +7,8 @@ import (
 )
 
 // NewTransport clones http.DefaultTransport and applies the TLS settings of c.
-func NewTransport(c TLSConfig) *http.Transport {
+// It fails if c holds an invalid CA bundle.
+func NewTransport(c TLSConfig) (*http.Transport, error) {
 	tr, ok := http.DefaultTransport.(*http.Transport)
 	if ok {
 		tr = tr.Clone()
@@ -27,6 +28,10 @@ func NewTransport(c TLSConfig) *http.Transport {
 			ExpectContinueTimeout: 1 * time.Second,
 		}
 	}
-	tr.TLSClientConfig = c.TLSClientConfig()
-	return tr
+	cfg, err := c.TLSClientConfig()
+	if err != nil {
+		return nil, err
+	}
+	tr.TLSClientConfig = cfg
+	return tr, nil
 }
