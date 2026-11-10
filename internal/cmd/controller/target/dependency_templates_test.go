@@ -20,8 +20,12 @@ func TestDependencyMatchLabelsTemplates(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{Name: repo + "-application", Namespace: "dev", Labels: map[string]string{fleet.RepoLabel: repo}},
 				Spec: fleet.BundleSpec{
 					BundleDeploymentOptions: fleet.BundleDeploymentOptions{
-						NamespaceLabels:      map[string]string{"cluster": "${ .ClusterName }"},
-						NamespaceAnnotations: map[string]string{"registrationNamespace": "${ .ClusterNamespace }"},
+						NamespaceLabels: map[string]string{
+							"cluster": "${ .ClusterName }", "instance": "${ .GitRepo.Name }",
+						},
+						NamespaceAnnotations: map[string]string{
+							"registrationNamespace": "${ .ClusterNamespace }", "workspace": "${ .GitRepo.Namespace }",
+						},
 					},
 					Targets: []fleet.BundleTarget{{ClusterSelector: &metav1.LabelSelector{}}},
 					DependsOn: []fleet.BundleRef{{
@@ -57,7 +61,9 @@ func TestDependencyMatchLabelsTemplates(t *testing.T) {
 				target.Deployment = &fleet.BundleDeployment{ObjectMeta: metav1.ObjectMeta{Name: bundle.Name, Namespace: "cluster-system"}}
 				deployment := target.BundleDeployment()
 				require.Equal(t, target.Cluster.Name, target.Options.NamespaceLabels["cluster"])
+				require.Equal(t, repo, target.Options.NamespaceLabels["instance"])
 				require.Equal(t, "fleet-default", target.Options.NamespaceAnnotations["registrationNamespace"])
+				require.Equal(t, "dev", target.Options.NamespaceAnnotations["workspace"])
 				labels := deployment.Spec.DependsOn[0].Selector.MatchLabels
 				require.Equal(t, repo, labels[fleet.RepoLabel])
 				require.Equal(t, "dev", labels[fleet.BundleNamespaceLabel])
