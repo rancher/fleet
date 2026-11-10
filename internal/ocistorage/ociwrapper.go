@@ -3,7 +3,6 @@ package ocistorage
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
 	"errors"
@@ -27,6 +26,7 @@ import (
 
 	"github.com/rancher/fleet/internal/httputils"
 	"github.com/rancher/fleet/internal/manifest"
+	"github.com/rancher/fleet/internal/netx"
 	fleetgit "github.com/rancher/fleet/pkg/git"
 )
 
@@ -78,9 +78,9 @@ func NewOCIWrapper() *OCIWrapper {
 	}
 }
 
-func getHTTPClient(insecureSkipTLS bool, caBundle []byte) *http.Client {
+func getHTTPClient(tlsCfg netx.TLSConfig) (*http.Client, error) {
 	// Defensive copy to avoid mutations
-	caBundle = append([]byte(nil), caBundle...)
+	tlsCfg.CABundle = append([]byte(nil), tlsCfg.CABundle...)
 
 	// Merge proxy CA bundle if present
 	if proxyCAPEM, ok := os.LookupEnv(fleetgit.ProxyCABundleEnvVar); ok && proxyCAPEM != "" {
@@ -89,56 +89,43 @@ func getHTTPClient(insecureSkipTLS bool, caBundle []byte) *http.Client {
 		if !tmpPool.AppendCertsFromPEM(proxyBytes) {
 			log.Log.Info(fleetgit.ProxyCABundleEnvVar + " is set but contains no valid PEM certificates; ignoring proxy CA bundle")
 		} else {
-			if len(caBundle) > 0 && caBundle[len(caBundle)-1] != '\n' {
-				caBundle = append(caBundle, '\n')
+			if len(tlsCfg.CABundle) > 0 && tlsCfg.CABundle[len(tlsCfg.CABundle)-1] != '\n' {
+				tlsCfg.CABundle = append(tlsCfg.CABundle, '\n')
 			}
-			caBundle = append(caBundle, proxyBytes...)
+			tlsCfg.CABundle = append(tlsCfg.CABundle, proxyBytes...)
 		}
 	}
 
 	// If no custom TLS config is needed, use ORAS' default client
-	if !insecureSkipTLS && len(caBundle) == 0 {
+	if !tlsCfg.InsecureSkipVerify && len(tlsCfg.CABundle) == 0 {
 		client := *retry.DefaultClient
 		client.Transport = httputils.UserAgentTransport{Next: client.Transport}
-		return &client
+		return &client, nil
 	}
 
-	// Clone the default transport to preserve proxy, timeout, and
-	// connection-pooling settings.
-	baseTransport, ok := http.DefaultTransport.(*http.Transport)
-	if !ok {
-		baseTransport = &http.Transport{
-			Proxy: http.ProxyFromEnvironment,
-		}
-	}
-	transport := baseTransport.Clone()
-	transport.TLSClientConfig = &tls.Config{
-		InsecureSkipVerify: insecureSkipTLS, // #nosec G402
-	}
-
-	// Merge custom CA bundle with system cert pool
-	if len(caBundle) > 0 {
-		pool, err := x509.SystemCertPool()
-		if err != nil {
-			pool = x509.NewCertPool()
-		}
-		if !pool.AppendCertsFromPEM(caBundle) {
-			log.Log.Info("CA bundle contains no valid PEM certificates; proceeding with system cert pool only")
-		}
-		transport.TLSClientConfig.RootCAs = pool
-		transport.TLSClientConfig.MinVersion = tls.VersionTLS12
+	transport, err := netx.NewTransport(tlsCfg)
+	if err != nil {
+		return nil, err
 	}
 
 	return &http.Client{
 		Transport: httputils.UserAgentTransport{
 			Next: retry.NewTransport(transport),
 		},
-	}
+	}, nil
 }
 
-func getAuthClient(opts OCIOpts) *auth.Client {
+func getAuthClient(opts OCIOpts) (*auth.Client, error) {
+	tlsCfg := netx.TLSConfig{
+		CABundle:           opts.CABundle,
+		InsecureSkipVerify: opts.InsecureSkipTLS,
+	}
+	httpClient, err := getHTTPClient(tlsCfg)
+	if err != nil {
+		return nil, err
+	}
 	client := &auth.Client{
-		Client: getHTTPClient(opts.InsecureSkipTLS, opts.CABundle),
+		Client: httpClient,
 		Cache:  auth.NewCache(),
 	}
 	if opts.Username != "" {
@@ -150,7 +137,7 @@ func getAuthClient(opts OCIOpts) *auth.Client {
 			return cred, nil
 		}
 	}
-	return client
+	return client, nil
 }
 
 func newOCIRepository(id string, opts OCIOpts) (*remote.Repository, error) {
@@ -159,7 +146,10 @@ func newOCIRepository(id string, opts OCIOpts) (*remote.Repository, error) {
 		return nil, err
 	}
 	repo.PlainHTTP = opts.BasicHTTP
-	repo.Client = getAuthClient(opts)
+	repo.Client, err = getAuthClient(opts)
+	if err != nil {
+		return nil, err
+	}
 	return repo, nil
 }
 
