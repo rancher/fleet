@@ -553,6 +553,11 @@ func writeBundle(ctx context.Context, c client.Client, r record.EventRecorder, b
 		if tmp.DeletionTimestamp != nil {
 			return fmt.Errorf("the bundle %q is being deleted, cannot create during a delete operation", bundle.Name)
 		}
+		// Check ownership before touching anything related to the existing
+		// bundle, e.g. its values secret or OCI artifact.
+		if err := checkBundleOwnership(tmp, bundle); err != nil {
+			return err
+		}
 	}
 
 	h, data, err := helmvalues.ExtractValues(bundle)
@@ -667,6 +672,9 @@ func save(ctx context.Context, c client.Client, bundle *fleet.Bundle) (*fleet.Bu
 		if bundle.Spec.HelmOpOptions != nil {
 			return fmt.Errorf("a helmOps bundle with name %q already exists", bundle.Name)
 		}
+		if err := checkBundleOwnership(bundle, updated); err != nil {
+			return err
+		}
 		// We cannot update a bundle that is going to be deleted, our update would be lost
 		if bundle.DeletionTimestamp != nil {
 			return fmt.Errorf("the bundle %q is being deleted", bundle.Name)
@@ -695,6 +703,18 @@ func save(ctx context.Context, c client.Client, bundle *fleet.Bundle) (*fleet.Bu
 	log.Log.Info(fmt.Sprintf("%s (bundle): %s/%s", result, bundle.Namespace, bundle.Name))
 
 	return bundle, nil
+}
+
+// checkBundleOwnership prevents a bundle owned by one GitRepo from being
+// taken over by another GitRepo using the same explicit name in fleet.yaml.
+func checkBundleOwnership(existing, incoming *fleet.Bundle) error {
+	existingRepo := existing.Labels[fleet.RepoLabel]
+	incomingRepo := incoming.Labels[fleet.RepoLabel]
+	if existingRepo != "" && existingRepo != incomingRepo {
+		return fmt.Errorf("a bundle with name %q already exists and is owned by GitRepo %q; "+
+			"use a unique 'name' in fleet.yaml", existing.Name, existingRepo)
+	}
+	return nil
 }
 
 func saveImageScans(ctx context.Context, c client.Client, bundle *fleet.Bundle, scans []*fleet.ImageScan) error {
@@ -731,6 +751,9 @@ func saveOCIBundle(ctx context.Context, c client.Client, r record.EventRecorder,
 
 		if bundle.Spec.HelmOpOptions != nil {
 			return fmt.Errorf("a helmOps bundle with name %q already exists", bundle.Name)
+		}
+		if err := checkBundleOwnership(bundle, updated); err != nil {
+			return err
 		}
 
 		// If the current manifestID is different from the previous one,

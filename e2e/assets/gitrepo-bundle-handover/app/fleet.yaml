@@ -1,0 +1,2 @@
+# Explicit bundle name, shared by every GitRepo pointing at this path.
+name: gitrepo-bundle-handover
