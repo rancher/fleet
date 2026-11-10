@@ -320,7 +320,15 @@ func (h *Helm) runUpgrade(
 // including timeout, wait strategies, and drift correction settings.
 // lastApplyMethod is the apply method recorded in the last release, used to
 // decide whether server-side apply is used.
-func (h *Helm) configureUpgradeAction(u *action.Upgrade, namespace string, timeout time.Duration, options fleet.BundleDeploymentOptions, pr *postRender, dryRunCfg dryRunConfig, lastApplyMethod string) {
+func (h *Helm) configureUpgradeAction(
+	u *action.Upgrade,
+	namespace string,
+	timeout time.Duration,
+	options fleet.BundleDeploymentOptions,
+	pr *postRender,
+	dryRunCfg dryRunConfig,
+	lastApplyMethod string,
+) {
 	u.TakeOwnership = true
 	u.EnableDNS = !options.Helm.DisableDNS
 	u.ForceReplace = options.Helm.Force
@@ -363,11 +371,6 @@ func (h *Helm) configureUpgradeAction(u *action.Upgrade, namespace string, timeo
 // left alone. This is similar to client-side apply for built-in types; for
 // custom resources, client-side apply only patches fields the chart changed,
 // whereas forced server-side apply re-asserts every rendered field.
-//
-// "auto" is resolved here rather than by Helm, because Helm rejects
-// ForceConflicts without server-side apply. The explicit value is also
-// inherited by Helm's rollback on failure (atomic), which would otherwise
-// resolve "auto" from the revision it rolls back to.
 func upgradeApplyMethod(forceReplace bool, lastApplyMethod string) (serverSideApply string, forceConflicts bool) {
 	ssa := !forceReplace && lastApplyMethod == string(releasev1.ApplyMethodServerSideApply)
 	return strconv.FormatBool(ssa), ssa
