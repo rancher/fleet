@@ -243,13 +243,7 @@ func getCABundleFromFile(path string) ([]byte, error) {
 			return nil, err
 		}
 	}
-	if proxyCAPEM, ok := os.LookupEnv(fleetgit.ProxyCABundleEnvVar); ok && proxyCAPEM != "" {
-		if len(caBundle) > 0 && caBundle[len(caBundle)-1] != '\n' {
-			caBundle = append(caBundle, '\n')
-		}
-		caBundle = append(caBundle, []byte(proxyCAPEM)...)
-	}
-	return caBundle, nil
+	return netx.TLSConfig{CABundle: caBundle}.WithProxyCA().CABundle, nil
 }
 
 // createAuthFromOpts adds auth for cloning git repos based on the parameters provided in opts.

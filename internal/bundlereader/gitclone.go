@@ -14,8 +14,8 @@ import (
 	gogit "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 	httpgit "github.com/go-git/go-git/v5/plumbing/transport/http"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/rancher/fleet/internal/netx"
 	fleetssh "github.com/rancher/fleet/internal/ssh"
 	fleetgit "github.com/rancher/fleet/pkg/git"
 )
@@ -67,26 +67,16 @@ func gitDownload(ctx context.Context, dst, rawURL string, auth Auth) error {
 	}
 
 	// Merge PROXY_CA_BUNDLE so that HTTPS repos cloned through an HTTPS proxy
-	// with a custom CA certificate are trusted. Make a defensive copy of
-	// auth.CABundle so the caller's slice is never modified.
-	caBundle := append([]byte(nil), auth.CABundle...)
-	if proxyCAPEM, ok := os.LookupEnv(fleetgit.ProxyCABundleEnvVar); ok && proxyCAPEM != "" {
-		proxyBytes := []byte(proxyCAPEM)
-		tmpPool := x509.NewCertPool()
-		if !tmpPool.AppendCertsFromPEM(proxyBytes) {
-			log.Log.Info(fleetgit.ProxyCABundleEnvVar + " is set but contains no valid PEM certificates; ignoring proxy CA bundle")
-		} else {
-			if len(caBundle) > 0 && caBundle[len(caBundle)-1] != '\n' {
-				caBundle = append(caBundle, '\n')
-			}
-			caBundle = append(caBundle, proxyBytes...)
-		}
-	}
+	// with a custom CA certificate are trusted.
+	tlsCfg := netx.TLSConfig{
+		InsecureSkipVerify: auth.InsecureSkipVerify,
+		CABundle:           auth.CABundle,
+	}.WithProxyCA()
 
 	cloneOpts := &gogit.CloneOptions{
 		URL:             cloneURL.String(),
 		InsecureSkipTLS: auth.InsecureSkipVerify,
-		CABundle:        caBundle,
+		CABundle:        tlsCfg.CABundle,
 		ProxyOptions:    fleetgit.ProxyOptsFromEnvironment(cloneURL.String()),
 	}
 	if err := setGitAuth(cloneOpts, &cloneURL, sshKeyPEM, auth); err != nil {

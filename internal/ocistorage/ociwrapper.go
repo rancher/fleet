@@ -3,7 +3,6 @@ package ocistorage
 import (
 	"bytes"
 	"context"
-	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -22,12 +21,10 @@ import (
 	"oras.land/oras-go/v2/registry/remote"
 	"oras.land/oras-go/v2/registry/remote/auth"
 	"oras.land/oras-go/v2/registry/remote/retry"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/rancher/fleet/internal/httputils"
 	"github.com/rancher/fleet/internal/manifest"
 	"github.com/rancher/fleet/internal/netx"
-	fleetgit "github.com/rancher/fleet/pkg/git"
 )
 
 const (
@@ -79,22 +76,8 @@ func NewOCIWrapper() *OCIWrapper {
 }
 
 func getHTTPClient(tlsCfg netx.TLSConfig) (*http.Client, error) {
-	// Defensive copy to avoid mutations
-	tlsCfg.CABundle = append([]byte(nil), tlsCfg.CABundle...)
-
 	// Merge proxy CA bundle if present
-	if proxyCAPEM, ok := os.LookupEnv(fleetgit.ProxyCABundleEnvVar); ok && proxyCAPEM != "" {
-		proxyBytes := []byte(proxyCAPEM)
-		tmpPool := x509.NewCertPool()
-		if !tmpPool.AppendCertsFromPEM(proxyBytes) {
-			log.Log.Info(fleetgit.ProxyCABundleEnvVar + " is set but contains no valid PEM certificates; ignoring proxy CA bundle")
-		} else {
-			if len(tlsCfg.CABundle) > 0 && tlsCfg.CABundle[len(tlsCfg.CABundle)-1] != '\n' {
-				tlsCfg.CABundle = append(tlsCfg.CABundle, '\n')
-			}
-			tlsCfg.CABundle = append(tlsCfg.CABundle, proxyBytes...)
-		}
-	}
+	tlsCfg = tlsCfg.WithProxyCA()
 
 	// If no custom TLS config is needed, use ORAS' default client
 	if !tlsCfg.InsecureSkipVerify && len(tlsCfg.CABundle) == 0 {

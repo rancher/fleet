@@ -8,6 +8,8 @@ import (
 	"encoding/pem"
 	"errors"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
@@ -21,11 +23,11 @@ import (
 	httpgit "github.com/go-git/go-git/v5/plumbing/transport/http"
 	gossh "github.com/go-git/go-git/v5/plumbing/transport/ssh"
 	"github.com/google/go-cmp/cmp"
+	golangssh "golang.org/x/crypto/ssh"
+
 	"github.com/rancher/fleet/internal/cmd/cli/gitcloner/submodule"
 	"github.com/rancher/fleet/internal/netx"
 	fleetssh "github.com/rancher/fleet/internal/ssh"
-	fleetgit "github.com/rancher/fleet/pkg/git"
-	golangssh "golang.org/x/crypto/ssh"
 )
 
 type fakeGetter struct{}
@@ -908,10 +910,8 @@ func TestCreateAuthFromOpts(t *testing.T) {
 // PROXY_CA_BUNDLE environment variable: neither set, only the env var, only
 // the file, and both together.
 func TestGetCABundleFromFile(t *testing.T) {
-	const (
-		filePEM  = "-----BEGIN CERTIFICATE-----\nfilecert\n-----END CERTIFICATE-----"
-		proxyPEM = "-----BEGIN CERTIFICATE-----\nproxycert\n-----END CERTIFICATE-----"
-	)
+	const filePEM = "-----BEGIN CERTIFICATE-----\nfilecert\n-----END CERTIFICATE-----"
+	proxyPEM := newTestCAPEM(t)
 
 	origReadFile := readFile
 	readFile = func(name string) ([]byte, error) {
@@ -964,7 +964,7 @@ func TestGetCABundleFromFile(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv(fleetgit.ProxyCABundleEnvVar, tt.envVal)
+			t.Setenv(netx.ProxyCABundleEnvVar, tt.envVal)
 
 			got, err := getCABundleFromFile(tt.path)
 			if tt.wantErr {
@@ -990,4 +990,13 @@ func TestGetCABundleFromFile(t *testing.T) {
 			}
 		})
 	}
+}
+
+// newTestCAPEM returns a valid PEM certificate for tests, taken from a local
+// TLS test server.
+func newTestCAPEM(t *testing.T) string {
+	t.Helper()
+	ts := httptest.NewTLSServer(http.NotFoundHandler())
+	t.Cleanup(ts.Close)
+	return string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: ts.Certificate().Raw}))
 }

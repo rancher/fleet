@@ -6,9 +6,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	fleetgit "github.com/rancher/fleet/pkg/git"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/rancher/fleet/internal/netx"
 )
 
 // fakeRoundTripper is a RoundTripper that is not *http.Transport, so substituting
@@ -36,8 +37,8 @@ func TestTransportForAuth_ProxyCABundle(t *testing.T) {
 	transportsCache = map[string]http.RoundTripper{}
 	transportsCacheMutex.Unlock()
 
-	t.Setenv(fleetgit.ProxyCABundleEnvVar, "")
-	rtWithout, err := transportForAuth(false, nil)
+	t.Setenv(netx.ProxyCABundleEnvVar, "")
+	rtWithout, err := transportForAuth(netx.TLSConfig{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,8 +47,8 @@ func TestTransportForAuth_ProxyCABundle(t *testing.T) {
 	// new cache entry.  If PROXY_CA_BUNDLE were not included in the hash, both
 	// calls would return the same cached instance and the assertion below would
 	// catch the regression.
-	t.Setenv(fleetgit.ProxyCABundleEnvVar, caPEM)
-	rtWith, err := transportForAuth(false, nil)
+	t.Setenv(netx.ProxyCABundleEnvVar, caPEM)
+	rtWith, err := transportForAuth(netx.TLSConfig{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,7 +84,7 @@ func TestTransportForAuthNonDefaultTransport(t *testing.T) {
 		err    error
 	)
 	require.NotPanics(t, func() {
-		result, err = transportForAuth(false, nil)
+		result, err = transportForAuth(netx.TLSConfig{})
 	}, "transportForAuth must not panic when http.DefaultTransport is not *http.Transport")
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -105,12 +106,12 @@ func TestTransportForAuthNonDefaultTransport(t *testing.T) {
 	transportsCacheMutex.Unlock()
 
 	require.NotPanics(t, func() {
-		result, err = transportForAuth(false, caPEM)
+		result, err = transportForAuth(netx.TLSConfig{CABundle: caPEM})
 		require.NoError(t, err)
 		assert.NotNil(t, result)
 	}, "transportForAuth must not panic with a CA bundle when DefaultTransport is not *http.Transport")
 
 	// An invalid CA bundle is rejected instead of being silently ignored.
-	_, err = transportForAuth(false, []byte("not-a-real-cert"))
+	_, err = transportForAuth(netx.TLSConfig{CABundle: []byte("not-a-real-cert")})
 	require.Error(t, err)
 }
