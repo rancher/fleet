@@ -516,6 +516,14 @@ func newBundle(ctx context.Context, name, baseDir string, opts Options) (*fleet.
 		}
 	}
 	bundle.Namespace = opts.Namespace
+	// The repo label identifies the owning GitRepo and is set by the gitjob;
+	// labels from fleet.yaml must not override it.
+	if repo, ok := opts.Labels[fleet.RepoLabel]; ok {
+		if bundle.Labels == nil {
+			bundle.Labels = map[string]string{}
+		}
+		bundle.Labels[fleet.RepoLabel] = repo
+	}
 	return bundle, scans, nil
 }
 
@@ -566,12 +574,9 @@ func writeBundle(ctx context.Context, c client.Client, r record.EventRecorder, b
 	}
 
 	// If values were found in the bundle the hash is not empty, we
-	// remove the values from the bundle. Also, delete any old
-	// secret if the values are empty.
+	// remove the values from the bundle.
 	if h != "" {
 		helmvalues.ClearValues(bundle)
-	} else if err := deleteSecretIfExists(ctx, c, bundle.Name, bundle.Namespace); err != nil {
-		return err
 	}
 	bundle.Spec.ValuesHash = h
 
@@ -605,6 +610,12 @@ func writeBundle(ctx context.Context, c client.Client, r record.EventRecorder, b
 			return nil
 		})
 		if err != nil {
+			return err
+		}
+	} else if h == "" {
+		// Delete any old values secret only once the bundle has been
+		// saved, so a rejected apply never touches another owner's secret.
+		if err := deleteSecretIfExists(ctx, c, bundle.Name, bundle.Namespace); err != nil {
 			return err
 		}
 	}
@@ -711,8 +722,12 @@ func checkBundleOwnership(existing, incoming *fleet.Bundle) error {
 	existingRepo := existing.Labels[fleet.RepoLabel]
 	incomingRepo := incoming.Labels[fleet.RepoLabel]
 	if existingRepo != "" && existingRepo != incomingRepo {
-		return fmt.Errorf("a bundle with name %q already exists and is owned by GitRepo %q; "+
-			"use a unique 'name' in fleet.yaml", existing.Name, existingRepo)
+		updater := "a fleet apply without a GitRepo"
+		if incomingRepo != "" {
+			updater = fmt.Sprintf("GitRepo %q", incomingRepo)
+		}
+		return fmt.Errorf("a bundle with name %q already exists and is owned by GitRepo %q, cannot be updated by %s; "+
+			"use a unique 'name' in fleet.yaml", existing.Name, existingRepo, updater)
 	}
 	return nil
 }

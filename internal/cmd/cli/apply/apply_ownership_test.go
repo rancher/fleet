@@ -5,12 +5,15 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
@@ -28,22 +31,30 @@ func Test_checkBundleOwnership(t *testing.T) {
 
 	tests := map[string]struct {
 		existing, incoming string
-		wantErr            bool
+		wantErr            string // substring naming the rejected updater; empty means no error
 	}{
 		"same owner":                     {existing: "app-prod", incoming: "app-prod"},
-		"different owner":                {existing: "app-prod", incoming: "app-dev", wantErr: true},
-		"existing owned, incoming not":   {existing: "app-prod", incoming: "", wantErr: true},
+		"different owner":                {existing: "app-prod", incoming: "app-dev", wantErr: `cannot be updated by GitRepo "app-dev"`},
+		"existing owned, incoming not":   {existing: "app-prod", incoming: "", wantErr: "cannot be updated by a fleet apply without a GitRepo"},
 		"existing not owned":             {existing: "", incoming: "app-dev"},
 		"neither owned (manual applies)": {existing: "", incoming: ""},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			err := checkBundleOwnership(bundle(tt.existing), bundle(tt.incoming))
-			if tt.wantErr != (err != nil) {
-				t.Fatalf("wantErr=%v, got %v", tt.wantErr, err)
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("expected no error, got %v", err)
+				}
+				return
 			}
-			if err != nil && !strings.Contains(err.Error(), `owned by GitRepo "app-prod"`) {
-				t.Fatalf("expected error to name the owning GitRepo, got %v", err)
+			if err == nil {
+				t.Fatal("expected an ownership error")
+			}
+			for _, want := range []string{`owned by GitRepo "app-prod"`, tt.wantErr} {
+				if !strings.Contains(err.Error(), want) {
+					t.Fatalf("expected error to contain %q, got %v", want, err)
+				}
 			}
 		})
 	}
@@ -99,6 +110,69 @@ func TestCreateBundlesWithoutExplicitNameDoNotCollide(t *testing.T) {
 			t.Fatalf("bundle %s: expected owner %q, got %q", key.Name, repo, got)
 		}
 	}
+}
+
+func TestCreateBundlesIgnoresRepoLabelFromFleetYAML(t *testing.T) {
+	root := t.TempDir()
+	t.Chdir(root)
+	writeBundleDir(t, "prod", "name: shared\ntargets:\n- clusterName: prod\n")
+	// app-dev's fleet.yaml claims to be app-prod to get past the ownership check.
+	writeBundleDir(t, "dev", "name: shared\nlabels:\n  fleet.cattle.io/repo-name: app-prod\ntargets:\n- clusterName: dev\n")
+
+	c := newOwnershipTestClient(t)
+	if err := applyAs(c, "app-prod", "prod"); err != nil {
+		t.Fatalf("applying app-prod: %v", err)
+	}
+
+	err := applyAs(c, "app-dev", "dev")
+	if err == nil || !strings.Contains(err.Error(), `cannot be updated by GitRepo "app-dev"`) {
+		t.Fatalf("expected ownership conflict error, got %v", err)
+	}
+
+	b := &fleet.Bundle{}
+	if err := c.Get(context.Background(), client.ObjectKey{Name: "shared", Namespace: ownershipTestNamespace}, b); err != nil {
+		t.Fatalf("getting bundle: %v", err)
+	}
+	if len(b.Spec.Targets) != 1 || b.Spec.Targets[0].ClusterName != "prod" {
+		t.Fatalf("expected app-prod's target to be kept, got %+v", b.Spec.Targets)
+	}
+}
+
+// TestCreateBundlesRejectedInRaceKeepsValuesSecret covers two GitRepos creating
+// the same bundle at the same time: the loser doesn't see the bundle in the
+// early check and is only rejected when saving, by which point it must not
+// have deleted the winner's values secret.
+func TestCreateBundlesRejectedInRaceKeepsValuesSecret(t *testing.T) {
+	root := t.TempDir()
+	t.Chdir(root)
+	writeBundleDir(t, "prod", "name: shared\nhelm:\n  values:\n    env: prod\ntargets:\n- clusterName: prod\n")
+	writeBundleDir(t, "dev", "name: shared\ntargets:\n- clusterName: dev\n")
+
+	c := newOwnershipTestClient(t)
+	if err := applyAs(c, "app-prod", "prod"); err != nil {
+		t.Fatalf("applying app-prod: %v", err)
+	}
+
+	err := applyAs(&missFirstBundleGetClient{Client: c}, "app-dev", "dev")
+	if err == nil || !strings.Contains(err.Error(), `owned by GitRepo "app-prod"`) {
+		t.Fatalf("expected ownership conflict error, got %v", err)
+	}
+
+	assertSharedBundle(t, c, "app-prod", "prod")
+}
+
+// missFirstBundleGetClient reports the first Bundle it is asked for as not
+// found, as if another apply created it right after that read.
+type missFirstBundleGetClient struct {
+	client.Client
+	missed atomic.Bool
+}
+
+func (c *missFirstBundleGetClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+	if _, ok := obj.(*fleet.Bundle); ok && c.missed.CompareAndSwap(false, true) {
+		return apierrors.NewNotFound(schema.GroupResource{Group: fleet.SchemeGroupVersion.Group, Resource: "bundles"}, key.Name)
+	}
+	return c.Client.Get(ctx, key, obj, opts...)
 }
 
 func newOwnershipTestClient(t *testing.T) client.Client {
