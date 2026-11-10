@@ -1,0 +1,163 @@
+name: Create Release Branch
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: New version number (e.g. 42); will be prefixed with `release/v0.` by the workflow
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  GOARCH: amd64
+  CGO_ENABLED: 0
+
+jobs:
+  create-release-branch:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: create release branch
+        id: branch
+        env:
+          NUM: ${{ github.event.inputs.version }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Remove leading 0s, if any
+          NUM=$(echo $NUM | sed 's/^0\+//g')
+
+          if ! [[ $NUM =~ ^[0-9]+$ ]]; then
+             echo "${NUM} is not a number"
+             exit 1
+          fi
+
+          if [ $NUM -lt 1 ]; then
+            echo "${NUM} is too small; will not match a Rancher version number"
+            exit 1
+          fi
+
+          version="release/v0.$NUM"
+
+          if [ ! -e ~/.gitconfig ]; then
+            echo "Configuring git username and email"
+            git config --global user.name "fleet-bot"
+            git config --global user.email fleet@suse.de
+          fi
+
+          err_file=/tmp/branch_create_err
+
+          if ! git checkout -b $version &>$err_file; then
+            if ! grep -q 'already exists' $err_file; then
+              echo "Could not create branch $version. Skipping."
+              echo "version=" >> "$GITHUB_OUTPUT"
+
+              exit 1
+            fi
+          else
+            git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git"
+            git push -u origin $version
+          fi
+
+          echo "num=$NUM" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: add Renovate support to new release branch
+        if: steps.branch.outputs.version != ''
+        env:
+          BRANCH: ${{steps.branch.outputs.version}}
+          NUM: ${{steps.branch.outputs.num}}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if grep -q "$BRANCH" .github/renovate.json; then
+            echo "Renovate config already set for $BRANCH; skipping."
+            exit 0
+          fi
+
+          rancher_minor_member=$(( $NUM - 1 ))
+          sed -Ei "/\"main\",/a \"$BRANCH\"," .github/renovate.json
+          cat <<EOF >renovate_block.json
+              {
+                "matchBaseBranches": [
+                  "$BRANCH"
+                ],
+                "extends": [
+                  "github>rancher/renovate-config//rancher-2.$rancher_minor_member#main"
+                ]
+              },
+          EOF
+
+          # Add the new block once, after the first existing block (terminated by `},`)
+          sed -i "0,/},/{/},/ r renovate_block.json
+          }" .github/renovate.json
+
+          # Indent the file properly
+          jq . .github/renovate.json > formatted.json
+          mv formatted.json .github/renovate.json
+
+          git --no-pager diff .github/renovate.json
+
+          git add .github/renovate.json
+          git commit -m "Add Renovate support to branch $BRANCH"
+
+          git push -u origin $BRANCH
+
+      - name: checkout rancher/fleet-test-data
+        if: steps.branch.outputs.version != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          repository: "rancher/fleet-test-data"
+          path: fleet-test-data
+
+      - name: create release branch in fleet-test-data
+        id: test_branch
+        if: steps.branch.outputs.version != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: ${{steps.branch.outputs.version}}
+        run: |
+          cd fleet-test-data
+
+          if ! git checkout -b $BRANCH; then
+            echo "Could not create branch $version. Skipping."
+          else
+            git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/rancher/fleet-test-data.git"
+            git push -u origin $BRANCH
+          fi
+
+          if git checkout $BRANCH; then
+            echo "branch_exists=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "branch_exists=0" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: update benchmarks assets to point to rancher/fleet-test-data release branch
+        if: steps.branch.outputs.version != '' && steps.test_branch.outputs.branch_exists == 1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: ${{steps.branch.outputs.version}}
+        run: |
+          cd ../fleet
+
+          if grep -Rq "$BRANCH" benchmarks/assets; then
+            echo "Benchmark assets already point to $BRANCH; skipping."
+            exit 0
+          fi
+
+          find benchmarks/assets -type f -exec sed -i "s,branch:.*$,branch: $BRANCH," {} \;
+
+          git --no-pager diff benchmarks/assets
+
+          git add benchmarks/assets
+          git commit -m "Point benchmarks assets to $BRANCH"
+
+          git push -u origin $BRANCH

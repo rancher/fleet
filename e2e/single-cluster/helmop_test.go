@@ -421,7 +421,9 @@ var _ = Describe("HelmOp resource with polling of OCI registry", Label("infra-se
 						if cond.Type == "Ready" {
 							foundReady = true
 
-							g.Expect(string(cond.Status)).To(Equal("True"))
+							// Ready reflects the Accepted error, as no bundle deployments exist.
+							g.Expect(string(cond.Status)).To(Equal("False"))
+							g.Expect(cond.Message).To(ContainSubstring("not found"))
 						}
 
 						if cond.Type == "Accepted" {
@@ -432,6 +434,9 @@ var _ = Describe("HelmOp resource with polling of OCI registry", Label("infra-se
 					}
 					g.Expect(foundAccepted).To(BeTrue())
 					g.Expect(foundReady).To(BeTrue())
+
+					g.Expect(status.Display.Error).To(BeTrue())
+					g.Expect(status.Display.Message).To(ContainSubstring("not found"))
 				}).Should(Succeed())
 			})
 		})

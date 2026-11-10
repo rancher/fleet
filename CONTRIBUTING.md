@@ -5,6 +5,16 @@ This document outlines the process to get your pull request accepted.
 
 Fleet does accept external contributions in general, however the team's time is limited. Fleet is on a quarterly release cycle, so it might take a long time for external contributions to be commented on, let alone reviewed and merged. We expect review times to improve in the future.
 
+## Genuine Investment in Fleet
+
+Maintainer time and project resources are limited. We only accept pull requests from contributors who use Fleet or are genuinely invested and willing to follow through on their contributions. This applies whether or not AI tools are used. New contributors are welcome; no prior contribution history is required.
+
+Explain how your changes benefit Fleet users, respond to review feedback, and stay involved after merge to help address questions or regressions related to your changes. The goal is lasting collaboration, not submissions that leave maintainers with all the follow-up work.
+
+We do not accept pull requests whose purpose is to collect points, badges, contribution counts, or other rewards rather than contribute meaningfully to Fleet. This includes mass-producing AI-generated pull requests across many projects without a genuine interest in those projects. Contributing to multiple projects or using AI is not, by itself, grounds for rejection.
+
+Maintainers may close low-effort pull requests or those that do not meet our contribution policies without a detailed technical review. For AI-assisted contributions, also follow our [AI Contribution Policy](AI_POLICY.md).
+
 ## Start With An Issue
 
 Prior to creating a pull request it is a good idea to [create an issue].

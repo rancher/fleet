@@ -5,9 +5,9 @@ go 1.27.0
 toolchain go1.27.3
 
 require (
-	github.com/rancher/wrangler/v3 v3.7.2
-	k8s.io/api v0.37.1
-	k8s.io/apimachinery v0.37.1
+	github.com/rancher/wrangler/v3 v3.8.0-rc.3
+	k8s.io/api v0.37.2
+	k8s.io/apimachinery v0.37.2
 )
 
 require (
@@ -18,8 +18,8 @@ require (
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
-	golang.org/x/net v0.60.0 // indirect
-	golang.org/x/text v0.42.0 // indirect
+	golang.org/x/net v0.62.0 // indirect
+	golang.org/x/text v0.43.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	k8s.io/klog/v2 v2.140.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20260721132016-d427ff9ee9ad // indirect

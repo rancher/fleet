@@ -1,14 +1,10 @@
 package target
 
 import (
-	"bytes"
 	"fmt"
 	"strings"
-	"text/template"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-
-	"github.com/rancher/wrangler/v3/pkg/yaml"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -16,22 +12,8 @@ import (
 // newTemplateContext distinguishes the source workspace from the cluster's
 // registration namespace, which can differ when using BundleNamespaceMapping.
 func newTemplateContext(bundle *fleet.Bundle, cluster *fleet.Cluster) map[string]any {
-	labels := yaml.CleanAnnotationsForExport(cluster.Labels)
-	for key, value := range cluster.Labels {
-		if strings.HasPrefix(key, fleet.FleetLabelPrefix) || strings.HasPrefix(key, fleet.ManagementLabelPrefix) {
-			labels[key] = value
-		}
-	}
-	values := map[string]any{
-		"ClusterNamespace":   cluster.Namespace,
-		"ClusterName":        cluster.Name,
-		"ClusterLabels":      toDict(labels),
-		"ClusterAnnotations": toDict(yaml.CleanAnnotationsForExport(cluster.Annotations)),
-		"ClusterValues":      map[string]any{},
-	}
-	if cluster.Spec.TemplateValues != nil {
-		values["ClusterValues"] = cluster.Spec.TemplateValues.Data
-	}
+	labels, annotations := clusterLabelsAndAnnotations(cluster)
+	values := templateContext(cluster, labels, annotations)
 	if name := bundle.Labels[fleet.RepoLabel]; name != "" {
 		values["GitRepo"] = map[string]any{"Name": name, "Namespace": bundle.Namespace}
 	}
@@ -71,16 +53,4 @@ func preprocessDependencies(dependencies []fleet.BundleRef, context map[string]a
 		}
 	}
 	return result, nil
-}
-
-func renderTemplate(value string, context map[string]any) (string, error) {
-	tmpl, err := template.New("values").Funcs(tplFuncMap()).Option("missingkey=error").Delims("${", "}").Parse(value)
-	if err != nil {
-		return "", fmt.Errorf("failed to parse template: %w", err)
-	}
-	var result bytes.Buffer
-	if err := tmpl.Execute(&result, context); err != nil {
-		return "", fmt.Errorf("failed to execute template: %w", err)
-	}
-	return result.String(), nil
 }

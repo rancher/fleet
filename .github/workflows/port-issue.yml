@@ -2,7 +2,10 @@ name: Port issue
 run-name: "Port issue ${{ github.event.issue.number }}: ${{ github.event.issue.title }}"
 
 on:
-  issue_comment:
+  # Slash command must come from a comment, so issue_comment is required.
+  # Job-level author association check gates all PAT use to members and owners.
+  # No untrusted code is checked out or executed.
+  issue_comment: # zizmor: ignore[dangerous-triggers]
     types:
       - created
 
@@ -12,7 +15,9 @@ permissions:
 jobs:
   port-issue:
     runs-on: ubuntu-latest
-    if: contains(github.event.comment.body, '/backport') || contains(github.event.comment.body, '/forwardport')
+    if: |
+      contains(fromJSON('["MEMBER", "OWNER"]'), github.event.comment.author_association) &&
+      (contains(github.event.comment.body, '/backport') || contains(github.event.comment.body, '/forwardport'))
     steps:
       - name: Check org membership
         env:

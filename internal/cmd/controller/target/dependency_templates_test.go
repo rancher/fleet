@@ -19,6 +19,10 @@ func TestDependencyMatchLabelsTemplates(t *testing.T) {
 			bundle := &fleet.Bundle{
 				ObjectMeta: metav1.ObjectMeta{Name: repo + "-application", Namespace: "dev", Labels: map[string]string{fleet.RepoLabel: repo}},
 				Spec: fleet.BundleSpec{
+					BundleDeploymentOptions: fleet.BundleDeploymentOptions{
+						NamespaceLabels:      map[string]string{"cluster": "${ .ClusterName }"},
+						NamespaceAnnotations: map[string]string{"registrationNamespace": "${ .ClusterNamespace }"},
+					},
 					Targets: []fleet.BundleTarget{{ClusterSelector: &metav1.LabelSelector{}}},
 					DependsOn: []fleet.BundleRef{{
 						AcceptedStates: []fleet.BundleState{fleet.Ready, fleet.Modified},
@@ -52,6 +56,8 @@ func TestDependencyMatchLabelsTemplates(t *testing.T) {
 			for _, target := range targets {
 				target.Deployment = &fleet.BundleDeployment{ObjectMeta: metav1.ObjectMeta{Name: bundle.Name, Namespace: "cluster-system"}}
 				deployment := target.BundleDeployment()
+				require.Equal(t, target.Cluster.Name, target.Options.NamespaceLabels["cluster"])
+				require.Equal(t, "fleet-default", target.Options.NamespaceAnnotations["registrationNamespace"])
 				labels := deployment.Spec.DependsOn[0].Selector.MatchLabels
 				require.Equal(t, repo, labels[fleet.RepoLabel])
 				require.Equal(t, "dev", labels[fleet.BundleNamespaceLabel])

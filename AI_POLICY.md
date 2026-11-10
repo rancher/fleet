@@ -20,6 +20,8 @@ productivity aid, not as a replacement for understanding.
 **AI tools are welcome in the Fleet contributor workflow. But the human
 contributor is always accountable.**
 
+AI-assisted contributions must meet our [genuine investment and follow-through expectations](CONTRIBUTING.md#genuine-investment-in-fleet). AI tools do not replace commitment to Fleet or responsibility for follow-up work.
+
 ## Contribution Guidelines
 
 The following rules apply to every contribution, regardless of how it was produced:
@@ -55,8 +57,6 @@ Contributing is a collaborative process. When maintainers leave feedback, follow
   blindly apply the output. Your responses must reflect genuine understanding.
 - **No AI ping-pong.** If maintainers observe a pattern of AI-driven responses
   without real engagement, the PR will be closed.
-- Maintainers reserve the right to close any low-effort AI contribution without
-  a detailed technical critique.
 
 This is not an anti-AI stance. It is a stance for quality, openness, traceability, and sustainability.
 

@@ -327,6 +327,24 @@ func (mr *MockApplyMockRecorder) WithNoDeleteGVK(gvks ...any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WithNoDeleteGVK", reflect.TypeOf((*MockApply)(nil).WithNoDeleteGVK), gvks...)
 }
 
+// WithNullSafePatch mocks base method.
+func (m *MockApply) WithNullSafePatch(gvks ...schema.GroupVersionKind) apply.Apply {
+	m.ctrl.T.Helper()
+	varargs := []any{}
+	for _, a := range gvks {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "WithNullSafePatch", varargs...)
+	ret0, _ := ret[0].(apply.Apply)
+	return ret0
+}
+
+// WithNullSafePatch indicates an expected call of WithNullSafePatch.
+func (mr *MockApplyMockRecorder) WithNullSafePatch(gvks ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WithNullSafePatch", reflect.TypeOf((*MockApply)(nil).WithNullSafePatch), gvks...)
+}
+
 // WithOwner mocks base method.
 func (m *MockApply) WithOwner(obj runtime.Object) apply.Apply {
 	m.ctrl.T.Helper()
