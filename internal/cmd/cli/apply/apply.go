@@ -538,6 +538,10 @@ func bundleFromDir(ctx context.Context, name, baseDir string, opts Options) (*fl
 	} else if len(bundle.Spec.Resources) == 0 {
 		return nil, nil, ErrNoResources
 	}
+	// Checked while reading, as read errors prevent pruning bundles of the GitRepo.
+	if err := checkRepoLabel(bundle, opts); err != nil {
+		return nil, nil, err
+	}
 	return bundle, scans, nil
 }
 
@@ -549,9 +553,17 @@ func writeBundle(ctx context.Context, c client.Client, r record.EventRecorder, b
 
 	// We need to exit early if the bundle is being deleted
 	tmp := &fleet.Bundle{}
-	if err := c.Get(ctx, client.ObjectKey{Name: bundle.Name, Namespace: bundle.Namespace}, tmp); err == nil {
+	if err := c.Get(ctx, client.ObjectKey{Name: bundle.Name, Namespace: bundle.Namespace}, tmp); err != nil {
+		if !apierrors.IsNotFound(err) {
+			return err
+		}
+	} else {
 		if tmp.DeletionTimestamp != nil {
 			return fmt.Errorf("the bundle %q is being deleted, cannot create during a delete operation", bundle.Name)
+		}
+		// Checked before pushing to the OCI registry.
+		if err := checkBundleOwner(tmp, bundle); err != nil {
+			return err
 		}
 	}
 
@@ -565,7 +577,7 @@ func writeBundle(ctx context.Context, c client.Client, r record.EventRecorder, b
 	// secret if the values are empty.
 	if h != "" {
 		helmvalues.ClearValues(bundle)
-	} else if err := deleteSecretIfExists(ctx, c, bundle.Name, bundle.Namespace); err != nil {
+	} else if err := deleteValuesSecret(ctx, c, bundle); err != nil {
 		return err
 	}
 	bundle.Spec.ValuesHash = h
@@ -661,6 +673,46 @@ func pushOCIManifest(ctx context.Context, bundle *fleet.Bundle, opts ocistorage.
 	return manifestID, nil
 }
 
+// checkRepoLabel rejects bundles whose fleet.yaml labels override the GitRepo label passed to fleet apply, as that
+// label identifies the bundle's owner.
+func checkRepoLabel(bundle *fleet.Bundle, opts Options) error {
+	repo, ok := opts.Labels[fleet.RepoLabel]
+	if !ok {
+		return nil
+	}
+	if got := bundle.Labels[fleet.RepoLabel]; got != repo {
+		return fmt.Errorf(
+			"bundle %q in namespace %q sets label %s=%q, which conflicts with GitRepo %q; remove it from the labels in fleet.yaml",
+			bundle.Name, bundle.Namespace, fleet.RepoLabel, got, repo,
+		)
+	}
+	return nil
+}
+
+// checkBundleOwner prevents a bundle owned by a GitRepo from being overwritten by a bundle from another source, which
+// can happen when GitRepos in the same namespace use the same explicit bundle name in fleet.yaml. Overwriting would
+// transfer ownership and retarget the bundle, removing its resources from the original targets.
+func checkBundleOwner(existing, incoming *fleet.Bundle) error {
+	owner := existing.Labels[fleet.RepoLabel]
+	if owner == "" {
+		return nil
+	}
+	newOwner := incoming.Labels[fleet.RepoLabel]
+	if owner == newOwner {
+		return nil
+	}
+	if newOwner == "" {
+		return fmt.Errorf(
+			"bundle %q in namespace %q already belongs to GitRepo %q and cannot be overwritten by a bundle not belonging to that GitRepo; use a unique bundle name",
+			existing.Name, existing.Namespace, owner,
+		)
+	}
+	return fmt.Errorf(
+		"bundle %q in namespace %q already belongs to GitRepo %q and cannot be overwritten by GitRepo %q; use a unique bundle name in fleet.yaml",
+		existing.Name, existing.Namespace, owner, newOwner,
+	)
+}
+
 func save(ctx context.Context, c client.Client, bundle *fleet.Bundle) (*fleet.Bundle, error) {
 	updated := bundle.DeepCopy()
 	result, err := controllerutil.CreateOrUpdate(ctx, c, bundle, func() error {
@@ -670,6 +722,9 @@ func save(ctx context.Context, c client.Client, bundle *fleet.Bundle) (*fleet.Bu
 		// We cannot update a bundle that is going to be deleted, our update would be lost
 		if bundle.DeletionTimestamp != nil {
 			return fmt.Errorf("the bundle %q is being deleted", bundle.Name)
+		}
+		if err := checkBundleOwner(bundle, updated); err != nil {
+			return err
 		}
 
 		if bundle.Spec.ContentsID != "" {
@@ -731,6 +786,10 @@ func saveOCIBundle(ctx context.Context, c client.Client, r record.EventRecorder,
 
 		if bundle.Spec.HelmOpOptions != nil {
 			return fmt.Errorf("a helmOps bundle with name %q already exists", bundle.Name)
+		}
+
+		if err := checkBundleOwner(bundle, updated); err != nil {
+			return err
 		}
 
 		// If the current manifestID is different from the previous one,
@@ -927,18 +986,23 @@ func hasSubDirectoryWithResourcesAndWithoutFleetYaml(path string) (bool, error) 
 	return false, nil
 }
 
-func deleteSecretIfExists(ctx context.Context, c client.Client, name, ns string) error {
-	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: ns,
-		},
+// deleteValuesSecret deletes the values secret sharing the bundle's name, unless the secret carries the label of
+// another GitRepo. That happens when another GitRepo creates a bundle with the same name after the ownership check in
+// writeBundle; its values secret must be kept, and the bundle write is rejected afterwards.
+func deleteValuesSecret(ctx context.Context, c client.Client, bundle *fleet.Bundle) error {
+	secret := &corev1.Secret{}
+	if err := c.Get(ctx, client.ObjectKey{Name: bundle.Name, Namespace: bundle.Namespace}, secret); err != nil {
+		return client.IgnoreNotFound(err)
 	}
-	if err := c.Delete(ctx, secret); err != nil && !apierrors.IsNotFound(err) {
-		return err
+	if owner := secret.Labels[fleet.RepoLabel]; owner != "" && owner != bundle.Labels[fleet.RepoLabel] {
+		return nil
 	}
-
-	return nil
+	// Only delete the inspected secret, keeping one recreated or updated concurrently.
+	err := c.Delete(ctx, secret, client.Preconditions{UID: &secret.UID, ResourceVersion: &secret.ResourceVersion})
+	if apierrors.IsNotFound(err) || apierrors.IsConflict(err) {
+		return nil
+	}
+	return err
 }
 
 func sendWarningEvent(r record.EventRecorder, namespace, artifactID string, errorToLog error) {

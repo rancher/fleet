@@ -13,12 +13,14 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/wrangler/v3/pkg/schemes"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 )
 
 type failFirstBundleClient struct {
@@ -351,5 +353,327 @@ func TestCreateBundlesContinuesAfterWalkError(t *testing.T) {
 	}
 	if strings.Contains(output.String(), "name: repo-scan-ignored") {
 		t.Fatalf("did not expect output from the directory walk that failed, got %q", output.String())
+	}
+}
+
+func writeBundleDir(t *testing.T, dir, configMapName, fleetYAML string) {
+	t.Helper()
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "configmap.yaml"), []byte("apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: "+configMapName+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "fleet.yaml"), []byte(fleetYAML), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestCreateBundlesRejectsBundleOwnedByAnotherGitRepo(t *testing.T) {
+	scheme := runtime.NewScheme()
+	if err := fleet.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := corev1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	root := t.TempDir()
+	t.Chdir(root)
+	writeBundleDir(t, "prod", "prod", "name: collision-demo\nhelm:\n  values:\n    replicas: 1\ntargets:\n- clusterName: cluster-a\n")
+	writeBundleDir(t, "dev", "dev", "name: collision-demo\ntargets:\n- clusterName: cluster-b\n")
+	writeBundleDir(t, "prod-update", "prod", "name: collision-demo\ntargets:\n- clusterName: cluster-c\n")
+	writeBundleDir(t, "spoof", "dev", "name: collision-demo\nlabels:\n  "+fleet.RepoLabel+": app-prod\ntargets:\n- clusterName: cluster-b\n")
+
+	tests := map[string]func(context.Context, client.Client, record.EventRecorder, string, []string, Options) error{
+		"recursive scan": CreateBundles,
+		"driven scan":    CreateBundlesDriven,
+	}
+	for name, createBundles := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			kubeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
+			apply := func(repo string, labels map[string]string, dir string) error {
+				return createBundles(ctx, kubeClient, nil, repo, []string{dir}, Options{
+					Namespace:           "fleet-default",
+					Labels:              labels,
+					DrivenScanSeparator: ":",
+				})
+			}
+			key := client.ObjectKey{Name: "collision-demo", Namespace: "fleet-default"}
+
+			if err := apply("app-prod", map[string]string{fleet.RepoLabel: "app-prod"}, "prod"); err != nil {
+				t.Fatalf("expected first GitRepo to create the bundle, got %v", err)
+			}
+			original := &fleet.Bundle{}
+			if err := kubeClient.Get(ctx, key, original); err != nil {
+				t.Fatal(err)
+			}
+
+			err := apply("app-dev", map[string]string{fleet.RepoLabel: "app-dev"}, "dev")
+			if err == nil {
+				t.Fatal("expected bundle owned by another GitRepo to be rejected")
+			}
+			for _, s := range []string{`"collision-demo"`, `"app-prod"`, `"app-dev"`} {
+				if !strings.Contains(err.Error(), s) {
+					t.Fatalf("expected error to contain %s, got %v", s, err)
+				}
+			}
+
+			otherKey := client.ObjectKey{Name: "app-dev-other", Namespace: "fleet-default"}
+			if err := kubeClient.Create(ctx, &fleet.Bundle{ObjectMeta: metav1.ObjectMeta{
+				Name:      otherKey.Name,
+				Namespace: otherKey.Namespace,
+				Labels:    map[string]string{fleet.RepoLabel: "app-dev"},
+			}}); err != nil {
+				t.Fatal(err)
+			}
+			err = apply("app-dev", map[string]string{fleet.RepoLabel: "app-dev"}, "spoof")
+			if err == nil || !strings.Contains(err.Error(), fleet.RepoLabel) {
+				t.Fatalf("expected fleet.yaml overriding the GitRepo label to be rejected, got %v", err)
+			}
+			if err := kubeClient.Get(ctx, otherKey, &fleet.Bundle{}); err != nil {
+				t.Fatalf("expected rejected fleet.yaml label to prevent pruning bundles of the GitRepo, got %v", err)
+			}
+
+			err = apply("manual", nil, "dev")
+			if err == nil || !strings.Contains(err.Error(), `"app-prod"`) {
+				t.Fatalf("expected bundle without GitRepo label to be rejected, got %v", err)
+			}
+
+			current := &fleet.Bundle{}
+			if err := kubeClient.Get(ctx, key, current); err != nil {
+				t.Fatal(err)
+			}
+			if current.ResourceVersion != original.ResourceVersion {
+				t.Fatalf("expected rejected collisions to leave the bundle unchanged, got %+v", current)
+			}
+			if err := kubeClient.Get(ctx, key, &corev1.Secret{}); err != nil {
+				t.Fatalf("expected values secret of the existing bundle to be kept, got %v", err)
+			}
+
+			if err := apply("app-prod", map[string]string{fleet.RepoLabel: "app-prod"}, "prod-update"); err != nil {
+				t.Fatalf("expected owning GitRepo to update the bundle, got %v", err)
+			}
+			if err := kubeClient.Get(ctx, key, current); err != nil {
+				t.Fatal(err)
+			}
+			if got := current.Spec.Targets; len(got) != 1 || got[0].ClusterName != "cluster-c" {
+				t.Fatalf("expected owning GitRepo update to change targets, got %+v", got)
+			}
+			if err := kubeClient.Get(ctx, key, &corev1.Secret{}); !apierrors.IsNotFound(err) {
+				t.Fatalf("expected values secret to be deleted once the owning GitRepo removes the values, got %v", err)
+			}
+		})
+	}
+}
+
+func TestCreateBundlesAdoptsBundleWithoutGitRepo(t *testing.T) {
+	scheme := runtime.NewScheme()
+	if err := fleet.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := corev1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	root := t.TempDir()
+	t.Chdir(root)
+	writeBundleDir(t, "dev", "dev", "name: collision-demo\ntargets:\n- clusterName: cluster-b\n")
+
+	ctx := context.Background()
+	kubeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(&fleet.Bundle{
+		ObjectMeta: metav1.ObjectMeta{Name: "collision-demo", Namespace: "fleet-default"},
+	}).Build()
+	if err := CreateBundles(ctx, kubeClient, nil, "app-dev", []string{"dev"}, Options{
+		Namespace: "fleet-default",
+		Labels:    map[string]string{fleet.RepoLabel: "app-dev"},
+	}); err != nil {
+		t.Fatalf("expected bundle without GitRepo label to be adopted, got %v", err)
+	}
+
+	bundle := &fleet.Bundle{}
+	if err := kubeClient.Get(ctx, client.ObjectKey{Name: "collision-demo", Namespace: "fleet-default"}, bundle); err != nil {
+		t.Fatal(err)
+	}
+	if bundle.Labels[fleet.RepoLabel] != "app-dev" {
+		t.Fatalf("expected adopted bundle to belong to GitRepo app-dev, got labels %v", bundle.Labels)
+	}
+	if got := bundle.Spec.Targets; len(got) != 1 || got[0].ClusterName != "cluster-b" {
+		t.Fatalf("expected adopted bundle to use targets of GitRepo app-dev, got %+v", got)
+	}
+}
+
+// TestCreateBundlesKeepsValuesSecretOnConcurrentCollision covers a bundle created by another GitRepo after the initial
+// ownership check, which must not delete the values secret of that bundle.
+func TestCreateBundlesKeepsValuesSecretOnConcurrentCollision(t *testing.T) {
+	scheme := runtime.NewScheme()
+	if err := fleet.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := corev1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	root := t.TempDir()
+	t.Chdir(root)
+	writeBundleDir(t, "dev", "dev", "name: collision-demo\ntargets:\n- clusterName: cluster-b\n")
+
+	ctx := context.Background()
+	key := client.ObjectKey{Name: "collision-demo", Namespace: "fleet-default"}
+	hideBundle := true
+	kubeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+		&fleet.Bundle{ObjectMeta: metav1.ObjectMeta{
+			Name:      key.Name,
+			Namespace: key.Namespace,
+			Labels:    map[string]string{fleet.RepoLabel: "app-prod"},
+		}},
+		&corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      key.Name,
+				Namespace: key.Namespace,
+				Labels:    map[string]string{fleet.RepoLabel: "app-prod"},
+			},
+			Data: map[string][]byte{"values.yaml": []byte(`{"replicas":1}`)},
+		},
+	).WithInterceptorFuncs(interceptor.Funcs{
+		Get: func(ctx context.Context, c client.WithWatch, k client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+			if _, ok := obj.(*fleet.Bundle); ok && k == key && hideBundle {
+				hideBundle = false
+				return apierrors.NewNotFound(fleet.SchemeGroupVersion.WithResource("bundles").GroupResource(), k.Name)
+			}
+			return c.Get(ctx, k, obj, opts...)
+		},
+	}).Build()
+
+	err := CreateBundles(ctx, kubeClient, nil, "app-dev", []string{"dev"}, Options{
+		Namespace: "fleet-default",
+		Labels:    map[string]string{fleet.RepoLabel: "app-dev"},
+	})
+	if err == nil || !strings.Contains(err.Error(), `"app-prod"`) {
+		t.Fatalf("expected bundle owned by another GitRepo to be rejected, got %v", err)
+	}
+	if err := kubeClient.Get(ctx, key, &corev1.Secret{}); err != nil {
+		t.Fatalf("expected values secret of the existing bundle to be kept, got %v", err)
+	}
+}
+
+// TestCreateBundlesKeepsValuesSecretWrittenConcurrently covers a concurrent apply of the same GitRepo writing values
+// after this apply saved the bundle without values, which must not delete the values secret of the newer write.
+func TestCreateBundlesKeepsValuesSecretWrittenConcurrently(t *testing.T) {
+	scheme := runtime.NewScheme()
+	if err := fleet.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := corev1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	root := t.TempDir()
+	t.Chdir(root)
+	writeBundleDir(t, "prod", "prod", "name: collision-demo\ntargets:\n- clusterName: cluster-a\n")
+
+	ctx := context.Background()
+	key := client.ObjectKey{Name: "collision-demo", Namespace: "fleet-default"}
+	labels := map[string]string{fleet.RepoLabel: "app-prod"}
+	kubeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+		&fleet.Bundle{ObjectMeta: metav1.ObjectMeta{Name: key.Name, Namespace: key.Namespace, Labels: labels}},
+	).WithInterceptorFuncs(interceptor.Funcs{
+		Update: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.UpdateOption) error {
+			if err := c.Update(ctx, obj, opts...); err != nil {
+				return err
+			}
+			if _, ok := obj.(*fleet.Bundle); !ok {
+				return nil
+			}
+			return c.Create(ctx, &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: key.Name, Namespace: key.Namespace, Labels: labels},
+				Data:       map[string][]byte{"values.yaml": []byte(`{"replicas":2}`)},
+			})
+		},
+	}).Build()
+
+	if err := CreateBundles(ctx, kubeClient, nil, "app-prod", []string{"prod"}, Options{
+		Namespace: "fleet-default",
+		Labels:    labels,
+	}); err != nil {
+		t.Fatalf("expected owning GitRepo to update the bundle, got %v", err)
+	}
+	if err := kubeClient.Get(ctx, key, &corev1.Secret{}); err != nil {
+		t.Fatalf("expected values secret written concurrently to be kept, got %v", err)
+	}
+}
+
+func TestCreateBundlesFailsOnBundleReadError(t *testing.T) {
+	scheme := runtime.NewScheme()
+	if err := fleet.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := corev1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	root := t.TempDir()
+	t.Chdir(root)
+	writeBundleDir(t, "dev", "dev", "name: collision-demo\ntargets:\n- clusterName: cluster-b\n")
+
+	ctx := context.Background()
+	readErr := errors.New("bundle read failed")
+	failRead := true
+	kubeClient := fake.NewClientBuilder().WithScheme(scheme).WithInterceptorFuncs(interceptor.Funcs{
+		Get: func(ctx context.Context, c client.WithWatch, k client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+			if _, ok := obj.(*fleet.Bundle); ok && failRead {
+				failRead = false
+				return readErr
+			}
+			return c.Get(ctx, k, obj, opts...)
+		},
+		Create: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.CreateOption) error {
+			t.Errorf("expected no object to be created, got %T %s", obj, obj.GetName())
+			return errors.New("unexpected create")
+		},
+	}).Build()
+
+	err := CreateBundles(ctx, kubeClient, nil, "app-dev", []string{"dev"}, Options{
+		Namespace: "fleet-default",
+		Labels:    map[string]string{fleet.RepoLabel: "app-dev"},
+	})
+	if !errors.Is(err, readErr) {
+		t.Fatalf("expected bundle read error to be returned, got %v", err)
+	}
+}
+
+func TestCreateBundlesGeneratesDistinctNamesPerGitRepo(t *testing.T) {
+	scheme := runtime.NewScheme()
+	if err := fleet.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := corev1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	root := t.TempDir()
+	t.Chdir(root)
+	writeBundleDir(t, "app", "app", "targets:\n- clusterName: cluster-a\n")
+
+	ctx := context.Background()
+	kubeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
+	for _, repo := range []string{"app-prod", "app-dev"} {
+		if err := CreateBundles(ctx, kubeClient, nil, repo, []string{"app"}, Options{
+			Namespace: "fleet-default",
+			Labels:    map[string]string{fleet.RepoLabel: repo},
+		}); err != nil {
+			t.Fatalf("expected GitRepo %s to create its bundle, got %v", repo, err)
+		}
+	}
+
+	for _, repo := range []string{"app-prod", "app-dev"} {
+		bundle := &fleet.Bundle{}
+		if err := kubeClient.Get(ctx, client.ObjectKey{Name: repo + "-app", Namespace: "fleet-default"}, bundle); err != nil {
+			t.Fatalf("expected bundle for GitRepo %s, got %v", repo, err)
+		}
+		if bundle.Labels[fleet.RepoLabel] != repo {
+			t.Fatalf("expected bundle to belong to GitRepo %s, got labels %v", repo, bundle.Labels)
+		}
 	}
 }
