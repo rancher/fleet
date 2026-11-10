@@ -21,7 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	fleetgit "github.com/rancher/fleet/pkg/git"
+	"github.com/rancher/fleet/internal/netx"
 )
 
 // newSelfSignedTLSServer returns an HTTPS test server with a freshly generated
@@ -137,7 +137,7 @@ func TestGitDownloadProxyCABundle(t *testing.T) {
 	otherSrv, otherCertPEM := newSelfSignedTLSServer(t)
 
 	t.Run("PROXY_CA_BUNDLE alone trusts the server", func(t *testing.T) {
-		t.Setenv(fleetgit.ProxyCABundleEnvVar, string(srvCertPEM))
+		t.Setenv(netx.ProxyCABundleEnvVar, string(srvCertPEM))
 		dst := t.TempDir()
 		err := gitDownload(context.Background(), dst, srv.URL, Auth{})
 		require.Error(t, err)
@@ -147,7 +147,7 @@ func TestGitDownloadProxyCABundle(t *testing.T) {
 
 	t.Run("PROXY_CA_BUNDLE is merged with auth.CABundle", func(t *testing.T) {
 		// auth.CABundle covers srv; PROXY_CA_BUNDLE covers otherSrv.
-		t.Setenv(fleetgit.ProxyCABundleEnvVar, string(otherCertPEM))
+		t.Setenv(netx.ProxyCABundleEnvVar, string(otherCertPEM))
 
 		// auth.CABundle server: trusted via auth.CABundle (PROXY_CA_BUNDLE not needed).
 		dst := t.TempDir()
@@ -163,7 +163,7 @@ func TestGitDownloadProxyCABundle(t *testing.T) {
 	})
 
 	t.Run("empty PROXY_CA_BUNDLE uses auth.CABundle only", func(t *testing.T) {
-		t.Setenv(fleetgit.ProxyCABundleEnvVar, "")
+		t.Setenv(netx.ProxyCABundleEnvVar, "")
 		dst := t.TempDir()
 		err := gitDownload(context.Background(), dst, srv.URL, Auth{CABundle: srvCertPEM})
 		require.Error(t, err)
@@ -173,7 +173,7 @@ func TestGitDownloadProxyCABundle(t *testing.T) {
 	t.Run("wrong PROXY_CA_BUNDLE without auth.CABundle fails with TLS error", func(t *testing.T) {
 		// otherCertPEM does not cover srv, and there is no auth.CABundle fallback,
 		// so TLS must fail with a certificate error.
-		t.Setenv(fleetgit.ProxyCABundleEnvVar, string(otherCertPEM))
+		t.Setenv(netx.ProxyCABundleEnvVar, string(otherCertPEM))
 		dst := t.TempDir()
 		err := gitDownload(context.Background(), dst, srv.URL, Auth{})
 		require.Error(t, err)
@@ -181,7 +181,7 @@ func TestGitDownloadProxyCABundle(t *testing.T) {
 	})
 
 	t.Run("no PROXY_CA_BUNDLE and no auth.CABundle fails with TLS error", func(t *testing.T) {
-		t.Setenv(fleetgit.ProxyCABundleEnvVar, "")
+		t.Setenv(netx.ProxyCABundleEnvVar, "")
 		dst := t.TempDir()
 		err := gitDownload(context.Background(), dst, srv.URL, Auth{})
 		require.Error(t, err)

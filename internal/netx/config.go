@@ -4,6 +4,9 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"os"
+
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 // TLSConfig holds TLS settings for outbound connections.
@@ -36,4 +39,24 @@ func (c TLSConfig) TLSClientConfig() (*tls.Config, error) {
 	}
 
 	return cfg, nil
+}
+
+// WithProxyCA returns a copy of c with the PEM certificates from
+// PROXY_CA_BUNDLE appended to CABundle. An invalid PROXY_CA_BUNDLE is logged
+// and ignored. The caller's CABundle slice is never modified.
+func (c TLSConfig) WithProxyCA() TLSConfig {
+	c.CABundle = append([]byte(nil), c.CABundle...)
+	if proxyCAPEM, ok := os.LookupEnv(ProxyCABundleEnvVar); ok && proxyCAPEM != "" {
+		proxyBytes := []byte(proxyCAPEM)
+		tmpPool := x509.NewCertPool()
+		if !tmpPool.AppendCertsFromPEM(proxyBytes) {
+			log.Log.Info(ProxyCABundleEnvVar + " is set but contains no valid PEM certificates; ignoring proxy CA bundle")
+		} else {
+			if len(c.CABundle) > 0 && c.CABundle[len(c.CABundle)-1] != '\n' {
+				c.CABundle = append(c.CABundle, '\n')
+			}
+			c.CABundle = append(c.CABundle, proxyBytes...)
+		}
+	}
+	return c
 }
