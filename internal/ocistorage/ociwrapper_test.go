@@ -5,8 +5,10 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/pem"
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"os"
 
 	"github.com/opencontainers/go-digest"
@@ -512,6 +514,30 @@ DXZDjC5Ty3zfDBeWUA==
 		}
 		_, err := oci.PullManifest(context.Background(), opts, "s-123456")
 		Expect(err.Error()).To(Equal("expecting 1 Annotation in layer descriptor. Found 0"))
+	})
+	It("trusts PROXY_CA_BUNDLE when no CA bundle is set", func() {
+		ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+		defer ts.Close()
+		caDER := ts.TLS.Certificates[0].Certificate[0]
+		caPEM := string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: caDER}))
+
+		GinkgoT().Setenv(netx.ProxyCABundleEnvVar, caPEM)
+
+		client, err := getHTTPClient(netx.TLSConfig{})
+		Expect(err).ToNot(HaveOccurred())
+
+		// Without WithProxyCA this is retry.DefaultClient.Transport, not *retry.Transport
+		uaT, ok := client.Transport.(httputils.UserAgentTransport)
+		Expect(ok).To(BeTrue())
+		retryT, ok := uaT.Next.(*retry.Transport)
+		Expect(ok).To(BeTrue())
+		transport, ok := retryT.Base.(*http.Transport)
+		Expect(ok).To(BeTrue())
+
+		want, err := x509.SystemCertPool()
+		Expect(err).ToNot(HaveOccurred())
+		Expect(want.AppendCertsFromPEM([]byte(caPEM))).To(BeTrue())
+		Expect(transport.TLSClientConfig.RootCAs.Equal(want)).To(BeTrue())
 	})
 })
 
