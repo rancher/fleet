@@ -55,17 +55,9 @@ func (c *SelectorCache) Set(namespace, name, resourceVersion string, selector la
 	}
 }
 
-// Retain removes the entries in namespace not in keep. Every name in keep must already be
-// cached, as equal counts are taken to mean there is nothing to remove.
+// Retain removes the entries in namespace not in keep.
 func (c *SelectorCache) Retain(namespace string, keep map[string]struct{}) {
 	if c == nil {
-		return
-	}
-
-	c.mut.RLock()
-	unchanged := len(c.namespaces[namespace]) == len(keep)
-	c.mut.RUnlock()
-	if unchanged {
 		return
 	}
 

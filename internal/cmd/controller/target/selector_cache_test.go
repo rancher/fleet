@@ -36,3 +36,21 @@ func TestSelectorCache_Cleanup(t *testing.T) {
 	assert.Contains(t, sc.namespaces, "ns1", "other namespaces should be kept")
 	assert.Len(t, sc.namespaces, expected_len, "non-active ClusterGroup should be removed")
 }
+
+// Two overlapping ClusterGroupsForCluster calls on the same namespace: A listed {old, x} before
+// old was deleted, B listed {x, new} after new was created. A's Retain evicts new, which B
+// cached, so B's Retain sees as many entries as it keeps while the names differ.
+func TestSelectorCache_RetainConcurrentCallers(t *testing.T) {
+	sc := &SelectorCache{}
+
+	sc.Set("ns", "old", "1", labels.Everything()) // A
+	sc.Set("ns", "x", "1", labels.Everything())   // A
+	sc.Set("ns", "x", "1", labels.Everything())   // B
+	sc.Set("ns", "new", "1", labels.Everything()) // B
+
+	sc.Retain("ns", map[string]struct{}{"old": {}, "x": {}}) // A
+	sc.Retain("ns", map[string]struct{}{"x": {}, "new": {}}) // B
+
+	assert.NotContains(t, sc.namespaces["ns"], "old", "ClusterGroup missing from the latest list should be removed")
+	assert.Contains(t, sc.namespaces["ns"], "x", "listed ClusterGroup should be kept")
+}
