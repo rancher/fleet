@@ -51,6 +51,19 @@ type Policy struct {
 	// +optional
 	AllowNamespaceCreation bool `json:"allowNamespaceCreation,omitempty"`
 
+	// AllowedDownstreamResources lists the Secrets and ConfigMaps that GitRepo,
+	// HelmOp, and Bundle resources may copy to downstream clusters through
+	// downstreamResources. The Fleet controller reads those objects with its
+	// own credentials, so whoever creates the resource needs no access to them.
+	// This list decides which of them may be copied.
+	//
+	// If non-empty, every Secret and ConfigMap in downstreamResources must
+	// match an entry. If empty, none may be copied when RequireServiceAccount
+	// is true, and all may be copied otherwise.
+	// +optional
+	// +nullable
+	AllowedDownstreamResources []AllowedDownstreamResource `json:"allowedDownstreamResources,omitempty"`
+
 	// GitRepo contains restrictions and defaults applied only by the GitRepo reconciler.
 	// +optional
 	GitRepo *GitRepoPolicySpec `json:"gitRepo,omitempty"`
@@ -58,6 +71,27 @@ type Policy struct {
 	// HelmOp contains restrictions and defaults applied only by the HelmOp reconciler.
 	// +optional
 	HelmOp *HelmOpPolicySpec `json:"helmOp,omitempty"`
+}
+
+// AllowedDownstreamResource allows Secrets or ConfigMaps to be copied to
+// downstream clusters, either by exact name or by name pattern.
+// +kubebuilder:validation:XValidation:rule="has(self.name) != has(self.namePattern)",message="exactly one of name or namePattern must be set"
+type AllowedDownstreamResource struct {
+	// Kind is the kind of the allowed objects.
+	// +kubebuilder:validation:Enum=Secret;ConfigMap
+	Kind string `json:"kind"`
+
+	// Name allows the object with exactly this name.
+	// +optional
+	// +kubebuilder:validation:MinLength=1
+	Name string `json:"name,omitempty"`
+
+	// NamePattern is a regex pattern that allows every object whose name
+	// matches it. The pattern is anchored as ^(?:<pattern>)$, so explicit ^ and
+	// $ anchors are not required.
+	// +optional
+	// +kubebuilder:validation:MinLength=1
+	NamePattern string `json:"namePattern,omitempty"`
 }
 
 // GitRepoPolicySpec holds GitRepo-specific defaults and source restrictions.
