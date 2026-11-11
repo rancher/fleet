@@ -74,6 +74,7 @@ var _ = BeforeSuite(func() {
 		Builder:   builder,
 		Store:     store,
 		Query:     builder,
+		Recorder:  mgr.GetEventRecorderFor("fleet-bundle-ctrl"), //nolint:staticcheck // GetEventRecorderFor is deprecated
 		Workers:   50,
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred(), "failed to set up manager")

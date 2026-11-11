@@ -8045,6 +8045,50 @@ spec:
               through other means (ValidatingAdmissionPolicy, Kyverno, etc.) can
               set this to true.
             type: boolean
+          allowedDownstreamResources:
+            description: |-
+              AllowedDownstreamResources lists the Secrets and ConfigMaps that GitRepo,
+              HelmOp, and Bundle resources may copy to downstream clusters through
+              downstreamResources. The Fleet controller reads those objects with its
+              own credentials, so whoever creates the resource needs no access to them.
+              This list decides which of them may be copied.
+
+              If non-empty, every Secret and ConfigMap in downstreamResources must
+              match an entry. If empty, none may be copied when RequireServiceAccount
+              is true, and all may be copied otherwise.
+
+              Only enforced when EXPERIMENTAL_COPY_RESOURCES_DOWNSTREAM is enabled, as
+              nothing is copied otherwise.
+            items:
+              description: |-
+                AllowedDownstreamResource allows Secrets or ConfigMaps to be copied to
+                downstream clusters, either by exact name or by name pattern.
+              properties:
+                kind:
+                  description: Kind is the kind of the allowed objects.
+                  enum:
+                  - Secret
+                  - ConfigMap
+                  type: string
+                name:
+                  description: Name allows the object with exactly this name.
+                  minLength: 1
+                  type: string
+                namePattern:
+                  description: |-
+                    NamePattern is a regex pattern that allows every object whose name
+                    matches it. The pattern is anchored as ^(?:<pattern>)$, so explicit ^ and
+                    $ anchors are not required.
+                  minLength: 1
+                  type: string
+              required:
+              - kind
+              type: object
+              x-kubernetes-validations:
+              - message: exactly one of name or namePattern must be set
+                rule: has(self.name) != has(self.namePattern)
+            nullable: true
+            type: array
           allowedServiceAccounts:
             description: |-
               AllowedServiceAccounts lists service accounts that may be used.

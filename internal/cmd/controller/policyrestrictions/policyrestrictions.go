@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"slices"
 	"sort"
+	"strings"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
@@ -16,6 +17,8 @@ type Merged struct {
 	RequireServiceAccount  bool
 	AllowedServiceAccounts []string
 	AllowNamespaceCreation bool
+	// AllowedDownstreamResources is unioned across all Policy objects.
+	AllowedDownstreamResources []fleet.AllowedDownstreamResource
 
 	// GitRepo-specific
 	GitDefaultServiceAccount    string
@@ -53,6 +56,7 @@ func Aggregate(policies []fleet.Policy) Merged {
 			m.AllowNamespaceCreation = true
 		}
 		m.AllowedServiceAccounts = append(m.AllowedServiceAccounts, p.AllowedServiceAccounts...)
+		m.AllowedDownstreamResources = append(m.AllowedDownstreamResources, p.AllowedDownstreamResources...)
 
 		if p.GitRepo != nil {
 			if m.GitDefaultServiceAccount == "" {
@@ -121,4 +125,40 @@ func IsAllowedByRegex(currentValue, defaultValue string, patterns []string) (str
 		}
 	}
 	return currentValue, fmt.Errorf("%s not in allowed set %v", currentValue, patterns)
+}
+
+// DownstreamResourceRestricted reports whether m restricts which Secrets and
+// ConfigMaps may be copied downstream: either it lists allowed ones, or it
+// requires a ServiceAccount, in which case an empty list allows none.
+func (m Merged) DownstreamResourceRestricted() bool {
+	return m.RequireServiceAccount || len(m.AllowedDownstreamResources) > 0
+}
+
+// IsDownstreamResourceAllowed reports whether an object of the given kind and
+// name matches an entry in allowed. Kinds are compared case-insensitively, as
+// downstreamResources accepts them in any case. An error is returned only for
+// a pattern that does not compile.
+func IsDownstreamResourceAllowed(kind, name string, allowed []fleet.AllowedDownstreamResource) (bool, error) {
+	for _, a := range allowed {
+		if !strings.EqualFold(a.Kind, kind) {
+			continue
+		}
+		if a.Name != "" {
+			if a.Name == name {
+				return true, nil
+			}
+			continue
+		}
+		if a.NamePattern == "" {
+			continue
+		}
+		p, err := regexp.Compile("^(?:" + a.NamePattern + ")$")
+		if err != nil {
+			return false, fmt.Errorf("policy failed to compile regex %q: %w", a.NamePattern, err)
+		}
+		if p.MatchString(name) {
+			return true, nil
+		}
+	}
+	return false, nil
 }
