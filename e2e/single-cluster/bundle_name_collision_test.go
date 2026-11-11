@@ -45,6 +45,20 @@ var _ = Describe("GitRepos using the same explicit bundle name", Label("infra-se
 		Expect(err).ToNot(HaveOccurred())
 	}
 
+	stalledMessage := func(g Gomega, name string) string {
+		for _, cond := range getGitRepoStatus(g, k, name).Conditions {
+			if cond.Type == "Stalled" {
+				return cond.Message
+			}
+		}
+		return ""
+	}
+
+	collisionError := func() string {
+		return `bundle "` + bundleName + `" in namespace "fleet-local" already belongs to GitRepo "` + ownerName +
+			`" and cannot be overwritten by GitRepo "` + otherName + `"`
+	}
+
 	BeforeEach(func() {
 		k = env.Kubectl.Namespace(env.Namespace)
 		ownerName = testenv.RandomFilename("collision-owner", r)
@@ -86,18 +100,7 @@ var _ = Describe("GitRepos using the same explicit bundle name", Label("infra-se
 		By("rejecting the same bundle name from another GitRepo with different targets")
 		applyGitRepo(otherName, "does-not-exist")
 		Eventually(func(g Gomega) {
-			status := getGitRepoStatus(g, k, otherName)
-			stalledMessage := ""
-			for _, cond := range status.Conditions {
-				if cond.Type == "Stalled" {
-					stalledMessage = cond.Message
-					break
-				}
-			}
-			g.Expect(stalledMessage).To(ContainSubstring(
-				`bundle "` + bundleName + `" in namespace "fleet-local" already belongs to GitRepo "` + ownerName +
-					`" and cannot be overwritten by GitRepo "` + otherName + `"`,
-			))
+			g.Expect(stalledMessage(g, otherName)).To(ContainSubstring(collisionError()))
 		}).Should(Succeed())
 
 		By("keeping the existing bundle, its targets and its deployed resources")
@@ -125,5 +128,69 @@ var _ = Describe("GitRepos using the same explicit bundle name", Label("infra-se
 			g.Expect(err).ToNot(HaveOccurred(), out)
 			g.Expect(out).To(Equal("updated"))
 		}).Should(Succeed())
+	})
+
+	It("hands the bundle and its deployed resources over to another GitRepo after the owner is deleted with keepResources", func() {
+		By("deploying the bundle from the owning GitRepo")
+		applyGitRepo(ownerName, "local")
+		var uid string
+		Eventually(func(g Gomega) {
+			out, err := k.Get("bundle", bundleName, `-o=jsonpath={.metadata.labels.fleet\.cattle\.io/repo-name}`)
+			g.Expect(err).ToNot(HaveOccurred(), out)
+			g.Expect(out).To(Equal(ownerName))
+
+			uid, err = k.Namespace(targetNamespace).Get("configmap", configMapName, "-o=jsonpath={.metadata.uid}")
+			g.Expect(err).ToNot(HaveOccurred(), uid)
+			g.Expect(uid).ToNot(BeEmpty())
+		}).Should(Succeed())
+
+		By("rejecting the same bundle name from another GitRepo")
+		applyGitRepo(otherName, "local")
+		Eventually(func(g Gomega) {
+			g.Expect(stalledMessage(g, otherName)).To(ContainSubstring(collisionError()))
+		}).Should(Succeed())
+
+		By("enabling keepResources on the owning GitRepo")
+		out, err := k.Patch("gitrepo", ownerName, "--type=merge", "-p", `{"spec":{"keepResources":true}}`)
+		Expect(err).ToNot(HaveOccurred(), out)
+		Eventually(func(g Gomega) {
+			out, err := k.Get("bundledeployments", "-A", "-l", "fleet.cattle.io/bundle-name="+bundleName,
+				"-o=jsonpath={.items[*].spec.options.keepResources}")
+			g.Expect(err).ToNot(HaveOccurred(), out)
+			g.Expect(out).To(Equal("true"))
+		}).Should(Succeed())
+
+		By("deleting the owning GitRepo")
+		out, err = k.Delete("gitrepo", ownerName)
+		Expect(err).ToNot(HaveOccurred(), out)
+		Eventually(func(g Gomega) {
+			out, _ := k.Get("bundle", bundleName)
+			g.Expect(out).To(ContainSubstring("NotFound"))
+
+			out, err := k.Namespace(targetNamespace).Get("secrets", "-l", "owner=helm", "-o=jsonpath={.items[*].metadata.name}")
+			g.Expect(err).ToNot(HaveOccurred(), out)
+			g.Expect(out).To(BeEmpty())
+		}).Should(Succeed())
+
+		By("force-syncing the other GitRepo")
+		out, err = k.Patch("gitrepo", otherName, "--type=merge", "-p", `{"spec":{"forceSyncGeneration":1}}`)
+		Expect(err).ToNot(HaveOccurred(), out)
+
+		By("adopting the bundle and keeping the deployed resources")
+		Eventually(func(g Gomega) {
+			out, err := k.Get("bundle", bundleName, `-o=jsonpath={.metadata.labels.fleet\.cattle\.io/repo-name}`)
+			g.Expect(err).ToNot(HaveOccurred(), out)
+			g.Expect(out).To(Equal(otherName))
+
+			out, err = k.Namespace(targetNamespace).Get("secrets", "-l", "owner=helm", "-o=jsonpath={.items[*].metadata.name}")
+			g.Expect(err).ToNot(HaveOccurred(), out)
+			g.Expect(out).ToNot(BeEmpty())
+
+			g.Expect(stalledMessage(g, otherName)).To(BeEmpty())
+		}).Should(Succeed())
+
+		out, err = k.Namespace(targetNamespace).Get("configmap", configMapName, "-o=jsonpath={.metadata.uid}")
+		Expect(err).ToNot(HaveOccurred(), out)
+		Expect(out).To(Equal(uid), "expected the configmap to be adopted, not recreated")
 	})
 })
