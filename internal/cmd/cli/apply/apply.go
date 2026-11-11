@@ -556,11 +556,13 @@ func writeBundle(ctx context.Context, c client.Client, r record.EventRecorder, b
 
 	// We need to exit early if the bundle is being deleted
 	tmp := &fleet.Bundle{}
+	exists := false
 	if err := c.Get(ctx, client.ObjectKey{Name: bundle.Name, Namespace: bundle.Namespace}, tmp); err != nil {
 		if !apierrors.IsNotFound(err) {
 			return err
 		}
 	} else {
+		exists = true
 		if tmp.DeletionTimestamp != nil {
 			return fmt.Errorf("the bundle %q is being deleted, cannot create during a delete operation", bundle.Name)
 		}
@@ -577,11 +579,16 @@ func writeBundle(ctx context.Context, c client.Client, r record.EventRecorder, b
 
 	// If values were found in the bundle the hash is not empty, we
 	// remove the values from the bundle. Also, delete any old
-	// secret if the values are empty.
+	// secret if the values are empty. The secret is owned by the
+	// bundle, so there is none to delete if the bundle did not exist;
+	// this also keeps the secret of a bundle created concurrently by
+	// another GitRepo, whose ownership check rejects this write.
 	if h != "" {
 		helmvalues.ClearValues(bundle)
-	} else if err := deleteValuesSecret(ctx, c, bundle); err != nil {
-		return err
+	} else if exists {
+		if err := deleteSecretIfExists(ctx, c, bundle.Name, bundle.Namespace); err != nil {
+			return err
+		}
 	}
 	bundle.Spec.ValuesHash = h
 
@@ -973,23 +980,18 @@ func hasSubDirectoryWithResourcesAndWithoutFleetYaml(path string) (bool, error) 
 	return false, nil
 }
 
-// deleteValuesSecret deletes the values secret sharing the bundle's name, unless the secret carries the label of
-// another GitRepo. That happens when another GitRepo creates a bundle with the same name after the ownership check in
-// writeBundle; its values secret must be kept, and the bundle write is rejected afterwards.
-func deleteValuesSecret(ctx context.Context, c client.Client, bundle *fleet.Bundle) error {
-	secret := &corev1.Secret{}
-	if err := c.Get(ctx, client.ObjectKey{Name: bundle.Name, Namespace: bundle.Namespace}, secret); err != nil {
-		return client.IgnoreNotFound(err)
+func deleteSecretIfExists(ctx context.Context, c client.Client, name, ns string) error {
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: ns,
+		},
 	}
-	if owner := secret.Labels[fleet.RepoLabel]; owner != "" && owner != bundle.Labels[fleet.RepoLabel] {
-		return nil
+	if err := c.Delete(ctx, secret); err != nil && !apierrors.IsNotFound(err) {
+		return err
 	}
-	// Only delete the inspected secret, keeping one recreated or updated concurrently.
-	err := c.Delete(ctx, secret, client.Preconditions{UID: &secret.UID, ResourceVersion: &secret.ResourceVersion})
-	if apierrors.IsNotFound(err) || apierrors.IsConflict(err) {
-		return nil
-	}
-	return err
+
+	return nil
 }
 
 func sendWarningEvent(r record.EventRecorder, namespace, artifactID string, errorToLog error) {
