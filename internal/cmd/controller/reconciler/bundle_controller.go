@@ -152,6 +152,14 @@ func (r *BundleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			handler.EnqueueRequestsFromMapFunc(r.downstreamResourceMapFunc("ConfigMap")),
 			builder.WithPredicates(dataChangedPredicate()),
 		).
+		Watches(
+			// Fan out from policy to bundle. A Bundle refused by Policy is not
+			// requeued, so a Policy change must trigger the check again, and a
+			// new or stricter Policy must apply to Bundles already deployed.
+			&fleet.Policy{},
+			handler.EnqueueRequestsFromMapFunc(r.policyMapFunc),
+			builder.WithPredicates(predicate.GenerationChangedPredicate{}),
+		).
 		WithOptions(controller.Options{MaxConcurrentReconciles: r.Workers}).
 		Complete(r)
 }
@@ -166,6 +174,7 @@ func (r *BundleReconciler) handleMatchedTarget(
 	manifestID string,
 	bundleDeploymentUIDs sets.Set[types.UID],
 	merr *[]error,
+	refused *[]error,
 ) (ctrl.Result, error) {
 	if tgt.Deployment == nil {
 		return ctrl.Result{}, nil
@@ -253,8 +262,16 @@ func (r *BundleReconciler) handleMatchedTarget(
 		}
 	}
 
-	if err := r.handleDownstreamObjects(ctx, bundle, bd); err != nil {
-		return r.computeResult(ctx, logger, bundleOrig, bundle, "failed to clone config maps and secrets downstream", err)
+	refusal, err := r.handleDownstreamObjects(ctx, bundle, bd)
+	if err != nil {
+		return r.computeResult(ctx, logger, bundleOrig, bundle, cloneDownstreamResourcesFailed, err)
+	}
+	if refusal != nil {
+		// The copies for this target were not refreshed. Do not stop here: the
+		// remaining targets still need their BundleDeployments written, see
+		// handleDownstreamObjects. The caller reports the refusal once all
+		// targets are handled.
+		*refused = append(*refused, refusal)
 	}
 
 	if err := r.handleContentAccessSecrets(ctx, bundle, bd); err != nil {
@@ -316,6 +333,9 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// This closes the direct fleet-apply bypass path: a Bundle that violates policy is
 	// never deployed regardless of how it was created.
 	if err := r.authorizeBundle(ctx, bundle); err != nil {
+		if done, res, ctrlErr := CheckRetryable(err, logger); done {
+			return res, ctrlErr
+		}
 		return ctrl.Result{}, r.updateErrorStatus(ctx, bundleOrig, bundle, err)
 	}
 
@@ -463,9 +483,11 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// build BundleDeployments out of targets discarding Status, replacing DependsOn with the
 	// bundle's DependsOn (pure function) and replacing the labels with the bundle's labels
 	merr := []error{}
+	// Policy refusals of downstreamResources named by a target's deployed options.
+	refused := []error{}
 	bundleDeploymentUIDs := make(sets.Set[types.UID])
 	for _, tgt := range matchedTargets {
-		result, err := r.handleMatchedTarget(ctx, logger, bundle, bundleOrig, tgt, contentsInOCI, contentsInHelmChart, manifestID, bundleDeploymentUIDs, &merr)
+		result, err := r.handleMatchedTarget(ctx, logger, bundle, bundleOrig, tgt, contentsInOCI, contentsInHelmChart, manifestID, bundleDeploymentUIDs, &merr, &refused)
 		if err != nil || !result.IsZero() {
 			return result, err
 		}
@@ -476,6 +498,20 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	updateDisplay(&bundle.Status)
+
+	// Targets whose copies Policy did not allow to be refreshed did not stop
+	// the reconcile. Report them now that every target has been handled: one
+	// event, and the Ready condition, which the next reconcile without a
+	// refusal resets.
+	var refusedErr error
+	if len(refused) > 0 {
+		// The aggregate lists each distinct message once, however many targets share it.
+		violation := errutil.NewAggregate(refused)
+		r.recordPolicyViolation(bundle, violation)
+		refusedErr = fmt.Errorf("%s: %w", cloneDownstreamResourcesFailed, violation)
+		SetCondition(string(fleet.Ready), &bundle.Status, refusedErr)
+	}
+
 	if err := r.updateStatus(ctx, bundleOrig, bundle); err != nil {
 		merr = append(merr, err)
 		return ctrl.Result{}, errutil.NewAggregate(merr)
@@ -486,6 +522,14 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		// unavailable. Requeue so we can retry loading those values; we cannot
 		// rely on an external event to re-trigger the reconcile.
 		return ctrl.Result{RequeueAfter: durations.DefaultRequeueAfter}, errutil.NewAggregate(merr)
+	}
+
+	if refusedErr != nil && len(merr) == 0 {
+		// Like a Bundle refused by AuthorizeBundle, this is not requeued. The
+		// refusal ends when the affected targets receive the Bundle's current
+		// options, which a rollout progressing or the Bundle being unpaused
+		// triggers on its own.
+		return ctrl.Result{}, reconcile.TerminalError(refusedErr)
 	}
 
 	return ctrl.Result{}, errutil.NewAggregate(merr)
@@ -743,6 +787,17 @@ func (r *BundleReconciler) cloneConfigMap(
 	if err := r.Get(ctx, namespacedName, &cm); err != nil {
 		return controllerutil.OperationResultNone, fmt.Errorf("failed to load source config map, cannot clone into %q: %w", namespace, err)
 	}
+	return r.copyConfigMap(ctx, &cm, bd)
+}
+
+// copyConfigMap copies the provided config map cm, as read by the caller, to
+// the namespace of the provided bundle deployment bd.
+// Returns the operation result (Created, Updated, or Unchanged).
+func (r *BundleReconciler) copyConfigMap(
+	ctx context.Context,
+	cm *corev1.ConfigMap,
+	bd *fleet.BundleDeployment,
+) (controllerutil.OperationResult, error) {
 	// clone the config map, and just change the namespace so it's in the target's namespace
 	targetCM := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
@@ -790,6 +845,19 @@ func (r *BundleReconciler) cloneSecret(
 	if err := r.Get(ctx, namespacedName, &secret); err != nil {
 		return controllerutil.OperationResultNone, fmt.Errorf("failed to load source secret, cannot clone into %q: %w", ns, err)
 	}
+	return r.copySecret(ctx, &secret, secretType, bd)
+}
+
+// copySecret copies the provided secret, as read by the caller, to the
+// namespace of the provided bundle deployment bd. A non-empty secretType marks
+// the copy as internal and replaces its type.
+// Returns the operation result (Created, Updated, or Unchanged).
+func (r *BundleReconciler) copySecret(
+	ctx context.Context,
+	secret *corev1.Secret,
+	secretType string,
+	bd *fleet.BundleDeployment,
+) (controllerutil.OperationResult, error) {
 	// clone the secret, and just change the namespace so it's in the target's namespace
 	targetSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
@@ -868,22 +936,30 @@ func (r *BundleReconciler) handleContentAccessSecrets(ctx context.Context, bundl
 }
 
 // authorizeBundle validates the Bundle against Policy objects and records a
-// warning event if a violation is found. Returns a non-nil error on violation.
+// warning event if a violation is found. Returns a non-nil error on violation,
+// or a retryable error, without an event, if the check could not be completed.
 func (r *BundleReconciler) authorizeBundle(ctx context.Context, bundle *fleet.Bundle) error {
 	if err := AuthorizeBundle(ctx, r.Client, bundle); err != nil {
-		r.Recorder.Eventf(
-			bundle,
-			nil,
-			corev1.EventTypeWarning,
-			"PolicyViolation",
-			"ApplyPolicyRestrictions",
-			"Bundle in namespace %s violates Policy: %v",
-			bundle.Namespace,
-			err,
-		)
+		if !errors.Is(err, fleetutil.ErrRetryable) {
+			r.recordPolicyViolation(bundle, err)
+		}
 		return err
 	}
 	return nil
+}
+
+// recordPolicyViolation records a warning event on the Bundle for a Policy violation.
+func (r *BundleReconciler) recordPolicyViolation(bundle *fleet.Bundle, err error) {
+	r.Recorder.Eventf(
+		bundle,
+		nil,
+		corev1.EventTypeWarning,
+		"PolicyViolation",
+		"ApplyPolicyRestrictions",
+		"Bundle in namespace %s violates Policy: %v",
+		bundle.Namespace,
+		err,
+	)
 }
 
 // updateErrorStatus sets the Ready condition in the bundle status and tries to update the resource.
@@ -904,16 +980,62 @@ func (r *BundleReconciler) updateErrorStatus(
 	return reconcile.TerminalError(orgErr)
 }
 
-func (r *BundleReconciler) handleDownstreamObjects(ctx context.Context, bundle *fleet.Bundle, bd *fleet.BundleDeployment) error {
+// cloneDownstreamResourcesFailed prefixes errors from handleDownstreamObjects in the Bundle's status.
+const cloneDownstreamResourcesFailed = "failed to clone config maps and secrets downstream"
+
+// handleDownstreamObjects copies the Secrets and ConfigMaps named in the
+// BundleDeployment's downstreamResources into the cluster namespace. It runs on
+// every reconcile, so for a BundleDeployment that already has its copies it
+// refreshes them from their sources.
+//
+// It returns two kinds of failure. err means the refresh could not be done and
+// the reconcile must stop. refusal means a Policy does not allow one of the
+// named objects to be copied: none of this BundleDeployment's copies were
+// refreshed. Copies made earlier stay in the cluster namespace with the
+// content they had, they are neither updated nor deleted, and a missing one is
+// not created. The caller must carry on with the remaining targets.
+//
+// A refusal must not stop the reconcile because of when it happens.
+// AuthorizeBundle has just accepted the Bundle's spec, so a refusal here
+// concerns options that lag behind the spec: the BundleDeployment of a target
+// that is paused, or that a rollout strategy is holding back, still names an
+// object the Bundle itself no longer names. That target only receives the
+// current options once the rollout reaches it. If the refusal stopped the
+// reconcile, the BundleDeployments of the targets processed after this one
+// would not be written, the rollout would not advance, and the lagging options
+// would never be replaced. The Bundle would stay refused although its spec is
+// fine. Allowing the object in the Policy would not help either, as that only
+// takes effect on the next reconcile.
+func (r *BundleReconciler) handleDownstreamObjects(
+	ctx context.Context,
+	bundle *fleet.Bundle,
+	bd *fleet.BundleDeployment,
+) (refusal error, err error) {
 	// Track if any resources were created or updated
 	resourcesUpdated := false
+
+	// AuthorizeBundle checks the Bundle's spec, but the BundleDeployment's options
+	// can lag behind it, e.g. while the Bundle is paused or a rollout is held back.
+	// Check again what is actually about to be read. Without this, a Bundle that
+	// no longer names an object would keep receiving its new content.
+	if len(bd.Spec.Options.DownstreamResources) > 0 {
+		pol, err := namespacePolicy(ctx, r.Client, bundle.Namespace)
+		if err != nil {
+			return nil, err
+		}
+		if pol != nil {
+			if refusal := checkDownstreamResourcesAllowed(*pol, bd.Spec.Options.DownstreamResources); refusal != nil {
+				return refusal, nil
+			}
+		}
+	}
 
 	for _, dr := range bd.Spec.Options.DownstreamResources {
 		switch strings.ToLower(dr.Kind) {
 		case "secret":
 			result, err := r.cloneSecret(ctx, bundle.Namespace, dr.Name, "", bd)
 			if err != nil {
-				return fmt.Errorf(
+				return nil, fmt.Errorf(
 					"%w: failed to copy secret %s/%s to downstream cluster namespace: %w",
 					fleetutil.ErrRetryable,
 					bundle.Namespace,
@@ -927,7 +1049,7 @@ func (r *BundleReconciler) handleDownstreamObjects(ctx context.Context, bundle *
 		case "configmap":
 			result, err := r.cloneConfigMap(ctx, bundle.Namespace, dr.Name, bd)
 			if err != nil {
-				return fmt.Errorf(
+				return nil, fmt.Errorf(
 					"%w: failed to copy config map %s/%s to downstream cluster namespace: %w",
 					fleetutil.ErrRetryable,
 					bundle.Namespace,
@@ -939,7 +1061,7 @@ func (r *BundleReconciler) handleDownstreamObjects(ctx context.Context, bundle *
 				resourcesUpdated = true
 			}
 		default:
-			return fmt.Errorf("unsupported kind for object to copy to downstream: %q", dr.Kind)
+			return nil, fmt.Errorf("unsupported kind for object to copy to downstream: %q", dr.Kind)
 		}
 	}
 
@@ -952,7 +1074,7 @@ func (r *BundleReconciler) handleDownstreamObjects(ctx context.Context, bundle *
 		// Check if patch is empty before applying
 		if patchData, err := patch.Data(bd); err == nil && string(patchData) != "{}" {
 			if err := r.Patch(ctx, bd, patch); err != nil {
-				return fmt.Errorf(
+				return nil, fmt.Errorf(
 					"%w: failed to patch BundleDeployment with DownstreamResourcesGeneration: %w",
 					fleetutil.ErrRetryable,
 					err,
@@ -961,7 +1083,7 @@ func (r *BundleReconciler) handleDownstreamObjects(ctx context.Context, bundle *
 		}
 	}
 
-	return nil
+	return nil, nil
 }
 
 // updateStatus patches the status of the bundle and collects metrics upon a successful update of
@@ -1072,6 +1194,30 @@ func (r *BundleReconciler) computeResult(
 	SetCondition(string(fleet.Ready), &bundle.Status, err)
 
 	return ctrl.Result{}, r.updateErrorStatus(ctx, bundleOrig, bundle, err)
+}
+
+// policyMapFunc returns a reconcile request for every Bundle in the namespace
+// of the Policy obj, as each Policy applies to its whole namespace.
+func (r *BundleReconciler) policyMapFunc(ctx context.Context, obj client.Object) []reconcile.Request {
+	bundleList := &fleet.BundleList{}
+	if err := r.List(ctx, bundleList, client.InNamespace(obj.GetNamespace())); err != nil {
+		return nil
+	}
+
+	requests := make([]reconcile.Request, 0, len(bundleList.Items))
+	for _, bundle := range bundleList.Items {
+		if !sharding.ShouldProcess(&bundle, r.ShardID) {
+			continue
+		}
+		requests = append(requests, reconcile.Request{
+			NamespacedName: types.NamespacedName{
+				Namespace: bundle.Namespace,
+				Name:      bundle.Name,
+			},
+		})
+	}
+
+	return requests
 }
 
 // downstreamResourceMapFunc returns a function that maps a Secret or ConfigMap to Bundles
