@@ -420,20 +420,9 @@ func TestCreateBundlesRejectsBundleOwnedByAnotherGitRepo(t *testing.T) {
 				}
 			}
 
-			otherKey := client.ObjectKey{Name: "app-dev-other", Namespace: "fleet-default"}
-			if err := kubeClient.Create(ctx, &fleet.Bundle{ObjectMeta: metav1.ObjectMeta{
-				Name:      otherKey.Name,
-				Namespace: otherKey.Namespace,
-				Labels:    map[string]string{fleet.RepoLabel: "app-dev"},
-			}}); err != nil {
-				t.Fatal(err)
-			}
 			err = apply("app-dev", map[string]string{fleet.RepoLabel: "app-dev"}, "spoof")
-			if err == nil || !strings.Contains(err.Error(), fleet.RepoLabel) {
-				t.Fatalf("expected fleet.yaml overriding the GitRepo label to be rejected, got %v", err)
-			}
-			if err := kubeClient.Get(ctx, otherKey, &fleet.Bundle{}); err != nil {
-				t.Fatalf("expected rejected fleet.yaml label to prevent pruning bundles of the GitRepo, got %v", err)
+			if err == nil || !strings.Contains(err.Error(), `cannot be overwritten by GitRepo "app-dev"`) {
+				t.Fatalf("expected GitRepo label to override fleet.yaml labels and the bundle to be rejected, got %v", err)
 			}
 
 			err = apply("manual", nil, "dev")

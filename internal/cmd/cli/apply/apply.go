@@ -516,6 +516,13 @@ func newBundle(ctx context.Context, name, baseDir string, opts Options) (*fleet.
 		}
 	}
 	bundle.Namespace = opts.Namespace
+	// The repo label identifies the GitRepo owning the bundle; labels from fleet.yaml must not override it.
+	if repo, ok := opts.Labels[fleet.RepoLabel]; ok {
+		if bundle.Labels == nil {
+			bundle.Labels = map[string]string{}
+		}
+		bundle.Labels[fleet.RepoLabel] = repo
+	}
 	return bundle, scans, nil
 }
 
@@ -537,10 +544,6 @@ func bundleFromDir(ctx context.Context, name, baseDir string, opts Options) (*fl
 		return nil, nil, err
 	} else if len(bundle.Spec.Resources) == 0 {
 		return nil, nil, ErrNoResources
-	}
-	// Checked while reading, as read errors prevent pruning bundles of the GitRepo.
-	if err := checkRepoLabel(bundle, opts); err != nil {
-		return nil, nil, err
 	}
 	return bundle, scans, nil
 }
@@ -671,22 +674,6 @@ func pushOCIManifest(ctx context.Context, bundle *fleet.Bundle, opts ocistorage.
 		return "", err
 	}
 	return manifestID, nil
-}
-
-// checkRepoLabel rejects bundles whose fleet.yaml labels override the GitRepo label passed to fleet apply, as that
-// label identifies the bundle's owner.
-func checkRepoLabel(bundle *fleet.Bundle, opts Options) error {
-	repo, ok := opts.Labels[fleet.RepoLabel]
-	if !ok {
-		return nil
-	}
-	if got := bundle.Labels[fleet.RepoLabel]; got != repo {
-		return fmt.Errorf(
-			"bundle %q in namespace %q sets label %s=%q, which conflicts with GitRepo %q; remove it from the labels in fleet.yaml",
-			bundle.Name, bundle.Namespace, fleet.RepoLabel, got, repo,
-		)
-	}
-	return nil
 }
 
 // checkBundleOwner prevents a bundle owned by a GitRepo from being overwritten by a bundle from another source, which
