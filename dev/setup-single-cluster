@@ -8,9 +8,12 @@ source ./dev/setup-cluster-config
 
 if [ $1 = "--reuse" ]; then
     ./dev/remove-fleet
+    setup_imagescan_registry
 else
     # Cleans with settings sourced, so it should be rather selective.
     ./dev/k3d-clean
+
+    setup_imagescan_registry
 
     PORT_OFFSET=0
     if [ -z "$external_ip" ];
