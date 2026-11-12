@@ -24,10 +24,26 @@ on:
         default: ".github/renovate.json"
         type: string
       minimumReleaseAge:
-        description: "Override minimumReleaseAge for a one-time run (e.g., '0 days' to disable delay)"
+        description: "Override minimumReleaseAge for a one-time run (e.g., '0 days' to disable delay). Applies to every dependency unless minimumReleaseAgePackages is set"
         required: false
         default: "null"
         type: string
+      minimumReleaseAgePackages:
+        description: "Comma separated package names to accept any release for during this run (e.g., 'go,golang'). Requires minimumReleaseAge '0 days'. Empty applies the override to every dependency"
+        required: false
+        default: ""
+        type: string
+      refreshGroup:
+        description: "Accept any release for a whole update group instead of listing package names. Go covers the toolchain, go.mod directives, Dockerfile and workflow Go images, golangci-lint and hardened-build-base"
+        required: false
+        default: ""
+        type: choice
+        options:
+          - ""
+          - go
+          - kubernetes
+          - security
+          - github-actions
 
   schedule:
     - cron: '30 6 * * 1-5'
@@ -48,6 +64,8 @@ jobs:
       overrideSchedule: ${{ github.event.inputs.overrideSchedule || 'false' }}
       renovateConfig: ${{ github.event.inputs.renovateConfig || '.github/renovate.json' }}
       minimumReleaseAge: ${{ github.event.inputs.minimumReleaseAge || 'null' }}
+      minimumReleaseAgePackages: ${{ github.event.inputs.minimumReleaseAgePackages || '' }}
+      refreshGroup: ${{ github.event.inputs.refreshGroup || '' }}
     secrets:
       # Optional: RENOVATE_FORK_GH_TOKEN allows this action to run on repository forks where
       # Vault/App token generation is unavailable. Defaulting to '' allows the caller
