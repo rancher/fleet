@@ -40,7 +40,7 @@ func TestNewBundleConfinesValuesToCheckout(t *testing.T) {
 		{name: "checkout pointer cannot widen root", gitFile: true, valuesFile: "../../../outside.yaml", wantError: true},
 		{name: "shared worktree values", gitFile: true, valuesFile: "../../values.yaml"},
 		{name: "symlinked bundle", checkout: true, symlink: true, valuesFile: "../../values.yaml"},
-		{name: "no checkout marker", valuesFile: "../../values.yaml", wantError: true},
+		{name: "no checkout marker uses working directory", valuesFile: "../../values.yaml"},
 		{name: "bundle-only values", valuesFile: "values.yaml"},
 		{name: "submodule uses enclosing checkout", checkout: true, submodule: true, valuesFile: "../../values.yaml"},
 		{name: "enclosing repository cannot widen root", checkout: true, outerRepo: true, valuesFile: "../../../outside.yaml", wantError: true},

@@ -42,9 +42,10 @@ func NewApply() *cobra.Command {
 Helm valuesFiles paths are relative to the bundle directory and must stay within
 the nearest ancestor directory containing a .git directory. Submodule .git files
 are passed, so submodules can use values files of the enclosing checkout.
-Without a .git entry, values files must stay within the bundle directory. Absolute paths, paths into
-.git metadata, and symlinks escaping these boundaries are rejected. The current
-working directory does not determine the values-file boundary.`,
+Without a .git entry, they must stay within the current working directory, or
+the bundle directory if it is outside. Absolute paths, paths into
+.git metadata, and symlinks escaping these boundaries are rejected. Within a
+checkout, the working directory does not determine the boundary.`,
 	})
 
 	registerLoggingAndKubeconfigFlags(cmd)

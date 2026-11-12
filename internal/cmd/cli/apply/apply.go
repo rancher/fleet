@@ -522,8 +522,8 @@ func newBundle(ctx context.Context, name, baseDir string, opts Options) (*fleet.
 // ".git" files of submodules and linked worktrees are passed so submodule
 // bundles can share values files of the enclosing checkout, while unrelated
 // enclosing repositories, such as a versioned home directory, are not.
-// Without a ".git" directory, the outermost ".git" file location or baseDir
-// is returned.
+// Without any ".git" entry, the working directory is returned if it contains
+// baseDir, else baseDir.
 func valuesRoot(baseDir string) (string, error) {
 	base, err := filepath.Abs(baseDir)
 	if err != nil {
@@ -533,7 +533,7 @@ func valuesRoot(baseDir string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	root := base
+	root := ""
 	for directory := base; ; directory = filepath.Dir(directory) {
 		if info, err := os.Lstat(filepath.Join(directory, ".git")); err == nil {
 			root = directory
@@ -544,9 +544,26 @@ func valuesRoot(baseDir string) (string, error) {
 			return "", err
 		}
 		if filepath.Dir(directory) == directory {
+			if root == "" {
+				return cwdOrBase(base)
+			}
 			return root, nil
 		}
 	}
+}
+
+func cwdOrBase(base string) (string, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	if cwd, err = filepath.EvalSymlinks(cwd); err != nil {
+		return "", err
+	}
+	if rel, err := filepath.Rel(cwd, base); err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return cwd, nil
+	}
+	return base, nil
 }
 
 // bundleFromDir reads a specific directory and produces a bundle and image scans.
