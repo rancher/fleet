@@ -18,6 +18,8 @@ env:
 jobs:
   release-fleet:
     runs-on: runs-on,runner=8cpu-linux-x64,mem=16,run-id=${{ github.run_id }}
+    outputs:
+      chart-version: ${{ steps.publish-charts.outputs.version }}
     permissions:
       contents: write
       id-token: write
@@ -136,29 +138,13 @@ jobs:
           registry: ${{ env.STAGE_REGISTRY }}
 
       - name: Run GoReleaser
-        id: goreleaser
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GORELEASER_CURRENT_TAG: ${{ env.RELEASE_TAG }}
           STAGE_REGISTRY: ${{ env.STAGE_REGISTRY }}
           PRIME_REGISTRY: ${{ env.PRIME_REGISTRY }}
         shell: bash
-        run: |
-          set -euo pipefail
-
-          goreleaser release --clean --draft --verbose
-
-          if [[ ! -f dist/metadata.json ]] || [[ ! -s dist/metadata.json ]]; then
-            echo "ERROR: dist/metadata.json not found or empty after GoReleaser run"
-            exit 1
-          fi
-
-          if [[ ! -f dist/artifacts.json ]] || [[ ! -s dist/artifacts.json ]]; then
-            echo "ERROR: dist/artifacts.json not found or empty after GoReleaser run"
-            exit 1
-          fi
-          echo "metadata=$(tr -d '\n\r' < dist/metadata.json)" >> "${GITHUB_OUTPUT}"
-          echo "artifacts=$(tr -d '\n\r' < dist/artifacts.json)" >> "${GITHUB_OUTPUT}"
+        run: goreleaser release --clean --draft --verbose
 
       - name: Attest provenance
         shell: bash
@@ -231,46 +217,65 @@ jobs:
           echo ""
           echo "✓ Provenance attestation completed for all images"
 
-      - name: Add charts to branch
+      # Remove this step once cargueiro ships in the ci-image.
+      - name: Install cargueiro
         if: ${{ env.IS_HOTFIX == 'false' }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GORELEASER_METADATA: ${{ steps.goreleaser.outputs.metadata }}
+          # renovate: datasource=github-releases depName=rancher/cargueiro
+          CARGUEIRO_VERSION: v0.2.1
+          # renovate: datasource=github-release-attachments depName=rancher/cargueiro digestVersion=v0.2.1
+          CARGUEIRO_SUM: c3b1c4ff3a783cb941061a705206f698ab4ce840499f8b444b54ce00a487a962
         run: |
-          version=$(jq -r '.version' <<< "$GORELEASER_METADATA")
-          branch_version=v$(cut -d'.' -f1,2 <<< "$version")
-          charts_branch=charts/$branch_version
+          set -euo pipefail
+          curl -sSfL \
+            "https://github.com/rancher/cargueiro/releases/download/${CARGUEIRO_VERSION}/cargueiro_linux_amd64" \
+            -o /usr/local/bin/cargueiro
+          echo "${CARGUEIRO_SUM}  /usr/local/bin/cargueiro" | sha256sum -c -
+          chmod +x /usr/local/bin/cargueiro
 
-          if [ ! -e ~/.gitconfig ]; then
-            git config --global user.name "fleet-bot"
-            git config --global user.email fleet@suse.de
+      - name: Publish charts to the OCI staging registry
+        if: ${{ env.IS_HOTFIX == 'false' }}
+        id: publish-charts
+        shell: bash
+        env:
+          CARGUEIRO_USERNAME: ${{ env.STAGE_REGISTRY_USERNAME }}
+          CARGUEIRO_PASSWORD: ${{ env.STAGE_REGISTRY_PASSWORD }}
+          REGISTRY: ${{ env.STAGE_REGISTRY }}/rancher/catalog
+        run: |
+          set -euo pipefail
+
+          work_dir=$(mktemp -d)
+          trap 'rm -rf "${work_dir}"' EXIT
+
+          # The chart annotations and the image tags are already on the
+          # archives; only the Rancher chart version still has to be set, which
+          # cargueiro stamps.
+          dirs=()
+          for chart in fleet fleet-agent fleet-crd; do
+            dir="${work_dir}/${chart}"
+            mkdir -p "${dir}"
+            tar -xzf ".charts/${chart}-${RELEASE_TAG#v}.tgz" -C "${dir}" --strip-components=1
+            dirs+=("${dir}")
+          done
+
+          # The charts of the family share one version. A re-run of this release
+          # reuses the version it pushed already, instead of releasing the next
+          # one.
+          published=$(cargueiro list "${REGISTRY}/fleet" 2>/dev/null || true)
+          version=$(awk -v suffix="+up${RELEASE_TAG#v}" \
+            'substr($0, length($0) - length(suffix) + 1) == suffix { print; exit }' <<< "${published}")
+          if [[ -z "${version}" ]]; then
+            version=$(cargueiro chart-version --family fleet --registry "${REGISTRY}" "${dirs[@]}")
           fi
 
-          echo "publishing helm chart in the branch $charts_branch"
-          if ! git ls-remote --exit-code --heads origin "$charts_branch"; then
-            git checkout --orphan "$charts_branch"
-            git rm -rf .
+          cargueiro stamp --family fleet "${dirs[@]}" --version "${version}"
+          # package runs the chart checks and builds the archives to push.
+          packaged=$(cargueiro package --family fleet "${dirs[@]}" --output-dir "${work_dir}/dist")
+          mapfile -t archives <<< "${packaged}"
+          # The charts of this version that the registry has already are skipped.
+          cargueiro push --family fleet "${archives[@]}" --registry "${REGISTRY}"
 
-            echo "# Fleet Helm Charts for $branch_version versions" > README.md
-            echo "The documentation is centralized in a unique place, checkout https://fleet.rancher.io/." >> README.md
-
-            git checkout origin/main -- LICENSE .gitignore
-
-            git add README.md LICENSE .gitignore
-            git commit -m "Initial commit for $charts_branch"
-          else
-            git checkout .
-            git checkout "$charts_branch"
-          fi
-
-          mkdir -p charts
-          find .charts/ -name '*.tgz' -exec tar -xf {} -C charts/ \;
-
-          git add charts/**/*
-          git commit -m "Update charts to version $version"
-
-          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git"
-          git push origin "$charts_branch"
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
 
       - name: Publish Release
         if: ${{ env.IS_HOTFIX == 'false' }}
@@ -290,12 +295,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  dispatch-charts-bump:
+  dispatch-charts:
     permissions:
       contents: read
       id-token: write
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Shipping the family waits for its run in rancher/charts, which queues
+    # behind the runs of other repositories.
+    timeout-minutes: 30
     needs: release-fleet
     # Skip hotfix releases; they follow a separate process.
     if: github.repository == 'rancher/fleet' && !contains(github.ref, '-hotfix-')
@@ -319,33 +326,6 @@ jobs:
             fleet-helm-charts
           permission-actions: write
 
-      - name: Dispatch to rancher/charts
-        env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-          FLEET_TAG: ${{ github.ref_name }}
-        run: |
-          set -euo pipefail
-          if [[ "$FLEET_TAG" =~ ^v([0-9]+)\.([0-9]+)([.-].*)?$ ]]; then
-            fleet_minor="${BASH_REMATCH[2]}"
-          else
-            echo "Error: unexpected Fleet tag format '${FLEET_TAG}'. Expected tags starting with v<major>.<minor>." >&2
-            exit 1
-          fi
-          if (( fleet_minor < 1 )); then
-            echo "Error: Fleet tag '${FLEET_TAG}' has minor version ${fleet_minor}; cannot derive a valid rancher/charts target branch." >&2
-            exit 1
-          fi
-          rancher_minor=$((fleet_minor - 1))
-          target_branch="dev-v2.${rancher_minor}"
-          echo "Dispatching auto-bump for Fleet ${FLEET_TAG} to rancher/charts branch ${target_branch}"
-          gh workflow run "Manual Trigger for Auto Bump" \
-            --repo rancher/charts \
-            --ref "$target_branch" \
-            -F chart=fleet \
-            -F branch="$target_branch" \
-            -F multi-rc=true \
-            -F auto-merge=true
-
       - name: Dispatch to rancher/fleet-helm-charts
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
@@ -353,3 +333,48 @@ jobs:
           set -euo pipefail
           gh workflow run sync-fleet-releases.yml \
             --repo rancher/fleet-helm-charts
+
+      - name: Ship charts to rancher/charts
+        timeout-minutes: 25
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          CHART_VERSION: ${{ needs.release-fleet.outputs.chart-version }}
+        run: |
+          set -euo pipefail
+          # API version 2026-03-10 returns the run ID of the dispatch.
+          run_id=$(gh api -H "X-GitHub-Api-Version: 2026-03-10" \
+            repos/rancher/charts/actions/workflows/chart-staged.yaml/dispatches \
+            -f ref=staging -f 'inputs[family]=fleet' -f "inputs[version]=${CHART_VERSION}" \
+            --jq '.workflow_run_id // error("no run ID returned")')
+
+          echo "Waiting for https://github.com/rancher/charts/actions/runs/${run_id}"
+
+          # The API answers 500 for runs that were just created, so poll the run
+          # and tolerate a bounded number of consecutive read failures.
+          failures=0
+          while :; do
+            if ! out=$(gh api "repos/rancher/charts/actions/runs/${run_id}" \
+                --jq '.status + " " + (.conclusion // "none")' 2>&1); then
+              echo "Could not read rancher/charts run ${run_id}: ${out}"
+              if (( ++failures >= 10 )); then
+                echo "Giving up after ${failures} consecutive read failures"
+                exit 1
+              fi
+              sleep 20
+              continue
+            fi
+            failures=0
+            state=${out}
+            case "${state}" in
+              "completed success")
+                echo "rancher/charts run ${run_id} succeeded"
+                exit 0
+                ;;
+              completed\ *)
+                echo "rancher/charts run ${run_id} finished with '${state#completed }'"
+                exit 1
+                ;;
+              *) echo "rancher/charts run ${run_id} is ${state%% *}" ;;
+            esac
+            sleep 20
+          done
