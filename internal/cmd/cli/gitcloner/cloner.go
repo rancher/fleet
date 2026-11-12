@@ -59,32 +59,32 @@ func (c *Cloner) CloneRepo(opts *GitCloner) error {
 		capability.ThinPack,
 	}
 
-	caBundle, err := getCABundleFromFile(opts.CABundleFile)
+	tlsCfg, err := tlsConfigFromOpts(opts)
 	if err != nil {
 		return fmt.Errorf("failed to read CA bundle from file for %s: %w", repo(opts), err)
 	}
-	auth, err := createAuthFromOpts(opts, caBundle)
+	auth, err := createAuthFromOpts(opts, tlsCfg)
 	if err != nil {
 		return fmt.Errorf("failed to create auth from options for %s: %w", repo(opts), err)
 	}
 
 	if opts.Branch == "" && opts.Revision == "" {
 		opts.Branch = defaultBranch
-		return cloneBranch(opts, auth, caBundle)
+		return cloneBranch(opts, auth, tlsCfg)
 	}
 
 	if opts.Branch != "" {
 		if opts.Revision != "" {
 			log.Log.Info("Using branch for cloning the repo. Revision will be skipped.")
 		}
-		return cloneBranch(opts, auth, caBundle)
+		return cloneBranch(opts, auth, tlsCfg)
 	}
 
-	return cloneRevision(opts, auth, caBundle)
+	return cloneRevision(opts, auth, tlsCfg)
 }
 
-func cloneBranch(opts *GitCloner, auth transport.AuthMethod, caBundle []byte) error {
-	r, err := shallowCloneRef(opts, auth, caBundle, plumbing.ReferenceName(opts.Branch))
+func cloneBranch(opts *GitCloner, auth transport.AuthMethod, tlsCfg netx.TLSConfig) error {
+	r, err := shallowCloneRef(opts, auth, tlsCfg, plumbing.ReferenceName(opts.Branch))
 	if err != nil {
 		return fmt.Errorf("failed to clone main repo from branch %s: %w, skipping submodule clone", repo(opts), err)
 	}
@@ -92,49 +92,49 @@ func cloneBranch(opts *GitCloner, auth transport.AuthMethod, caBundle []byte) er
 	return updateSubmodulesShallow(r, auth)
 }
 
-func cloneRevision(opts *GitCloner, auth transport.AuthMethod, caBundle []byte) error {
+func cloneRevision(opts *GitCloner, auth transport.AuthMethod, tlsCfg netx.TLSConfig) error {
 	// A bare 40-hex revision resolves to the commit object (git ignores any
 	// ref with that name), so skip the tag/branch attempts and fetch the exact
 	// commit shallowly. The full-clone fallback covers the rare case where the
 	// 40-hex value is actually a ref pointing at some other commit.
 	if plumbing.IsHash(opts.Revision) {
-		if err := cloneCommit(opts, auth, caBundle); err == nil {
+		if err := cloneCommit(opts, auth, tlsCfg); err == nil {
 			return nil
 		}
 		if err := resetDir(opts.Path); err != nil {
 			return fmt.Errorf("failed to reset clone dir for %s: %w", repo(opts), err)
 		}
-		return fullCloneRevision(opts, auth, caBundle)
+		return fullCloneRevision(opts, auth, tlsCfg)
 	}
 
-	if r, err := shallowCloneRef(opts, auth, caBundle, plumbing.NewTagReferenceName(opts.Revision)); err == nil {
+	if r, err := shallowCloneRef(opts, auth, tlsCfg, plumbing.NewTagReferenceName(opts.Revision)); err == nil {
 		return updateSubmodulesShallow(r, auth)
 	}
 	if err := resetDir(opts.Path); err != nil {
 		return fmt.Errorf("failed to reset clone dir for %s: %w", repo(opts), err)
 	}
 
-	if r, err := shallowCloneRef(opts, auth, caBundle, plumbing.NewBranchReferenceName(opts.Revision)); err == nil {
+	if r, err := shallowCloneRef(opts, auth, tlsCfg, plumbing.NewBranchReferenceName(opts.Revision)); err == nil {
 		return updateSubmodulesShallow(r, auth)
 	}
 	if err := resetDir(opts.Path); err != nil {
 		return fmt.Errorf("failed to reset clone dir for %s: %w", repo(opts), err)
 	}
 
-	return fullCloneRevision(opts, auth, caBundle)
+	return fullCloneRevision(opts, auth, tlsCfg)
 }
 
 // shallowCloneRef performs a depth-1, single-branch clone pinned to ref. It
 // only owns the clone and leaves submodule handling to the caller, so the
 // revision path can fall through to the next strategy on error while the
 // branch path can wrap the error and update submodules on success.
-func shallowCloneRef(opts *GitCloner, auth transport.AuthMethod, caBundle []byte, ref plumbing.ReferenceName) (*git.Repository, error) {
+func shallowCloneRef(opts *GitCloner, auth transport.AuthMethod, tlsCfg netx.TLSConfig, ref plumbing.ReferenceName) (*git.Repository, error) {
 	return plainClone(opts.Path, false, &git.CloneOptions{
 		URL:               opts.Repo,
 		Depth:             1,
 		Auth:              auth,
-		InsecureSkipTLS:   opts.InsecureSkipTLS,
-		CABundle:          caBundle,
+		InsecureSkipTLS:   tlsCfg.InsecureSkipVerify,
+		CABundle:          tlsCfg.CABundle,
 		SingleBranch:      true,
 		ReferenceName:     ref,
 		RecurseSubmodules: git.NoRecurseSubmodules,
@@ -148,7 +148,7 @@ func shallowCloneRef(opts *GitCloner, auth transport.AuthMethod, caBundle []byte
 // It only succeeds when the server allows fetching an exact SHA
 // (uploadpack.allowReachableSHA1InWant / allowAnySHA1InWant); callers must fall
 // back to a full clone on error.
-func cloneCommitShallow(opts *GitCloner, auth transport.AuthMethod, caBundle []byte) error {
+func cloneCommitShallow(opts *GitCloner, auth transport.AuthMethod, tlsCfg netx.TLSConfig) error {
 	r, err := git.PlainInit(opts.Path, false)
 	if err != nil {
 		return err
@@ -168,8 +168,8 @@ func cloneCommitShallow(opts *GitCloner, auth transport.AuthMethod, caBundle []b
 		Depth:           1,
 		RefSpecs:        []config.RefSpec{refSpec},
 		Auth:            auth,
-		InsecureSkipTLS: opts.InsecureSkipTLS,
-		CABundle:        caBundle,
+		InsecureSkipTLS: tlsCfg.InsecureSkipVerify,
+		CABundle:        tlsCfg.CABundle,
 		Tags:            git.NoTags,
 		ProxyOptions:    fleetgit.ProxyOptsFromEnvironment(opts.Repo),
 	}); err != nil {
@@ -188,12 +188,12 @@ func cloneCommitShallow(opts *GitCloner, auth transport.AuthMethod, caBundle []b
 // fullCloneRevision clones the whole repository (all history and tags) and
 // resolves opts.Revision locally. This is the slowest path and is only used
 // when no cheaper strategy can satisfy the revision.
-func fullCloneRevision(opts *GitCloner, auth transport.AuthMethod, caBundle []byte) error {
+func fullCloneRevision(opts *GitCloner, auth transport.AuthMethod, tlsCfg netx.TLSConfig) error {
 	r, err := plainClone(opts.Path, false, &git.CloneOptions{
 		URL:               opts.Repo,
 		Auth:              auth,
-		InsecureSkipTLS:   opts.InsecureSkipTLS,
-		CABundle:          caBundle,
+		InsecureSkipTLS:   tlsCfg.InsecureSkipVerify,
+		CABundle:          tlsCfg.CABundle,
 		RecurseSubmodules: git.NoRecurseSubmodules,
 		ProxyOptions:      fleetgit.ProxyOptsFromEnvironment(opts.Repo),
 	})
@@ -234,20 +234,25 @@ func resetDir(path string) error {
 	return os.MkdirAll(path, 0750)
 }
 
-func getCABundleFromFile(path string) ([]byte, error) {
+// tlsConfigFromOpts builds the TLS settings for cloning from the CA bundle file,
+// the insecure flag and PROXY_CA_BUNDLE.
+func tlsConfigFromOpts(opts *GitCloner) (netx.TLSConfig, error) {
 	var caBundle []byte
-	if path != "" {
+	if opts.CABundleFile != "" {
 		var err error
-		caBundle, err = readFile(path)
+		caBundle, err = readFile(opts.CABundleFile)
 		if err != nil {
-			return nil, err
+			return netx.TLSConfig{}, err
 		}
 	}
-	return netx.TLSConfig{CABundle: caBundle}.WithProxyCA().CABundle, nil
+	return netx.TLSConfig{
+		CABundle:           caBundle,
+		InsecureSkipVerify: opts.InsecureSkipTLS,
+	}.WithProxyCA(), nil
 }
 
 // createAuthFromOpts adds auth for cloning git repos based on the parameters provided in opts.
-func createAuthFromOpts(opts *GitCloner, caBundle []byte) (transport.AuthMethod, error) {
+func createAuthFromOpts(opts *GitCloner, tlsCfg netx.TLSConfig) (transport.AuthMethod, error) {
 	knownHosts, isKnownHostsSet := os.LookupEnv(fleetssh.KnownHostsEnvVar)
 	if knownHosts == "" {
 		isKnownHostsSet = false
@@ -283,10 +288,7 @@ func createAuthFromOpts(opts *GitCloner, caBundle []byte) (transport.AuthMethod,
 			return nil, fmt.Errorf("failed to read GitHub app private key from file: %w", err)
 		}
 
-		auth, err := appAuthGetter.Get(opts.Repo, opts.GitHubAppID, opts.GitHubAppInstallation, key, netx.TLSConfig{
-			CABundle:           caBundle,
-			InsecureSkipVerify: opts.InsecureSkipTLS,
-		})
+		auth, err := appAuthGetter.Get(opts.Repo, opts.GitHubAppID, opts.GitHubAppInstallation, key, tlsCfg)
 		if err != nil {
 			return nil, err
 		}

@@ -522,7 +522,7 @@ func TestCloneRevision_CommitShallow(t *testing.T) {
 		return nil, errors.New("unexpected clone")
 	}
 	var commitCalled bool
-	cloneCommit = func(opts *GitCloner, auth transport.AuthMethod, caBundle []byte) error {
+	cloneCommit = func(opts *GitCloner, auth transport.AuthMethod, tlsCfg netx.TLSConfig) error {
 		commitCalled = true
 		return nil
 	}
@@ -581,7 +581,7 @@ func TestCloneCommitShallow_Body(t *testing.T) {
 		Repo:     srcWt.Filesystem.Root(),
 		Path:     destPath,
 		Revision: commitHash.String(),
-	}, nil, nil); err != nil {
+	}, nil, netx.TLSConfig{}); err != nil {
 		t.Fatalf("cloneCommitShallow: %v", err)
 	}
 
@@ -622,7 +622,7 @@ func TestCloneRevision_FullCloneFallback(t *testing.T) {
 		calls = append(calls, o)
 		return testRepo, nil
 	}
-	cloneCommit = func(opts *GitCloner, auth transport.AuthMethod, caBundle []byte) error {
+	cloneCommit = func(opts *GitCloner, auth transport.AuthMethod, tlsCfg netx.TLSConfig) error {
 		return errors.New("server does not support exact SHA1 refspec")
 	}
 	updateSubmodules = func(r *git.Repository, opts *git.SubmoduleUpdateOptions) error {
@@ -834,7 +834,7 @@ func TestCreateAuthFromOpts(t *testing.T) {
 
 	t.Run("no SSH key returns nil auth", func(t *testing.T) {
 		opts := &GitCloner{Repo: "https://github.com/example/repo"}
-		auth, err := createAuthFromOpts(opts, nil)
+		auth, err := createAuthFromOpts(opts, netx.TLSConfig{})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -848,7 +848,7 @@ func TestCreateAuthFromOpts(t *testing.T) {
 			Repo:              "ssh://git@example.com/org/repo",
 			SSHPrivateKeyFile: writeTempKey(t),
 		}
-		auth, err := createAuthFromOpts(opts, nil)
+		auth, err := createAuthFromOpts(opts, netx.TLSConfig{})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -868,7 +868,7 @@ func TestCreateAuthFromOpts(t *testing.T) {
 			Repo:              "ssh://git@example.com/org/repo",
 			SSHPrivateKeyFile: writeTempKey(t),
 		}
-		auth, err := createAuthFromOpts(opts, nil)
+		auth, err := createAuthFromOpts(opts, netx.TLSConfig{})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -892,7 +892,7 @@ func TestCreateAuthFromOpts(t *testing.T) {
 			Repo:              "ssh://example.com/org/repo",
 			SSHPrivateKeyFile: writeTempKey(t),
 		}
-		auth, err := createAuthFromOpts(opts, nil)
+		auth, err := createAuthFromOpts(opts, netx.TLSConfig{})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -906,10 +906,10 @@ func TestCreateAuthFromOpts(t *testing.T) {
 	})
 }
 
-// TestGetCABundleFromFile covers all combinations of the file path and the
+// TestTLSConfigFromOpts covers all combinations of the file path and the
 // PROXY_CA_BUNDLE environment variable: neither set, only the env var, only
 // the file, and both together.
-func TestGetCABundleFromFile(t *testing.T) {
+func TestTLSConfigFromOpts(t *testing.T) {
 	const filePEM = "-----BEGIN CERTIFICATE-----\nfilecert\n-----END CERTIFICATE-----"
 	proxyPEM := newTestCAPEM(t)
 
@@ -966,7 +966,8 @@ func TestGetCABundleFromFile(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv(netx.ProxyCABundleEnvVar, tt.envVal)
 
-			got, err := getCABundleFromFile(tt.path)
+			cfg, err := tlsConfigFromOpts(&GitCloner{CABundleFile: tt.path})
+			got := cfg.CABundle
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("expected error, got nil")
