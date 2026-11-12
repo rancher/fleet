@@ -70,7 +70,7 @@ var _ = Describe("Image Scan", Label("infra-setup"), func() {
 	})
 })
 
-var _ = Describe("Image Scan dynamic tests pushing to ttl.sh", Label("infra-setup"), func() {
+var _ = Describe("Image Scan dynamic tests pushing to a registry", Label("infra-setup"), func() {
 	var (
 		clonedir   string
 		k          kubectl.Command
@@ -246,14 +246,26 @@ func setupRepo(k kubectl.Command, tmpdir, clonedir, repoDir string) (*git.Reposi
 
 func tagAndPushImage(baseImage, image, tag string) string {
 	imageTag := fmt.Sprintf("%s:%s", image, tag)
-	// tag the image and push it to ttl.sh
-	cmd := exec.CommandContext(context.Background(), "docker", "tag", baseImage, imageTag)
+	// pods pull from a registry address which this host cannot resolve
+	pushTag := strings.Replace(imageTag, os.Getenv("IMAGESCAN_REGISTRY_PULL"), os.Getenv("IMAGESCAN_REGISTRY_PUSH"), 1)
+	cmd := exec.CommandContext(context.Background(), "docker", "tag", baseImage, pushTag)
 	err := cmd.Run()
 	Expect(err).ToNot(HaveOccurred())
-	// push the image to ttl.sh
-	cmd = exec.CommandContext(context.Background(), "docker", "push", imageTag)
-	err = cmd.Run()
-	Expect(err).ToNot(HaveOccurred())
+	const pushTimeout = 30 * time.Second
+
+	Eventually(func() error {
+		ctx, cancel := context.WithTimeout(context.Background(), pushTimeout)
+		defer cancel()
+
+		// CombinedOutput, so a failing push reports the registry's reason
+		// instead of a bare exit status.
+		out, err := exec.CommandContext(ctx, "docker", "push", pushTag).CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("docker push %s: %s: %w", pushTag, out, err)
+		}
+
+		return nil
+	}, 2*time.Minute, time.Second).Should(Succeed())
 	return imageTag
 }
 
@@ -267,7 +279,9 @@ func initRegistryWithImageAndTag(baseImage string, tag string) (string, string) 
 
 	// generate a new uuid for this test
 	uuid := uuid.NewUUID()
-	image := fmt.Sprintf("ttl.sh/%s-fleet-test", uuid)
+	registry := os.Getenv("IMAGESCAN_REGISTRY_PULL")
+	Expect(registry).ToNot(BeEmpty(), "run ./.github/scripts/imagescan-registry.sh create")
+	image := fmt.Sprintf("%s/%s-fleet-test", registry, uuid)
 	imageTag := tagAndPushImage(baseImage, image, tag)
 
 	return image, imageTag
