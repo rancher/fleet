@@ -24,7 +24,7 @@ on:
         default: ".github/renovate.json"
         type: string
       refreshGroup:
-        description: "Accept any release for the selected scope of a one-time run. Go covers the toolchain, go.mod directives, Dockerfile and workflow Go images, golangci-lint and hardened-build-base"
+        description: "Ignore minimumReleaseAge for the selected scope in this run only, so those updates need no waiting period. Empty keeps the configured release ages. Scheduled runs are unaffected"
         required: false
         default: ""
         type: choice
