@@ -23,23 +23,14 @@ on:
         required: false
         default: ".github/renovate.json"
         type: string
-      minimumReleaseAge:
-        description: "Override minimumReleaseAge for a one-time run (e.g., '0 days' to disable delay). Applies to every dependency unless minimumReleaseAgePackages is set"
-        required: false
-        default: "null"
-        type: string
-      minimumReleaseAgePackages:
-        description: "Comma separated package names to accept any release for during this run (e.g., 'go,golang'). Requires minimumReleaseAge '0 days'. Empty applies the override to every dependency"
-        required: false
-        default: ""
-        type: string
       refreshGroup:
-        description: "Accept any release for a whole update group instead of listing package names. Go covers the toolchain, go.mod directives, Dockerfile and workflow Go images, golangci-lint and hardened-build-base"
+        description: "Accept any release for the selected scope of a one-time run. Go covers the toolchain, go.mod directives, Dockerfile and workflow Go images, golangci-lint and hardened-build-base"
         required: false
         default: ""
         type: choice
         options:
           - ""
+          - all
           - go
           - kubernetes
           - security
@@ -63,8 +54,6 @@ jobs:
       configMigration: ${{ github.event.inputs.configMigration || 'true' }}
       overrideSchedule: ${{ github.event.inputs.overrideSchedule || 'false' }}
       renovateConfig: ${{ github.event.inputs.renovateConfig || '.github/renovate.json' }}
-      minimumReleaseAge: ${{ github.event.inputs.minimumReleaseAge || 'null' }}
-      minimumReleaseAgePackages: ${{ github.event.inputs.minimumReleaseAgePackages || '' }}
       refreshGroup: ${{ github.event.inputs.refreshGroup || '' }}
     secrets:
       # Optional: RENOVATE_FORK_GH_TOKEN allows this action to run on repository forks where
