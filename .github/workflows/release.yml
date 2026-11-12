@@ -335,6 +335,7 @@ jobs:
             --repo rancher/fleet-helm-charts
 
       - name: Ship charts to rancher/charts
+        timeout-minutes: 25
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           CHART_VERSION: ${{ needs.release-fleet.outputs.chart-version }}
@@ -345,4 +346,35 @@ jobs:
             repos/rancher/charts/actions/workflows/chart-staged.yaml/dispatches \
             -f ref=staging -f 'inputs[family]=fleet' -f "inputs[version]=${CHART_VERSION}" \
             --jq '.workflow_run_id // error("no run ID returned")')
-          gh run watch "${run_id}" --repo rancher/charts --exit-status --interval 20
+
+          echo "Waiting for https://github.com/rancher/charts/actions/runs/${run_id}"
+
+          # The API answers 500 for runs that were just created, so poll the run
+          # and tolerate a bounded number of consecutive read failures.
+          failures=0
+          while :; do
+            if ! out=$(gh api "repos/rancher/charts/actions/runs/${run_id}" \
+                --jq '.status + " " + (.conclusion // "none")' 2>&1); then
+              echo "Could not read rancher/charts run ${run_id}: ${out}"
+              if (( ++failures >= 10 )); then
+                echo "Giving up after ${failures} consecutive read failures"
+                exit 1
+              fi
+              sleep 20
+              continue
+            fi
+            failures=0
+            state=${out}
+            case "${state}" in
+              "completed success")
+                echo "rancher/charts run ${run_id} succeeded"
+                exit 0
+                ;;
+              completed\ *)
+                echo "rancher/charts run ${run_id} finished with '${state#completed }'"
+                exit 1
+                ;;
+              *) echo "rancher/charts run ${run_id} is ${state%% *}" ;;
+            esac
+            sleep 20
+          done
