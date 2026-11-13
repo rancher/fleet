@@ -176,6 +176,33 @@ jobs:
 
           git commit -m "Add Renovate support to branch $BRANCH"
 
+      - name: update Fleet chart annotations
+        if: steps.git_config.outputs.work_branch != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: ${{steps.branch.outputs.version}}
+        run: |
+          rancher_next_minor_member=$(( $(echo $BRANCH | cut -d'.' -f2) )) # Fleet is one minor ahead of Rancher
+          rancher_minor_member=$(( $rancher_next_minor_member - 1 ))
+
+          for suffix in '-agent' ''; do
+            file=charts/fleet$suffix/Chart.yaml
+
+            sed -i "s,\(catalog.cattle.io/rancher-version: '>= \).*$,\12.$rancher_minor_member.0-0 < 2.$rancher_next_minor_member.0-0'," $file
+
+            IFS='.' read catalog cattle io_until_major k8s_minor_member rest_until_major k8s_next_minor_member rest < <(grep 'catalog.cattle.io/kube-version:' $file)
+
+            sed -i "s,\(catalog.cattle.io/kube-version: '>= \).*$,\11.$(( k8s_minor_member + 1 )).0-0 < 1.$(( k8s_next_minor_member + 1 )).0-0'," $file
+
+            git add $file
+          done
+
+          echo "Configuring git username and email"
+          git config --global user.name "fleet-bot"
+          git config --global user.email fleet@suse.de
+
+          git commit -m "Update chart annotations for $BRANCH"
+
       - name: add new release branch to candidates for releasing against Rancher
         if: steps.git_config.outputs.work_branch != ''
         env:
