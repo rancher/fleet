@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"context"
 	"crypto/sha256"
-	"crypto/x509"
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
@@ -12,21 +11,19 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/Masterminds/semver/v3"
+	"golang.org/x/sync/singleflight"
+	repov1 "helm.sh/helm/v4/pkg/repo/v1"
+	"sigs.k8s.io/yaml"
+
 	"github.com/rancher/fleet/internal/helmversion"
 	"github.com/rancher/fleet/internal/httputils"
 	"github.com/rancher/fleet/internal/netx"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	fleetgit "github.com/rancher/fleet/pkg/git"
-	"golang.org/x/sync/singleflight"
-	repov1 "helm.sh/helm/v4/pkg/repo/v1"
-	"sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/yaml"
 
 	"oras.land/oras-go/v2/registry"
 	"oras.land/oras-go/v2/registry/remote"
@@ -93,8 +90,12 @@ func getOCIRepoClient(repoURI string, a Auth) (*remote.Repository, error) {
 		return nil, fmt.Errorf("failed to create OCI client: %w", err)
 	}
 
+	httpClient, err := getHTTPClient(a)
+	if err != nil {
+		return nil, err
+	}
 	authCli := &auth.Client{
-		Client: getHTTPClient(a),
+		Client: httpClient,
 		Cache:  auth.NewCache(),
 	}
 	if a.Username != "" {
@@ -166,7 +167,10 @@ func getHelmRepoIndex(ctx context.Context, repoURL string, auth Auth) (helmRepoI
 		request.SetBasicAuth(auth.Username, auth.Password)
 	}
 
-	client := getHTTPClient(auth)
+	client, err := getHTTPClient(auth)
+	if err != nil {
+		return nil, err
+	}
 
 	resp, err := client.Do(request)
 	if err != nil {
@@ -305,23 +309,31 @@ func GetOCITag(ctx context.Context, r *remote.Repository, v string) (string, err
 // anything else (see #3782). It therefore cannot carry Fleet's User-Agent
 // transport; that header is passed to Helm through getter.WithUserAgent
 // instead.
-func getHTTPClientForHelmRegistry(auth Auth) *http.Client {
-	return &http.Client{
-		Transport: transportForAuth(auth.InsecureSkipVerify, auth.CABundle),
-		Timeout:   httpClientTimeout,
+func getHTTPClientForHelmRegistry(auth Auth) (*http.Client, error) {
+	tr, err := transportForAuth(netx.TLSConfig{InsecureSkipVerify: auth.InsecureSkipVerify, CABundle: auth.CABundle})
+	if err != nil {
+		return nil, err
 	}
+	return &http.Client{
+		Transport: tr,
+		Timeout:   httpClientTimeout,
+	}, nil
 }
 
-func getHTTPClient(auth Auth) *http.Client {
+func getHTTPClient(auth Auth) (*http.Client, error) {
+	tr, err := transportForAuth(netx.TLSConfig{InsecureSkipVerify: auth.InsecureSkipVerify, CABundle: auth.CABundle})
+	if err != nil {
+		return nil, err
+	}
 	return &http.Client{
 		Transport: httputils.UserAgentTransport{
-			Next: transportForAuth(auth.InsecureSkipVerify, auth.CABundle),
+			Next: tr,
 		},
 		Timeout: httpClientTimeout,
-	}
+	}, nil
 }
 
-func transportHash(insecureSkipVerify bool, caBundle []byte) string {
+func transportHash(tlsCfg netx.TLSConfig) string {
 	hash := sha256.New()
 
 	// Write a length prefix for every field to avoid collisions
@@ -333,8 +345,8 @@ func transportHash(insecureSkipVerify bool, caBundle []byte) string {
 	}
 
 	for _, v := range [][]byte{ // values to hash
-		caBundle,
-		{toByte(insecureSkipVerify)},
+		tlsCfg.CABundle,
+		{toByte(tlsCfg.InsecureSkipVerify)},
 	} {
 		writeField(v)
 	}
@@ -342,28 +354,18 @@ func transportHash(insecureSkipVerify bool, caBundle []byte) string {
 	return hex.EncodeToString(hash.Sum(nil))
 }
 
-func transportForAuth(insecureSkipVerify bool, caBundle []byte) http.RoundTripper {
-	caBundle = append([]byte(nil), caBundle...) // defensive copy
-	if proxyCAPEM, ok := os.LookupEnv(fleetgit.ProxyCABundleEnvVar); ok && proxyCAPEM != "" {
-		proxyBytes := []byte(proxyCAPEM)
-		tmpPool := x509.NewCertPool()
-		if !tmpPool.AppendCertsFromPEM(proxyBytes) {
-			log.Log.Info(fleetgit.ProxyCABundleEnvVar + " is set but contains no valid PEM certificates; ignoring proxy CA bundle")
-		} else {
-			caBundle = append(caBundle, '\n')
-			caBundle = append(caBundle, proxyBytes...)
-		}
-	}
+func transportForAuth(tlsCfg netx.TLSConfig) (http.RoundTripper, error) {
+	tlsCfg = tlsCfg.WithProxyCA()
 
 	// We don't need the full hash
-	hash := transportHash(insecureSkipVerify, caBundle)
+	hash := transportHash(tlsCfg)
 
 	// Fast path: valid transport already exists
 	transportsCacheMutex.RLock()
 	rt, ok := transportsCache[hash]
 	transportsCacheMutex.RUnlock()
 	if ok {
-		return rt
+		return rt, nil
 	}
 
 	transportsCacheMutex.Lock()
@@ -371,15 +373,17 @@ func transportForAuth(insecureSkipVerify bool, caBundle []byte) http.RoundTrippe
 
 	// Check again using write lock
 	if rt, ok := transportsCache[hash]; ok {
-		return rt
+		return rt, nil
 	}
 
 	// Create new transport
-	transport := netx.NewTransport(netx.TLSConfig{CABundle: caBundle,
-		InsecureSkipVerify: insecureSkipVerify})
+	transport, err := netx.NewTransport(tlsCfg)
+	if err != nil {
+		return nil, err
+	}
 
 	transportsCache[hash] = transport
-	return transport
+	return transport, nil
 }
 
 func isOCIChart(location fleet.HelmOptions) (string, bool) {

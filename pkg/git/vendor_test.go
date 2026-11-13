@@ -99,7 +99,7 @@ SUPER FAKE CERT
 			commit, err := latestCommitFromCommitsURL(context.Background(), svr.URL, &options{CABundle: caBundle, Timeout: clientTimeout})
 			// no error and returns true, so the client is forced to run the List to get results
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(Equal("x509: malformed certificate"))
+			Expect(err.Error()).To(Equal("no valid certificates in CA bundle"))
 			Expect(commit).To(BeEmpty())
 		})
 	})

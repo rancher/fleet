@@ -1,16 +1,21 @@
 package git
 
 import (
+	"encoding/pem"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/rancher/fleet/internal/netx"
 )
 
 // TestNewRemote_ProxyCABundle_MergedIntoLister verifies that when
 // PROXY_CA_BUNDLE is set, its PEM is appended to the CA bundle stored in
 // GoGitRemoteLister so go-git's HTTP transport trusts the proxy CA.
 func TestNewRemote_ProxyCABundle_MergedIntoLister(t *testing.T) {
-	const proxyPEM = "-----BEGIN CERTIFICATE-----\nproxycert\n-----END CERTIFICATE-----"
-	t.Setenv(ProxyCABundleEnvVar, proxyPEM)
+	proxyPEM := newTestCAPEM(t)
+	t.Setenv(netx.ProxyCABundleEnvVar, proxyPEM)
 
 	r, err := NewRemote("http://example.com/repo.git", &options{})
 	if err != nil {
@@ -30,11 +35,9 @@ func TestNewRemote_ProxyCABundle_MergedIntoLister(t *testing.T) {
 // both opts.CABundle and PROXY_CA_BUNDLE are set, both PEMs appear in the
 // lister's CABundle (file CA first, then proxy CA).
 func TestNewRemote_ProxyCABundle_MergedWithExistingCABundle(t *testing.T) {
-	const (
-		filePEM  = "-----BEGIN CERTIFICATE-----\nfilecert\n-----END CERTIFICATE-----"
-		proxyPEM = "-----BEGIN CERTIFICATE-----\nproxycert\n-----END CERTIFICATE-----"
-	)
-	t.Setenv(ProxyCABundleEnvVar, proxyPEM)
+	const filePEM = "-----BEGIN CERTIFICATE-----\nfilecert\n-----END CERTIFICATE-----"
+	proxyPEM := newTestCAPEM(t)
+	t.Setenv(netx.ProxyCABundleEnvVar, proxyPEM)
 
 	r, err := NewRemote("http://example.com/repo.git", &options{
 		CABundle: []byte(filePEM),
@@ -62,7 +65,7 @@ func TestNewRemote_ProxyCABundle_MergedWithExistingCABundle(t *testing.T) {
 // PROXY_CA_BUNDLE the lister's CABundle equals opts.CABundle exactly.
 func TestNewRemote_NoProxyCABundle_UsesOnlyOpts(t *testing.T) {
 	const filePEM = "-----BEGIN CERTIFICATE-----\nfilecert\n-----END CERTIFICATE-----"
-	t.Setenv(ProxyCABundleEnvVar, "")
+	t.Setenv(netx.ProxyCABundleEnvVar, "")
 
 	r, err := NewRemote("http://example.com/repo.git", &options{
 		CABundle: []byte(filePEM),
@@ -78,4 +81,13 @@ func TestNewRemote_NoProxyCABundle_UsesOnlyOpts(t *testing.T) {
 	if got := string(lister.CABundle); got != filePEM {
 		t.Errorf("expected CABundle %q, got %q", filePEM, got)
 	}
+}
+
+// newTestCAPEM returns a valid PEM certificate for tests, taken from a local
+// TLS test server.
+func newTestCAPEM(t *testing.T) string {
+	t.Helper()
+	ts := httptest.NewTLSServer(http.NotFoundHandler())
+	t.Cleanup(ts.Close)
+	return string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: ts.Certificate().Raw}))
 }

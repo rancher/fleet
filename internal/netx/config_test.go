@@ -1,6 +1,7 @@
 package netx
 
 import (
+	"bytes"
 	"crypto/tls"
 	"crypto/x509"
 	"testing"
@@ -29,7 +30,10 @@ UixxouFflOm/k5xi79QB9jFoQa9U
 )
 
 func TestTLSClientConfig_EmptyConfig(t *testing.T) {
-	cfg := TLSConfig{}.TLSClientConfig()
+	cfg, err := TLSConfig{}.TLSClientConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if cfg.InsecureSkipVerify == true {
 		t.Fatal("expected InsecureSkipVerify to be false")
@@ -51,27 +55,114 @@ func TestTLSClientConfig_Empty_Config_And_CABundle(t *testing.T) {
 		t.Fatal("test CA did not parse")
 	}
 
-	cfg := TLSConfig{CABundle: []byte(testCACertPEM)}.TLSClientConfig()
+	cfg, err := TLSConfig{CABundle: []byte(testCACertPEM)}.TLSClientConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if !cfg.RootCAs.Equal(want) {
 		t.Fatal("expected RootCAs to be the system pool plus the test CA")
 	}
 }
 
 func TestTLSClientConfig_EmptyCABundle(t *testing.T) {
-	cfg := TLSConfig{CABundle: []byte{}}.TLSClientConfig()
+	cfg, err := TLSConfig{CABundle: []byte{}}.TLSClientConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if cfg.RootCAs != nil {
 		t.Fatal("expected RootCAs to be nil for an empty CABundle")
 	}
 }
 
 func TestTLSClientConfig_Invalid_PEM(t *testing.T) {
-	want, err := x509.SystemCertPool()
-	if err != nil {
-		t.Fatal(err)
+	cfg, err := TLSConfig{CABundle: []byte(`-----BEGIN CERTIFICATE-----`)}.TLSClientConfig()
+	if err == nil {
+		t.Fatal("expected an error for a CA bundle without valid certificates")
+	}
+	if cfg != nil {
+		t.Fatal("expected no tls.Config on error")
+	}
+}
+
+func TestWithProxyCA(t *testing.T) {
+	tests := []struct {
+		name     string
+		cfg      TLSConfig
+		proxyEnv string
+		want     []byte
+	}{
+		{
+			name: "no proxy CA keeps an empty bundle",
+			cfg:  TLSConfig{},
+			want: []byte{},
+		},
+		{
+			name: "no proxy CA keeps the bundle",
+			cfg:  TLSConfig{CABundle: []byte(testCACertPEM)},
+			want: []byte(testCACertPEM),
+		},
+		{
+			name:     "invalid proxy CA is ignored",
+			cfg:      TLSConfig{CABundle: []byte(testCACertPEM)},
+			proxyEnv: "not a certificate",
+			want:     []byte(testCACertPEM),
+		},
+		{
+			name:     "proxy CA with an empty bundle",
+			cfg:      TLSConfig{},
+			proxyEnv: testCACertPEM,
+			want:     []byte(testCACertPEM),
+		},
+		{
+			name:     "proxy CA after a bundle without a trailing newline",
+			cfg:      TLSConfig{CABundle: []byte(testCACertPEM)},
+			proxyEnv: testCACertPEM,
+			want:     []byte(testCACertPEM + "\n" + testCACertPEM),
+		},
+		{
+			name:     "proxy CA after a bundle with a trailing newline",
+			cfg:      TLSConfig{CABundle: []byte(testCACertPEM + "\n")},
+			proxyEnv: testCACertPEM,
+			want:     []byte(testCACertPEM + "\n" + testCACertPEM),
+		},
+		{
+			name:     "InsecureSkipVerify and Certificates are kept",
+			cfg:      TLSConfig{InsecureSkipVerify: true, Certificates: []tls.Certificate{{}}},
+			proxyEnv: testCACertPEM,
+			want:     []byte(testCACertPEM),
+		},
 	}
 
-	cfg := TLSConfig{CABundle: []byte(`-----BEGIN CERTIFICATE-----`)}.TLSClientConfig()
-	if !cfg.RootCAs.Equal(want) {
-		t.Fatal("expected RootCAs to be just the system pool")
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Setenv(ProxyCABundleEnvVar, test.proxyEnv)
+
+			cfg := test.cfg.WithProxyCA()
+			if !bytes.Equal(cfg.CABundle, test.want) {
+				t.Fatalf("CABundle = %q, want %q", cfg.CABundle, test.want)
+			}
+			if cfg.InsecureSkipVerify != test.cfg.InsecureSkipVerify {
+				t.Fatal("InsecureSkipVerify changed")
+			}
+			if len(cfg.Certificates) != len(test.cfg.Certificates) {
+				t.Fatal("Certificates changed")
+			}
+		})
+	}
+}
+
+func TestWithProxyCA_DoesNotModifyCallerBundle(t *testing.T) {
+	t.Setenv(ProxyCABundleEnvVar, testCACertPEM)
+
+	// Spare capacity lets a careless append write into the caller's array.
+	base := make([]byte, 0, 2*len(testCACertPEM)+1)
+	base = append(base, testCACertPEM...)
+
+	cfg := TLSConfig{CABundle: base}.WithProxyCA()
+	if len(cfg.CABundle) <= len(base) {
+		t.Fatal("expected the proxy CA to be appended")
+	}
+	if spare := base[len(base):cap(base)]; bytes.ContainsAny(spare, "-\n") {
+		t.Fatal("WithProxyCA wrote into the caller's CABundle array")
 	}
 }
