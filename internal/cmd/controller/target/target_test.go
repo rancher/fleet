@@ -538,7 +538,7 @@ func TestDisablePreProcessFlagEnabled(t *testing.T) {
 		t.Fatal(err.Error())
 	}
 
-	err = preprocessHelmValues(zap.New(), bundle, cluster)
+	err = preprocessHelmValues(zap.New(), bundle, cluster, newTemplateContext(&v1alpha1.Bundle{}, cluster))
 	if err != nil {
 		t.Fatalf("error during cluster processing %v", err)
 	}
@@ -595,7 +595,7 @@ func TestDisablePreProcessFlagDisabled(t *testing.T) {
 		t.Fatal(err.Error())
 	}
 
-	err = preprocessHelmValues(zap.New(), bundle, cluster)
+	err = preprocessHelmValues(zap.New(), bundle, cluster, newTemplateContext(&v1alpha1.Bundle{}, cluster))
 	if err != nil {
 		t.Fatalf("error during cluster processing %v", err)
 	}
@@ -639,7 +639,7 @@ func TestDisablePreProcessFlagMissing(t *testing.T) {
 		t.Fatal(err.Error())
 	}
 
-	err = preprocessHelmValues(zap.New(), bundle, cluster)
+	err = preprocessHelmValues(zap.New(), bundle, cluster, newTemplateContext(&v1alpha1.Bundle{}, cluster))
 	if err != nil {
 		t.Fatalf("error during cluster processing %v", err)
 	}

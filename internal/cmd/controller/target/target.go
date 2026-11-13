@@ -53,6 +53,8 @@ type Target struct {
 	Bundle        *fleet.Bundle
 	Options       fleet.BundleDeploymentOptions
 	DeploymentID  string
+	// DependsOn contains dependencies resolved for this target, not the source templates.
+	DependsOn []fleet.BundleRef
 }
 
 // BundleDeployment returns a new BundleDeployment, it discards annotations, status, etc.
@@ -72,7 +74,7 @@ func (t *Target) BundleDeployment() *fleet.BundleDeployment {
 
 	initialiseOptionsMaps(bd)
 
-	bd.Spec.DependsOn = t.Bundle.Spec.DependsOn
+	bd.Spec.DependsOn = t.DependsOn
 	bd.Spec.CorrectDrift = t.Options.CorrectDrift
 	return bd
 }

@@ -230,6 +230,11 @@ func bundleFromDir(ctx context.Context, name, baseDir string, bundleData []byte,
 		bundle.Labels[k] = v
 	}
 
+	// Source labels must not override the repository identity supplied by GitJob.
+	if repoName, ok := opts.Labels[fleet.RepoLabel]; ok {
+		bundle.Labels[fleet.RepoLabel] = repoName
+	}
+
 	if opts.ServiceAccount != "" {
 		bundle.Spec.ServiceAccount = opts.ServiceAccount
 	}
