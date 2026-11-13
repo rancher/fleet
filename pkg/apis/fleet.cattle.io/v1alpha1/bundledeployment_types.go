@@ -287,6 +287,21 @@ type HelmOptions struct {
 	// Force allows to override immutable resources. This could be dangerous.
 	Force bool `json:"force,omitempty"`
 
+	// PreserveOnReplace lists fields which are kept from the live object when
+	// an object is replaced, which happens with helm.force or
+	// correctDrift.force. A replace sends the whole object, so fields set on
+	// the server after its creation (e.g. the volumeName of a bound
+	// PersistentVolumeClaim) would otherwise be cleared, which the API server
+	// may reject. A field is only copied when the deployed manifest leaves it
+	// unset, except for a list with a mergeKey (see PreservedPath). Without
+	// helm.force or correctDrift.force, this has no effect. Rules from the
+	// bundle and from matching target customizations are combined, and all
+	// rules matching an object apply, so their paths add up; identical rules
+	// are deduplicated. Changing these rules redeploys the bundle.
+	// +nullable
+	// +optional
+	PreserveOnReplace []PreserveOnReplaceRule `json:"preserveOnReplace,omitempty"`
+
 	// TakeOwnership makes helm skip the check for its own annotations
 	TakeOwnership bool `json:"takeOwnership,omitempty"`
 
@@ -312,6 +327,68 @@ type HelmOptions struct {
 
 	// DisableDependencyUpdate allows skipping chart dependencies update
 	DisableDependencyUpdate bool `json:"disableDependencyUpdate,omitempty"`
+}
+
+// PreserveOnReplaceRule matches objects and lists the fields to keep from
+// their live version when they are replaced.
+type PreserveOnReplaceRule struct {
+	// APIVersion is the apiVersion of the objects to match, e.g. v1. It must
+	// equal the apiVersion the chart renders: apps/v1beta1 does not match an
+	// object rendered as apps/v1.
+	// +kubebuilder:validation:MinLength=1
+	APIVersion string `json:"apiVersion"`
+	// Kind is the kind of the objects to match, e.g. PersistentVolumeClaim.
+	// +kubebuilder:validation:MinLength=1
+	Kind string `json:"kind"`
+	// Namespace is the namespace of the objects to match, exactly. Empty
+	// matches any namespace.
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
+	// Name is the name of the objects to match, exactly. It takes precedence
+	// over NameRegex: if both are set, NameRegex is ignored. Empty, with no
+	// NameRegex, matches any name.
+	// +optional
+	Name string `json:"name,omitempty"`
+	// NameRegex is an unanchored Go regular expression matching the names of
+	// the objects to match. As it is unanchored, pvc-1 also matches my-pvc-10:
+	// use ^pvc-1$, or Name, to match one name only. It is ignored, and not
+	// validated, if Name is set.
+	// +optional
+	NameRegex string `json:"nameRegex,omitempty"`
+	// Paths are the fields to keep from the live object.
+	// +kubebuilder:validation:MinItems=1
+	Paths []PreservedPath `json:"paths"`
+}
+
+// PreservedPath is a field kept from the live object when an object is
+// replaced.
+type PreservedPath struct {
+	// Path is a JSON pointer (RFC 6901) to the field, e.g. /spec/volumeName.
+	// A "[key]" token iterates over the items of a list, pairing each item of
+	// the deployed object with the live item which has the same value of field
+	// key, e.g. /spec/containers/[name]/volumeMounts. A "[key]" token must
+	// follow a field and be followed by one, so lists of lists cannot be
+	// addressed, and neither can a field whose name starts with "[" and ends
+	// with "]". The live value is copied when the deployed object leaves the
+	// field unset or null, unless MergeKey is set. Helm always sets some
+	// annotations and labels, e.g. meta.helm.sh/release-name, so
+	// /metadata/annotations and /metadata/labels are never unset: use
+	// /metadata/annotations/<key> to keep one annotation. Paths below
+	// /status, /apiVersion, /kind, /metadata/name, /metadata/namespace,
+	// /metadata/uid, /metadata/resourceVersion, /metadata/generation,
+	// /metadata/creationTimestamp, /metadata/deletionTimestamp and
+	// /metadata/managedFields are not allowed.
+	// +kubebuilder:validation:MinLength=2
+	Path string `json:"path"`
+	// MergeKey, if set, merges a list of objects instead of copying it only
+	// when unset: live items whose MergeKey field has a value not found in the
+	// deployed list are appended to it. It only applies to lists of objects:
+	// live items which are not objects are not merged, although a live list
+	// is still copied whole when the deployed object leaves it unset. As long
+	// as the rule exists, an item removed from the manifest is added back from
+	// the live object on every replace.
+	// +optional
+	MergeKey string `json:"mergeKey,omitempty"`
 }
 
 // GitOpsHelmOptions contains Helm options which only make sense for GitOps.

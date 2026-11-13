@@ -1311,3 +1311,67 @@ targets:
 		})
 	})
 })
+
+var _ = Describe("Fleet apply with helm.preserveOnReplace", func() {
+	var (
+		dirs    []string
+		name    string
+		options apply.Options
+	)
+
+	When("fleet.yaml contains valid helm.preserveOnReplace entries", func() {
+		BeforeEach(func() {
+			name = "preserve-on-replace-valid"
+			dirs = []string{writeBundleDir(`defaultNamespace: test-preserve
+helm:
+  force: true
+  preserveOnReplace:
+  - apiVersion: v1
+    kind: PersistentVolumeClaim
+    paths:
+    - path: /spec/volumeName
+    - path: /spec/storageClassName
+targetCustomizations:
+- name: dev
+  clusterSelector: {}
+  helm:
+    preserveOnReplace:
+    - apiVersion: v1
+      kind: Pod
+      namespace: debug
+      nameRegex: ^debug-
+      paths:
+      - path: /spec/containers/[name]/volumeMounts
+        mergeKey: mountPath
+targets:
+- clusterSelector: {}
+`)}
+		})
+
+		It("creates a Bundle with the entries", func() {
+			err := fleetApply(name, dirs, options)
+			Expect(err).NotTo(HaveOccurred())
+
+			bundle, err := cli.GetBundleFromOutput(buf)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(bundle.Spec.Helm).NotTo(BeNil())
+			Expect(bundle.Spec.Helm.PreserveOnReplace).To(Equal([]v1alpha1.PreserveOnReplaceRule{{
+				APIVersion: "v1",
+				Kind:       "PersistentVolumeClaim",
+				Paths:      []v1alpha1.PreservedPath{{Path: "/spec/volumeName"}, {Path: "/spec/storageClassName"}},
+			}}))
+
+			target, _, found := sliceFind(bundle.Spec.Targets, func(t v1alpha1.BundleTarget) bool {
+				return t.Helm != nil
+			})
+			Expect(found).To(BeTrue())
+			Expect(target.Helm.PreserveOnReplace).To(Equal([]v1alpha1.PreserveOnReplaceRule{{
+				APIVersion: "v1",
+				Kind:       "Pod",
+				Namespace:  "debug",
+				NameRegex:  "^debug-",
+				Paths:      []v1alpha1.PreservedPath{{Path: "/spec/containers/[name]/volumeMounts", MergeKey: "mountPath"}},
+			}}))
+		})
+	})
+})
