@@ -3,12 +3,15 @@ name: Create Release Branch
 on:
   workflow_dispatch:
     inputs:
-      version:
-        description: New version number (e.g. 42); will be prefixed with `release/v0.` by the workflow
-        required: true
+      major:
+        description: True if a new branch must be created for a major release, false otherwise. Patch releases do not require new release branches.
+        default: false
+        required: false
+        type: boolean
 
 permissions:
   contents: write
+  pull-requests: write
 
 env:
   GOARCH: amd64
@@ -25,63 +28,124 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: create release branch
+      - name: compute new release version number
         id: branch
         env:
-          NUM: ${{ github.event.inputs.version }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Remove leading 0s, if any
-          NUM=$(echo $NUM | sed 's/^0\+//g')
+          latest=$(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1)
 
-          if ! [[ $NUM =~ ^[0-9]+$ ]]; then
-             echo "${NUM} is not a number"
-             exit 1
-          fi
-
-          if [ $NUM -lt 1 ]; then
-            echo "${NUM} is too small; will not match a Rancher version number"
+          if [ -z "$latest" ]; then
+            echo "Could not extract latest version from repo; aborting."
             exit 1
           fi
 
-          version="release/v0.$NUM"
+          members=${latest#v}
+          major_member=$(echo $members | cut -d'.' -f1)
+          minor_member=$(echo $members | cut -d'.' -f2)
 
-          if [ ! -e ~/.gitconfig ]; then
-            echo "Configuring git username and email"
-            git config --global user.name "fleet-bot"
-            git config --global user.email fleet@suse.de
-          fi
-
-          err_file=/tmp/branch_create_err
-
-          if ! git checkout -b $version &>$err_file; then
-            if ! grep -q 'already exists' $err_file; then
-              echo "Could not create branch $version. Skipping."
-              echo "version=" >> "$GITHUB_OUTPUT"
-
-              exit 1
-            fi
+          if [ ${{ github.event.inputs.major }} = 'true' ]; then
+            new_version="$(( major_member + 1 )).0"
           else
-            git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git"
-            git push -u origin $version
+            new_version="$major_member.$(( minor_member + 1 ))"
           fi
 
-          echo "num=$NUM" >> "$GITHUB_OUTPUT"
+          version="release/v$new_version"
+
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
-      - name: add Renovate support to new release branch
+      - name: checkout rancher/fleet-test-data
+        if: steps.branch.outputs.version != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          repository: "rancher/fleet-test-data"
+          path: fleet-test-data
+
+      - name: create release branch in fleet-test-data
+        id: test_branch
+        if: steps.branch.outputs.version != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.CI_PUSH_FLEET_TEST_DATA }}
+          BRANCH: ${{steps.branch.outputs.version}}
+        working-directory: ./fleet-test-data/
+        run: |
+          if git show-ref --verify --quiet refs/remotes/origin/$BRANCH; then
+            echo "Branch $BRANCH already exists; skipping creation"
+          else
+            if ! git checkout -b $BRANCH; then
+              echo "Could not create branch $BRANCH."
+            fi
+          fi
+
+          if git checkout $BRANCH; then
+            echo "branch_exists=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "branch_exists=0" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: compute work branch
+        id: git_config
         if: steps.branch.outputs.version != ''
         env:
           BRANCH: ${{steps.branch.outputs.version}}
-          NUM: ${{steps.branch.outputs.num}}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          branch=$BRANCH
+
+          if git show-ref --verify --quiet refs/remotes/origin/$BRANCH; then
+            # branch already exists; pushes will require a PR, so create a feature branch
+            branch="${BRANCH//\//-}-$(date +'%s')"
+
+            # ensure diffs will be computed against the existing release branch,
+            # to prevent effort duplication
+            git checkout $BRANCH
+          fi
+
+          if ! git checkout -b $branch; then
+            echo "Could not create branch $branch. Skipping."
+
+            exit 1
+          fi
+
+          echo "work_branch=$branch" >> "$GITHUB_OUTPUT"
+
+      - name: checkout rancher/renovate-config
+        if: steps.git_config.outputs.work_branch != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          repository: "rancher/renovate-config"
+          path: renovate-config
+          ref: main
+
+      - name: add Renovate support to new release branch
+        if: steps.git_config.outputs.work_branch != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: ${{steps.branch.outputs.version}}
+          WORK_BRANCH: ${{steps.git_config.outputs.work_branch}}
         run: |
           if grep -q "$BRANCH" .github/renovate.json; then
             echo "Renovate config already set for $BRANCH; skipping."
             exit 0
           fi
 
-          rancher_minor_member=$(( $NUM - 1 ))
+          rancher_minor_member=$(( $(echo $BRANCH | cut -d'.' -f2) - 1 ))
+
+          # Check existence of renovate config file for Rancher release branch
+          path="rancher-2.$rancher_minor_member"
+          pushd renovate-config
+
+          if ! git cat-file -e origin/main:$path.json; then
+            echo "File $path does not exist in rancher/renovate-config's main branch. Exiting."
+            popd
+            exit 1
+          fi
+
+          popd
+
           sed -Ei "/\"main\",/a \"$BRANCH\"," .github/renovate.json
           cat <<EOF >renovate_block.json
               {
@@ -89,7 +153,7 @@ jobs:
                   "$BRANCH"
                 ],
                 "extends": [
-                  "github>rancher/renovate-config//rancher-2.$rancher_minor_member#main"
+                  "github>rancher/renovate-config//$path#main"
                 ]
               },
           EOF
@@ -105,49 +169,71 @@ jobs:
           git --no-pager diff .github/renovate.json
 
           git add .github/renovate.json
+
+          echo "Configuring git username and email"
+          git config --global user.name "fleet-bot"
+          git config --global user.email fleet@suse.de
+
           git commit -m "Add Renovate support to branch $BRANCH"
 
-          git push -u origin $BRANCH
-
-      - name: checkout rancher/fleet-test-data
-        if: steps.branch.outputs.version != ''
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-          repository: "rancher/fleet-test-data"
-          path: fleet-test-data
-
-      - name: create release branch in fleet-test-data
-        id: test_branch
-        if: steps.branch.outputs.version != ''
+      - name: update Fleet chart annotations
+        if: steps.git_config.outputs.work_branch != ''
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BRANCH: ${{steps.branch.outputs.version}}
         run: |
-          cd fleet-test-data
+          rancher_next_minor_member=$(( $(echo $BRANCH | cut -d'.' -f2) )) # Fleet is one minor ahead of Rancher
+          rancher_minor_member=$(( $rancher_next_minor_member - 1 ))
 
-          if ! git checkout -b $BRANCH; then
-            echo "Could not create branch $version. Skipping."
-          else
-            git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/rancher/fleet-test-data.git"
-            git push -u origin $BRANCH
+          for suffix in '-agent' ''; do
+            file=charts/fleet$suffix/Chart.yaml
+
+            sed -i "s,\(catalog.cattle.io/rancher-version: '>= \).*$,\12.$rancher_minor_member.0-0 < 2.$rancher_next_minor_member.0-0'," $file
+
+            IFS='.' read catalog cattle io_until_major k8s_minor_member rest_until_major k8s_next_minor_member rest < <(grep 'catalog.cattle.io/kube-version:' $file)
+
+            sed -i "s,\(catalog.cattle.io/kube-version: '>= \).*$,\11.$(( k8s_minor_member + 1 )).0-0 < 1.$(( k8s_next_minor_member + 1 )).0-0'," $file
+
+            git add $file
+          done
+
+          echo "Configuring git username and email"
+          git config --global user.name "fleet-bot"
+          git config --global user.email fleet@suse.de
+
+          git commit -m "Update chart annotations for $BRANCH"
+
+      - name: add new release branch to candidates for releasing against Rancher
+        if: steps.git_config.outputs.work_branch != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.CI_PUSH_FLEET_WORKFLOWS_PRS }}
+          BRANCH: ${{steps.branch.outputs.version}}
+          WORK_BRANCH: ${{steps.git_config.outputs.work_branch}}
+        run: |
+          if grep -Rq "$BRANCH" .github/workflows/release-against-rancher.yml; then
+            echo "Candidate release branches for release against Rancher already include $BRANCH; skipping."
+            exit 0
           fi
 
-          if git checkout $BRANCH; then
-            echo "branch_exists=1" >> "$GITHUB_OUTPUT"
-          else
-            echo "branch_exists=0" >> "$GITHUB_OUTPUT"
-          fi
+          sed -i "s,- main,&\n          - $BRANCH," .github/workflows/release-against-rancher.yml
+
+          git --no-pager diff .github/workflows
+
+          git add .github/workflows
+
+          echo "Configuring git username and email"
+          git config --global user.name "fleet-bot"
+          git config --global user.email fleet@suse.de
+
+          git commit -m "Add $BRANCH to candidates for release against Rancher"
 
       - name: update benchmarks assets to point to rancher/fleet-test-data release branch
-        if: steps.branch.outputs.version != '' && steps.test_branch.outputs.branch_exists == 1
+        if: steps.git_config.outputs.work_branch != '' && steps.test_branch.outputs.branch_exists == 1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BRANCH: ${{steps.branch.outputs.version}}
+          WORK_BRANCH: ${{steps.git_config.outputs.work_branch}}
         run: |
-          cd ../fleet
-
           if grep -Rq "$BRANCH" benchmarks/assets; then
             echo "Benchmark assets already point to $BRANCH; skipping."
             exit 0
@@ -160,4 +246,41 @@ jobs:
           git add benchmarks/assets
           git commit -m "Point benchmarks assets to $BRANCH"
 
-          git push -u origin $BRANCH
+      - name: push work branch
+        env:
+          BRANCH: ${{steps.branch.outputs.version}}
+          GITHUB_TOKEN: ${{ secrets.CI_PUSH_FLEET_WORKFLOWS_PRS }}
+          WORK_BRANCH: ${{steps.git_config.outputs.work_branch}}
+        run: |
+          if [[ "${WORK_BRANCH}" != "${BRANCH}" && -z "$(git diff ${WORK_BRANCH} ${BRANCH})" ]]; then
+            echo "Branch ${WORK_BRANCH} is up-to-date with ${BRANCH}. Not pushing ${WORK_BRANCH}."
+            exit 0
+          fi
+
+          # Regardless of which branch we're on (new release branch, or feature branch), it must be pushed;
+          # Either we're done here, or in the case of a feature branch, we'll need a PR.
+          gh auth setup-git
+          git push -u origin $WORK_BRANCH
+
+      - name: submit a PR
+        if: steps.git_config.outputs.work_branch != '' && steps.branch.outputs.version != steps.git_config.outputs.work_branch
+        env:
+          BRANCH: ${{steps.branch.outputs.version}}
+          GITHUB_TOKEN: ${{ secrets.CI_PUSH_FLEET_WORKFLOWS_PRS }}
+          WORK_BRANCH: ${{steps.git_config.outputs.work_branch}}
+        run: |
+          # The branch already exists: it cannot be directly pushed to because
+          # it is protected, so create a PR against it
+
+          # Format PR description from commit titles
+          # (simpler than incrementally populating the body from each step actually pushing a commit).
+          body="$(git log --pretty='%s' ${BRANCH}..${WORK_BRANCH} | sed ':a;N;$!ba;s/\n/"$'"'"'\\n\\n'"'"'"/g')"
+
+          if [ -z "$body" ]; then
+            echo "No changes to submit; skipping PR creation."
+            exit 0
+          fi
+
+          gh pr create --title "[$BRANCH] Update release branch config" \
+                       --body "$body" \
+                       --base "${BRANCH}"
