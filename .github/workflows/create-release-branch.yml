@@ -71,7 +71,7 @@ jobs:
           BRANCH: ${{steps.branch.outputs.version}}
         working-directory: ./fleet-test-data/
         run: |
-          if git branch -a | grep -q origin/$BRANCH; then
+          if git show-ref --verify --quiet refs/remotes/origin/$BRANCH; then
             echo "Branch $BRANCH already exists; skipping creation"
           else
             if ! git checkout -b $BRANCH; then
@@ -94,7 +94,7 @@ jobs:
         run: |
           branch=$BRANCH
 
-          if git branch -a | grep -q origin/$BRANCH; then
+          if git show-ref --verify --quiet refs/remotes/origin/$BRANCH; then
             # branch already exists; pushes will require a PR, so create a feature branch
             branch="${BRANCH//\//-}-$(date +'%s')"
 
