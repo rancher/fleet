@@ -243,6 +243,24 @@ func TestParseGithub(t *testing.T) {
 			wantErrMsg:   "HMAC verification failed",
 			wantNilEvent: true,
 		},
+		"empty-github-secret": {
+			secretData: map[string][]byte{
+				githubKey: []byte(""),
+			},
+			body: []byte(`{
+				"ref": "refs/heads/main",
+				"after": "af69d162de5a276abc86e0686b2b44033cd3f442",
+				"repository": {
+					"html_url": "https://github.com/example/repo"
+				}
+			}`),
+			headers: map[string]string{
+				"X-GitHub-Event": "push",
+			},
+			wantErr:      true,
+			wantErrMsg:   "secret key \"github\" in secret \"test-secret\" is empty",
+			wantNilEvent: true,
+		},
 		"missing-github-secret": {
 			secretData: map[string][]byte{
 				"wrongkey": []byte("githubsecret"),
