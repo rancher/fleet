@@ -165,7 +165,7 @@ var _ = Describe("Policy enforcement", Label("policy"), func() {
 				name := testenv.NewNamespaceName("gr", r)
 				applyGitRepo(name)
 
-				Eventually(gitRepoCondition(name), 30*time.Second, time.Second).
+				Eventually(gitRepoCondition(name), testenv.MediumTimeout, time.Second).
 					Should(HavePrefix("True:"))
 			})
 		})
@@ -179,7 +179,7 @@ var _ = Describe("Policy enforcement", Label("policy"), func() {
 				name := testenv.NewNamespaceName("gr", r)
 				applyGitRepo(name)
 
-				Eventually(gitRepoCondition(name), 30*time.Second, time.Second).Should(And(
+				Eventually(gitRepoCondition(name), testenv.MediumTimeout, time.Second).Should(And(
 					HavePrefix("False:"),
 					ContainSubstring("serviceAccount"),
 				))
@@ -191,7 +191,7 @@ var _ = Describe("Policy enforcement", Label("policy"), func() {
 				name := testenv.NewNamespaceName("gr", r)
 				applyGitRepoWithSA(name, sa)
 
-				Eventually(gitRepoCondition(name), 30*time.Second, time.Second).Should(HavePrefix("True:"))
+				Eventually(gitRepoCondition(name), testenv.MediumTimeout, time.Second).Should(HavePrefix("True:"))
 			})
 		})
 
@@ -208,7 +208,7 @@ var _ = Describe("Policy enforcement", Label("policy"), func() {
 				name := testenv.NewNamespaceName("gr", r)
 				applyGitRepoWithSA(name, saName)
 
-				Eventually(gitRepoCondition(name), 30*time.Second, time.Second).Should(And(
+				Eventually(gitRepoCondition(name), testenv.MediumTimeout, time.Second).Should(And(
 					HavePrefix("False:"),
 					ContainSubstring("disallowed serviceAccount"),
 				))
@@ -235,7 +235,7 @@ var _ = Describe("Policy enforcement", Label("policy"), func() {
 				applyGitRepo(name)
 
 				// Accepted because the default SA was injected before the check.
-				Eventually(gitRepoCondition(name), 30*time.Second, time.Second).Should(HavePrefix("True:"))
+				Eventually(gitRepoCondition(name), testenv.MediumTimeout, time.Second).Should(HavePrefix("True:"))
 
 				// The SA must have been written back onto the GitRepo spec.
 				gr := &fleet.GitRepo{}
@@ -286,7 +286,7 @@ var _ = Describe("Policy enforcement", Label("policy"), func() {
 				name := testenv.NewNamespaceName("ho", r)
 				createHelmOpForRejection(name, "", "")
 
-				Eventually(helmOpCondition(name), 30*time.Second, time.Second).Should(And(
+				Eventually(helmOpCondition(name), testenv.MediumTimeout, time.Second).Should(And(
 					HavePrefix("False:"),
 					ContainSubstring("serviceAccount"),
 				))
@@ -306,7 +306,7 @@ var _ = Describe("Policy enforcement", Label("policy"), func() {
 				name := testenv.NewNamespaceName("ho", r)
 				createHelmOpForRejection(name, "", "unapproved-secret")
 
-				Eventually(helmOpCondition(name), 30*time.Second, time.Second).Should(And(
+				Eventually(helmOpCondition(name), testenv.MediumTimeout, time.Second).Should(And(
 					HavePrefix("False:"),
 					ContainSubstring("disallowed helmSecretName"),
 				))
@@ -326,7 +326,7 @@ var _ = Describe("Policy enforcement", Label("policy"), func() {
 			name := testenv.NewNamespaceName("gr", r)
 			applyGitRepo(name)
 
-			Eventually(gitRepoCondition(name), 30*time.Second, time.Second).Should(And(
+			Eventually(gitRepoCondition(name), testenv.MediumTimeout, time.Second).Should(And(
 				HavePrefix("False:"),
 				ContainSubstring("serviceAccount"),
 			))
@@ -381,7 +381,7 @@ var _ = Describe("Policy enforcement", Label("policy"), func() {
 					_ = clientUpstream.Delete(context.Background(), bundle)
 				})
 
-				Eventually(bundleReadyCondition(name), 30*time.Second, time.Second).Should(And(
+				Eventually(bundleReadyCondition(name), testenv.MediumTimeout, time.Second).Should(And(
 					HavePrefix("False:"),
 					ContainSubstring("serviceAccount"),
 				))

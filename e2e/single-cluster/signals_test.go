@@ -31,6 +31,18 @@ func parseTerminatedState(jsonOutput string) (*containerLastTerminatedState, err
 	return &state, nil
 }
 
+// waitForLeadership waits until the given leader election lease is held by an instance other
+// than previousPod. A terminated leader keeps its lease until the lease duration elapses, so
+// the replacement pod is only reconciling once it has taken over the lease.
+func waitForLeadership(k kubectl.Command, lease, previousPod string) {
+	Eventually(func(g Gomega) {
+		holder, err := k.Get("lease", lease, "-o", "jsonpath={.spec.holderIdentity}")
+		g.Expect(err).ToNot(HaveOccurred(), holder)
+		g.Expect(holder).ToNot(BeEmpty())
+		g.Expect(holder).ToNot(HavePrefix(previousPod), "new leader should not be the terminated pod")
+	}).Should(Succeed())
+}
+
 // waitForPodReadyAndTerminate waits for a pod matching the given label selector to be ready,
 // then deletes it to trigger graceful pod termination (SIGTERM).
 func waitForPodReadyAndTerminate(k kubectl.Command, labels string) string {
@@ -96,6 +108,8 @@ var _ = Describe("Shuts down gracefully", func() {
 				g.Expect(err).ToNot(HaveOccurred(), pods)
 				g.Expect(pods).To(ContainSubstring("Running"), "replacement pod should be running")
 			}).Should(Succeed())
+
+			waitForLeadership(k, "fleet-agent", pod)
 		})
 	})
 
@@ -139,6 +153,8 @@ var _ = Describe("Shuts down gracefully", func() {
 				g.Expect(err).ToNot(HaveOccurred(), pods)
 				g.Expect(pods).To(ContainSubstring("Running"), "replacement pod should be running")
 			}).Should(Succeed())
+
+			waitForLeadership(k, "fleet-controller-leader-election-shard", pod)
 		})
 	})
 
@@ -178,6 +194,8 @@ var _ = Describe("Shuts down gracefully", func() {
 				g.Expect(err).ToNot(HaveOccurred(), pods)
 				g.Expect(pods).To(ContainSubstring("Running"), "replacement pod should be running")
 			}).Should(Succeed())
+
+			waitForLeadership(k, "fleet-gitops-leader-election-shard", pod)
 		})
 	})
 
@@ -217,6 +235,8 @@ var _ = Describe("Shuts down gracefully", func() {
 				g.Expect(err).ToNot(HaveOccurred(), pods)
 				g.Expect(pods).To(ContainSubstring("Running"), "replacement pod should be running")
 			}).Should(Succeed())
+
+			waitForLeadership(k, "fleet-helmops-leader-election-shard", pod)
 		})
 	})
 })
