@@ -798,6 +798,125 @@ func TestReconcile_CreatesBundleAndUpdatesStatus(t *testing.T) {
 	}
 }
 
+func TestHandleVersion_EmptyCachedStatus(t *testing.T) {
+	cases := []struct {
+		name      string
+		requested string
+		previous  string
+		status    string
+		expected  string
+	}{
+		{
+			name:      "exact version with empty cached status",
+			requested: "0.1.0",
+			previous:  "0.1.0",
+			expected:  "0.1.0",
+		},
+		{
+			name:      "constraint with empty cached status",
+			requested: "0.x.x",
+			previous:  "0.1.0",
+			expected:  "0.2.0",
+		},
+		{
+			name:      "changed exact version with empty cached status",
+			requested: "0.2.0",
+			previous:  "0.1.0",
+			expected:  "0.2.0",
+		},
+		{
+			name:      "exact version with populated status",
+			requested: "0.1.0",
+			previous:  "0.1.0",
+			status:    "0.1.0",
+			expected:  "0.1.0",
+		},
+		{
+			name:      "constraint with populated status",
+			requested: "0.x.x",
+			previous:  "0.1.0",
+			status:    "0.1.0",
+			expected:  "0.2.0",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			svr := createHelmServer()
+			defer svr.Close()
+
+			client := mocks.NewMockK8sClient(gomock.NewController(t))
+			expectCABundleLookup(client)
+			r := HelmOpReconciler{Client: client}
+			helmop := &fleet.HelmOp{
+				Spec: fleet.HelmOpSpec{
+					InsecureSkipTLSverify: true,
+					BundleSpec: fleet.BundleSpec{
+						BundleDeploymentOptions: fleet.BundleDeploymentOptions{
+							Helm: &fleet.HelmOptions{
+								Repo:    svr.URL,
+								Chart:   "alpine",
+								Version: tc.requested,
+							},
+						},
+					},
+				},
+				Status: fleet.HelmOpStatus{Version: tc.status},
+			}
+			bundle := r.calculateBundle(helmop.DeepCopy())
+			oldBundle := bundle.DeepCopy()
+			oldBundle.Spec.Helm.Version = tc.previous
+
+			if err := r.handleVersion(t.Context(), oldBundle, bundle, helmop); err != nil {
+				t.Fatal(err)
+			}
+			if got := bundle.Spec.Helm.Version; got != tc.expected {
+				t.Errorf("expected bundle version %q, got %q", tc.expected, got)
+			}
+			if got := helmop.Status.Version; got != tc.expected {
+				t.Errorf("expected status version %q, got %q", tc.expected, got)
+			}
+		})
+	}
+}
+
+func TestHandleVersion_PollingWithEmptyCachedStatus(t *testing.T) {
+	for _, version := range []string{"0.x.x", "*", ""} {
+		t.Run(version, func(t *testing.T) {
+			// The polling job owns version resolution. This path must not need
+			// credentials or a registry lookup to preserve its previous result.
+			client := mocks.NewMockK8sClient(gomock.NewController(t))
+			r := HelmOpReconciler{Client: client}
+			helmop := &fleet.HelmOp{
+				Spec: fleet.HelmOpSpec{
+					PollingInterval: &metav1.Duration{Duration: time.Minute},
+					BundleSpec: fleet.BundleSpec{
+						BundleDeploymentOptions: fleet.BundleDeploymentOptions{
+							Helm: &fleet.HelmOptions{
+								Repo:    "oci://registry.invalid/charts/alpine",
+								Version: version,
+							},
+						},
+					},
+				},
+			}
+			bundle := r.calculateBundle(helmop)
+			oldBundle := bundle.DeepCopy()
+			oldBundle.Spec.Helm.Version = "0.1.0"
+
+			if err := r.handleVersion(t.Context(), oldBundle, bundle, helmop); err != nil {
+				t.Fatal(err)
+			}
+			if got := bundle.Spec.Helm.Version; got != "0.1.0" {
+				t.Errorf("expected previous bundle version 0.1.0, got %q", got)
+			}
+			if helmop.Status.Version != "" {
+				t.Errorf("expected status version to remain untouched, got %q", helmop.Status.Version)
+			}
+		})
+	}
+}
+
 func TestReconcile_ManagePollingJobs(t *testing.T) {
 	svr1 := createHelmServer()
 	defer svr1.Close()
