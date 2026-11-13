@@ -19,6 +19,7 @@ function k3d-cluster-delete {
 
 if [[ -n "$FLEET_E2E_CLUSTER" ]]; then
     k3d-cluster-delete "$FLEET_E2E_CLUSTER"
+    ./.github/scripts/imagescan-registry.sh delete
 fi
 
 if [[ -n "$FLEET_E2E_CLUSTER_DOWNSTREAM" ]]; then
