@@ -20,8 +20,8 @@ github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee/go.mod h1:yWu
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 h1:Jamvg5psRIccs7FGNTlIRMkT8wgtp5eCXdBlqhYGL6U=
 github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
-github.com/rancher/wrangler/v3 v3.8.0-rc.3 h1:9KJuSBroB7wgNRXLk8tJ05Lj2ZHd7jAxgA+5wzAWNfE=
-github.com/rancher/wrangler/v3 v3.8.0-rc.3/go.mod h1:IaBqAfzbG9qCwF9c3sCb17Z4TKiCEyO7JUx+4tMwrAo=
+github.com/rancher/wrangler/v3 v3.8.0 h1:t+tE6dquqD4VIc9PEm6SZMAt5VTuCqUyWWEWL2PzCO0=
+github.com/rancher/wrangler/v3 v3.8.0/go.mod h1:Q3uCyt5yvT99SeNbksrSwxlWn8P4lu4WHenWQDzUa9E=
 github.com/spf13/pflag v1.0.10 h1:4EBh2KAYBwaONj6b2Ye1GiHfwjqyROoF4RwYO+vPwFk=
 github.com/spf13/pflag v1.0.10/go.mod h1:McXfInJRrz4CZXVZOBLb0bTZqETkiAhM9Iw0y3An2Bg=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
