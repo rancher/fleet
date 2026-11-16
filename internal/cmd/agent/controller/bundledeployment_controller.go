@@ -777,8 +777,12 @@ func deployedConditionReason(err error) string {
 	return ""
 }
 
+// ignoreConflict drops optimistic concurrency conflicts, which are transient
+// and resolved on requeue. Server-side apply field manager conflicts are kept:
+// they persist until the conflicting field manager releases the fields, so
+// they must be reported.
 func ignoreConflict(err error) error {
-	if apierrors.IsConflict(err) {
+	if apierrors.IsConflict(err) && !apierrors.HasStatusCause(err, metav1.CauseTypeFieldManagerConflict) {
 		return nil
 	}
 	return err

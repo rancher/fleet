@@ -3,10 +3,12 @@ package controller
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/rancher/fleet/internal/cmd/agent/deployer"
+	"github.com/rancher/fleet/internal/cmd/agent/deployer/monitor"
 	"github.com/rancher/fleet/pkg/durations"
 
 	fleetv1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -411,5 +413,71 @@ func TestStaleCacheHits(t *testing.T) {
 
 	if got := r.recordStaleCacheHit(key); got != 1 {
 		t.Errorf("recordStaleCacheHit() after forgetting = %d, expected 1", got)
+	}
+}
+
+// TestSetConditionWithReasonConflicts checks that optimistic concurrency
+// conflicts set the condition to true, while server-side apply field manager
+// conflicts are reported in the condition, whichever way Helm wraps them.
+func TestSetConditionWithReasonConflicts(t *testing.T) {
+	cmGR := schema.GroupResource{Resource: "configmaps"}
+	ssaConflict := apierrors.NewApplyConflict(
+		[]metav1.StatusCause{{
+			Type:    metav1.CauseTypeFieldManagerConflict,
+			Message: `conflict with "helm"`,
+			Field:   ".data.key",
+		}},
+		`Apply failed with 1 conflict: conflict with "helm": .data.key`,
+	)
+	// As wrapped by Helm's server-side apply patch.
+	helmSSAConflict := fmt.Errorf("conflict occurred while applying object ns/cm /v1, Kind=ConfigMap: %w", ssaConflict)
+
+	cases := []struct {
+		name          string
+		err           error
+		expectedError bool
+	}{
+		{
+			name:          "optimistic concurrency conflict sets the condition to true",
+			err:           apierrors.NewConflict(cmGR, "cm", errors.New("modified")),
+			expectedError: false,
+		},
+		{
+			name:          "server-side apply field manager conflict",
+			err:           helmSSAConflict,
+			expectedError: true,
+		},
+		{
+			name:          "joined server-side apply field manager conflict",
+			err:           errors.Join(helmSSAConflict),
+			expectedError: true,
+		},
+		{
+			name: "server-side apply field manager conflict with failed rollback",
+			err: fmt.Errorf("an error occurred while rolling back the release. original upgrade error: %w: %w",
+				helmSSAConflict, errors.New("rollback failed")),
+			expectedError: true,
+		},
+		{
+			name:          "other error",
+			err:           errors.New("boom"),
+			expectedError: true,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			cond := monitor.Cond(fleetv1.BundleDeploymentConditionDeployed)
+			status := setConditionWithReason(fleetv1.BundleDeploymentStatus{}, c.err, "", cond)
+
+			if c.expectedError {
+				assert.True(t, cond.IsFalse(&status))
+				assert.Equal(t, "Error", cond.GetReason(&status))
+				assert.Equal(t, c.err.Error(), cond.GetMessage(&status))
+			} else {
+				assert.True(t, cond.IsTrue(&status))
+				assert.Empty(t, cond.GetMessage(&status))
+			}
+		})
 	}
 }
