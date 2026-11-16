@@ -142,7 +142,7 @@ func (h *Helm) getCfg(ctx context.Context, namespace, serviceAccountName string,
 		}
 	}
 
-	// Only the client Helm applies objects with gets the rules. Release
+	// Only the client used by Helm to apply objects gets the rules. Release
 	// storage (createCfg) and cfg.RESTClientGetter keep the plain getter.
 	applyGetter := getter
 	if len(preserveRules) > 0 {

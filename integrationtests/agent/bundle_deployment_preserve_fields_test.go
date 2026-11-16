@@ -564,8 +564,8 @@ func (e *preserveEnv) releaseManifest() string {
 func (e *preserveEnv) createLivePod() {
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "debug-pod",
-			Namespace: e.namespace,
+			Name:      e.podKey().Name,
+			Namespace: e.podKey().Namespace,
 			Labels:    map[string]string{"rev": "0", "app.kubernetes.io/managed-by": "Helm"},
 			Annotations: map[string]string{
 				"meta.helm.sh/release-name":      e.name,

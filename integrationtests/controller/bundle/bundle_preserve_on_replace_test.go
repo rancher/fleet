@@ -56,7 +56,6 @@ var _ = Describe("Bundle with helm.preserveOnReplace", Ordered, func() {
 		for _, bd := range bdList.Items {
 			bds[bd.Labels["fleet.cattle.io/cluster"]] = bd
 		}
-		g.Expect(bds).To(HaveLen(3))
 		return bds
 	}
 
@@ -95,7 +94,9 @@ var _ = Describe("Bundle with helm.preserveOnReplace", Ordered, func() {
 		By("applying the rule of a target customization to the matching target only")
 		deploymentIDs := map[string]string{}
 		Eventually(func(g Gomega) {
-			for cluster, bd := range bundleDeployments(g) {
+			bds := bundleDeployments(g)
+			g.Expect(bds).To(HaveLen(3))
+			for cluster, bd := range bds {
 				var want []v1alpha1.PreserveOnReplaceRule
 				if cluster == "one" {
 					want = []v1alpha1.PreserveOnReplaceRule{pvcRule}
@@ -124,7 +125,9 @@ var _ = Describe("Bundle with helm.preserveOnReplace", Ordered, func() {
 		}).Should(Succeed())
 
 		Eventually(func(g Gomega) {
-			for cluster, bd := range bundleDeployments(g) {
+			bds := bundleDeployments(g)
+			g.Expect(bds).To(HaveLen(3))
+			for cluster, bd := range bds {
 				want := []v1alpha1.PreserveOnReplaceRule{jobRule, basePVCRule}
 				if cluster == "one" {
 					// Added to the bundle's rules, not replacing basePVCRule.

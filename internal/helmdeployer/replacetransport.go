@@ -109,11 +109,9 @@ func (t *replaceTransport) preserve(req *http.Request, segments objectSegments, 
 	metadata, _ := obj["metadata"].(map[string]any)
 	name, _ := metadata["name"].(string)
 	namespace, _ := metadata["namespace"].(string)
-	if apiVersion != segments.apiVersion || name != segments.name ||
-		(namespace != "" && namespace != segments.namespace) {
+	if apiVersion != segments.apiVersion || name != segments.name || namespace != segments.namespace {
 		return nil // the URL does not address this object
 	}
-	namespace = segments.namespace
 
 	paths := preservedPaths(t.rules, apiVersion, kind, namespace, name)
 	if len(paths) == 0 {

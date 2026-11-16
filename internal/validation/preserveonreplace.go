@@ -70,7 +70,7 @@ func ParsePreservePath(path string) ([]PreservePathToken, error) {
 				return nil, fmt.Errorf("invalid path %q: list token %q must be followed by a field and cannot be the first token", path, r)
 			}
 			if isListToken(raw[i+1]) {
-				return nil, fmt.Errorf("invalid path %q: list token %q must be followed by a field, not by list token %q: lists of lists are not supported", path, r, raw[i+1])
+				return nil, fmt.Errorf("invalid path %q: list token %q must be followed by a field, not by a list token %q: lists of lists are not supported", path, r, raw[i+1])
 			}
 			tokens = append(tokens, PreservePathToken{ListKey: key})
 			continue
@@ -147,8 +147,9 @@ func ValidatePreserveOnReplace(path string, opts *fleet.BundleDeploymentOptions)
 
 // CheckPreserveOnReplace reports why a helm.preserveOnReplace entry cannot be
 // used, or nil if it can. The error names the offending field relative to the
-// entry, e.g. "paths[1].path: ...". The agent uses it to skip entries which
-// reach it without having been validated. The nameRegex is only checked when
+// entry, e.g. "paths[1].path: ...". The agent also uses it, to skip entries which
+// reach it without having been validated, checking bundle deployments
+// in case they are created directly. The nameRegex is only checked when
 // no name is set, as the name takes precedence over it.
 func CheckPreserveOnReplace(rule fleet.PreserveOnReplaceRule) error {
 	if rule.APIVersion == "" {

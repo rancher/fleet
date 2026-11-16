@@ -168,7 +168,7 @@ func TestPreserveLiveFields(t *testing.T) {
 				{"name":"new"}]}}`,
 			changed: true,
 		},
-		"skips items without the key": {
+		"skips manifest items without the key": {
 			target:   `{"spec":{"containers":[{"image":"x"}]}}`,
 			live:     `{"spec":{"containers":[{"image":"x","volumeMounts":[]}]}}`,
 			paths:    []fleet.PreservedPath{{Path: "/spec/containers/[name]/volumeMounts"}},

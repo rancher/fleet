@@ -52,9 +52,9 @@ func TestParsePreservePath(t *testing.T) {
 		"/spec/containers/[name]":                `invalid path "/spec/containers/[name]": list token "[name]" must be followed by a field and cannot be the first token`,
 		"/[name]/x":                              `invalid path "/[name]/x": list token "[name]" must be followed by a field and cannot be the first token`,
 		"/spec/containers/[a~2]/x":               `invalid path "/spec/containers/[a~2]/x": "~" must be followed by "0" or "1"`,
-		"/a/[k]/[j]/x":                           `invalid path "/a/[k]/[j]/x": list token "[k]" must be followed by a field, not by list token "[j]"`,
-		"/a/[k]/[]/x":                            `invalid path "/a/[k]/[]/x": list token "[k]" must be followed by a field, not by list token "[]"`,
-		"/a/b/[k]/[j]":                           `invalid path "/a/b/[k]/[j]": list token "[k]" must be followed by a field, not by list token "[j]"`,
+		"/a/[k]/[j]/x":                           `invalid path "/a/[k]/[j]/x": list token "[k]" must be followed by a field, not by a list token "[j]"`,
+		"/a/[k]/[]/x":                            `invalid path "/a/[k]/[]/x": list token "[k]" must be followed by a field, not by a list token "[]"`,
+		"/a/b/[k]/[j]":                           `invalid path "/a/b/[k]/[j]": list token "[k]" must be followed by a field, not by a list token "[j]"`,
 		"/status":                                `invalid path "/status": /status cannot be preserved`,
 		"/status/phase":                          `invalid path "/status/phase": /status cannot be preserved`,
 		"/apiVersion":                            `invalid path "/apiVersion": /apiVersion cannot be preserved`,
@@ -145,6 +145,14 @@ func TestValidatePreserveOnReplace(t *testing.T) {
 		"blank mergeKey": {
 			rules: []fleet.PreserveOnReplaceRule{with(func(r *fleet.PreserveOnReplaceRule) { r.Paths[0].MergeKey = " " })},
 			want:  `prefix.helm.preserveOnReplace[0].paths[0].mergeKey: invalid key " ": must not start or end with white space`,
+		},
+		"mergeKey with leading white space": {
+			rules: []fleet.PreserveOnReplaceRule{with(func(r *fleet.PreserveOnReplaceRule) { r.Paths[0].MergeKey = " foo" })},
+			want:  `prefix.helm.preserveOnReplace[0].paths[0].mergeKey: invalid key " foo": must not start or end with white space`,
+		},
+		"mergeKey with trailing white space": {
+			rules: []fleet.PreserveOnReplaceRule{with(func(r *fleet.PreserveOnReplaceRule) { r.Paths[0].MergeKey = "foo " })},
+			want:  `prefix.helm.preserveOnReplace[0].paths[0].mergeKey: invalid key "foo ": must not start or end with white space`,
 		},
 	}
 

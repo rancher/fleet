@@ -164,6 +164,12 @@ func preserveAt(logger logr.Logger, target, live map[string]any, tokens []valida
 	}
 
 	rest := tokens[1:]
+	// A path such as /spec/containers/[name]/volumeMounts reaches here with
+	// field "containers" and rest "[name]", "volumeMounts". The list token
+	// only carries the key, "name", which pairs each manifest container with
+	// the live container of the same name. The tokens after it, rest[1:], are
+	// then followed inside each pair, as a path of their own. mergeKey is
+	// passed along: it applies to the field the whole path ends at.
 	if rest[0].ListKey != "" {
 		return preserveInPairedItems(logger, target, field, liveValue, rest[0].ListKey, rest[1:], mergeKey)
 	}
@@ -251,6 +257,8 @@ func findItem(items []any, key string, value any) map[string]any {
 // items without mergeKey are skipped, and so are live items which are not
 // objects, which are logged: mergeKey only merges lists of objects. If target
 // has no list, the live list is copied, whatever its items.
+// Returns a boolean indicating whether target has changed,
+// along with an error, if any.
 func mergeList(logger logr.Logger, target map[string]any, field string, liveValue any, mergeKey string) (bool, error) {
 	liveItems, ok := liveValue.([]any)
 	if !ok {

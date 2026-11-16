@@ -364,10 +364,12 @@ type PreserveOnReplaceRule struct {
 // replaced.
 type PreservedPath struct {
 	// Path is a JSON pointer (RFC 6901) to the field, e.g. /spec/volumeName.
-	// A "[key]" token iterates over the items of a list, pairing each item of
-	// the deployed object with the live item which has the same value of field
-	// key, e.g. /spec/containers/[name]/volumeMounts. A "[key]" token must
-	// follow a field and be followed by one, so lists of lists cannot be
+	// A "[key]" token indicates that Fleet should iterate over the items of a
+	// list, pairing each item of the manifest (object to be deployed) with the
+	// live item, based on both having the same value of the key field. E.g.
+	// /spec/containers/[name]/volumeMounts pairs containers by name and
+	// preserves the volumeMounts of each pair. A "[key]" token must follow a
+	// field and be followed by one, so lists of lists cannot be
 	// addressed, and neither can a field whose name starts with "[" and ends
 	// with "]". The live value is copied when the deployed object leaves the
 	// field unset or null, unless MergeKey is set. Helm always sets some
@@ -387,6 +389,11 @@ type PreservedPath struct {
 	// is still copied whole when the deployed object leaves it unset. As long
 	// as the rule exists, an item removed from the manifest is added back from
 	// the live object on every replace.
+	// E.g. with path /spec/volumes and mergeKey name, a manifest with volumes
+	// [{name: b, ...}] and a live object with volumes [{name: z}, {name: b},
+	// {name: a}] are replaced with volumes [{name: b, ...}, {name: z},
+	// {name: a}]: the manifest's items come first and win, then the live items
+	// whose name the manifest lacks, in live order.
 	// +optional
 	MergeKey string `json:"mergeKey,omitempty"`
 }

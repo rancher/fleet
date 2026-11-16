@@ -1670,7 +1670,7 @@ func TestValidateBundleSpec(t *testing.T) {
 			},
 		},
 		{
-			name: "helm.preserveOnReplace on the second target",
+			name: "invalid helm.preserveOnReplace on the second target",
 			spec: fleet.BundleSpec{
 				Targets: []fleet.BundleTarget{
 					{Name: "first"},
