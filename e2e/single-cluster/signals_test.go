@@ -29,6 +29,26 @@ func parseTerminatedState(jsonOutput string) (*containerLastTerminatedState, err
 	return &state, nil
 }
 
+// leaderHolder returns the current holder identity of the given leader election lease.
+func leaderHolder(k kubectl.Command, lease string) string {
+	out, err := k.Get("lease", lease, "-o", "jsonpath={.spec.holderIdentity}")
+	Expect(err).ToNot(HaveOccurred(), out)
+
+	return out
+}
+
+// waitForLeadership waits until the given leader election lease is held by an instance other
+// than previousHolder. A terminated leader keeps its lease until the lease duration elapses,
+// so the replacement leader is only reconciling after taking over the lease.
+func waitForLeadership(k kubectl.Command, lease, previousHolder string) {
+	Eventually(func(g Gomega) {
+		holder, err := k.Get("lease", lease, "-o", "jsonpath={.spec.holderIdentity}")
+		g.Expect(err).ToNot(HaveOccurred(), holder)
+		g.Expect(holder).ToNot(BeEmpty())
+		g.Expect(holder).ToNot(Equal(previousHolder), "lease should be held by a new leader")
+	}).Should(Succeed())
+}
+
 // waitForPodReadyAndKill waits for a pod matching the given label selector to be ready,
 // then sends SIGTERM to it.
 func waitForPodReadyAndKill(k kubectl.Command, labels string) {
@@ -53,6 +73,8 @@ var _ = Describe("Shuts down gracefully", func() {
 		k      kubectl.Command
 		ns     string
 		labels string
+		lease  string
+		holder string
 	)
 
 	When("the agent receives SIGTERM", func() {
@@ -99,9 +121,11 @@ var _ = Describe("Shuts down gracefully", func() {
 			ns = "cattle-fleet-system"
 			k = env.Kubectl.Namespace(ns)
 			labels = "app=fleet-controller,fleet.cattle.io/shard-default=true"
+			lease = "fleet-controller-leader-election-shard"
 		})
 
 		JustBeforeEach(func() {
+			holder = leaderHolder(k, lease)
 			waitForPodReadyAndKill(k, labels)
 		})
 
@@ -121,6 +145,8 @@ var _ = Describe("Shuts down gracefully", func() {
 				g.Expect(state.ExitCode).To(Equal(0))
 				g.Expect(state.Reason).To(Equal("Completed"))
 			}).Should(Succeed())
+
+			waitForLeadership(k, lease, holder)
 		})
 	})
 
@@ -129,9 +155,11 @@ var _ = Describe("Shuts down gracefully", func() {
 			ns = "cattle-fleet-system"
 			k = env.Kubectl.Namespace(ns)
 			labels = "app=gitjob,fleet.cattle.io/shard-default=true"
+			lease = "fleet-gitops-leader-election-shard"
 		})
 
 		JustBeforeEach(func() {
+			holder = leaderHolder(k, lease)
 			waitForPodReadyAndKill(k, labels)
 		})
 
@@ -151,6 +179,8 @@ var _ = Describe("Shuts down gracefully", func() {
 				g.Expect(state.ExitCode).To(Equal(0))
 				g.Expect(state.Reason).To(Equal("Completed"))
 			}).Should(Succeed())
+
+			waitForLeadership(k, lease, holder)
 		})
 	})
 
@@ -159,9 +189,11 @@ var _ = Describe("Shuts down gracefully", func() {
 			ns = "cattle-fleet-system"
 			k = env.Kubectl.Namespace(ns)
 			labels = "app=helmops,fleet.cattle.io/shard-default=true"
+			lease = "fleet-helmops-leader-election-shard"
 		})
 
 		JustBeforeEach(func() {
+			holder = leaderHolder(k, lease)
 			waitForPodReadyAndKill(k, labels)
 		})
 
@@ -181,6 +213,8 @@ var _ = Describe("Shuts down gracefully", func() {
 				g.Expect(state.ExitCode).To(Equal(0))
 				g.Expect(state.Reason).To(Equal("Completed"))
 			}).Should(Succeed())
+
+			waitForLeadership(k, lease, holder)
 		})
 	})
 })
