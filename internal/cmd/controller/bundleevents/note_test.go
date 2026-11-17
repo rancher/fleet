@@ -6,6 +6,7 @@ import (
 	"unicode/utf8"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1/summary"
 )
 
 func TestFailureNoteDescribesCountsAndCauses(t *testing.T) {
@@ -38,6 +39,45 @@ func TestFailureNoteDescribesCountsAndCauses(t *testing.T) {
 	// One cause is left in the status: four are recorded, three fit.
 	if !strings.Contains(note, "(+1 more, see status.summary.nonReadyResources)") {
 		t.Errorf("expected the remaining causes to be counted, got %q", note)
+	}
+}
+
+func TestFailureNoteFallsBackToResourceStatuses(t *testing.T) {
+	// A NotReady bundle deployment usually carries no top-level Message; its
+	// reason sits in the per-resource statuses instead. The event must name
+	// that reason rather than report an empty cause ("NotReady: ;").
+	s := fleet.BundleSummary{
+		DesiredReady: 1,
+		NotReady:     1,
+		NonReadyResources: []fleet.NonReadyResource{
+			{
+				Name:  "fleet-default/cluster-a",
+				State: fleet.NotReady,
+				NonReadyStatus: []fleet.NonReadyStatus{
+					{
+						Kind:       "Deployment",
+						APIVersion: "apps/v1",
+						Namespace:  "default",
+						Name:       "podinfo",
+						Summary: summary.Summary{
+							Transitioning: true,
+							Message:       []string{"Deployment does not have minimum availability."},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	note := failureNote(s, 3)
+
+	if strings.Contains(note, "NotReady: ;") {
+		t.Errorf("expected a cause rather than an empty one, got %q", note)
+	}
+	for _, want := range []string{"podinfo", "minimum availability"} {
+		if !strings.Contains(note, want) {
+			t.Errorf("expected %q in the note, got %q", want, note)
+		}
 	}
 }
 
