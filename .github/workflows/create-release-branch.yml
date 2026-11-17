@@ -176,6 +176,25 @@ jobs:
 
           git commit -m "Add Renovate support to branch $BRANCH"
 
+      - name: add new branch to updatecli config
+        if: steps.git_config.outputs.work_branch != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: ${{steps.branch.outputs.version}}
+        run: |
+          version=$(echo $BRANCH | cut -d'.' -f2)
+          cat <<EOF >updatecli_block.json
+            v$version:
+              <<: *main
+              branch: '$BRANCH'
+          EOF
+
+          # Add the new block once, after the first existing block (terminated by `branch: main`)
+          sed -i "/branch: main/r updatecli_block.json" updatecli/values.d/scm.yaml
+
+          git add updatecli/values.d/scm.yaml
+          git commit -m "Add $BRANCH to updatecli config"
+
       - name: update Fleet chart annotations
         if: steps.git_config.outputs.work_branch != ''
         env:
