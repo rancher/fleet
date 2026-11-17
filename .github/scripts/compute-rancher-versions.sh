@@ -42,12 +42,18 @@ list_entries() {
 
 # Fleet publishes its charts to the OCI catalog, which rancher/charts mirrors into
 # `entries/fleet` on `staging`, one file per chart version.
+# A branch whose release workflow only dispatches the legacy chart bump skips the
+# catalog, so entries it published there before are not picked.
+release_workflow=$(git -C "$FLEET_REPO_DIR" show "origin/${FLEET_BRANCH}:.github/workflows/release.yml" 2>/dev/null || true)
 charts_ref="staging"
-catalog_charts=$(list_entries "$charts_ref" entries/fleet blob) || {
-    printf 'ERROR: Could not list Fleet charts in the rancher/charts OCI catalog\n' >&2
-    exit 1
-}
-all_charts=$(printf '%s\n' "$catalog_charts" | grep -E "\+up[0-9]+\.${fleet_minor}\." || true)
+all_charts=""
+if [[ "$release_workflow" == *"chart-staged.yaml/dispatches"* || "$release_workflow" != *"Manual Trigger for Auto Bump"* ]]; then
+    catalog_charts=$(list_entries "$charts_ref" entries/fleet blob) || {
+        printf 'ERROR: Could not list Fleet charts in the rancher/charts OCI catalog\n' >&2
+        exit 1
+    }
+    all_charts=$(printf '%s\n' "$catalog_charts" | grep -E "\+up[0-9]+\.${fleet_minor}\." || true)
+fi
 
 # Charts built from `main` are only published to the catalog, so they never use the
 # `charts/fleet` directory of a `dev-v2.X` branch, which predates the catalog.
