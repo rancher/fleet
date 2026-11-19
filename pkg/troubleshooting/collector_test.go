@@ -42,6 +42,9 @@ const (
 	optionsBazBazHash = "7da4e0de0f0ab1f8d581f3839ce7b86cbcfb9cdbf7eb4363c37bc1743639d754"
 
 	contentName = "s-0123456789abcdef"
+	// otherContentName is another version of the same bundle's contents, as
+	// referenced by a staged or applied deploymentID during a rollout.
+	otherContentName = "s-fedcba9876543210"
 )
 
 func Test_secretValuesHash(t *testing.T) {
@@ -270,55 +273,72 @@ func Test_checkContentIssues(t *testing.T) {
 	}{
 		{
 			name:              "content resource exists",
-			bundleDeployments: []fleet.BundleDeployment{contentBundleDeployment(false)},
+			bundleDeployments: []fleet.BundleDeployment{contentBundleDeployment(false, "", "")},
 			contents:          []fleet.Content{content(false)},
 			want:              nil,
 		},
 		{
 			name:              "oci secrets could not be listed",
-			bundleDeployments: []fleet.BundleDeployment{contentBundleDeployment(true)},
+			bundleDeployments: []fleet.BundleDeployment{contentBundleDeployment(true, "", "")},
 			contents:          []fleet.Content{content(false)},
 			want:              []ContentIssue{contentIssue(false, "oci_secret_not_listed")},
 		},
 		{
 			name:              "oci secret exists in the bundledeployment namespace",
-			bundleDeployments: []fleet.BundleDeployment{contentBundleDeployment(true)},
+			bundleDeployments: []fleet.BundleDeployment{contentBundleDeployment(true, "", "")},
 			contents:          []fleet.Content{content(false)},
-			ociSecrets:        withOciSecret(targetNamespace, contentName, false),
+			ociSecrets:        withOciSecret(targetNamespace, false, contentName),
 			want:              nil,
 		},
 		{
 			name:              "oci secret not found",
-			bundleDeployments: []fleet.BundleDeployment{contentBundleDeployment(true)},
+			bundleDeployments: []fleet.BundleDeployment{contentBundleDeployment(true, "", "")},
 			contents:          []fleet.Content{content(false)},
-			ociSecrets:        withOciSecret(targetNamespace, "s-0123456789xxxx", false),
+			ociSecrets:        withOciSecret(targetNamespace, false, "s-0123456789xxxx"),
 			want:              []ContentIssue{contentIssue(false, "oci_secret_not_found")},
 		},
 		{
 			// The original secret lives in the bundle namespace; the agent
 			// needs the clone in the bundledeployment namespace.
 			name:              "oci secret only in the bundle namespace",
-			bundleDeployments: []fleet.BundleDeployment{contentBundleDeployment(true)},
-			ociSecrets:        withOciSecret(bundleNamespace, contentName, false),
+			bundleDeployments: []fleet.BundleDeployment{contentBundleDeployment(true, "", "")},
+			ociSecrets:        withOciSecret(bundleNamespace, false, contentName),
 			want:              []ContentIssue{contentIssue(false, "oci_secret_not_found")},
 		},
 		{
 			name:              "content resource not found",
-			bundleDeployments: []fleet.BundleDeployment{contentBundleDeployment(false)},
+			bundleDeployments: []fleet.BundleDeployment{contentBundleDeployment(false, "", "")},
 			contents:          []fleet.Content{},
 			want:              []ContentIssue{contentIssue(false, "content_not_found")},
 		},
 		{
 			name:              "content resource was deleted",
-			bundleDeployments: []fleet.BundleDeployment{contentBundleDeployment(false)},
+			bundleDeployments: []fleet.BundleDeployment{contentBundleDeployment(false, "", "")},
 			contents:          []fleet.Content{content(true)},
 			want:              []ContentIssue{contentIssue(true, "content_has_deletion_timestamp")},
 		},
 		{
 			name:              "oci secret has deletion timestamp",
-			bundleDeployments: []fleet.BundleDeployment{contentBundleDeployment(true)},
-			ociSecrets:        withOciSecret(targetNamespace, contentName, true),
+			bundleDeployments: []fleet.BundleDeployment{contentBundleDeployment(true, "", "")},
+			ociSecrets:        withOciSecret(targetNamespace, true, contentName),
 			want:              []ContentIssue{contentIssue(true, "oci_secret_has_deletion_timestamp")},
+		},
+		{
+			// The controller clones the secret for the bundle's current
+			// contents, which is what a staged deploymentID refers to.
+			name:              "oci staged deploymentID with its secret",
+			bundleDeployments: []fleet.BundleDeployment{contentBundleDeployment(true, otherContentName, "")},
+			ociSecrets:        withOciSecret(targetNamespace, false, contentName, otherContentName),
+			want:              nil,
+		},
+		{
+			// The secret for the previous deploymentID is purged as soon as the
+			// deploymentID changes, while the agent may still report it as
+			// applied. That is expected during a rollout, not an issue.
+			name:              "oci applied deploymentID whose secret was purged",
+			bundleDeployments: []fleet.BundleDeployment{contentBundleDeployment(true, "", otherContentName)},
+			ociSecrets:        withOciSecret(targetNamespace, false, contentName),
+			want:              nil,
 		},
 	}
 	for _, tc := range testCases {
@@ -334,31 +354,51 @@ func Test_checkContentIssues(t *testing.T) {
 	}
 }
 
-func withOciSecret(namespace, name string, deleted bool) map[string]corev1.Secret {
-	secret := corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: namespace,
-			Name:      name,
-		},
-		Type: fleet.SecretTypeOCIStorage,
+// withOciSecret returns OCI secrets as listed by getOCISecrets: one per name,
+// all in the given namespace.
+func withOciSecret(namespace string, deleted bool, names ...string) map[string]corev1.Secret {
+	secrets := make(map[string]corev1.Secret, len(names))
+	for _, name := range names {
+		secret := corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: namespace,
+				Name:      name,
+			},
+			Type: fleet.SecretTypeOCIStorage,
+		}
+		if deleted {
+			secret.DeletionTimestamp = &deletionTime
+		}
+		secrets[namespace+"/"+name] = secret
 	}
-	if deleted {
-		secret.DeletionTimestamp = &deletionTime
-	}
-	return map[string]corev1.Secret{secret.Namespace + "/" + secret.Name: secret}
+	return secrets
 }
 
-func contentBundleDeployment(oci bool) fleet.BundleDeployment {
-	return fleet.BundleDeployment{
+// contentBundleDeployment returns a BundleDeployment whose deploymentID refers
+// to contentName. staged and applied are content names for the staged and
+// applied deploymentIDs; an empty string leaves that ID unset.
+func contentBundleDeployment(oci bool, staged, applied string) fleet.BundleDeployment {
+	bd := fleet.BundleDeployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: targetNamespace,
 			Name:      bundleDeploymentName,
 		},
 		Spec: fleet.BundleDeploymentSpec{
-			DeploymentID: contentName + ":options-hash",
+			DeploymentID: deploymentID(contentName),
 			OCIContents:  oci,
 		},
 	}
+	if staged != "" {
+		bd.Spec.StagedDeploymentID = deploymentID(staged)
+	}
+	if applied != "" {
+		bd.Status.AppliedDeploymentID = deploymentID(applied)
+	}
+	return bd
+}
+
+func deploymentID(contentName string) string {
+	return contentName + ":options-hash"
 }
 
 func content(deleted bool) fleet.Content {

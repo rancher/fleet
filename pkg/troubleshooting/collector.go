@@ -580,6 +580,9 @@ type contentStore struct {
 	lookup        func(bd fleet.BundleDeployment, contentName string) (client.Object, bool)
 	notFoundIssue string
 	deletionIssue string
+	// canCheckStaged is false when the staged deploymentID cannot be looked
+	// up, i.e. OCI secrets could not be listed.
+	canCheckStaged bool
 }
 
 // checkContentIssues identifies BundleDeployments with missing or problematic Content resources.
@@ -599,8 +602,9 @@ func (col *Collector) checkContentIssues(bundleDeployments []fleet.BundleDeploym
 			content, ok := contentMap[contentName]
 			return &content, ok
 		},
-		notFoundIssue: "content_not_found",
-		deletionIssue: "content_has_deletion_timestamp",
+		notFoundIssue:  "content_not_found",
+		deletionIssue:  "content_has_deletion_timestamp",
+		canCheckStaged: true,
 	}
 
 	contentsInOCI := contentStore{
@@ -610,11 +614,13 @@ func (col *Collector) checkContentIssues(bundleDeployments []fleet.BundleDeploym
 			secret, ok := ociSecrets[bd.Namespace+"/"+contentName]
 			return &secret, ok
 		},
-		notFoundIssue: "oci_secret_not_found",
-		deletionIssue: "oci_secret_has_deletion_timestamp",
+		notFoundIssue:  "oci_secret_not_found",
+		deletionIssue:  "oci_secret_has_deletion_timestamp",
+		canCheckStaged: ociSecrets != nil,
 	}
 	if ociSecrets == nil {
 		contentsInOCI.notFoundIssue = "oci_secret_not_listed"
+
 	}
 
 	for _, bd := range bundleDeployments {
@@ -623,15 +629,14 @@ func (col *Collector) checkContentIssues(bundleDeployments []fleet.BundleDeploym
 			Name:      bd.Name,
 			Issues:    []string{},
 		}
+		store := contentsInCluster
+		if bd.Spec.OCIContents {
+			store = contentsInOCI
+		}
 
 		if bd.Spec.DeploymentID != "" {
 			contentName := extractContentName(bd.Spec.DeploymentID)
 			issue.ContentName = contentName
-
-			store := contentsInCluster
-			if bd.Spec.OCIContents {
-				store = contentsInOCI
-			}
 
 			content, exists := store.lookup(bd, contentName)
 			issue.ContentExists = exists
@@ -646,11 +651,11 @@ func (col *Collector) checkContentIssues(bundleDeployments []fleet.BundleDeploym
 		}
 
 		// Check spec.stagedDeploymentID content
-		if bd.Spec.StagedDeploymentID != "" {
+		if bd.Spec.StagedDeploymentID != "" && store.canCheckStaged {
 			stagedContentName := extractContentName(bd.Spec.StagedDeploymentID)
 			if stagedContentName != issue.ContentName {
 				issue.StagedContentName = stagedContentName
-				_, exists := contentMap[stagedContentName]
+				_, exists := store.lookup(bd, stagedContentName)
 				issue.StagedContentExists = &exists
 
 				if !exists {
@@ -659,12 +664,14 @@ func (col *Collector) checkContentIssues(bundleDeployments []fleet.BundleDeploym
 			}
 		}
 
-		// Check status.appliedDeploymentID content
-		if bd.Status.AppliedDeploymentID != "" {
+		// Check status.appliedDeploymentID content. With OCI storage, the secret
+		// of the previous deploymentID is purged as soon as the deploymentID
+		// changes, so the applied one may legitimately be gone during a rollout.
+		if bd.Status.AppliedDeploymentID != "" && !bd.Spec.OCIContents {
 			appliedContentName := extractContentName(bd.Status.AppliedDeploymentID)
 			if appliedContentName != issue.ContentName {
 				issue.AppliedContentName = appliedContentName
-				_, exists := contentMap[appliedContentName]
+				_, exists := store.lookup(bd, appliedContentName)
 				issue.AppliedContentExists = &exists
 
 				if !exists {
