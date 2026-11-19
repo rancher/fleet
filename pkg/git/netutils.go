@@ -2,7 +2,6 @@ package git
 
 import (
 	"crypto/tls"
-	"crypto/x509"
 	"errors"
 	"net/http"
 	"time"
@@ -76,13 +75,16 @@ func GetAuthFromSecret(url string, creds *corev1.Secret, knownHosts string, tlsC
 }
 
 // GetHTTPClientFromSecret returns a HTTP client filled from the information in the given secret
-// and optional CABundle and insecureTLSVerify
+// and the TLS settings in tlsCfg
 func GetHTTPClientFromSecret(creds *corev1.Secret, bundleCA []byte, insecureTLSVerify bool, timeout time.Duration) (*http.Client, error) {
 	var (
-		username  string
-		password  string
-		tlsConfig tls.Config
+		username string
+		password string
 	)
+	tlsCfg := netx.TLSConfig{
+		CABundle:           bundleCA,
+		InsecureSkipVerify: insecureTLSVerify,
+	}
 
 	if creds != nil {
 		switch creds.Type {
@@ -94,26 +96,14 @@ func GetHTTPClientFromSecret(creds *corev1.Secret, bundleCA []byte, insecureTLSV
 			if err != nil {
 				return nil, err
 			}
-			tlsConfig.Certificates = append(tlsConfig.Certificates, cert)
+			tlsCfg.Certificates = append(tlsCfg.Certificates, cert)
 		}
 	}
 
-	if len(bundleCA) > 0 {
-		cert, err := x509.ParseCertificate(bundleCA)
-		if err != nil {
-			return nil, err
-		}
-		pool, err := x509.SystemCertPool()
-		if err != nil {
-			pool = x509.NewCertPool()
-		}
-		pool.AddCert(cert)
-		tlsConfig.RootCAs = pool
+	transport, err := netx.NewTransport(tlsCfg)
+	if err != nil {
+		return nil, err
 	}
-
-	transport := http.DefaultTransport.(*http.Transport).Clone()
-	transport.TLSClientConfig = &tlsConfig
-	transport.TLSClientConfig.InsecureSkipVerify = insecureTLSVerify
 
 	client := &http.Client{
 		Transport: transport,

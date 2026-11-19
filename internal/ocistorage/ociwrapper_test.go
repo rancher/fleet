@@ -5,14 +5,17 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/pem"
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"os"
 
 	"github.com/opencontainers/go-digest"
 	"go.uber.org/mock/gomock"
 
 	"github.com/rancher/fleet/internal/httputils"
+	"github.com/rancher/fleet/internal/netx"
 
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"oras.land/oras-go/v2"
@@ -139,8 +142,12 @@ var _ = Describe("OCIUtils tests", func() {
 		Expect(repo.PlainHTTP).To(BeFalse())
 	})
 	It("return the expected tls client", func() {
-		client := getHTTPClient(true, nil)
-
+		cfg := netx.TLSConfig{
+			CABundle:           nil,
+			InsecureSkipVerify: true,
+		}
+		client, err := getHTTPClient(cfg)
+		Expect(err).ToNot(HaveOccurred())
 		// Custom path stamps the User-Agent, then wraps in retry.Transport
 		uaTransport, ok := client.Transport.(httputils.UserAgentTransport)
 		Expect(ok).To(BeTrue())
@@ -153,7 +160,12 @@ var _ = Describe("OCIUtils tests", func() {
 		Expect(innerTransport.Proxy).ToNot(BeNil())
 
 		// Default path reuses ORAS' client, with the User-Agent stamped on top
-		client = getHTTPClient(false, nil)
+		cfg = netx.TLSConfig{
+			CABundle:           nil,
+			InsecureSkipVerify: false,
+		}
+		client, err = getHTTPClient(cfg)
+		Expect(err).ToNot(HaveOccurred())
 		uaTransport, ok = client.Transport.(httputils.UserAgentTransport)
 		Expect(ok).To(BeTrue())
 		Expect(uaTransport.Next).To(Equal(retry.DefaultClient.Transport))
@@ -174,7 +186,12 @@ BAMDA2gAMGUCMQCJao1H5+z8blUD2WdsJk6Dxv3J+ysTvLd6jLRl0mlpYxNjOyZQ
 LgGheQaRnUi/wr4CMEfDFXuxoJGZSZOoPHzoRgaLLPIxAJSdYsiJvRmEFOml+wG4
 DXZDjC5Ty3zfDBeWUA==
 -----END CERTIFICATE-----`)
-		client := getHTTPClient(false, caBundle)
+		cfg := netx.TLSConfig{
+			CABundle:           caBundle,
+			InsecureSkipVerify: false,
+		}
+		client, err := getHTTPClient(cfg)
+		Expect(err).ToNot(HaveOccurred())
 
 		// Verify transport is configured with custom TLS config
 		uaT, ok := client.Transport.(httputils.UserAgentTransport)
@@ -209,7 +226,8 @@ DXZDjC5Ty3zfDBeWUA==
 
 		// Use the same valid certificate for custom CA (simpler for testing)
 		customCA := []byte(proxyCA)
-		client := getHTTPClient(false, customCA)
+		client, err := getHTTPClient(netx.TLSConfig{CABundle: customCA})
+		Expect(err).ToNot(HaveOccurred())
 
 		// Should have merged both CAs
 		uaT, ok := client.Transport.(httputils.UserAgentTransport)
@@ -229,25 +247,18 @@ DXZDjC5Ty3zfDBeWUA==
 		ok = testPool.AppendCertsFromPEM([]byte(proxyCA))
 		Expect(ok).To(BeTrue(), "proxy CA bundle should be valid PEM")
 	})
-	It("should handle invalid CA bundle gracefully", func() {
+	It("should return an error for an invalid CA bundle", func() {
 		invalidCA := []byte("not a valid PEM certificate")
-		client := getHTTPClient(false, invalidCA)
-
-		// Should still create a client with TLS config (warning logged)
-		uaT, ok := client.Transport.(httputils.UserAgentTransport)
-		Expect(ok).To(BeTrue())
-		retryT, ok := uaT.Next.(*retry.Transport)
-		Expect(ok).To(BeTrue())
-		transport, ok := retryT.Base.(*http.Transport)
-		Expect(ok).To(BeTrue())
-		Expect(transport.TLSClientConfig).ToNot(BeNil())
-		Expect(transport.TLSClientConfig.RootCAs).ToNot(BeNil())
+		client, err := getHTTPClient(netx.TLSConfig{CABundle: invalidCA})
+		Expect(err).To(MatchError("no valid certificates in CA bundle"))
+		Expect(client).To(BeNil())
 	})
 	It("should handle invalid proxy CA bundle gracefully", func() {
 		os.Setenv("PROXY_CA_BUNDLE", "invalid proxy PEM")
 		defer os.Unsetenv("PROXY_CA_BUNDLE")
 
-		client := getHTTPClient(false, nil)
+		client, err := getHTTPClient(netx.TLSConfig{})
+		Expect(err).ToNot(HaveOccurred())
 
 		// Should return default client when no valid CA and not insecure
 		uaT, ok := client.Transport.(httputils.UserAgentTransport)
@@ -269,7 +280,12 @@ BAMDA2gAMGUCMQCJao1H5+z8blUD2WdsJk6Dxv3J+ysTvLd6jLRl0mlpYxNjOyZQ
 LgGheQaRnUi/wr4CMEfDFXuxoJGZSZOoPHzoRgaLLPIxAJSdYsiJvRmEFOml+wG4
 DXZDjC5Ty3zfDBeWUA==
 -----END CERTIFICATE-----`)
-		client := getHTTPClient(true, caBundle)
+		cfg := netx.TLSConfig{
+			CABundle:           caBundle,
+			InsecureSkipVerify: true,
+		}
+		client, err := getHTTPClient(cfg)
+		Expect(err).ToNot(HaveOccurred())
 
 		uaT, ok := client.Transport.(httputils.UserAgentTransport)
 		Expect(ok).To(BeTrue())
@@ -320,7 +336,8 @@ DXZDjC5Ty3zfDBeWUA==
 		// backing covers the full allocation so we can detect writes past len(originalCA).
 		backing := originalCA[:cap(originalCA)]
 
-		_ = getHTTPClient(false, originalCA)
+		_, err := getHTTPClient(netx.TLSConfig{CABundle: originalCA})
+		Expect(err).ToNot(HaveOccurred())
 
 		// The slice header and visible content must be unchanged.
 		Expect(originalCA).To(Equal(validPEM))
@@ -334,11 +351,13 @@ DXZDjC5Ty3zfDBeWUA==
 			Reference: "test.com",
 			BasicHTTP: true,
 		}
-		client := getAuthClient(opts)
+		client, err := getAuthClient(opts)
+		Expect(err).ToNot(HaveOccurred())
 		Expect(client.Credential).To(BeNil())
 
 		opts.Username = "user"
-		client = getAuthClient(opts)
+		client, err = getAuthClient(opts)
+		Expect(err).ToNot(HaveOccurred())
 		Expect(client.Credential).ToNot(BeNil())
 		cred, err := client.Credential(context.Background(), "test")
 		Expect(err).ToNot(HaveOccurred())
@@ -348,7 +367,8 @@ DXZDjC5Ty3zfDBeWUA==
 		}))
 
 		opts.Password = "pass"
-		client = getAuthClient(opts)
+		client, err = getAuthClient(opts)
+		Expect(err).ToNot(HaveOccurred())
 		Expect(client.Credential).ToNot(BeNil())
 		cred, err = client.Credential(context.Background(), "test")
 		Expect(err).ToNot(HaveOccurred())
@@ -494,6 +514,30 @@ DXZDjC5Ty3zfDBeWUA==
 		}
 		_, err := oci.PullManifest(context.Background(), opts, "s-123456")
 		Expect(err.Error()).To(Equal("expecting 1 Annotation in layer descriptor. Found 0"))
+	})
+	It("trusts PROXY_CA_BUNDLE when no CA bundle is set", func() {
+		ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+		defer ts.Close()
+		caDER := ts.TLS.Certificates[0].Certificate[0]
+		caPEM := string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: caDER}))
+
+		GinkgoT().Setenv(netx.ProxyCABundleEnvVar, caPEM)
+
+		client, err := getHTTPClient(netx.TLSConfig{})
+		Expect(err).ToNot(HaveOccurred())
+
+		// Without WithProxyCA this is retry.DefaultClient.Transport, not *retry.Transport
+		uaT, ok := client.Transport.(httputils.UserAgentTransport)
+		Expect(ok).To(BeTrue())
+		retryT, ok := uaT.Next.(*retry.Transport)
+		Expect(ok).To(BeTrue())
+		transport, ok := retryT.Base.(*http.Transport)
+		Expect(ok).To(BeTrue())
+
+		want, err := x509.SystemCertPool()
+		Expect(err).ToNot(HaveOccurred())
+		Expect(want.AppendCertsFromPEM([]byte(caPEM))).To(BeTrue())
+		Expect(transport.TLSClientConfig.RootCAs.Equal(want)).To(BeTrue())
 	})
 })
 
