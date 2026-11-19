@@ -456,3 +456,159 @@ func TestDeploymentID_IgnoresNamespaceMetadata(t *testing.T) {
 
 	a.NotEqual(bare, withNamespace)
 }
+
+// ---------- PreserveOnReplace ----------
+
+// Entries are additive, like on the agent, which applies the paths of every
+// entry matching an object: a customization's entries are appended to the base
+// entries, in order, and only identical entries collapse. The other Helm
+// options are left alone.
+func TestMerge_PreserveOnReplace(t *testing.T) {
+	pvc := func(paths ...string) fleet.PreserveOnReplaceRule {
+		r := fleet.PreserveOnReplaceRule{APIVersion: "v1", Kind: "PersistentVolumeClaim"}
+		for _, p := range paths {
+			r.Paths = append(r.Paths, fleet.PreservedPath{Path: p})
+		}
+		return r
+	}
+	vol := pvc("/spec/volumeName")
+	sc := pvc("/spec/storageClassName")
+	job := fleet.PreserveOnReplaceRule{APIVersion: "batch/v1", Kind: "Job", Paths: []fleet.PreservedPath{{Path: "/spec/selector"}}}
+	namedPVC := pvc("/spec/x")
+	namedPVC.Name = "data"
+	helm := func(rules ...fleet.PreserveOnReplaceRule) fleet.BundleDeploymentOptions {
+		return fleet.BundleDeploymentOptions{Helm: &fleet.HelmOptions{PreserveOnReplace: rules}}
+	}
+
+	tests := []struct {
+		name   string
+		base   fleet.BundleDeploymentOptions
+		custom fleet.BundleDeploymentOptions
+		want   []fleet.PreserveOnReplaceRule
+	}{
+		{
+			name:   "customization entries are appended in order",
+			base:   helm(vol),
+			custom: helm(job, sc, namedPVC),
+			want:   []fleet.PreserveOnReplaceRule{vol, job, sc, namedPVC},
+		},
+		{
+			name:   "entries for the same object within a customization are all kept",
+			base:   helm(),
+			custom: helm(vol, sc),
+			want:   []fleet.PreserveOnReplaceRule{vol, sc},
+		},
+		{
+			name:   "entries for the same object within the base are all kept",
+			base:   helm(vol, sc),
+			custom: helm(pvc("/spec/x")),
+			want:   []fleet.PreserveOnReplaceRule{vol, sc, pvc("/spec/x")},
+		},
+		{
+			name:   "identical entries collapse",
+			base:   helm(vol),
+			custom: helm(vol, sc, sc),
+			want:   []fleet.PreserveOnReplaceRule{vol, sc},
+		},
+		{
+			name:   "an entry with the same paths for another object is kept",
+			base:   helm(pvc("/spec/x")),
+			custom: helm(namedPVC),
+			want:   []fleet.PreserveOnReplaceRule{pvc("/spec/x"), namedPVC},
+		},
+		{
+			name:   "a customization without entries keeps the base ones",
+			base:   helm(vol, sc),
+			custom: fleet.BundleDeploymentOptions{Helm: &fleet.HelmOptions{Atomic: true}},
+			want:   []fleet.PreserveOnReplaceRule{vol, sc},
+		},
+		{
+			name:   "a customization's entries apply to a base without Helm options",
+			base:   fleet.BundleDeploymentOptions{},
+			custom: helm(vol, sc),
+			want:   []fleet.PreserveOnReplaceRule{vol, sc},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			before := tt.base.DeepCopy()
+
+			result := options.Merge(tt.base, tt.custom)
+
+			assert.Equal(t, tt.want, result.Helm.PreserveOnReplace)
+			assert.Equal(t, before, &tt.base, "base must not be modified")
+		})
+	}
+
+	t.Run("other Helm options are kept", func(t *testing.T) {
+		base := helm(vol)
+		base.Helm.Force = true
+
+		result := options.Merge(base, helm(sc))
+
+		assert.True(t, result.Helm.Force)
+		assert.Equal(t, []fleet.PreserveOnReplaceRule{vol, sc}, result.Helm.PreserveOnReplace)
+	})
+}
+
+// In AllMatches mode, the matching customizations are merged one after the
+// other into the target's options, which are then merged into the bundle's
+// options (see target.Builder). Every customization adds its entries.
+func TestMergeChain_PreserveOnReplace(t *testing.T) {
+	pvc := func(path string) fleet.PreserveOnReplaceRule {
+		return fleet.PreserveOnReplaceRule{APIVersion: "v1", Kind: "PersistentVolumeClaim", Paths: []fleet.PreservedPath{{Path: path}}}
+	}
+	vol, sc, x := pvc("/spec/volumeName"), pvc("/spec/storageClassName"), pvc("/spec/x")
+	helm := func(rules ...fleet.PreserveOnReplaceRule) fleet.BundleDeploymentOptions {
+		return fleet.BundleDeploymentOptions{Helm: &fleet.HelmOptions{PreserveOnReplace: rules}}
+	}
+
+	targetOpts := options.Merge(fleet.BundleDeploymentOptions{}, helm(sc))
+	targetOpts = options.Merge(targetOpts, helm(x, vol))
+	result := options.Merge(helm(vol), targetOpts)
+
+	assert.Equal(t, []fleet.PreserveOnReplaceRule{vol, sc, x}, result.Helm.PreserveOnReplace)
+}
+
+// helm.preserveOnReplace is part of the hash, so that adding or changing rules
+// redeploys the bundle with them. Bundles without rules keep the hash they had
+// before the field existed.
+func TestDeploymentID_PreserveOnReplace(t *testing.T) {
+	a := assert.New(t)
+
+	bare, err := options.DeploymentID("manifest", fleet.BundleDeploymentOptions{Helm: &fleet.HelmOptions{Force: true}})
+	require.NoError(t, err)
+	// The hash of these options before helm.preserveOnReplace existed.
+	a.Equal("manifest:334bb9e44f22e143f8b80afd95c902cb667a7dd15c59cea99134aaef1bbb520e", bare)
+
+	empty, err := options.DeploymentID("manifest", fleet.BundleDeploymentOptions{Helm: &fleet.HelmOptions{
+		Force:             true,
+		PreserveOnReplace: []fleet.PreserveOnReplaceRule{},
+	}})
+	require.NoError(t, err)
+	a.Equal(bare, empty, "an empty list must hash like no list")
+
+	rule := fleet.PreserveOnReplaceRule{
+		APIVersion: "v1", Kind: "PersistentVolumeClaim", Paths: []fleet.PreservedPath{{Path: "/spec/volumeName"}},
+	}
+	withRules, err := options.DeploymentID("manifest", fleet.BundleDeploymentOptions{Helm: &fleet.HelmOptions{
+		Force:             true,
+		PreserveOnReplace: []fleet.PreserveOnReplaceRule{rule},
+	}})
+	require.NoError(t, err)
+	a.NotEqual(bare, withRules)
+
+	rule.Paths = append(rule.Paths, fleet.PreservedPath{Path: "/spec/storageClassName"})
+	changedRules, err := options.DeploymentID("manifest", fleet.BundleDeploymentOptions{Helm: &fleet.HelmOptions{
+		Force:             true,
+		PreserveOnReplace: []fleet.PreserveOnReplaceRule{rule},
+	}})
+	require.NoError(t, err)
+	a.NotEqual(bare, changedRules)
+	a.NotEqual(withRules, changedRules)
+
+	// Unchanged for bundles without Helm options.
+	noHelm, err := options.DeploymentID("manifest", fleet.BundleDeploymentOptions{})
+	require.NoError(t, err)
+	a.Equal("manifest:ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356", noHelm)
+}

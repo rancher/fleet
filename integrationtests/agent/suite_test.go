@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"sync"
@@ -485,6 +486,7 @@ data:
 			},
 		},
 	}
+	maps.Copy(resources, preserveFieldsResources())
 }
 
 // chartResources reads a chart from the assets directory and turns it into

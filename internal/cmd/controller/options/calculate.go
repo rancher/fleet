@@ -37,6 +37,15 @@ func comparePatchKey(p fleet.ComparePatch) string {
 	return p.APIVersion + "|" + p.Kind + "|" + p.Namespace + "|" + p.Name
 }
 
+// preserveOnReplaceKey identifies an entry by its whole content. Entries are
+// additive, as the agent applies the paths of every entry matching an object,
+// so a customization adds to the base entries and only identical entries
+// collapse.
+func preserveOnReplaceKey(p fleet.PreserveOnReplaceRule) string {
+	b, _ := json.Marshal(p) // cannot fail: the rule only holds strings
+	return string(b)
+}
+
 // DeploymentID hashes the options to a string
 func DeploymentID(manifestID string, opts fleet.BundleDeploymentOptions) (string, error) {
 	h := sha256.New()
@@ -100,6 +109,9 @@ func Merge(base, custom fleet.BundleDeploymentOptions) fleet.BundleDeploymentOpt
 		}
 		if len(custom.Helm.ValuesFrom) > 0 {
 			result.Helm.ValuesFrom = mergeUnique(result.Helm.ValuesFrom, custom.Helm.ValuesFrom, valuesFromKey)
+		}
+		if len(custom.Helm.PreserveOnReplace) > 0 {
+			result.Helm.PreserveOnReplace = mergeUnique(result.Helm.PreserveOnReplace, custom.Helm.PreserveOnReplace, preserveOnReplaceKey)
 		}
 		if custom.Helm.Repo != "" {
 			result.Helm.Repo = custom.Helm.Repo
