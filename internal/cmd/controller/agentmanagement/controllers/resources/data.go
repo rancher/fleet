@@ -1,6 +1,7 @@
 package resources
 
 import (
+	"github.com/rancher/fleet/internal/config"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	"github.com/rancher/wrangler/v3/pkg/apply"
@@ -35,6 +36,19 @@ func ApplyBootstrapResources(systemNamespace, systemRegistrationNamespace string
 		},
 	}
 
+	systemNS := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: systemNamespace,
+		},
+	}
+	systemRegistrationNS := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: systemRegistrationNamespace,
+		},
+	}
+	config.Get().ApplyRancherNamespaceLabelsAndAnnotations(systemNS)
+	config.Get().ApplyRancherNamespaceLabelsAndAnnotations(systemRegistrationNS)
+
 	return apply.ApplyObjects(
 		// used by request-* service accounts from agents
 		&rbacv1.ClusterRole{
@@ -56,15 +70,7 @@ func ApplyBootstrapResources(systemNamespace, systemRegistrationNamespace string
 				},
 			},
 		},
-		&corev1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: systemNamespace,
-			},
-		},
-		&corev1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: systemRegistrationNamespace,
-			},
-		},
+		systemNS,
+		systemRegistrationNS,
 	)
 }

@@ -41,6 +41,13 @@ data:
       },
       {{- end }}
       "allowClusterRegistrationTokenChange": {{.Values.allowClusterRegistrationTokenChange | default false}},
+      {{ if .Values.rancherNamespaces.enabled }}
+      "rancherNamespaces": {
+        "enabled": {{.Values.rancherNamespaces.enabled}},
+        "labels": {{toJson .Values.rancherNamespaces.labels}},
+        "annotations": {{toJson .Values.rancherNamespaces.annotations}}
+      },
+      {{ end }}
       "bootstrap": {
         "paths": "{{.Values.bootstrap.paths}}",
         "repo": "{{.Values.bootstrap.repo}}",

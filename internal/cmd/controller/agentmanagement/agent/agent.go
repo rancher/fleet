@@ -49,9 +49,9 @@ func AgentWithConfig(
 		opts = &Options{}
 	}
 
-	objs := []runtime.Object{
-		&v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: agentNamespace}},
-	}
+	agentNS := &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: agentNamespace}}
+	config.Get().ApplyRancherNamespaceLabelsAndAnnotations(agentNS)
+	objs := []runtime.Object{agentNS}
 
 	client, err := cg.Get()
 	if err != nil {
