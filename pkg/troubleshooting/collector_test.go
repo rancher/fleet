@@ -3,6 +3,7 @@ package troubleshooting
 import (
 	"reflect"
 	"testing"
+	"time"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
@@ -25,6 +26,9 @@ import (
 var (
 	valuesBar = []byte(`{"foo":"bar"}`)
 	valuesBaz = []byte(`{"foo":"baz"}`)
+
+	deletionTime = metav1.Now()
+	deletedAt    = deletionTime.UTC().Format(time.RFC3339)
 )
 
 const (
@@ -36,6 +40,8 @@ const (
 	optionsBarBazHash = "2fce18c19ef3b1f257cce9e0eac26a579c7e78ea3daf272724c6e6aee5c70bf9"
 	// same, holding values=valuesBaz, stagedValues=valuesBaz
 	optionsBazBazHash = "7da4e0de0f0ab1f8d581f3839ce7b86cbcfb9cdbf7eb4363c37bc1743639d754"
+
+	contentName = "s-0123456789abcdef"
 )
 
 func Test_secretValuesHash(t *testing.T) {
@@ -252,6 +258,131 @@ func Test_detectSecretsWithValuesHashMismatch(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_checkContentIssues(t *testing.T) {
+	testCases := []struct {
+		name              string
+		bundleDeployments []fleet.BundleDeployment
+		contents          []fleet.Content
+		ociSecrets        map[string]corev1.Secret
+		want              []ContentIssue
+	}{
+		{
+			name:              "content resource exists",
+			bundleDeployments: []fleet.BundleDeployment{contentBundleDeployment(false)},
+			contents:          []fleet.Content{content(false)},
+			want:              nil,
+		},
+		{
+			name:              "oci secrets could not be listed",
+			bundleDeployments: []fleet.BundleDeployment{contentBundleDeployment(true)},
+			contents:          []fleet.Content{content(false)},
+			want:              []ContentIssue{contentIssue(false, "oci_secret_not_listed")},
+		},
+		{
+			name:              "oci secret exists in the bundledeployment namespace",
+			bundleDeployments: []fleet.BundleDeployment{contentBundleDeployment(true)},
+			contents:          []fleet.Content{content(false)},
+			ociSecrets:        withOciSecret(targetNamespace, contentName, false),
+			want:              nil,
+		},
+		{
+			name:              "oci secret not found",
+			bundleDeployments: []fleet.BundleDeployment{contentBundleDeployment(true)},
+			contents:          []fleet.Content{content(false)},
+			ociSecrets:        withOciSecret(targetNamespace, "s-0123456789xxxx", false),
+			want:              []ContentIssue{contentIssue(false, "oci_secret_not_found")},
+		},
+		{
+			// The original secret lives in the bundle namespace; the agent
+			// needs the clone in the bundledeployment namespace.
+			name:              "oci secret only in the bundle namespace",
+			bundleDeployments: []fleet.BundleDeployment{contentBundleDeployment(true)},
+			ociSecrets:        withOciSecret(bundleNamespace, contentName, false),
+			want:              []ContentIssue{contentIssue(false, "oci_secret_not_found")},
+		},
+		{
+			name:              "content resource not found",
+			bundleDeployments: []fleet.BundleDeployment{contentBundleDeployment(false)},
+			contents:          []fleet.Content{},
+			want:              []ContentIssue{contentIssue(false, "content_not_found")},
+		},
+		{
+			name:              "content resource was deleted",
+			bundleDeployments: []fleet.BundleDeployment{contentBundleDeployment(false)},
+			contents:          []fleet.Content{content(true)},
+			want:              []ContentIssue{contentIssue(true, "content_has_deletion_timestamp")},
+		},
+		{
+			name:              "oci secret has deletion timestamp",
+			bundleDeployments: []fleet.BundleDeployment{contentBundleDeployment(true)},
+			ociSecrets:        withOciSecret(targetNamespace, contentName, true),
+			want:              []ContentIssue{contentIssue(true, "oci_secret_has_deletion_timestamp")},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			col := &Collector{}
+
+			got := col.checkContentIssues(tc.bundleDeployments, tc.contents, tc.ociSecrets)
+
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("expected issues %+v, got %+v", tc.want, got)
+			}
+		})
+	}
+}
+
+func withOciSecret(namespace, name string, deleted bool) map[string]corev1.Secret {
+	secret := corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      name,
+		},
+		Type: fleet.SecretTypeOCIStorage,
+	}
+	if deleted {
+		secret.DeletionTimestamp = &deletionTime
+	}
+	return map[string]corev1.Secret{secret.Namespace + "/" + secret.Name: secret}
+}
+
+func contentBundleDeployment(oci bool) fleet.BundleDeployment {
+	return fleet.BundleDeployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: targetNamespace,
+			Name:      bundleDeploymentName,
+		},
+		Spec: fleet.BundleDeploymentSpec{
+			DeploymentID: contentName + ":options-hash",
+			OCIContents:  oci,
+		},
+	}
+}
+
+func content(deleted bool) fleet.Content {
+	c := fleet.Content{
+		ObjectMeta: metav1.ObjectMeta{Name: contentName},
+	}
+	if deleted {
+		c.DeletionTimestamp = &deletionTime
+	}
+	return c
+}
+
+func contentIssue(deleted bool, issues ...string) ContentIssue {
+	i := ContentIssue{
+		Namespace:   targetNamespace,
+		Name:        bundleDeploymentName,
+		ContentName: contentName,
+		Issues:      issues,
+	}
+	if deleted {
+		i.ContentExists = true
+		i.ContentDeletionTimestamp = &deletedAt
+	}
+	return i
 }
 
 // Fleet names a values secret after the resource that owns it, so the fixtures
