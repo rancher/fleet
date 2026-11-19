@@ -442,8 +442,8 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 		// Changing the port number in a Service creates a new entry in the
 		// strategic merge patch (port is the merge key), resulting in two
 		// ports with the same name — which Kubernetes rejects. Non-force
-		// drift correction cannot fix this; force: true (DELETE+CREATE) is
-		// required.
+		// drift correction cannot fix this; force: true (a PUT replacing the
+		// whole object) is required.
 		Context("Drift correction fails on service port changes without force", func() {
 			BeforeEach(func() {
 				namespace = createNamespace()
@@ -477,11 +477,12 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 		})
 	})
 
-	// Force mode uses resource replacement (DELETE+CREATE) instead of patching (UPDATE).
-	// This is needed when:
-	// 1. Immutable fields need to be changed (e.g., Service type, PVC storage class, Job selector)
-	// 2. Strategic merge patch fails due to merge key conflicts (e.g., changing a Service port number)
-	// 3. Complete resource recreation is required
+	// Force mode replaces resources with a PUT of the whole object instead of
+	// patching them. The object is updated in place, not deleted and created
+	// again, so immutable fields cannot be changed this way either (see
+	// helm.preserveOnReplace for fields set on the server). This is needed when:
+	// 1. Strategic merge patch fails due to merge key conflicts (e.g., changing a Service port number)
+	// 2. Fields added out of band must be removed, which a patch leaves in place
 	When("Drift correction is enabled with force", func() {
 		JustBeforeEach(func() {
 			correctDrift = v1alpha1.CorrectDrift{Enabled: true, Force: true}
@@ -532,8 +533,8 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 			})
 		})
 
-		// Changing an immutable field like Service spec.type requires DELETE+CREATE
-		// (force mode), since Kubernetes rejects patching immutable fields.
+		// Changing Service spec.type out of band is reverted by replacing the
+		// Service with a PUT (force mode).
 		Context("Changing immutable service type with force", func() {
 			BeforeEach(func() {
 				namespace = createNamespace()
@@ -579,7 +580,7 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 				Expect(k8sClient.Patch(ctx, patchedSvc, client.StrategicMergeFrom(&svc))).NotTo(HaveOccurred())
 
 				By("Restoring the service resource to its previous state")
-				// When force=true, Helm uses resource replacement (DELETE+CREATE) instead of patching
+				// When force=true, Helm replaces the resource with a PUT instead of patching it
 				// This should still work for this scenario, demonstrating force mode works correctly
 				Eventually(func(g Gomega) {
 					svc, err := env.getService(svcName)

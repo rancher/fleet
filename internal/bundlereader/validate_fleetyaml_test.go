@@ -1040,3 +1040,82 @@ func TestValidateFleetYAML_ComparePatchPointerIndex(t *testing.T) {
 		t.Errorf("validateFleetYAML() error = %q, expected to contain %q", err.Error(), expected)
 	}
 }
+
+func helmWithPreservePath(path string) *fleet.HelmOptions {
+	return &fleet.HelmOptions{
+		Force: true,
+		PreserveOnReplace: []fleet.PreserveOnReplaceRule{
+			{APIVersion: "v1", Kind: "PersistentVolumeClaim", Paths: []fleet.PreservedPath{{Path: "/spec/volumeName"}}},
+			{APIVersion: "batch/v1", Kind: "Job", Paths: []fleet.PreservedPath{{Path: "/spec/selector"}, {Path: path}}},
+		},
+	}
+}
+
+// helm.preserveOnReplace is checked at every site BundleDeploymentOptions is
+// reachable from fleet.yaml, and the error names the site and the field.
+func TestValidateFleetYAML_PreserveOnReplaceOptionSites(t *testing.T) {
+	tests := []struct {
+		name          string
+		fy            *fleet.FleetYAML
+		expectedError string
+	}{
+		{
+			name: "valid",
+			fy: &fleet.FleetYAML{
+				BundleSpec: fleet.BundleSpec{
+					BundleDeploymentOptions: fleet.BundleDeploymentOptions{Helm: helmWithPreservePath("/spec/template/metadata/labels/job-name")},
+				},
+			},
+		},
+		{
+			name: "bundle level",
+			fy: &fleet.FleetYAML{
+				BundleSpec: fleet.BundleSpec{
+					BundleDeploymentOptions: fleet.BundleDeploymentOptions{Helm: helmWithPreservePath("spec.selector")},
+				},
+			},
+			expectedError: `helm.preserveOnReplace[1].paths[1].path: invalid JSON pointer "spec.selector": must start with "/", e.g. "/spec/selector"`,
+		},
+		{
+			name: "targets",
+			fy: &fleet.FleetYAML{
+				BundleSpec: fleet.BundleSpec{
+					Targets: []fleet.BundleTarget{
+						{Name: "first"},
+						{Name: "second", BundleDeploymentOptions: fleet.BundleDeploymentOptions{Helm: helmWithPreservePath("/status")}},
+					},
+				},
+			},
+			expectedError: `targets[1].helm.preserveOnReplace[1].paths[1].path: invalid path "/status": /status cannot be preserved`,
+		},
+		{
+			name: "targetCustomizations",
+			fy: &fleet.FleetYAML{
+				TargetCustomizations: []fleet.BundleTarget{
+					{Name: "first"},
+					{Name: "second", BundleDeploymentOptions: fleet.BundleDeploymentOptions{Helm: helmWithPreservePath("/spec/containers/[name]")}},
+				},
+			},
+			expectedError: `targetCustomizations[1].helm.preserveOnReplace[1].paths[1].path: invalid path "/spec/containers/[name]"`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateFleetYAML(tt.fy)
+			if tt.expectedError == "" {
+				if err != nil {
+					t.Errorf("validateFleetYAML() unexpected error: %v", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Errorf("validateFleetYAML() expected error containing %q, got nil", tt.expectedError)
+				return
+			}
+			if !strings.Contains(err.Error(), tt.expectedError) {
+				t.Errorf("validateFleetYAML() error = %q, expected to contain %q", err.Error(), tt.expectedError)
+			}
+		})
+	}
+}
