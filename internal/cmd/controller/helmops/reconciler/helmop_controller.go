@@ -292,9 +292,19 @@ func (r *HelmOpReconciler) handleVersion(ctx context.Context, oldBundle *fleet.B
 	}
 
 	if !helmChartSpecChanged(oldBundle.Spec.Helm, bundle.Spec.Helm, helmop.Status.Version) {
-		bundle.Spec.Helm.Version = helmop.Status.Version
+		if helmop.Status.Version != "" {
+			bundle.Spec.Helm.Version = helmop.Status.Version
+			return nil
+		}
 
-		return nil
+		// The cached status may lag behind the existing Bundle. Keep the
+		// polling job's last resolved version until that job updates it.
+		if usesPolling(*helmop) {
+			bundle.Spec.Helm.Version = oldBundle.Spec.Helm.Version
+			return nil
+		}
+		// Without polling, resolve the requested version below instead of
+		// replacing the Bundle's version with an empty cached status.
 	}
 
 	version, err := getChartVersion(ctx, r.Client, *helmop, bundle.Spec.HelmOpOptions.CABundle)
