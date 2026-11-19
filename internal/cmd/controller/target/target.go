@@ -116,15 +116,17 @@ func (t *Target) modified() []fleet.ModifiedStatus {
 	return t.Deployment.Status.ModifiedStatus
 }
 
-func (t *Target) nonReady() []fleet.NonReadyStatus {
+// NonReady returns the resources the target's bundle deployment reports as
+// not ready, or nil if there is no bundle deployment yet.
+func (t *Target) NonReady() []fleet.NonReadyStatus {
 	if t.Deployment == nil {
 		return nil
 	}
 	return t.Deployment.Status.NonReadyStatus
 }
 
-// state calculates a fleet.BundleState from t (pure function)
-func (t *Target) state() fleet.BundleState {
+// State calculates a fleet.BundleState from t (pure function)
+func (t *Target) State() fleet.BundleState {
 	switch t.Deployment {
 	case nil:
 		return fleet.Pending
@@ -133,8 +135,8 @@ func (t *Target) state() fleet.BundleState {
 	}
 }
 
-// message returns a relevant message from the target (pure function)
-func (t *Target) message() string {
+// Message returns a relevant message from the target (pure function)
+func (t *Target) Message() string {
 	return summary.MessageFromDeployment(t.effectiveDeployment())
 }
 

@@ -35,6 +35,9 @@ data:
         {{ if .minInterval }}
         "minInterval": "{{.minInterval}}",
         {{ end }}
+        {{ if .notReadyGracePeriod }}
+        "notReadyGracePeriod": "{{.notReadyGracePeriod}}",
+        {{ end }}
         "reportRecovery": {{toJson .reportRecovery}},
         "perDeployment": {{toJson .perDeployment}},
         "maxCauses": {{toJson .maxCauses}}

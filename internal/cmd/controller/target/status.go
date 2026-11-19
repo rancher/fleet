@@ -18,7 +18,7 @@ func Summary(targets []*Target) fleet.BundleSummary {
 	var bundleSummary fleet.BundleSummary
 	for _, currentTarget := range targets {
 		cluster := currentTarget.Cluster.Namespace + "/" + currentTarget.Cluster.Name
-		summary.IncrementState(&bundleSummary, cluster, currentTarget.state(), currentTarget.message(), currentTarget.modified(), currentTarget.nonReady())
+		summary.IncrementState(&bundleSummary, cluster, currentTarget.State(), currentTarget.Message(), currentTarget.modified(), currentTarget.NonReady())
 		bundleSummary.DesiredReady++
 	}
 	return bundleSummary

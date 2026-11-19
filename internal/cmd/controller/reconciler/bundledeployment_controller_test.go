@@ -1,12 +1,52 @@
 package reconciler
 
 import (
+	"context"
 	"testing"
 
+	"github.com/rancher/fleet/internal/cmd/controller/summary"
 	fleetv1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 )
+
+func TestBundleDeploymentWithAnUnchangedDisplayIsReportedToo(t *testing.T) {
+	// A deployment which starts reporting an error stays NotReady, so its
+	// display does not change and nothing is patched. The agent changed what
+	// the display is derived from, though, which events report.
+	scheme := runtime.NewScheme()
+	if err := fleetv1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	bd := &fleetv1.BundleDeployment{
+		ObjectMeta: metav1.ObjectMeta{Name: "my-bd", Namespace: "cluster-ns"},
+		Status: fleetv1.BundleDeploymentStatus{
+			NonReadyStatus: []fleetv1.NonReadyStatus{{Kind: "Deployment", Name: "web"}},
+		},
+	}
+	bd.Status.Display.State = string(summary.GetDeploymentState(bd))
+
+	notifier := &observingNotifier{}
+	r := &BundleDeploymentReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(bd).WithStatusSubresource(bd).Build(),
+		Scheme: scheme,
+		Events: notifier,
+	}
+
+	_, err := r.Reconcile(context.TODO(), ctrl.Request{NamespacedName: types.NamespacedName{Name: bd.Name, Namespace: bd.Namespace}})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if notifier.observedDeployments != 1 {
+		t.Errorf("expected the bundle deployment to be reported once, got %d", notifier.observedDeployments)
+	}
+}
 
 func TestBundleDeploymentStatusChangedPredicate(t *testing.T) {
 	p := bundleDeploymentStatusChangedPredicate()

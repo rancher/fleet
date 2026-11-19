@@ -15,6 +15,7 @@ const rendered = `{
     "enabled": true,
     "debounce": "10s",
     "minInterval": "2m",
+    "notReadyGracePeriod": "3m",
     "reportRecovery": false,
     "perDeployment": true,
     "maxCauses": 5
@@ -37,6 +38,9 @@ func TestOptionsFromRenderedConfig(t *testing.T) {
 	}
 	if opts.MinInterval != 2*time.Minute {
 		t.Errorf("unexpected minimum interval: %s", opts.MinInterval)
+	}
+	if opts.NotReadyGracePeriod != 3*time.Minute {
+		t.Errorf("unexpected not ready grace period: %s", opts.NotReadyGracePeriod)
 	}
 	if opts.ReportRecovery {
 		t.Error("expected recovery reporting to be off")
