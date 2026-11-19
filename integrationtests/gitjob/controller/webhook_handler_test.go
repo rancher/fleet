@@ -26,26 +26,31 @@ const webhookTestRepo = "https://github.com/rancher/fleet-webhook-integration-te
 // webhookSecretName mirrors the unexported webhookSecretName constant in pkg/webhook.
 const webhookSecretName = "gitjob-webhook"
 
-// sendGitHubPush fires a simulated, unauthenticated GitHub push event for the given
-// commit against the integration test's k8sClient (backed by the envtest API server).
+// webhookSecretValue is the value of the global webhook secret created by sendGitHubPush.
+const webhookSecretValue = "test-webhook-secret"
+
+// sendGitHubPush fires a GitHub push event for the given commit, signed with a global
+// webhook secret which exists for the duration of the current spec.
 func sendGitHubPush(commit string) {
-	w, err := webhook.New(gitRepoNamespace, k8sClient)
-	Expect(err).ToNot(HaveOccurred())
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      webhookSecretName,
+			Namespace: gitRepoNamespace,
+		},
+		Data: map[string][]byte{"github": []byte(webhookSecretValue)},
+	}
+	Expect(k8sClient.Create(ctx, secret)).To(Succeed())
+	DeferCleanup(func() {
+		Expect(k8sClient.Delete(ctx, secret)).To(Succeed())
+	})
 
-	body := []byte(`{"ref":"refs/heads/main","after":"` + commit +
-		`","repository":{"html_url":"` + webhookTestRepo + `"}}`)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "/", bytes.NewReader(body))
-	Expect(err).ToNot(HaveOccurred())
-	req.Header.Set("X-GitHub-Event", "push")
-
-	rr := httptest.NewRecorder()
-	w.ServeHTTP(rr, req)
-	Expect(rr.Code).To(Equal(http.StatusOK))
+	Expect(postGitHubPush(commit, webhookSecretValue)).To(Equal(http.StatusOK))
 }
 
-// sendGitHubPushSigned fires a GitHub push event signed with secretValue, simulating a
-// properly configured, verified webhook delivery.
-func sendGitHubPushSigned(commit, secretValue string) {
+// postGitHubPush fires a simulated GitHub push event for the given commit against the
+// integration test's k8sClient (backed by the envtest API server) and returns the
+// response code. The request is signed with secretValue, unless it is empty.
+func postGitHubPush(commit, secretValue string) int {
 	w, err := webhook.New(gitRepoNamespace, k8sClient)
 	Expect(err).ToNot(HaveOccurred())
 
@@ -55,13 +60,15 @@ func sendGitHubPushSigned(commit, secretValue string) {
 	Expect(err).ToNot(HaveOccurred())
 	req.Header.Set("X-GitHub-Event", "push")
 
-	mac := hmac.New(sha256.New, []byte(secretValue))
-	mac.Write(body)
-	req.Header.Set("X-Hub-Signature-256", "sha256="+hex.EncodeToString(mac.Sum(nil)))
+	if secretValue != "" {
+		mac := hmac.New(sha256.New, []byte(secretValue))
+		mac.Write(body)
+		req.Header.Set("X-Hub-Signature-256", "sha256="+hex.EncodeToString(mac.Sum(nil)))
+	}
 
 	rr := httptest.NewRecorder()
 	w.ServeHTTP(rr, req)
-	Expect(rr.Code).To(Equal(http.StatusOK))
+	return rr.Code
 }
 
 // These tests exercise the webhook HTTP handler against the real envtest API server,
@@ -91,42 +98,27 @@ var _ = Describe("Webhook handler", func() {
 		waitDeleteGitrepo(gitRepo)
 	})
 
-	When("no PollingInterval is configured and the request is unauthenticated", func() {
+	When("the request is unauthenticated", func() {
 		const pushCommit = "aaaa1111bbbb2222cccc3333dddd4444eeee5555"
 
-		It("sets WebhookCommit but does not mutate PollingInterval", func() {
-			sendGitHubPush(pushCommit)
+		It("rejects it without updating the GitRepo", func() {
+			Expect(postGitHubPush(pushCommit, "")).To(Equal(http.StatusUnauthorized))
 
 			var updated v1alpha1.GitRepo
 			Expect(k8sClient.Get(ctx, types.NamespacedName{
 				Name: gitRepo.Name, Namespace: gitRepo.Namespace,
 			}, &updated)).To(Succeed())
 
-			Expect(updated.Status.WebhookCommit).To(Equal(pushCommit))
+			Expect(updated.Status.WebhookCommit).To(BeEmpty())
 			Expect(updated.Spec.PollingInterval).To(BeNil())
 		})
 	})
 
-	When("no PollingInterval is configured and the request is verified against a secret", func() {
+	When("no PollingInterval is configured", func() {
 		const pushCommit = "aaaa2222bbbb3333cccc4444dddd5555eeee6666"
-		const secretValue = "test-webhook-secret"
-
-		BeforeEach(func() {
-			secret := &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      webhookSecretName,
-					Namespace: gitRepoNamespace,
-				},
-				Data: map[string][]byte{"github": []byte(secretValue)},
-			}
-			Expect(k8sClient.Create(ctx, secret)).To(Succeed())
-			DeferCleanup(func() {
-				Expect(k8sClient.Delete(ctx, secret)).To(Succeed())
-			})
-		})
 
 		It("sets WebhookCommit and PollingInterval to 1h", func() {
-			sendGitHubPushSigned(pushCommit, secretValue)
+			sendGitHubPush(pushCommit)
 
 			var updated v1alpha1.GitRepo
 			Expect(k8sClient.Get(ctx, types.NamespacedName{
