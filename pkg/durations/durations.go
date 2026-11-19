@@ -67,6 +67,11 @@ const (
 	// BundleEventsMinInterval is the minimum time between two events about
 	// the deployment state of the same object.
 	BundleEventsMinInterval = time.Minute * 1
+	// BundleEventsNotReadyGracePeriod is how long a bundle deployment may stay
+	// not ready, without any of its resources reporting an error, before it is
+	// reported as an event. Rollouts take a while, and reporting each of them
+	// as a failure, and then as a recovery, would bury the actual failures.
+	BundleEventsNotReadyGracePeriod = time.Minute * 2
 )
 
 // Equal reports whether the duration t is equal to u.

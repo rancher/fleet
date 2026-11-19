@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/rancher/fleet/internal/cmd/controller/bundleevents"
 	"github.com/rancher/fleet/internal/cmd/controller/errorutil"
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	"github.com/rancher/fleet/internal/cmd/controller/reconciler"
@@ -307,12 +308,15 @@ func TestReconcile_StatusResetFromTargetsError(t *testing.T) {
 	storeMock := mocks.NewMockStore(mockCtrl)
 	storeMock.EXPECT().Store(gomock.Any(), gomock.Any()).Return(nil)
 
+	notifier := &fakeNotifier{}
+
 	r := reconciler.BundleReconciler{
 		Client:   mockClient,
 		Scheme:   scheme,
 		Recorder: recorderMock,
 		Builder:  targetBuilderMock,
 		Store:    storeMock,
+		Events:   notifier,
 	}
 
 	ctx := context.TODO()
@@ -323,6 +327,17 @@ func TestReconcile_StatusResetFromTargetsError(t *testing.T) {
 
 	if rs.RequeueAfter != 0 {
 		t.Errorf("expected no retries, with zero RequeueAfter in result")
+	}
+
+	// resetStatus sets the summary from the targets before it fails on the
+	// rollout strategy, and that summary is persisted with the error. It is
+	// reported with the targets' profile, since nothing is reported without
+	// one.
+	if notifier.observed != 1 {
+		t.Errorf("expected the persisted summary to be reported once, got %d", notifier.observed)
+	}
+	if notifier.profile == nil {
+		t.Error("expected the profile of the targets to be reported with the summary")
 	}
 }
 
@@ -584,13 +599,16 @@ func TestReconcile_OptionsSecretDeletionError(t *testing.T) {
 }
 
 // fakeNotifier counts the bundles reported to it, to check that a persisted
-// status is reported no matter which path persisted it.
+// status is reported no matter which path persisted it, and keeps the last
+// profile reported with them.
 type fakeNotifier struct {
 	observed int
+	profile  *bundleevents.Profile
 }
 
-func (f *fakeNotifier) ObserveBundle(_ context.Context, _, _ *fleetv1.Bundle) {
+func (f *fakeNotifier) ObserveBundle(_ context.Context, _, _ *fleetv1.Bundle, profile *bundleevents.Profile) {
 	f.observed++
+	f.profile = profile
 }
 
 func (f *fakeNotifier) ObserveBundleDeployment(
@@ -716,6 +734,11 @@ func TestReconcile_OCIReferenceSecretResolutionError(t *testing.T) {
 			}
 			if notifier.observed != want {
 				t.Errorf("expected %d bundles reported to the notifier, got %d", want, notifier.observed)
+			}
+			// The summary persisted here was computed from the targets,
+			// so it is reported with their profile.
+			if want > 0 && notifier.profile == nil {
+				t.Error("expected the profile of the targets to be reported with the summary")
 			}
 		})
 	}

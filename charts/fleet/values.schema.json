@@ -46,6 +46,9 @@
         "minInterval": {
           "$ref": "#/definitions/goDuration"
         },
+        "notReadyGracePeriod": {
+          "$ref": "#/definitions/goDuration"
+        },
         "reportRecovery": {
           "type": "boolean"
         },

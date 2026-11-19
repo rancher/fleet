@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -61,6 +62,10 @@ type fixture struct {
 
 	// createErr decides how creating an event fails. Nil lets it succeed.
 	createErr func() error
+
+	// whileCreating runs once, the next time an event is being created,
+	// before it is. It observes what happens while a flush writes an event.
+	whileCreating func()
 }
 
 // failingClient lets a test fail event creation the way the API server would.
@@ -71,6 +76,10 @@ type failingClient struct {
 }
 
 func (c *failingClient) Create(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
+	if hook := c.fixture.whileCreating; hook != nil {
+		c.fixture.whileCreating = nil
+		hook()
+	}
 	if c.fixture.createErr != nil {
 		if err := c.fixture.createErr(); err != nil {
 			return err
@@ -127,6 +136,15 @@ func (f *fixture) flush(t *testing.T) {
 	f.emitter.flush(context.TODO(), *f.opts)
 }
 
+// flushGrace advances the clock past the grace period of deployments which are
+// not ready yet, and creates all due events.
+func (f *fixture) flushGrace(t *testing.T) {
+	t.Helper()
+
+	f.clock.advance(f.opts.NotReadyGracePeriod + time.Second)
+	f.emitter.flush(context.TODO(), *f.opts)
+}
+
 func (f *fixture) events(t *testing.T) []eventsv1.Event {
 	t.Helper()
 
@@ -150,6 +168,18 @@ func bundle(summary fleet.BundleSummary) *fleet.Bundle {
 		},
 		Status: fleet.BundleStatus{Summary: summary},
 	}
+}
+
+// profileOf is the profile of a test bundle's failing deployments. The test
+// summaries list every kind of failing deployment they describe, so that a
+// profile can be made from them; the emitter itself never reads the list.
+func profileOf(s fleet.BundleSummary) *Profile {
+	p := &Profile{}
+	for _, r := range s.NonReadyResources {
+		p.Add(r.Name, r.State, r.Message, r.NonReadyStatus)
+	}
+
+	return p
 }
 
 func ready() fleet.BundleSummary {
@@ -186,8 +216,8 @@ func TestBurstIsReportedAsOneEventWithFinalCounts(t *testing.T) {
 
 	// The first failure of the burst, followed by the rest of it, before the
 	// debounce has elapsed.
-	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(1, renderError)))
-	f.emitter.ObserveBundle(context.TODO(), bundle(failing(1, renderError)), bundle(failing(500, renderError)))
+	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(1, renderError)), profileOf(failing(1, renderError)))
+	f.emitter.ObserveBundle(context.TODO(), bundle(failing(1, renderError)), bundle(failing(500, renderError)), profileOf(failing(500, renderError)))
 
 	if got := f.events(t); len(got) != 0 {
 		t.Fatalf("expected no event before the debounce elapsed, got %d", len(got))
@@ -227,8 +257,8 @@ func TestBurstWithinOneMagnitudeBucketCarriesTheSettledCounts(t *testing.T) {
 	few := failing(2, renderError)
 	many := failing(5, renderError)
 
-	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(few))
-	f.emitter.ObserveBundle(context.TODO(), bundle(few), bundle(many))
+	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(few), profileOf(few))
+	f.emitter.ObserveBundle(context.TODO(), bundle(few), bundle(many), profileOf(many))
 	f.flush(t)
 
 	events := f.events(t)
@@ -243,13 +273,13 @@ func TestBurstWithinOneMagnitudeBucketCarriesTheSettledCounts(t *testing.T) {
 func TestUnchangedFailureIsReportedOnce(t *testing.T) {
 	f := newFixture(t, nil)
 
-	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)))
+	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)), profileOf(failing(500, renderError)))
 	f.flush(t)
 
 	// Every bundle deployment reporting its failure triggers a reconcile of
 	// the bundle, with an unchanged summary.
 	for range 100 {
-		f.emitter.ObserveBundle(context.TODO(), bundle(failing(500, renderError)), bundle(failing(500, renderError)))
+		f.emitter.ObserveBundle(context.TODO(), bundle(failing(500, renderError)), bundle(failing(500, renderError)), profileOf(failing(500, renderError)))
 	}
 	f.clock.advance(2 * f.opts.MinInterval)
 	f.flush(t)
@@ -262,14 +292,12 @@ func TestUnchangedFailureIsReportedOnce(t *testing.T) {
 func TestNewCauseIsReported(t *testing.T) {
 	f := newFixture(t, nil)
 
-	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)))
+	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)), profileOf(failing(500, renderError)))
 	f.flush(t)
 
 	f.clock.advance(f.opts.MinInterval)
-	f.emitter.ObserveBundle(context.TODO(),
-		bundle(failing(500, renderError)),
-		bundle(failing(500, renderError, nsForbidden)),
-	)
+	f.emitter.ObserveBundle(context.TODO(), bundle(failing(500, renderError)), bundle(failing(500, renderError, nsForbidden)), profileOf(failing(500, renderError, nsForbidden)))
+
 	f.flush(t)
 
 	events := f.events(t)
@@ -284,15 +312,42 @@ func TestNewCauseIsReported(t *testing.T) {
 	}
 }
 
+func TestNotReadyProgressIsNotReportedAgain(t *testing.T) {
+	f := newFixture(t, nil)
+
+	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(notReadySummary(1, notReadyDeployment("foo", "0/3"))), profileOf(notReadySummary(1, notReadyDeployment("foo", "0/3"))))
+
+	f.flushGrace(t)
+
+	// The rollout advances, then another resource stops being ready.
+	f.clock.advance(f.opts.MinInterval)
+	f.emitter.ObserveBundle(context.TODO(), bundle(notReadySummary(1, notReadyDeployment("foo", "0/3"))), bundle(notReadySummary(1, notReadyDeployment("foo", "1/3"))), profileOf(notReadySummary(1, notReadyDeployment("foo", "1/3"))))
+
+	f.flushGrace(t)
+	f.emitter.ObserveBundle(context.TODO(), bundle(notReadySummary(1, notReadyDeployment("foo", "1/3"))), bundle(notReadySummary(1, notReadyDeployment("foo", "1/3"), notReadyDeployment("bar", "0/1"))), profileOf(notReadySummary(1, notReadyDeployment("foo", "1/3"), notReadyDeployment("bar", "0/1"))))
+
+	f.flushGrace(t)
+
+	// Another resource which is merely not ready yet is the same failure:
+	// which resources are not ready changes as the rollout advances.
+	events := f.events(t)
+	if len(events) != 1 {
+		t.Fatalf("expected only the first failure to be reported, got %v", reasons(events))
+	}
+	if !strings.Contains(events[0].Note, "Available: 0/3;") {
+		t.Errorf("expected the event to describe the resource, got %q", events[0].Note)
+	}
+}
+
 func TestMagnitudeChangeIsReportedOnceItLeavesTheBucket(t *testing.T) {
 	f := newFixture(t, nil)
 
-	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)))
+	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)), profileOf(failing(500, renderError)))
 	f.flush(t)
 
 	// Same order of magnitude, nothing new to say.
 	f.clock.advance(f.opts.MinInterval)
-	f.emitter.ObserveBundle(context.TODO(), bundle(failing(500, renderError)), bundle(failing(300, renderError)))
+	f.emitter.ObserveBundle(context.TODO(), bundle(failing(500, renderError)), bundle(failing(300, renderError)), profileOf(failing(300, renderError)))
 	f.flush(t)
 
 	if got := f.events(t); len(got) != 1 {
@@ -301,7 +356,7 @@ func TestMagnitudeChangeIsReportedOnceItLeavesTheBucket(t *testing.T) {
 
 	// An order of magnitude fewer failures is worth reporting.
 	f.clock.advance(f.opts.MinInterval)
-	f.emitter.ObserveBundle(context.TODO(), bundle(failing(300, renderError)), bundle(failing(12, renderError)))
+	f.emitter.ObserveBundle(context.TODO(), bundle(failing(300, renderError)), bundle(failing(12, renderError)), profileOf(failing(12, renderError)))
 	f.flush(t)
 
 	events := f.events(t)
@@ -316,16 +371,16 @@ func TestMagnitudeChangeIsReportedOnceItLeavesTheBucket(t *testing.T) {
 func TestRecoveryIsReported(t *testing.T) {
 	f := newFixture(t, nil)
 
-	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)))
+	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)), profileOf(failing(500, renderError)))
 	f.flush(t)
 
 	f.clock.advance(f.opts.MinInterval)
-	f.emitter.ObserveBundle(context.TODO(), bundle(failing(500, renderError)), bundle(ready()))
+	f.emitter.ObserveBundle(context.TODO(), bundle(failing(500, renderError)), bundle(ready()), profileOf(ready()))
 	f.flush(t)
 
 	// Staying ready is not worth another event.
 	f.clock.advance(f.opts.MinInterval)
-	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(ready()))
+	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(ready()), profileOf(ready()))
 	f.flush(t)
 
 	events := f.events(t)
@@ -343,12 +398,12 @@ func TestRecoveryIsReported(t *testing.T) {
 func TestRecoveryIsOnlyReportedOnceTheBundleIsReady(t *testing.T) {
 	f := newFixture(t, nil)
 
-	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)))
+	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)), profileOf(failing(500, renderError)))
 	f.flush(t)
 
 	// Fixing the bundle redeploys it, so it stops failing before it is ready.
 	f.clock.advance(f.opts.MinInterval)
-	f.emitter.ObserveBundle(context.TODO(), bundle(failing(500, renderError)), bundle(deploying()))
+	f.emitter.ObserveBundle(context.TODO(), bundle(failing(500, renderError)), bundle(deploying()), profileOf(deploying()))
 	f.flush(t)
 
 	if got := f.events(t); len(got) != 1 {
@@ -356,7 +411,7 @@ func TestRecoveryIsOnlyReportedOnceTheBundleIsReady(t *testing.T) {
 	}
 
 	f.clock.advance(f.opts.MinInterval)
-	f.emitter.ObserveBundle(context.TODO(), bundle(deploying()), bundle(ready()))
+	f.emitter.ObserveBundle(context.TODO(), bundle(deploying()), bundle(ready()), profileOf(ready()))
 	f.flush(t)
 
 	events := f.events(t)
@@ -374,17 +429,17 @@ func TestRecoveryIsOnlyReportedOnceTheBundleIsReady(t *testing.T) {
 func TestBundleFailingAgainWhileDeployingIsReportedAgain(t *testing.T) {
 	f := newFixture(t, nil)
 
-	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)))
+	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)), profileOf(failing(500, renderError)))
 	f.flush(t)
 
 	// The redeploy hits the same failure again, without ever being ready in
 	// between, so no recovery is reported and the failure is.
 	f.clock.advance(f.opts.MinInterval)
-	f.emitter.ObserveBundle(context.TODO(), bundle(failing(500, renderError)), bundle(deploying()))
+	f.emitter.ObserveBundle(context.TODO(), bundle(failing(500, renderError)), bundle(deploying()), profileOf(deploying()))
 	f.flush(t)
 
 	f.clock.advance(f.opts.MinInterval)
-	f.emitter.ObserveBundle(context.TODO(), bundle(deploying()), bundle(failing(500, renderError)))
+	f.emitter.ObserveBundle(context.TODO(), bundle(deploying()), bundle(failing(500, renderError)), profileOf(failing(500, renderError)))
 	f.flush(t)
 
 	events := f.events(t)
@@ -401,18 +456,18 @@ func TestBundleFailingAgainWhileDeployingIsReportedAgain(t *testing.T) {
 func TestBundleWhichLosesItsTargetsIsNotReportedAsRecovered(t *testing.T) {
 	f := newFixture(t, nil)
 
-	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)))
+	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)), profileOf(failing(500, renderError)))
 	f.flush(t)
 
 	// The bundle stops targeting any cluster, which leaves no deployment to
 	// call ready.
 	none := fleet.BundleSummary{}
 	f.clock.advance(f.opts.MinInterval)
-	f.emitter.ObserveBundle(context.TODO(), bundle(failing(500, renderError)), bundle(none))
+	f.emitter.ObserveBundle(context.TODO(), bundle(failing(500, renderError)), bundle(none), profileOf(none))
 	f.flush(t)
 
 	f.clock.advance(f.opts.MinInterval)
-	f.emitter.ObserveBundle(context.TODO(), bundle(none), bundle(none))
+	f.emitter.ObserveBundle(context.TODO(), bundle(none), bundle(none), profileOf(none))
 	f.flush(t)
 
 	if got := f.events(t); len(got) != 1 {
@@ -424,15 +479,15 @@ func TestFailureRecurringAfterARecoveryIsReportedAgain(t *testing.T) {
 	f := newFixture(t, nil)
 	f.opts.ReportRecovery = false
 
-	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)))
+	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)), profileOf(failing(500, renderError)))
 	f.flush(t)
 
 	f.clock.advance(f.opts.MinInterval)
-	f.emitter.ObserveBundle(context.TODO(), bundle(failing(500, renderError)), bundle(ready()))
+	f.emitter.ObserveBundle(context.TODO(), bundle(failing(500, renderError)), bundle(ready()), profileOf(ready()))
 	f.flush(t)
 
 	f.clock.advance(f.opts.MinInterval)
-	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)))
+	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)), profileOf(failing(500, renderError)))
 	f.flush(t)
 
 	events := f.events(t)
@@ -446,16 +501,140 @@ func TestFailureRecurringAfterARecoveryIsReportedAgain(t *testing.T) {
 	}
 }
 
-func TestOngoingFailureIsNotReportedAfterARestart(t *testing.T) {
+func TestOngoingFailureIsNotReportedAgainAfterARestart(t *testing.T) {
+	// A restart loses what was reported before it, but the persisted status
+	// already showed the same failure, so it was reported then. The bundle
+	// is observed on every reconcile, also when its status did not change,
+	// which must not report it either.
 	f := newFixture(t, nil)
+	s := failing(500, renderError)
 
-	// A restart loses what was reported before it, so the state change has to
-	// be detected from the persisted status alone.
-	f.emitter.ObserveBundle(context.TODO(), bundle(failing(500, renderError)), bundle(failing(500, renderError)))
+	for range 3 {
+		f.emitter.ObserveBundle(context.TODO(), bundle(s), bundle(s), profileOf(s))
+		f.flush(t)
+		f.clock.advance(f.opts.MinInterval)
+	}
+
+	if got := reasons(f.events(t)); len(got) != 0 {
+		t.Fatalf("expected the ongoing failure not to be reported again, got %v", got)
+	}
+}
+
+func TestOngoingFailureIsReportedOnceItChangesAfterARestart(t *testing.T) {
+	f := newFixture(t, nil)
+	s := failing(500, renderError)
+
+	f.emitter.ObserveBundle(context.TODO(), bundle(s), bundle(s), profileOf(s))
+	f.flush(t)
+	f.clock.advance(f.opts.MinInterval)
+	f.emitter.ObserveBundle(context.TODO(), bundle(s), bundle(failing(500, nsForbidden)), profileOf(failing(500, nsForbidden)))
 	f.flush(t)
 
-	if got := f.events(t); len(got) != 0 {
-		t.Fatalf("expected no event for an unchanged failure, got %d", len(got))
+	events := f.events(t)
+	if len(events) != 1 || !strings.Contains(events[0].Note, nsForbidden) {
+		t.Fatalf("expected the new cause to be reported, got %v", reasons(events))
+	}
+}
+
+func TestRecoveryOfAnOngoingFailureIsReportedAfterARestart(t *testing.T) {
+	f := newFixture(t, nil)
+	s := failing(500, renderError)
+
+	f.emitter.ObserveBundle(context.TODO(), bundle(s), bundle(s), profileOf(s))
+	f.flush(t)
+	f.clock.advance(f.opts.MinInterval)
+	f.emitter.ObserveBundle(context.TODO(), bundle(s), bundle(ready()), profileOf(ready()))
+	f.flush(t)
+
+	got := reasons(f.events(t))
+	if want := []string{ReasonBundleReady}; !slices.Equal(got, want) {
+		t.Fatalf("expected only the recovery, got %v", got)
+	}
+}
+
+func TestOngoingNotReadyWithAnErrorIsNotReportedAgainAfterARestart(t *testing.T) {
+	f := newFixture(t, nil)
+	broken := notReadyDeployment("foo", "0/1")
+	broken.Summary.Error = true
+	s := notReadySummary(3, broken)
+
+	f.emitter.ObserveBundle(context.TODO(), bundle(s), bundle(s), profileOf(s))
+	f.flushGrace(t)
+
+	if got := reasons(f.events(t)); len(got) != 0 {
+		t.Fatalf("expected the ongoing failure not to be reported again, got %v", got)
+	}
+}
+
+func TestOngoingProgressingNotReadyIsReportedAfterARestart(t *testing.T) {
+	// A deployment which is merely not ready yet may have been within its
+	// grace period when the controller stopped, so it may never have been
+	// reported. Reporting it is better than missing it.
+	f := newFixture(t, nil)
+	s := notReadySummary(3, notReadyDeployment("foo", "0/1"))
+
+	f.emitter.ObserveBundle(context.TODO(), bundle(s), bundle(s), profileOf(s))
+	f.flush(t)
+	if got := reasons(f.events(t)); len(got) != 0 {
+		t.Fatalf("expected the grace period to apply, got %v", got)
+	}
+
+	f.flushGrace(t)
+
+	got := reasons(f.events(t))
+	if want := []string{ReasonBundleNotReady}; !slices.Equal(got, want) {
+		t.Fatalf("expected the progressing failure to be reported, got %v", got)
+	}
+}
+
+func TestForgottenOngoingFailureIsNotReportedAgain(t *testing.T) {
+	// Without recovery reporting, nothing keeps the entry of a reported
+	// failure, and it is forgotten once it has not been observed for a
+	// while. The next resync finds it unchanged.
+	f := newFixture(t, nil)
+	f.opts.ReportRecovery = false
+	s := failing(500, renderError)
+
+	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(s), profileOf(s))
+	f.flush(t)
+
+	f.clock.advance(entryTTL + time.Minute)
+	f.emitter.forgetStale()
+	if f.emitter.knows(bundleUID) {
+		t.Fatal("expected the bundle to be forgotten")
+	}
+
+	f.emitter.ObserveBundle(context.TODO(), bundle(s), bundle(s), profileOf(s))
+	f.flush(t)
+
+	got := reasons(f.events(t))
+	if want := []string{ReasonBundleDeployFailed}; !slices.Equal(got, want) {
+		t.Fatalf("expected the failure to be reported once, got %v", got)
+	}
+}
+
+func TestNewCauseWithTheSameCountsIsReportedAfterARestart(t *testing.T) {
+	// The persisted status only tells the state and how many deployments
+	// failed, which a new cause can share with the one reported before.
+	f := newFixture(t, nil)
+
+	f.emitter.ObserveBundle(context.TODO(), bundle(failing(500, renderError)), bundle(failing(500, nsForbidden)), profileOf(failing(500, nsForbidden)))
+	f.flush(t)
+
+	events := f.events(t)
+	if len(events) != 1 || !strings.Contains(events[0].Note, nsForbidden) {
+		t.Fatalf("expected the new cause to be reported, got %v", reasons(events))
+	}
+}
+
+func TestRestartDoesNotAwaitARecoveryWhichIsNotReported(t *testing.T) {
+	f := newFixture(t, nil)
+	f.opts.ReportRecovery = false
+
+	f.emitter.ObserveBundle(context.TODO(), bundle(failing(500, renderError)), bundle(ready()), profileOf(ready()))
+
+	if f.emitter.knows(bundleUID) {
+		t.Error("expected nothing kept for a recovery which is not reported")
 	}
 }
 
@@ -465,10 +644,10 @@ func TestRecoveryAfterARestartIsReportedAcrossTransientStates(t *testing.T) {
 	// The fixture's emitter starts empty, as after a restart: the failure is
 	// only known from the persisted status, and the bundle is redeployed
 	// before it is ready.
-	f.emitter.ObserveBundle(context.TODO(), bundle(failing(500, renderError)), bundle(deploying()))
+	f.emitter.ObserveBundle(context.TODO(), bundle(failing(500, renderError)), bundle(deploying()), profileOf(deploying()))
 	f.flush(t)
 
-	f.emitter.ObserveBundle(context.TODO(), bundle(deploying()), bundle(ready()))
+	f.emitter.ObserveBundle(context.TODO(), bundle(deploying()), bundle(ready()), profileOf(ready()))
 	f.flush(t)
 
 	events := f.events(t)
@@ -483,15 +662,13 @@ func TestRecoveryAfterARestartIsReportedAcrossTransientStates(t *testing.T) {
 func TestMinIntervalDelaysTheNextEvent(t *testing.T) {
 	f := newFixture(t, nil)
 
-	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)))
+	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)), profileOf(failing(500, renderError)))
 	f.flush(t)
 
 	// A new cause right after the first event has to wait for the minimum
 	// interval, and is reported with the state it has by then.
-	f.emitter.ObserveBundle(context.TODO(),
-		bundle(failing(500, renderError)),
-		bundle(failing(500, renderError, nsForbidden)),
-	)
+	f.emitter.ObserveBundle(context.TODO(), bundle(failing(500, renderError)), bundle(failing(500, renderError, nsForbidden)), profileOf(failing(500, renderError, nsForbidden)))
+
 	f.flush(t)
 
 	if got := f.events(t); len(got) != 1 {
@@ -509,7 +686,7 @@ func TestMinIntervalDelaysTheNextEvent(t *testing.T) {
 func TestRateLimitedEventsStayPending(t *testing.T) {
 	f := newFixture(t, flowcontrol.NewFakeNeverRateLimiter())
 
-	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)))
+	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)), profileOf(failing(500, renderError)))
 	f.flush(t)
 
 	if got := f.events(t); len(got) != 0 {
@@ -529,7 +706,7 @@ func TestDisabledEmitsNothing(t *testing.T) {
 	f := newFixture(t, nil)
 	f.opts.Enabled = false
 
-	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)))
+	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)), profileOf(failing(500, renderError)))
 	f.flush(t)
 
 	if got := f.events(t); len(got) != 0 {
@@ -540,7 +717,7 @@ func TestDisabledEmitsNothing(t *testing.T) {
 func TestDisablingDropsQueuedEvents(t *testing.T) {
 	f := newFixture(t, nil)
 
-	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)))
+	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)), profileOf(failing(500, renderError)))
 
 	if ent := f.bundleEntry(); ent == nil || ent.pending == nil {
 		t.Fatal("expected the event to be queued while reporting is enabled")
@@ -675,6 +852,68 @@ func TestBundleDeploymentRecoveryAfterARestartIsReportedAcrossTransientStates(t 
 	}
 }
 
+func TestBundleDeploymentOngoingFailureIsNotReportedAgainAfterARestart(t *testing.T) {
+	f := newFixture(t, nil)
+	f.opts.PerDeployment = true
+
+	f.emitter.ObserveBundleDeployment(context.TODO(), deployment(fleet.ErrApplied), deployment(fleet.ErrApplied))
+	f.flush(t)
+	f.clock.advance(f.opts.MinInterval)
+	f.emitter.ObserveBundleDeployment(context.TODO(), deployment(fleet.ErrApplied), deployment(fleet.Ready))
+	f.flush(t)
+
+	got := reasons(f.events(t))
+	if want := []string{ReasonBundleDeploymentReady}; !slices.Equal(got, want) {
+		t.Fatalf("expected only the recovery, got %v", got)
+	}
+}
+
+func TestBundleDeploymentRecoveryWhileTheControllerWasDownIsReported(t *testing.T) {
+	// The deployment was not ready, with an error, and that was reported.
+	// It recovered while the controller was down: only its display state
+	// is persisted from before, its conditions and resources are already
+	// those of a ready deployment.
+	f := newFixture(t, nil)
+	f.opts.PerDeployment = true
+
+	old := deployment(fleet.Ready)
+	old.Status.Display.State = string(fleet.NotReady)
+
+	f.emitter.ObserveBundleDeployment(context.TODO(), old, deployment(fleet.Ready))
+	f.flush(t)
+
+	got := reasons(f.events(t))
+	if want := []string{ReasonBundleDeploymentReady}; !slices.Equal(got, want) {
+		t.Fatalf("expected the recovery, got %v", got)
+	}
+}
+
+func TestBundleDeploymentOngoingProgressingNotReadyIsReportedAfterARestart(t *testing.T) {
+	f := newFixture(t, nil)
+	f.opts.PerDeployment = true
+
+	f.emitter.ObserveBundleDeployment(context.TODO(), deployment(fleet.NotReady), deployment(fleet.NotReady))
+	f.flushGrace(t)
+
+	got := reasons(f.events(t))
+	if want := []string{ReasonBundleDeploymentNotReady}; !slices.Equal(got, want) {
+		t.Fatalf("expected the progressing failure to be reported, got %v", got)
+	}
+}
+
+func TestBundleDeploymentFailureWhichChangedAcrossARestartIsReported(t *testing.T) {
+	f := newFixture(t, nil)
+	f.opts.PerDeployment = true
+
+	f.emitter.ObserveBundleDeployment(context.TODO(), deployment(fleet.Pending), deployment(fleet.ErrApplied))
+	f.flush(t)
+
+	got := reasons(f.events(t))
+	if want := []string{ReasonBundleDeploymentFailed}; !slices.Equal(got, want) {
+		t.Fatalf("expected the failure to be reported, got %v", got)
+	}
+}
+
 func TestBundleDeploymentReadyWithoutAFailureIsNotReported(t *testing.T) {
 	f := newFixture(t, nil)
 	f.opts.PerDeployment = true
@@ -687,15 +926,43 @@ func TestBundleDeploymentReadyWithoutAFailureIsNotReported(t *testing.T) {
 	}
 }
 
-func TestBundleDeploymentInAnUnchangedStateIsNotReported(t *testing.T) {
+func TestBundleDeploymentUnchangedFailureIsReportedOnce(t *testing.T) {
+	// The reconciler reports a bundle deployment whether or not its display
+	// changed, and its old one only differs in the display state, so an
+	// unchanged failure is observed again and again.
 	f := newFixture(t, nil)
 	f.opts.PerDeployment = true
 
-	f.emitter.ObserveBundleDeployment(context.TODO(), deployment(fleet.ErrApplied), deployment(fleet.ErrApplied))
+	f.emitter.ObserveBundleDeployment(context.TODO(), deployment(fleet.Pending), deployment(fleet.ErrApplied))
+	for range 3 {
+		f.flush(t)
+		f.clock.advance(f.opts.MinInterval)
+		f.emitter.ObserveBundleDeployment(context.TODO(), deployment(fleet.ErrApplied), deployment(fleet.ErrApplied))
+	}
 	f.flush(t)
 
-	if got := f.events(t); len(got) != 0 {
-		t.Fatalf("expected no event without a state change, got %d", len(got))
+	if got := reasons(f.events(t)); len(got) != 1 {
+		t.Fatalf("expected one event, got %v", got)
+	}
+}
+
+func TestBundleDeploymentFailingAgainWithoutRecoveryReportingIsReported(t *testing.T) {
+	f := newFixture(t, nil)
+	f.opts.PerDeployment = true
+	f.opts.ReportRecovery = false
+
+	f.emitter.ObserveBundleDeployment(context.TODO(), deployment(fleet.Pending), deployment(fleet.ErrApplied))
+	f.flush(t)
+	f.clock.advance(f.opts.MinInterval)
+	f.emitter.ObserveBundleDeployment(context.TODO(), deployment(fleet.ErrApplied), deployment(fleet.Ready))
+	f.flush(t)
+	f.clock.advance(f.opts.MinInterval)
+	f.emitter.ObserveBundleDeployment(context.TODO(), deployment(fleet.Ready), deployment(fleet.ErrApplied))
+	f.flush(t)
+
+	got := reasons(f.events(t))
+	if want := []string{ReasonBundleDeploymentFailed, ReasonBundleDeploymentFailed}; !slices.Equal(got, want) {
+		t.Fatalf("expected the failure to be reported each time, got %v", got)
 	}
 }
 
@@ -703,9 +970,9 @@ func TestReasonsAreScopedToTheKindTheyAreReportedOn(t *testing.T) {
 	f := newFixture(t, nil)
 	f.opts.PerDeployment = true
 
-	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)))
+	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)), profileOf(failing(500, renderError)))
 	f.emitter.ObserveBundleDeployment(context.TODO(), deployment(fleet.Ready), deployment(fleet.NotReady))
-	f.flush(t)
+	f.flushGrace(t)
 
 	byKind := map[string]string{}
 	for _, event := range f.events(t) {
@@ -747,7 +1014,7 @@ func TestTransientCreateFailureIsRetried(t *testing.T) {
 		return serverBusy()
 	}
 
-	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)))
+	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)), profileOf(failing(500, renderError)))
 	f.flush(t)
 
 	if got := f.events(t); len(got) != 0 {
@@ -777,7 +1044,7 @@ func TestForbiddenCreateIsNotRetried(t *testing.T) {
 		return forbidden()
 	}
 
-	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)))
+	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)), profileOf(failing(500, renderError)))
 	f.flush(t)
 	f.retry(2 * maxCreateAttempts)
 
@@ -801,7 +1068,7 @@ func TestCreateIsGivenUpOnAfterTooManyAttempts(t *testing.T) {
 		return serverBusy()
 	}
 
-	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)))
+	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)), profileOf(failing(500, renderError)))
 	f.flush(t)
 	f.retry(2 * maxCreateAttempts)
 
@@ -829,7 +1096,7 @@ func TestFailureIsReportedAgainAfterGivingUp(t *testing.T) {
 
 	f.createErr = serverBusy
 
-	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)))
+	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)), profileOf(failing(500, renderError)))
 	f.flush(t)
 	f.retry(2 * maxCreateAttempts)
 
@@ -841,8 +1108,8 @@ func TestFailureIsReportedAgainAfterGivingUp(t *testing.T) {
 	// reason. The dropped event stays lost, but giving up does not keep later
 	// changes from being reported.
 	f.createErr = nil
-	f.emitter.ObserveBundle(context.TODO(),
-		bundle(failing(500, renderError)), bundle(failing(500, nsForbidden)))
+	f.emitter.ObserveBundle(context.TODO(), bundle(failing(500, renderError)), bundle(failing(500, nsForbidden)), profileOf(failing(500, nsForbidden)))
+
 	f.flush(t)
 
 	if got := f.events(t); len(got) != 1 {
@@ -853,7 +1120,7 @@ func TestFailureIsReportedAgainAfterGivingUp(t *testing.T) {
 func TestForgetDropsTheObject(t *testing.T) {
 	f := newFixture(t, nil)
 
-	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)))
+	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)), profileOf(failing(500, renderError)))
 	f.flush(t)
 
 	if f.bundleEntry() == nil {
@@ -887,9 +1154,12 @@ func (f *fixture) fill(n int) {
 		uid := types.UID(fmt.Sprintf("old-%03d", i))
 		f.emitter.ObserveBundle(
 			context.TODO(),
-			otherBundle(uid, ready()),
-			otherBundle(uid, failing(1, renderError)),
-		)
+			otherBundle(uid, ready()), otherBundle(
+
+				uid, failing(1, renderError)), profileOf(
+
+				failing(1, renderError)))
+
 		f.clock.advance(time.Second)
 	}
 }
@@ -920,9 +1190,12 @@ func TestEvictionKeepsTheObjectItMakesRoomFor(t *testing.T) {
 	// longer ago is forgotten.
 	f.emitter.ObserveBundle(
 		context.TODO(),
-		otherBundle(newUID, ready()),
-		otherBundle(newUID, failing(1, nsForbidden)),
-	)
+		otherBundle(newUID, ready()), otherBundle(
+
+			newUID, failing(1, nsForbidden)), profileOf(
+
+			failing(1, nsForbidden)))
+
 	f.flush(t)
 
 	if got := f.eventsFor(t, newUID); got != 1 {
@@ -944,9 +1217,11 @@ func TestEvictionDoesNotDropEventsDuringABurst(t *testing.T) {
 
 	f.emitter.ObserveBundle(
 		context.TODO(),
-		otherBundle(newUID, ready()),
-		otherBundle(newUID, failing(1, nsForbidden)),
-	)
+		otherBundle(newUID, ready()), otherBundle(
+
+			newUID, failing(1, nsForbidden)), profileOf(
+
+			failing(1, nsForbidden)))
 
 	// With every entry exempt, the limit is exceeded instead.
 	if len(f.emitter.entries) <= f.opts.MaxTracked {
@@ -963,10 +1238,795 @@ func TestEvictionDoesNotDropEventsDuringABurst(t *testing.T) {
 	// emitter back within the limit.
 	f.emitter.ObserveBundle(
 		context.TODO(),
-		otherBundle("after-burst", ready()),
-		otherBundle("after-burst", failing(1, nsForbidden)),
-	)
+		otherBundle("after-burst", ready()), otherBundle(
+
+			"after-burst", failing(1, nsForbidden)), profileOf(
+
+			failing(1, nsForbidden)))
+
 	if len(f.emitter.entries) > f.opts.MaxTracked {
 		t.Errorf("expected at most %d entries after the burst, got %d", f.opts.MaxTracked, len(f.emitter.entries))
+	}
+}
+
+// erroring is a resource the agent reports as failed, like a Deployment past
+// its progress deadline.
+func erroring(r fleet.NonReadyStatus) fleet.NonReadyStatus {
+	r.Summary.Error = true
+	r.Summary.Transitioning = false
+	r.Summary.Message = []string{"Progress deadline exceeded"}
+
+	return r
+}
+
+func TestRolloutWithinTheGracePeriodIsNotReported(t *testing.T) {
+	// QA step 4 of issue 4455: a new bundle is not ready while its pods
+	// start, then ready. Nothing failed, so nothing is reported.
+	f := newFixture(t, nil)
+
+	f.emitter.ObserveBundle(context.TODO(), bundle(deploying()), bundle(notReadySummary(1, notReadyDeployment("foo", "0/1"))), profileOf(notReadySummary(1, notReadyDeployment("foo", "0/1"))))
+
+	f.flush(t)
+	f.emitter.ObserveBundle(context.TODO(), bundle(notReadySummary(1, notReadyDeployment("foo", "0/1"))), bundle(fleet.BundleSummary{DesiredReady: 1, Ready: 1}), profileOf(fleet.BundleSummary{DesiredReady: 1, Ready: 1}))
+
+	f.flushGrace(t)
+
+	if events := f.events(t); len(events) != 0 {
+		t.Fatalf("expected a rollout within the grace period not to be reported, got %v", reasons(events))
+	}
+}
+
+func TestNotReadyPastTheGracePeriodIsReportedWithItsRecovery(t *testing.T) {
+	f := newFixture(t, nil)
+
+	f.emitter.ObserveBundle(context.TODO(), bundle(deploying()), bundle(notReadySummary(1, notReadyDeployment("foo", "0/1"))), profileOf(notReadySummary(1, notReadyDeployment("foo", "0/1"))))
+
+	f.flush(t)
+	if events := f.events(t); len(events) != 0 {
+		t.Fatalf("expected nothing to be reported within the grace period, got %v", reasons(events))
+	}
+
+	f.flushGrace(t)
+	f.emitter.ObserveBundle(context.TODO(), bundle(notReadySummary(1, notReadyDeployment("foo", "0/1"))), bundle(fleet.BundleSummary{DesiredReady: 1, Ready: 1}), profileOf(fleet.BundleSummary{DesiredReady: 1, Ready: 1}))
+
+	f.flushGrace(t)
+
+	got := reasons(f.events(t))
+	if want := []string{ReasonBundleNotReady, ReasonBundleReady}; strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Errorf("expected %v, got %v", want, got)
+	}
+}
+
+func TestErrorWithinTheGracePeriodIsReportedAfterTheDebounce(t *testing.T) {
+	f := newFixture(t, nil)
+
+	f.emitter.ObserveBundle(context.TODO(), bundle(deploying()), bundle(notReadySummary(1, notReadyDeployment("foo", "0/1"))), profileOf(notReadySummary(1, notReadyDeployment("foo", "0/1"))))
+
+	f.clock.advance(time.Second)
+	f.emitter.ObserveBundle(context.TODO(), bundle(notReadySummary(1, notReadyDeployment("foo", "0/1"))), bundle(notReadySummary(1, erroring(notReadyDeployment("foo", "0/1")))), profileOf(notReadySummary(1, erroring(notReadyDeployment("foo", "0/1")))))
+
+	f.flush(t)
+
+	events := f.events(t)
+	if len(events) != 1 || events[0].Reason != ReasonBundleNotReady {
+		t.Fatalf("expected the error to be reported after the debounce, got %v", reasons(events))
+	}
+	if !strings.Contains(events[0].Note, "Progress deadline exceeded") {
+		t.Errorf("expected the note to describe the error, got %q", events[0].Note)
+	}
+}
+
+func TestErrorTurningBackIntoProgressStartsTheGracePeriod(t *testing.T) {
+	f := newFixture(t, nil)
+
+	f.emitter.ObserveBundle(context.TODO(), bundle(deploying()), bundle(notReadySummary(1, erroring(notReadyDeployment("foo", "0/1")))), profileOf(notReadySummary(1, erroring(notReadyDeployment("foo", "0/1")))))
+
+	f.clock.advance(time.Second)
+	f.emitter.ObserveBundle(context.TODO(), bundle(notReadySummary(1, erroring(notReadyDeployment("foo", "0/1")))), bundle(notReadySummary(1, notReadyDeployment("foo", "0/1"))), profileOf(notReadySummary(1, notReadyDeployment("foo", "0/1"))))
+
+	f.flush(t)
+
+	if events := f.events(t); len(events) != 0 {
+		t.Fatalf("expected the progress to wait for its grace period, got %v", reasons(events))
+	}
+
+	f.flushGrace(t)
+	if events := f.events(t); len(events) != 1 {
+		t.Fatalf("expected the progress to be reported after its grace period, got %v", reasons(events))
+	}
+}
+
+func TestFailureOverWithinTheDebounceIsNotReportedNorItsRecovery(t *testing.T) {
+	f := newFixture(t, nil)
+
+	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)), profileOf(failing(500, renderError)))
+	f.emitter.ObserveBundle(context.TODO(), bundle(failing(500, renderError)), bundle(ready()), profileOf(ready()))
+	f.flush(t)
+
+	if events := f.events(t); len(events) != 0 {
+		t.Fatalf("expected neither the failure nor a recovery, got %v", reasons(events))
+	}
+}
+
+func TestFailureOverWhileDeployingIsNotReported(t *testing.T) {
+	f := newFixture(t, nil)
+
+	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)), profileOf(failing(500, renderError)))
+	f.emitter.ObserveBundle(context.TODO(), bundle(failing(500, renderError)), bundle(deploying()), profileOf(deploying()))
+	f.flush(t)
+	f.emitter.ObserveBundle(context.TODO(), bundle(deploying()), bundle(ready()), profileOf(ready()))
+	f.flush(t)
+
+	if events := f.events(t); len(events) != 0 {
+		t.Fatalf("expected a failure superseded before it was reported to stay unreported, got %v", reasons(events))
+	}
+}
+
+func TestRecoveryOfAnyFailureIsReportedAfterARestart(t *testing.T) {
+	// After a restart, the emitter cannot tell whether a deployment which
+	// was not ready yet was reported: only the summary's counters are
+	// persisted, and the deployments it lists are a sample. Any failure is
+	// assumed to have been reported, so its recovery is too.
+	f := newFixture(t, nil)
+
+	f.emitter.ObserveBundle(context.TODO(), bundle(notReadySummary(1, notReadyDeployment("foo", "0/1"))), bundle(fleet.BundleSummary{DesiredReady: 1, Ready: 1}), profileOf(fleet.BundleSummary{DesiredReady: 1, Ready: 1}))
+
+	f.flushGrace(t)
+
+	got := reasons(f.events(t))
+	if want := []string{ReasonBundleReady}; !slices.Equal(got, want) {
+		t.Fatalf("expected the recovery, got %v", got)
+	}
+}
+
+func TestBundleDeploymentRolloutWithinTheGracePeriodIsNotReported(t *testing.T) {
+	f := newFixture(t, nil)
+	f.opts.PerDeployment = true
+
+	f.emitter.ObserveBundleDeployment(context.TODO(), deployment(fleet.WaitApplied), deployment(fleet.NotReady))
+	f.flush(t)
+	f.emitter.ObserveBundleDeployment(context.TODO(), deployment(fleet.NotReady), deployment(fleet.Ready))
+	f.flushGrace(t)
+
+	if events := f.events(t); len(events) != 0 {
+		t.Fatalf("expected a rollout within the grace period not to be reported, got %v", reasons(events))
+	}
+}
+
+func TestBundleDeploymentErrorWithinTheGracePeriodIsReportedAfterTheDebounce(t *testing.T) {
+	f := newFixture(t, nil)
+	f.opts.PerDeployment = true
+
+	progressing := deployment(fleet.NotReady)
+	progressing.Status.NonReadyStatus = []fleet.NonReadyStatus{notReadyDeployment("foo", "0/1")}
+	failed := deployment(fleet.NotReady)
+	failed.Status.NonReadyStatus = []fleet.NonReadyStatus{erroring(notReadyDeployment("foo", "0/1"))}
+
+	// As the reconciler passes them: old only differs from cur in the
+	// display state, the resources are the agent's latest in both.
+	f.emitter.ObserveBundleDeployment(context.TODO(), withDisplayState(progressing, fleet.WaitApplied), progressing)
+	f.clock.advance(time.Second)
+	f.emitter.ObserveBundleDeployment(context.TODO(), failed, failed)
+	f.flush(t)
+
+	events := f.events(t)
+	if len(events) != 1 || events[0].Reason != ReasonBundleDeploymentNotReady {
+		t.Fatalf("expected the error to be reported after the debounce, got %v", reasons(events))
+	}
+}
+
+func TestBundleDeploymentErrorAfterItsRolloutWasReportedIsReported(t *testing.T) {
+	f := newFixture(t, nil)
+	f.opts.PerDeployment = true
+
+	progressing := deployment(fleet.NotReady)
+	progressing.Status.NonReadyStatus = []fleet.NonReadyStatus{notReadyDeployment("foo", "0/1")}
+	failed := deployment(fleet.NotReady)
+	failed.Status.NonReadyStatus = []fleet.NonReadyStatus{erroring(notReadyDeployment("foo", "0/1"))}
+
+	f.emitter.ObserveBundleDeployment(context.TODO(), withDisplayState(progressing, fleet.WaitApplied), progressing)
+	f.flushGrace(t)
+	f.clock.advance(f.opts.MinInterval)
+	f.emitter.ObserveBundleDeployment(context.TODO(), failed, failed)
+	f.flush(t)
+
+	got := reasons(f.events(t))
+	if want := []string{ReasonBundleDeploymentNotReady, ReasonBundleDeploymentNotReady}; !slices.Equal(got, want) {
+		t.Fatalf("expected the rollout and then its error, got %v", got)
+	}
+}
+
+// withDisplayState returns a copy of a bundle deployment with another display
+// state, as the reconciler's copy of it from before it updated the display.
+func withDisplayState(bd *fleet.BundleDeployment, state fleet.BundleState) *fleet.BundleDeployment {
+	old := bd.DeepCopy()
+	old.Status.Display.State = string(state)
+
+	return old
+}
+
+func reasons(events []eventsv1.Event) []string {
+	got := make([]string, 0, len(events))
+	for _, event := range events {
+		got = append(got, event.Reason)
+	}
+
+	return got
+}
+
+// refuseOnce is a rate limiter which refuses the first event, after running a
+// hook in between the event being claimed and being put back.
+type refuseOnce struct {
+	flowcontrol.RateLimiter
+
+	whileRefusing func()
+}
+
+func (l *refuseOnce) TryAccept() bool {
+	if hook := l.whileRefusing; hook != nil {
+		l.whileRefusing = nil
+		hook()
+
+		return false
+	}
+
+	return true
+}
+
+func TestRecoveryWhileTheFailureIsBeingCreatedIsReported(t *testing.T) {
+	f := newFixture(t, nil)
+
+	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)), profileOf(failing(500, renderError)))
+	f.whileCreating = func() {
+		f.emitter.ObserveBundle(context.TODO(), bundle(failing(500, renderError)), bundle(ready()), profileOf(ready()))
+	}
+	f.flush(t)
+
+	f.clock.advance(f.opts.MinInterval)
+	f.flush(t)
+
+	got := reasons(f.events(t))
+	if want := []string{ReasonBundleDeployFailed, ReasonBundleReady}; !slices.Equal(got, want) {
+		t.Fatalf("expected the failure and its recovery, got %v", got)
+	}
+}
+
+func TestBundleDeploymentRecoveryWhileTheFailureIsBeingCreatedIsReported(t *testing.T) {
+	f := newFixture(t, nil)
+	f.opts.PerDeployment = true
+
+	f.emitter.ObserveBundleDeployment(context.TODO(), deployment(fleet.Ready), deployment(fleet.ErrApplied))
+	f.whileCreating = func() {
+		f.emitter.ObserveBundleDeployment(context.TODO(), deployment(fleet.ErrApplied), deployment(fleet.Ready))
+	}
+	f.flush(t)
+
+	f.clock.advance(f.opts.MinInterval)
+	f.flush(t)
+
+	got := reasons(f.events(t))
+	if want := []string{ReasonBundleDeploymentFailed, ReasonBundleDeploymentReady}; !slices.Equal(got, want) {
+		t.Fatalf("expected the failure and its recovery, got %v", got)
+	}
+}
+
+func TestRecoveryWhileTheFailureIsBeingCreatedIsNotReportedIfDisabled(t *testing.T) {
+	f := newFixture(t, nil)
+
+	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)), profileOf(failing(500, renderError)))
+	f.whileCreating = func() {
+		f.opts.ReportRecovery = false
+		f.emitter.ObserveBundle(context.TODO(), bundle(failing(500, renderError)), bundle(ready()), profileOf(ready()))
+	}
+	f.flush(t)
+
+	f.clock.advance(f.opts.MinInterval)
+	f.flush(t)
+
+	got := reasons(f.events(t))
+	if want := []string{ReasonBundleDeployFailed}; !slices.Equal(got, want) {
+		t.Fatalf("expected only the failure, got %v", got)
+	}
+}
+
+func TestFailingAgainWhileTheFailureIsBeingCreatedReportsNoRecovery(t *testing.T) {
+	f := newFixture(t, nil)
+
+	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)), profileOf(failing(500, renderError)))
+	f.whileCreating = func() {
+		f.emitter.ObserveBundle(context.TODO(), bundle(failing(500, renderError)), bundle(ready()), profileOf(ready()))
+		f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)), profileOf(failing(500, renderError)))
+	}
+	f.flush(t)
+
+	// The failure being created is the one the bundle is back in, so it is
+	// not reported a second time either.
+	f.clock.advance(f.opts.MinInterval)
+	f.flush(t)
+
+	got := reasons(f.events(t))
+	if want := []string{ReasonBundleDeployFailed}; !slices.Equal(got, want) {
+		t.Fatalf("expected only the failure, got %v", got)
+	}
+
+	// It is still a reported failure, whose recovery is reported.
+	f.emitter.ObserveBundle(context.TODO(), bundle(failing(500, renderError)), bundle(ready()), profileOf(ready()))
+	f.flush(t)
+
+	got = reasons(f.events(t))
+	if want := []string{ReasonBundleDeployFailed, ReasonBundleReady}; !slices.Equal(got, want) {
+		t.Fatalf("expected the failure and its recovery, got %v", got)
+	}
+}
+
+func TestFailureEndingWhileItsEventIsBeingCreatedIsReportedAgainOnRecurrence(t *testing.T) {
+	f := newFixture(t, nil)
+
+	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)), profileOf(failing(500, renderError)))
+	f.whileCreating = func() {
+		f.emitter.ObserveBundle(context.TODO(), bundle(failing(500, renderError)), bundle(deploying()), profileOf(deploying()))
+	}
+	f.flush(t)
+
+	// The same failure, after the bundle stopped failing in between, is a
+	// new occurrence.
+	f.clock.advance(f.opts.MinInterval)
+	f.emitter.ObserveBundle(context.TODO(), bundle(deploying()), bundle(failing(500, renderError)), profileOf(failing(500, renderError)))
+	f.flush(t)
+
+	got := reasons(f.events(t))
+	if want := []string{ReasonBundleDeployFailed, ReasonBundleDeployFailed}; !slices.Equal(got, want) {
+		t.Fatalf("expected the failure to be reported again, got %v", got)
+	}
+}
+
+func TestFailureEndingWhileItsEventFailsToBeCreatedIsNotRetried(t *testing.T) {
+	f := newFixture(t, nil)
+	f.createErr = serverBusy
+
+	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)), profileOf(failing(500, renderError)))
+	f.whileCreating = func() {
+		f.emitter.ObserveBundle(context.TODO(), bundle(failing(500, renderError)), bundle(ready()), profileOf(ready()))
+	}
+	f.flush(t)
+
+	f.createErr = nil
+	f.retry(2)
+
+	if got := reasons(f.events(t)); len(got) != 0 {
+		t.Fatalf("expected neither the failure nor its recovery, got %v", got)
+	}
+	if ent := f.bundleEntry(); ent == nil || ent.pending != nil || ent.awaitingRecovery {
+		t.Error("expected nothing to be queued nor awaited")
+	}
+}
+
+func TestFailureEndingWhileItsEventIsRateLimitedIsDropped(t *testing.T) {
+	limiter := &refuseOnce{}
+	f := newFixture(t, limiter)
+
+	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)), profileOf(failing(500, renderError)))
+	limiter.whileRefusing = func() {
+		f.emitter.ObserveBundle(context.TODO(), bundle(failing(500, renderError)), bundle(ready()), profileOf(ready()))
+	}
+	f.flush(t)
+	f.retry(2)
+
+	if got := reasons(f.events(t)); len(got) != 0 {
+		t.Fatalf("expected neither the failure nor its recovery, got %v", got)
+	}
+}
+
+func TestRecoveryIsReportedWhenTheFailureReplacingItEndsUnreported(t *testing.T) {
+	f := newFixture(t, nil)
+
+	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)), profileOf(failing(500, renderError)))
+	f.flush(t)
+
+	// The recovery waits for the minimum interval, and is replaced by
+	// another failure in the meantime, which ends before it is reported.
+	f.emitter.ObserveBundle(context.TODO(), bundle(failing(500, renderError)), bundle(ready()), profileOf(ready()))
+	f.clock.advance(time.Second)
+	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, nsForbidden)), profileOf(failing(500, nsForbidden)))
+	f.clock.advance(time.Second)
+	f.emitter.ObserveBundle(context.TODO(), bundle(failing(500, nsForbidden)), bundle(ready()), profileOf(ready()))
+
+	f.clock.advance(f.opts.MinInterval)
+	f.flush(t)
+
+	got := reasons(f.events(t))
+	if want := []string{ReasonBundleDeployFailed, ReasonBundleReady}; !slices.Equal(got, want) {
+		t.Fatalf("expected the reported failure and its recovery, got %v", got)
+	}
+}
+
+func TestBundleDeploymentRecoveryIsReportedWhenTheFailureReplacingItEndsUnreported(t *testing.T) {
+	f := newFixture(t, nil)
+	f.opts.PerDeployment = true
+
+	f.emitter.ObserveBundleDeployment(context.TODO(), deployment(fleet.Ready), deployment(fleet.ErrApplied))
+	f.flush(t)
+
+	f.emitter.ObserveBundleDeployment(context.TODO(), deployment(fleet.ErrApplied), deployment(fleet.Ready))
+	f.clock.advance(time.Second)
+	f.emitter.ObserveBundleDeployment(context.TODO(), deployment(fleet.Ready), deployment(fleet.NotReady))
+	f.clock.advance(time.Second)
+	f.emitter.ObserveBundleDeployment(context.TODO(), deployment(fleet.NotReady), deployment(fleet.Ready))
+
+	f.clock.advance(f.opts.MinInterval)
+	f.flush(t)
+
+	got := reasons(f.events(t))
+	if want := []string{ReasonBundleDeploymentFailed, ReasonBundleDeploymentReady}; !slices.Equal(got, want) {
+		t.Fatalf("expected the reported failure and its recovery, got %v", got)
+	}
+}
+
+func TestRecoveryIsReportedOnceItsEventIsCreated(t *testing.T) {
+	f := newFixture(t, nil)
+
+	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)), profileOf(failing(500, renderError)))
+	f.flush(t)
+	f.clock.advance(f.opts.MinInterval)
+	f.emitter.ObserveBundle(context.TODO(), bundle(failing(500, renderError)), bundle(ready()), profileOf(ready()))
+	f.flush(t)
+
+	// Observing the recovery again is not another recovery.
+	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(ready()), profileOf(ready()))
+	f.emitter.ObserveBundle(context.TODO(), bundle(deploying()), bundle(ready()), profileOf(ready()))
+	f.clock.advance(f.opts.MinInterval)
+	f.flush(t)
+
+	got := reasons(f.events(t))
+	if want := []string{ReasonBundleDeployFailed, ReasonBundleReady}; !slices.Equal(got, want) {
+		t.Fatalf("expected one recovery, got %v", got)
+	}
+}
+
+func TestRecoveryOfAReportedNotReadyIsReportedAfterAnHourWithoutChange(t *testing.T) {
+	f := newFixture(t, nil)
+
+	stuck := notReadySummary(1, notReadyDeployment("foo", "0/1"))
+	f.emitter.ObserveBundle(context.TODO(), bundle(fleet.BundleSummary{DesiredReady: 1, Pending: 1}), bundle(stuck), profileOf(stuck))
+	f.flushGrace(t)
+
+	// Nothing changes for longer than the emitter remembers idle objects.
+	f.clock.advance(2 * entryTTL)
+	f.emitter.forgetStale()
+
+	f.emitter.ObserveBundle(context.TODO(), bundle(stuck), bundle(fleet.BundleSummary{DesiredReady: 1, Ready: 1}), profileOf(fleet.BundleSummary{DesiredReady: 1, Ready: 1}))
+	f.flush(t)
+
+	got := reasons(f.events(t))
+	if want := []string{ReasonBundleNotReady, ReasonBundleReady}; !slices.Equal(got, want) {
+		t.Fatalf("expected the failure and its recovery, got %v", got)
+	}
+}
+
+func TestEvictionForgetsObjectsOwingARecoveryLast(t *testing.T) {
+	f := newFixture(t, nil)
+	f.opts.MaxTracked = 10
+
+	// The oldest object owes a recovery, the others only remember a failure
+	// which ended unreported.
+	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)), profileOf(failing(500, renderError)))
+	f.flush(t)
+	for i := range f.opts.MaxTracked {
+		uid := types.UID(fmt.Sprintf("old-%03d", i))
+		f.emitter.ObserveBundle(context.TODO(), otherBundle(uid, ready()), otherBundle(uid, failing(1, renderError)), profileOf(failing(1, renderError)))
+		f.emitter.ObserveBundle(context.TODO(), otherBundle(uid, failing(1, renderError)), otherBundle(uid, ready()), profileOf(ready()))
+		f.clock.advance(time.Second)
+	}
+
+	if ent := f.bundleEntry(); ent == nil || !ent.awaitingRecovery {
+		t.Fatal("expected the object owing a recovery to be kept")
+	}
+}
+
+func TestRecoveryOfAFailureReportedBeforeARestartSurvivesAnotherFailure(t *testing.T) {
+	// The emitter is new, as after a restart, and the first change it sees
+	// is from one failure to another, which ends before it is reported.
+	f := newFixture(t, nil)
+
+	f.emitter.ObserveBundle(context.TODO(), bundle(failing(500, renderError)), bundle(failing(500, nsForbidden)), profileOf(failing(500, nsForbidden)))
+	f.clock.advance(time.Second)
+	f.emitter.ObserveBundle(context.TODO(), bundle(failing(500, nsForbidden)), bundle(ready()), profileOf(ready()))
+	f.flush(t)
+
+	got := reasons(f.events(t))
+	if want := []string{ReasonBundleReady}; !slices.Equal(got, want) {
+		t.Fatalf("expected the recovery of the failure reported before the restart, got %v", got)
+	}
+}
+
+func TestNothingIsReportedWithoutAProfile(t *testing.T) {
+	// Without a profile, the bundle's deployments were not looked at, and
+	// the summary only lists a sample of them, which events do not rely on.
+	f := newFixture(t, nil)
+
+	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)), nil)
+	f.flushGrace(t)
+
+	if got := reasons(f.events(t)); len(got) != 0 {
+		t.Fatalf("expected nothing reported, got %v", got)
+	}
+}
+
+func TestFailureWhichGrewAcrossARestartIsReported(t *testing.T) {
+	// Restarted, and many more deployments fail than the persisted status
+	// counted: that is not the failure which was reported.
+	f := newFixture(t, nil)
+
+	f.emitter.ObserveBundle(context.TODO(), bundle(failing(1, renderError)), bundle(failing(500, renderError)), profileOf(failing(500, renderError)))
+	f.flush(t)
+
+	got := reasons(f.events(t))
+	if want := []string{ReasonBundleDeployFailed}; !slices.Equal(got, want) {
+		t.Fatalf("expected the grown failure, got %v", got)
+	}
+}
+
+func TestEventsOfAnObjectAreCreatedOneAtATime(t *testing.T) {
+	f := newFixture(t, nil)
+
+	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)), profileOf(failing(500, renderError)))
+	f.whileCreating = func() {
+		// Creating the event takes longer than the debounce, during
+		// which another failure becomes due.
+		f.emitter.ObserveBundle(context.TODO(), bundle(failing(500, renderError)), bundle(failing(500, nsForbidden)), profileOf(failing(500, nsForbidden)))
+		f.clock.advance(f.opts.Debounce + time.Second)
+		f.emitter.flush(context.TODO(), *f.opts)
+
+		if got := f.events(t); len(got) != 0 {
+			t.Errorf("expected nothing to be created while an event is, got %v", reasons(got))
+		}
+	}
+	f.flush(t)
+
+	f.clock.advance(f.opts.MinInterval)
+	f.flush(t)
+
+	events := f.events(t)
+	if len(events) != 2 {
+		t.Fatalf("expected both failures, one after the other, got %v", reasons(events))
+	}
+	if !strings.Contains(events[0].Note, renderError) || !strings.Contains(events[1].Note, nsForbidden) {
+		t.Errorf("expected the failures in the order they were observed, got %q, %q", events[0].Note, events[1].Note)
+	}
+}
+
+// A reported failure is replaced by another, whose event fails to be created
+// while the bundle recovers. The second failure is not reported, but the first
+// one still owes its recovery.
+func TestRecoveryIsReportedWhenTheFailureReplacingItFailsToBeCreated(t *testing.T) {
+	f := newFixture(t, nil)
+
+	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)), profileOf(failing(500, renderError)))
+	f.flush(t)
+
+	f.emitter.ObserveBundle(context.TODO(), bundle(failing(500, renderError)), bundle(failing(500, nsForbidden)), profileOf(failing(500, nsForbidden)))
+	f.createErr = serverBusy
+	f.whileCreating = func() {
+		f.emitter.ObserveBundle(context.TODO(), bundle(failing(500, nsForbidden)), bundle(ready()), profileOf(ready()))
+	}
+	f.clock.advance(f.opts.MinInterval)
+	f.flush(t)
+
+	f.createErr = nil
+	f.flush(t)
+
+	got := reasons(f.events(t))
+	if want := []string{ReasonBundleDeployFailed, ReasonBundleReady}; !slices.Equal(got, want) {
+		t.Fatalf("expected the reported failure and its recovery, got %v", got)
+	}
+	if ent := f.bundleEntry(); ent == nil || ent.pending != nil || ent.awaitingRecovery {
+		t.Error("expected the recovery to be settled")
+	}
+}
+
+// As above, with the second failure's event refused by the rate limiter.
+func TestRecoveryIsReportedWhenTheFailureReplacingItIsRateLimited(t *testing.T) {
+	limiter := &refuseOnce{}
+	f := newFixture(t, limiter)
+
+	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(failing(500, renderError)), profileOf(failing(500, renderError)))
+	f.flush(t)
+
+	f.emitter.ObserveBundle(context.TODO(), bundle(failing(500, renderError)), bundle(failing(500, nsForbidden)), profileOf(failing(500, nsForbidden)))
+	limiter.whileRefusing = func() {
+		f.emitter.ObserveBundle(context.TODO(), bundle(failing(500, nsForbidden)), bundle(ready()), profileOf(ready()))
+	}
+	f.clock.advance(f.opts.MinInterval)
+	f.flush(t)
+	f.flush(t)
+
+	got := reasons(f.events(t))
+	if want := []string{ReasonBundleDeployFailed, ReasonBundleReady}; !slices.Equal(got, want) {
+		t.Fatalf("expected the reported failure and its recovery, got %v", got)
+	}
+	if ent := f.bundleEntry(); ent == nil || ent.pending != nil || ent.awaitingRecovery {
+		t.Error("expected the recovery to be settled")
+	}
+}
+
+func TestBundleDeploymentRecoveryIsReportedWhenTheFailureReplacingItFailsToBeCreated(t *testing.T) {
+	f := newFixture(t, nil)
+	f.opts.PerDeployment = true
+
+	f.emitter.ObserveBundleDeployment(context.TODO(), deployment(fleet.Ready), deployment(fleet.ErrApplied))
+	f.flush(t)
+
+	f.emitter.ObserveBundleDeployment(context.TODO(), deployment(fleet.ErrApplied), deployment(fleet.NotReady))
+	f.createErr = serverBusy
+	f.whileCreating = func() {
+		f.emitter.ObserveBundleDeployment(context.TODO(), deployment(fleet.NotReady), deployment(fleet.Ready))
+	}
+	f.flushGrace(t)
+
+	f.createErr = nil
+	f.flush(t)
+
+	got := reasons(f.events(t))
+	if want := []string{ReasonBundleDeploymentFailed, ReasonBundleDeploymentReady}; !slices.Equal(got, want) {
+		t.Fatalf("expected the reported failure and its recovery, got %v", got)
+	}
+}
+
+// rollout is the summary of a bundle rolling out to 500 clusters. The 10
+// deployments it lists are still waiting to be applied, so none of the ones
+// which are not ready is listed.
+func rollout() fleet.BundleSummary {
+	s := fleet.BundleSummary{DesiredReady: 500, Ready: 63, NotReady: 37, WaitApplied: 400}
+	for i := range 10 {
+		s.NonReadyResources = append(s.NonReadyResources, fleet.NonReadyResource{
+			Name:  fmt.Sprintf("fleet-default/cluster-%03d", i),
+			State: fleet.WaitApplied,
+		})
+	}
+
+	return s
+}
+
+func TestRolloutIsGivenTheGracePeriodWhenItsNotReadyDeploymentsAreNotListed(t *testing.T) {
+	f := newFixture(t, nil)
+	profile := &Profile{NotReadyProgressing: 37}
+
+	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(rollout()), profile)
+	f.flush(t)
+
+	if got := reasons(f.events(t)); len(got) != 0 {
+		t.Fatalf("expected nothing within the grace period, got %v", got)
+	}
+
+	f.flushGrace(t)
+
+	got := reasons(f.events(t))
+	if want := []string{ReasonBundleNotReady}; !slices.Equal(got, want) {
+		t.Fatalf("expected the failure after the grace period, got %v", got)
+	}
+}
+
+func TestErrorOnADeploymentTheSummaryDoesNotListIsReportedAfterTheDebounce(t *testing.T) {
+	f := newFixture(t, nil)
+
+	// Every listed deployment is progressing, but one which is not listed
+	// reports an error.
+	s := notReadySummary(10, notReadyDeployment("web", "1/3"))
+	s.DesiredReady, s.NotReady = 50, 37
+	profile := &Profile{NotReadyProgressing: 36, NotReadyWithError: 1}
+
+	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(s), profile)
+	f.flush(t)
+
+	got := reasons(f.events(t))
+	if want := []string{ReasonBundleNotReady}; !slices.Equal(got, want) {
+		t.Fatalf("expected the failure after the debounce, got %v", got)
+	}
+}
+
+func TestRolloutKeepsItsGracePeriodWhileTheListedDeploymentsChange(t *testing.T) {
+	f := newFixture(t, nil)
+	profile := &Profile{NotReadyProgressing: 37}
+
+	// Which deployments the summary lists changes as agents apply, from
+	// none which are not ready to some and back.
+	listingSome := rollout()
+	listingSome.NonReadyResources[0] = fleet.NonReadyResource{
+		Name:           "fleet-default/cluster-000",
+		State:          fleet.NotReady,
+		NonReadyStatus: []fleet.NonReadyStatus{notReadyDeployment("web", "1/3")},
+	}
+
+	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(rollout()), profile)
+	f.clock.advance(time.Second)
+	f.emitter.ObserveBundle(context.TODO(), bundle(rollout()), bundle(listingSome), profile)
+	f.clock.advance(time.Second)
+	f.emitter.ObserveBundle(context.TODO(), bundle(listingSome), bundle(rollout()), profile)
+	f.flush(t)
+
+	if got := reasons(f.events(t)); len(got) != 0 {
+		t.Fatalf("expected nothing within the grace period, got %v", got)
+	}
+}
+
+func TestFailureWhichEndsBackInTheReportedOneIsNotReported(t *testing.T) {
+	// Another cause, which went away again before it was due: the bundle is
+	// failing for the cause already reported, as it was all along.
+	f := newFixture(t, nil)
+	a := failing(500, renderError)
+	b := failing(500, nsForbidden)
+
+	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(a), profileOf(a))
+	f.flush(t)
+	f.emitter.ObserveBundle(context.TODO(), bundle(a), bundle(b), profileOf(b))
+	f.clock.advance(time.Second)
+	f.emitter.ObserveBundle(context.TODO(), bundle(b), bundle(a), profileOf(a))
+	f.clock.advance(f.opts.MinInterval)
+	f.flush(t)
+
+	if got := reasons(f.events(t)); len(got) != 1 {
+		t.Fatalf("expected only the failure reported first, got %v", got)
+	}
+}
+
+func TestErrorWhichClearsBeforeItIsDueIsNotReported(t *testing.T) {
+	// A rollout was reported once its grace period passed, then reported an
+	// error which cleared within the debounce, like a Deployment past its
+	// progress deadline which a new rollout restarted.
+	f := newFixture(t, nil)
+	progressing := notReadySummary(1, notReadyDeployment("foo", "0/1"))
+	failed := notReadySummary(1, erroring(notReadyDeployment("foo", "0/1")))
+
+	f.emitter.ObserveBundle(context.TODO(), bundle(deploying()), bundle(progressing), profileOf(progressing))
+	f.flushGrace(t)
+	f.emitter.ObserveBundle(context.TODO(), bundle(progressing), bundle(failed), profileOf(failed))
+	f.clock.advance(time.Second)
+	f.emitter.ObserveBundle(context.TODO(), bundle(failed), bundle(progressing), profileOf(progressing))
+	f.clock.advance(f.opts.MinInterval)
+	f.flush(t)
+
+	if got := reasons(f.events(t)); len(got) != 1 {
+		t.Fatalf("expected only the rollout, got %v", got)
+	}
+}
+
+func TestFailureWhichEndsBackInTheOneBeingCreatedIsNotReported(t *testing.T) {
+	f := newFixture(t, nil)
+	a := failing(500, renderError)
+	b := failing(500, nsForbidden)
+
+	f.emitter.ObserveBundle(context.TODO(), bundle(ready()), bundle(a), profileOf(a))
+	f.whileCreating = func() {
+		f.emitter.ObserveBundle(context.TODO(), bundle(a), bundle(b), profileOf(b))
+		f.emitter.ObserveBundle(context.TODO(), bundle(b), bundle(a), profileOf(a))
+	}
+	f.flush(t)
+	f.clock.advance(f.opts.MinInterval)
+	f.flush(t)
+
+	if got := reasons(f.events(t)); len(got) != 1 {
+		t.Fatalf("expected only the failure being created, got %v", got)
+	}
+}
+
+func TestBundleDeploymentErrorWhichClearsBeforeItIsDueIsNotReported(t *testing.T) {
+	f := newFixture(t, nil)
+	f.opts.PerDeployment = true
+
+	progressing := deployment(fleet.NotReady)
+	progressing.Status.NonReadyStatus = []fleet.NonReadyStatus{notReadyDeployment("foo", "0/1")}
+	failed := deployment(fleet.NotReady)
+	failed.Status.NonReadyStatus = []fleet.NonReadyStatus{erroring(notReadyDeployment("foo", "0/1"))}
+
+	f.emitter.ObserveBundleDeployment(context.TODO(), withDisplayState(progressing, fleet.WaitApplied), progressing)
+	f.flushGrace(t)
+	f.emitter.ObserveBundleDeployment(context.TODO(), failed, failed)
+	f.clock.advance(time.Second)
+	f.emitter.ObserveBundleDeployment(context.TODO(), progressing, progressing)
+	f.clock.advance(f.opts.MinInterval)
+	f.flush(t)
+
+	if got := reasons(f.events(t)); len(got) != 1 {
+		t.Fatalf("expected only the rollout, got %v", got)
 	}
 }

@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -90,8 +91,14 @@ const (
 type Notifier interface {
 	// ObserveBundle reports failures and recoveries of a bundle's
 	// deployments. Old is the bundle as previously persisted, which makes
-	// the state change survive a restart of the controller.
-	ObserveBundle(ctx context.Context, old, cur *fleet.Bundle)
+	// a recovery survive a restart of the controller. Callers report the
+	// bundle whether or not its status changed.
+	//
+	// Profile describes cur's failing deployments, counted over all of
+	// them, which the summary cannot do since it lists only 10. It is nil
+	// when the summary was not recomputed, in which case nothing is
+	// reported.
+	ObserveBundle(ctx context.Context, old, cur *fleet.Bundle, profile *Profile)
 
 	// ObserveBundleDeployment reports a single bundle deployment, if
 	// per-deployment reporting is enabled. Old is the bundle deployment as
@@ -114,6 +121,15 @@ type snapshot struct {
 	reason    string
 	note      string
 	fp        fingerprint
+
+	// delay is how long the event waits before it is created: the debounce,
+	// or the grace period of a deployment which is not ready yet.
+	delay time.Duration
+}
+
+// failure reports whether the event reports a failure, as opposed to a recovery.
+func (s *snapshot) failure() bool {
+	return s.eventType == corev1.EventTypeWarning
 }
 
 // entry is the emitter's memory of one object.
@@ -139,13 +155,41 @@ type entry struct {
 	// attempts is how often creating the pending event has failed.
 	attempts int
 
-	// awaitingRecovery records that the object was seen failing, so that
-	// its recovery is reported once it is ready again. Between a failure
-	// and a recovery an object is neither: it goes through transient
+	// awaitingRecovery records that a failure of the object was reported, so
+	// that its recovery is reported once it is ready again. Between a
+	// failure and a recovery an object is neither: it goes through transient
 	// states, in which nothing is failing but nothing is ready either.
 	// Remembering the failure is what lets the recovery be reported from
-	// there, instead of on merely leaving the failing state.
+	// there, instead of on merely leaving the failing state. A failure which
+	// was never reported, because it ended within the debounce or the grace
+	// period, has no recovery to report either.
+	//
+	// It is kept until the recovery event has been created, not merely
+	// queued: a queued recovery can still be replaced by a new failure, and
+	// if that failure ends before it is reported, the recovery of the one
+	// which was reported is still owed. It is also what keeps the entry
+	// from being forgotten, see forgetStale and evict.
 	awaitingRecovery bool
+
+	// creating is an event which a flush has claimed and is writing. It is
+	// not pending any more, and not recorded as created yet. No other event
+	// of the object is claimed meanwhile, so that events are recorded in the
+	// order they were created. For a failure event, what is observed
+	// meanwhile is kept until the outcome is known:
+	//
+	// failureEnded records that the object stopped failing. If the event is
+	// created, a recurring failure must be reported again, as if the object
+	// had stopped failing after it was. If it is not, the failure is over
+	// before it was reported, and it is not retried.
+	//
+	// recoveryAfterCreate is a recovery observed meanwhile. It is reported
+	// once the failure event has been created, and dropped if it is not: a
+	// failure which was never reported has no recovery to report. Without
+	// it, the recovery would be missed, since it is observed only once,
+	// before the failure is recorded as reported.
+	creating            *snapshot
+	failureEnded        bool
+	recoveryAfterCreate *snapshot
 
 	// touched is when the object was last observed, used to forget it again.
 	touched time.Time
@@ -227,7 +271,7 @@ func (e *Emitter) Start(ctx context.Context) error {
 }
 
 // ObserveBundle reports failures and recoveries of a bundle's deployments.
-func (e *Emitter) ObserveBundle(ctx context.Context, old, cur *fleet.Bundle) {
+func (e *Emitter) ObserveBundle(ctx context.Context, old, cur *fleet.Bundle, profile *Profile) {
 	opts := e.options()
 	if !opts.Enabled || old == nil || cur == nil {
 		return
@@ -237,69 +281,74 @@ func (e *Emitter) ObserveBundle(ctx context.Context, old, cur *fleet.Bundle) {
 		return
 	}
 
-	failing, reason, fp := failureFingerprint(cur.Status.Summary)
-	wasFailing, _, previous := failureFingerprint(old.Status.Summary)
+	if profile == nil {
+		// The summary was not recomputed from the bundle's deployments,
+		// so nothing about them has changed, and their failures cannot
+		// be described: the summary only lists a sample of them.
+		return
+	}
+
+	failing, reason, fp := failureFingerprint(cur.Status.Summary, profile)
+	wasFailing, _ := failureCounts(old.Status.Summary)
+	known := e.knows(cur.UID)
+
+	// After a restart, the memory of what was reported is gone, but the
+	// previously persisted status still shows the failure. The same holds
+	// once the bundle has been forgotten or evicted.
+	//
+	// A failure still going on, which the persisted status already showed,
+	// is assumed to have been reported, so that a restart does not report
+	// every ongoing failure again. The persisted status only lists a
+	// sample of the deployments, so a new cause on one it does not list,
+	// with the same counts, is missed until the failure changes again. A
+	// failure which is merely progressing is not assumed reported: it may
+	// still have been within its grace period, and reporting it again
+	// once is better than never reporting it.
+	if !known && failing > 0 && wasFailing > 0 && !profile.progressing() &&
+		persistedFailureFingerprint(old.Status.Summary) == persistedFailureFingerprint(cur.Status.Summary) {
+		e.assumeReported(cur.UID, fp, opts)
+	}
+
+	// Whatever the bundle's state is now, a failure the persisted status
+	// shows owes its recovery, since the bundle may move on to another
+	// failure first, which would make it known.
+	if wasFailing > 0 && opts.ReportRecovery && !known {
+		e.awaitRecovery(cur.UID, opts)
+	}
 
 	if failing > 0 {
-		// Remember the failure, so that the recovery is reported once the
-		// bundle is ready again, however many transient states it passes
-		// through on the way.
-		e.awaitRecovery(cur.UID, opts)
-
-		if wasFailing > 0 && previous == fp {
-			// The same failures were already part of the previously
-			// persisted status, so this is not a state change. Comparing
-			// persisted statuses, instead of remembering the last event,
-			// keeps this true across restarts of the controller.
-			//
-			// An event queued earlier in the burst is still refreshed,
-			// though. How many deployments are failing is bucketed, so
-			// agents reporting one after another mostly fingerprint the
-			// same, and the note would otherwise describe the counts as
-			// they were when the first agent reported.
-			if e.hasPending(cur.UID) {
-				e.schedule(ctx, cur.UID, e.snapshotFor(
-					ctx,
-					cur,
-					corev1.EventTypeWarning,
-					reason,
-					failureNote(cur.Status.Summary, opts.MaxCauses),
-					fp,
-				), opts)
-			}
-
-			return
-		}
-
+		// Whether the failures were already reported is decided by what
+		// the emitter remembers creating, see queue. An event queued
+		// earlier in the burst is refreshed, though: how many deployments
+		// are failing is bucketed, so agents reporting one after another
+		// mostly fingerprint the same, and the note would otherwise
+		// describe the counts as they were when the first agent reported.
 		e.schedule(ctx, cur.UID, e.snapshotFor(
 			ctx,
 			cur,
 			corev1.EventTypeWarning,
 			reason,
-			failureNote(cur.Status.Summary, opts.MaxCauses),
+			failureNote(cur.Status.Summary, profile, opts.MaxCauses),
 			fp,
+			failureDelay(profile.progressing(), opts),
 		), opts)
 
 		return
 	}
 
-	// Nothing is failing. Forget which event was last created for this
-	// bundle, so that a failure recurring later is reported again.
+	// Nothing is failing. A failure which has not been reported yet is over
+	// before it was, typically a rollout which completed within its grace
+	// period, and is not reported any more. Forget which event was last
+	// created for this bundle, so that a failure recurring later is
+	// reported again.
+	e.dropPendingFailure(cur.UID)
 	e.clearEmitted(cur.UID)
 
 	if !opts.ReportRecovery {
 		e.stopAwaitingRecovery(cur.UID)
 		return
 	}
-
-	// After a restart, the memory of a failure is gone, but the previously
-	// persisted status still shows it. Remember it again, so that the
-	// recovery is reported even if the bundle passes through other states
-	// before it is ready.
-	if wasFailing > 0 {
-		e.awaitRecovery(cur.UID, opts)
-	}
-	if !e.awaitingRecovery(cur.UID) {
+	if !e.expectsRecovery(cur.UID) {
 		return
 	}
 
@@ -310,14 +359,14 @@ func (e *Emitter) ObserveBundle(ctx context.Context, old, cur *fleet.Bundle) {
 		return
 	}
 
-	e.stopAwaitingRecovery(cur.UID)
-	e.schedule(ctx, cur.UID, e.snapshotFor(
+	e.reportRecovery(ctx, cur.UID, e.snapshotFor(
 		ctx,
 		cur,
 		corev1.EventTypeNormal,
 		ReasonBundleReady,
 		readyNote(cur.Status.Summary),
 		fingerprintOf("ready", ReasonBundleReady),
+		opts.Debounce,
 	), opts)
 }
 
@@ -336,66 +385,140 @@ func (e *Emitter) ObserveBundleDeployment(ctx context.Context, old, cur *fleet.B
 	state := fleet.BundleState(cur.Status.Display.State)
 	previous := fleet.BundleState(old.Status.Display.State)
 
-	if isFailure(state) || isFailure(previous) {
-		// As for bundles, remember the failure, so that the recovery is
-		// reported from whichever state the deployment reaches Ready. The
-		// previous state restores it after a restart.
+	bundle := cur.Labels[fleet.BundleLabel]
+	known := e.knows(cur.UID)
+
+	// Whether a failure was already reported is decided by what the emitter
+	// remembers creating, see queue, not by comparing with old: the caller
+	// cannot tell what the agent reported before. The fingerprint includes
+	// whether the deployment is progressing, so one which starts reporting
+	// an error is a new event, due after the debounce instead of the grace
+	// period.
+	var (
+		reason, message string
+		progressing     bool
+		fp              fingerprint
+	)
+	if isFailure(state) {
+		reason = deploymentFailureReason(state)
+		message = summary.MessageFromDeployment(cur)
+		progressing = deploymentProgressing(cur)
+		fp = fingerprintOf("failing", reason, string(state), []string{message}, strconv.FormatBool(progressing))
+
+		// As for bundles, after a restart, or once the deployment has been
+		// forgotten, a failure the persisted display state already showed
+		// is assumed to have been reported, unless it is merely
+		// progressing. Only the display state is persisted, so a deployment
+		// which turned from progressing into an error while the controller
+		// was down is missed until it changes again.
+		if !known && state == previous && !progressing {
+			e.assumeReported(cur.UID, fp, opts)
+		}
+	}
+
+	// As for bundles, after a restart a failure the persisted display state
+	// shows is assumed to have been reported, and owes its recovery. Only
+	// the display state is persisted from before: the conditions and
+	// resources are the agent's latest, in old as in cur, so whether the
+	// failure was merely progressing cannot be told from old. They describe
+	// the deployment as it is now, which may be ready already, and would
+	// make any failure look like it was progressing, losing its recovery.
+	if isFailure(previous) && opts.ReportRecovery && !known {
 		e.awaitRecovery(cur.UID, opts)
 	}
 
-	if state == previous {
-		return
-	}
-
-	bundle := cur.Labels[fleet.BundleLabel]
-
-	switch {
-	case isFailure(state):
-		reason := deploymentFailureReason(state)
-		message := summary.MessageFromDeployment(cur)
-
+	if isFailure(state) {
 		e.schedule(ctx, cur.UID, e.snapshotFor(
 			ctx,
 			cur,
 			corev1.EventTypeWarning,
 			reason,
 			deploymentNote(bundle, state, message),
-			fingerprintOf("failing", reason, string(state), []string{message}),
+			fp,
+			failureDelay(progressing, opts),
 		), opts)
 
-	case state == fleet.Ready:
-		if !opts.ReportRecovery {
-			e.stopAwaitingRecovery(cur.UID)
-			return
-		}
-		if !e.awaitingRecovery(cur.UID) {
-			return
-		}
-
-		e.stopAwaitingRecovery(cur.UID)
-		e.schedule(ctx, cur.UID, e.snapshotFor(
-			ctx,
-			cur,
-			corev1.EventTypeNormal,
-			ReasonBundleDeploymentReady,
-			deploymentNote(bundle, fleet.Ready, ""),
-			fingerprintOf("ready", ReasonBundleDeploymentReady),
-		), opts)
+		return
 	}
+
+	// As for bundles, a failure which has not been reported yet is not
+	// reported any more, and one recurring later is reported again.
+	e.dropPendingFailure(cur.UID)
+	e.clearEmitted(cur.UID)
+
+	if state != fleet.Ready {
+		return
+	}
+	if !opts.ReportRecovery {
+		e.stopAwaitingRecovery(cur.UID)
+		return
+	}
+	if !e.expectsRecovery(cur.UID) {
+		return
+	}
+
+	e.reportRecovery(ctx, cur.UID, e.snapshotFor(
+		ctx,
+		cur,
+		corev1.EventTypeNormal,
+		ReasonBundleDeploymentReady,
+		deploymentNote(bundle, fleet.Ready, ""),
+		fingerprintOf("ready", ReasonBundleDeploymentReady),
+		opts.Debounce,
+	), opts)
 }
 
-// hasPending reports whether an event for the object is waiting to be created.
-func (e *Emitter) hasPending(uid types.UID) bool {
+// deploymentProgressing reports whether a bundle deployment is not ready, with
+// nothing reporting an error, see progressingCause.
+func deploymentProgressing(bd *fleet.BundleDeployment) bool {
+	return fleet.BundleState(bd.Status.Display.State) == fleet.NotReady &&
+		progressingCause(summary.MessageFromDeployment(bd), bd.Status.NonReadyStatus)
+}
+
+// failureDelay is how long a failure waits before it is reported: the debounce,
+// or, for deployments which are merely not ready yet, the grace period, which
+// is never shorter than the debounce.
+func failureDelay(progressing bool, opts Options) time.Duration {
+	if progressing {
+		return max(opts.NotReadyGracePeriod, opts.Debounce)
+	}
+
+	return opts.Debounce
+}
+
+// knows reports whether the emitter remembers anything about an object. It does
+// not after a restart, or once the object has been forgotten.
+func (e *Emitter) knows(uid types.UID) bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	_, ok := e.entries[uid]
+
+	return ok
+}
+
+// dropPendingFailure discards a failure event which has not been created yet,
+// because the object stopped failing before it was. A failure event being
+// created right now is left to finish, see entry.creating.
+func (e *Emitter) dropPendingFailure(uid types.UID) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
 	ent, ok := e.entries[uid]
-
-	return ok && ent.pending != nil
+	if !ok {
+		return
+	}
+	if ent.pending != nil && ent.pending.failure() {
+		ent.discardPending()
+	}
+	if ent.creatingFailure() {
+		ent.failureEnded = true
+	}
 }
 
-// awaitRecovery remembers that an object is failing, so that its recovery is
-// reported once it is ready again. It records the wait; it does not block.
+// awaitRecovery remembers that a failure of an object was reported, so that its
+// recovery is reported once it is ready again. It records the wait; it does not
+// block.
 func (e *Emitter) awaitRecovery(uid types.UID, opts Options) {
 	now := e.now()
 
@@ -412,15 +535,50 @@ func (e *Emitter) awaitRecovery(uid types.UID, opts Options) {
 	ent.awaitingRecovery = true
 }
 
-// awaitingRecovery reports whether a failure is waiting to be reported as
-// recovered.
-func (e *Emitter) awaitingRecovery(uid types.UID) bool {
+// assumeReported remembers an object the emitter knows nothing about as if the
+// failure with the given fingerprint had been reported, without creating an
+// event: the persisted status shows the failure from before a restart, or from
+// before the object was forgotten, when its event was created. The time it was
+// created is unknown, so the minimum interval does not delay the next event.
+// An object the emitter already knows is left alone, since what it remembers
+// is more accurate.
+func (e *Emitter) assumeReported(uid types.UID, fp fingerprint, opts Options) {
+	now := e.now()
+
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	ent, ok := e.entries[uid]
+	if _, ok := e.entries[uid]; ok {
+		return
+	}
+	e.entries[uid] = &entry{
+		emitted: fp,
+		hasSent: true,
+		touched: now,
+	}
+	e.evict(opts.MaxTracked, uid)
+}
 
-	return ok && ent.awaitingRecovery
+// discardPending drops the event waiting to be created, if any. The caller
+// holds the lock.
+func (ent *entry) discardPending() {
+	ent.pending = nil
+	ent.dueAt = time.Time{}
+	ent.attempts = 0
+}
+
+// creatingFailure reports whether a failure event of the object is being
+// created. The caller holds the lock.
+func (ent *entry) creatingFailure() bool {
+	return ent.creating != nil && ent.creating.failure()
+}
+
+// endCreate forgets the event being created, and what was observed while it
+// was. The caller holds the lock.
+func (ent *entry) endCreate() {
+	ent.creating = nil
+	ent.failureEnded = false
+	ent.recoveryAfterCreate = nil
 }
 
 // stopAwaitingRecovery forgets a failure, either because its recovery has just
@@ -434,6 +592,47 @@ func (e *Emitter) stopAwaitingRecovery(uid types.UID) {
 	}
 }
 
+// expectsRecovery reports whether a recovery of the object is worth reporting:
+// its failure was reported, or is being reported right now.
+func (e *Emitter) expectsRecovery(uid types.UID) bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	ent, ok := e.entries[uid]
+
+	return ok && (ent.awaitingRecovery || ent.creatingFailure())
+}
+
+// reportRecovery queues the recovery of an object whose failure was reported.
+// If the failure event is still being created, the recovery is held back until
+// it has been, see entry.recoveryAfterCreate.
+func (e *Emitter) reportRecovery(ctx context.Context, uid types.UID, snap *snapshot, opts Options) {
+	if snap == nil {
+		return
+	}
+
+	e.mu.Lock()
+	ent, ok := e.entries[uid]
+	switch {
+	case !ok:
+		e.mu.Unlock()
+		return
+	case ent.creatingFailure():
+		ent.recoveryAfterCreate = snap
+		e.mu.Unlock()
+		return
+	case !ent.awaitingRecovery:
+		e.mu.Unlock()
+		return
+	}
+	// The recovery stays owed until its event has been created, see
+	// entry.awaitingRecovery. Observing the recovery again meanwhile only
+	// refreshes the queued event.
+	e.mu.Unlock()
+
+	e.schedule(ctx, uid, snap, opts)
+}
+
 // snapshotFor builds the event to create for an object. It returns nil if no
 // reference to the object can be built, in which case no event can be reported.
 func (e *Emitter) snapshotFor(
@@ -441,6 +640,7 @@ func (e *Emitter) snapshotFor(
 	obj client.Object,
 	eventType, reason, note string,
 	fp fingerprint,
+	delay time.Duration,
 ) *snapshot {
 	ref, err := reference.GetReference(e.scheme, obj)
 	if err != nil {
@@ -460,6 +660,7 @@ func (e *Emitter) snapshotFor(
 		reason:    reason,
 		note:      note,
 		fp:        fp,
+		delay:     delay,
 	}
 }
 
@@ -493,9 +694,26 @@ func (e *Emitter) queue(uid types.UID, snap *snapshot, opts Options) bool {
 	}
 	ent.touched = now
 
+	if snap.failure() {
+		// Failing again, so whatever ended while an earlier failure event
+		// was being created is over.
+		ent.failureEnded = false
+		ent.recoveryAfterCreate = nil
+	}
+
 	switch {
 	case ent.hasSent && ent.emitted == snap.fp:
-		// Already reported and nothing has changed since.
+		// Already reported. Whatever was queued since describes a state
+		// the object went through and left, like an error which cleared
+		// within the debounce, and is not reported any more.
+		ent.discardPending()
+
+		return false
+
+	case ent.creating != nil && ent.creating.fp == snap.fp:
+		// Being reported right now, see above.
+		ent.discardPending()
+
 		return false
 
 	case ent.pending != nil && ent.pending.fp == snap.fp:
@@ -515,11 +733,17 @@ func (e *Emitter) queue(uid types.UID, snap *snapshot, opts Options) bool {
 	}
 
 	// A new description of the object replaces whatever was queued, and
-	// starts over with a full budget of creation attempts.
+	// starts over with a full budget of creation attempts. It keeps the due
+	// time, so that a burst does not keep delaying its event, unless it
+	// waits for another reason: a deployment which was not ready yet and
+	// now reports an error is reported after the debounce, without waiting
+	// for the rest of the grace period, and one whose error turned back
+	// into merely not being ready starts its grace period.
+	previous := ent.pending
 	ent.pending = snap
 	ent.attempts = 0
-	if ent.dueAt.IsZero() {
-		ent.dueAt = e.dueTime(now, ent.lastEmit, opts)
+	if ent.dueAt.IsZero() || (previous != nil && previous.delay != snap.delay) {
+		ent.dueAt = e.dueTime(now, ent.lastEmit, snap.delay, opts)
 
 		return !ent.dueAt.After(now)
 	}
@@ -527,10 +751,10 @@ func (e *Emitter) queue(uid types.UID, snap *snapshot, opts Options) bool {
 	return false
 }
 
-// dueTime is when an event may be created: after the debounce, and not before
-// the minimum interval since the last event for the same object has passed.
-func (e *Emitter) dueTime(now, lastEmit time.Time, opts Options) time.Time {
-	due := now.Add(opts.Debounce)
+// dueTime is when an event may be created: after its delay, and not before the
+// minimum interval since the last event for the same object has passed.
+func (e *Emitter) dueTime(now, lastEmit time.Time, delay time.Duration, opts Options) time.Time {
+	due := now.Add(delay)
 	if earliest := lastEmit.Add(opts.MinInterval); !lastEmit.IsZero() && earliest.After(due) {
 		return earliest
 	}
@@ -557,17 +781,17 @@ func (e *Emitter) flush(ctx context.Context, opts Options) {
 
 	for _, p := range e.claimDue(now) {
 		if !e.limiter.TryAccept() {
-			e.requeue(p.uid, p.snap, now.Add(tickInterval))
+			e.requeue(p.uid, p.snap, now, opts)
 			continue
 		}
 
 		if err := e.create(ctx, p.snap); err != nil {
-			e.createFailed(ctx, p.uid, p.snap, now, err)
+			e.createFailed(ctx, p.uid, p.snap, now, err, opts)
 
 			continue
 		}
 
-		e.recordEmit(p.uid, p.snap.fp, now, opts)
+		e.recordEmit(p.uid, p.snap, now, opts)
 	}
 }
 
@@ -580,6 +804,8 @@ func (e *Emitter) dropPending() {
 		ent.pending = nil
 		ent.dueAt = time.Time{}
 		ent.attempts = 0
+		ent.failureEnded = false
+		ent.recoveryAfterCreate = nil
 	}
 }
 
@@ -595,7 +821,12 @@ func (e *Emitter) claimDue(now time.Time) []dueEvent {
 		if ent.pending == nil || ent.dueAt.IsZero() || ent.dueAt.After(now) {
 			continue
 		}
+		if ent.creating != nil {
+			// Wait for the event being created, see entry.creating.
+			continue
+		}
 		pending = append(pending, dueEvent{uid: uid, snap: ent.pending})
+		ent.creating = ent.pending
 		ent.pending = nil
 		ent.dueAt = time.Time{}
 	}
@@ -604,8 +835,9 @@ func (e *Emitter) claimDue(now time.Time) []dueEvent {
 }
 
 // recordEmit remembers the event which was created, and schedules whatever was
-// observed while it was being created.
-func (e *Emitter) recordEmit(uid types.UID, fp fingerprint, now time.Time, opts Options) {
+// observed while it was being created. A reported failure is what makes the
+// recovery worth reporting.
+func (e *Emitter) recordEmit(uid types.UID, snap *snapshot, now time.Time, opts Options) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
@@ -614,13 +846,32 @@ func (e *Emitter) recordEmit(uid types.UID, fp fingerprint, now time.Time, opts 
 		return
 	}
 
-	ent.emitted = fp
+	ent.emitted = snap.fp
 	ent.hasSent = true
 	ent.lastEmit = now
 	ent.attempts = 0
+	// A reported failure owes its recovery, unless recoveries are not
+	// reported, and a reported recovery settles it.
+	ent.awaitingRecovery = snap.failure() && opts.ReportRecovery
+
+	if snap.failure() && ent.creating == snap {
+		// The object stopped failing, or even recovered, while this
+		// event was created. Handle that now, as observing it would have,
+		// had the event been recorded already.
+		if ent.failureEnded {
+			ent.emitted = fingerprint{}
+			ent.hasSent = false
+		}
+		if recovery := ent.recoveryAfterCreate; recovery != nil && opts.ReportRecovery && ent.pending == nil {
+			ent.pending = recovery
+		}
+	}
+	if ent.creating == snap {
+		ent.endCreate()
+	}
 	if ent.pending != nil {
 		// Something was observed while this event was created.
-		ent.dueAt = e.dueTime(now, ent.lastEmit, opts)
+		ent.dueAt = e.dueTime(now, ent.lastEmit, ent.pending.delay, opts)
 	}
 }
 
@@ -635,7 +886,7 @@ func (e *Emitter) recordEmit(uid types.UID, fp fingerprint, now time.Time, opts 
 // The dropped event is not reported later, but what it described is still in
 // the object's status, and the next change to the object queues a new event
 // with a full budget of attempts.
-func (e *Emitter) createFailed(ctx context.Context, uid types.UID, snap *snapshot, now time.Time, err error) {
+func (e *Emitter) createFailed(ctx context.Context, uid types.UID, snap *snapshot, now time.Time, err error, opts Options) {
 	e.mu.Lock()
 
 	ent, ok := e.entries[uid]
@@ -648,6 +899,19 @@ func (e *Emitter) createFailed(ctx context.Context, uid types.UID, snap *snapsho
 	ent.attempts++
 	attempts := ent.attempts
 	retry := attempts < maxCreateAttempts && !permanentError(err)
+
+	// A failure which ended while its event was being created is not
+	// reported any more, nor is its recovery, see endFailureUnreported.
+	if ent.creating == snap {
+		if snap.failure() && ent.failureEnded {
+			e.endFailureUnreported(ent, now, opts)
+			ent.attempts = 0
+			e.mu.Unlock()
+
+			return
+		}
+		ent.endCreate()
+	}
 
 	// A newer event may have taken its place while this one was created.
 	if retry && ent.pending == nil {
@@ -688,18 +952,57 @@ func permanentError(err error) bool {
 		apierrors.IsMethodNotSupported(err)
 }
 
-// requeue puts an event back, unless a newer one has taken its place.
-func (e *Emitter) requeue(uid types.UID, snap *snapshot, dueAt time.Time) {
+// requeue puts an event refused by the rate limiter back, to be tried on the
+// next tick, unless a newer one has taken its place.
+func (e *Emitter) requeue(uid types.UID, snap *snapshot, now time.Time, opts Options) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
 	ent, ok := e.entries[uid]
-	if !ok || ent.pending != nil {
+	if !ok {
+		return
+	}
+
+	if ent.creating == snap {
+		// A failure which ended before its event could be created is
+		// not reported, nor is its recovery, see endFailureUnreported.
+		if snap.failure() && ent.failureEnded {
+			e.endFailureUnreported(ent, now, opts)
+
+			return
+		}
+		ent.endCreate()
+	}
+
+	if ent.pending != nil {
 		return
 	}
 
 	ent.pending = snap
-	ent.dueAt = dueAt
+	ent.dueAt = now.Add(tickInterval)
+}
+
+// endFailureUnreported ends the creation of a failure event which is not going
+// to be created, because the object stopped failing first. The caller holds the
+// lock.
+//
+// Such a failure was never reported, so it has no recovery of its own. But it
+// may have replaced a failure which was, and whose recovery is still owed, see
+// entry.awaitingRecovery. The recovery observed while the event was being
+// created settles that one, so it is queued instead of being dropped with the
+// failure: the object is ready and stays so, and would not be observed again
+// to report it.
+func (e *Emitter) endFailureUnreported(ent *entry, now time.Time, opts Options) {
+	recovery := ent.recoveryAfterCreate
+	ent.endCreate()
+
+	if recovery == nil || !ent.awaitingRecovery || !opts.ReportRecovery || ent.pending != nil {
+		return
+	}
+
+	ent.pending = recovery
+	ent.attempts = 0
+	ent.dueAt = e.dueTime(now, ent.lastEmit, recovery.delay, opts)
 }
 
 // create writes the event. Its name follows the convention used by client-go,
@@ -772,7 +1075,7 @@ func (e *Emitter) forgetStale() {
 	defer e.mu.Unlock()
 
 	for uid, ent := range e.entries {
-		if ent.pending == nil && now.Sub(ent.touched) > entryTTL {
+		if ent.pending == nil && ent.creating == nil && !ent.awaitingRecovery && now.Sub(ent.touched) > entryTTL {
 			delete(e.entries, uid)
 		}
 	}
@@ -795,12 +1098,19 @@ func (e *Emitter) evict(maxTracked int, keep types.UID) {
 
 	candidates := make([]types.UID, 0, len(e.entries))
 	for uid, ent := range e.entries {
-		if ent.pending == nil && uid != keep {
+		if ent.pending == nil && ent.creating == nil && uid != keep {
 			candidates = append(candidates, uid)
 		}
 	}
+	// Objects owing a recovery are evicted last: forgetting one loses its
+	// recovery event, rather than costing a duplicate.
 	sort.Slice(candidates, func(i, j int) bool {
-		return e.entries[candidates[i]].touched.Before(e.entries[candidates[j]].touched)
+		a, b := e.entries[candidates[i]], e.entries[candidates[j]]
+		if a.awaitingRecovery != b.awaitingRecovery {
+			return b.awaitingRecovery
+		}
+
+		return a.touched.Before(b.touched)
 	})
 
 	// Evict in batches, so that eviction does not run on every new object.

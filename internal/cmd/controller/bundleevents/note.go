@@ -17,13 +17,9 @@ const (
 	// cannot take up the whole note.
 	messageMaxLength = 200
 
-	// statusHint points at the bundle status, which lists more causes than
-	// fit into a note.
-	statusHint = "see status.summary.nonReadyResources"
-
 	// moreCausesFormat ends a note whose causes do not all fit, with how many
-	// were left out and where to find them.
-	moreCausesFormat = " (+%d more, " + statusHint + ")"
+	// were left out.
+	moreCausesFormat = " (+%d more causes)"
 
 	// ellipsis marks a truncated text.
 	ellipsis = "..."
@@ -48,6 +44,24 @@ func failureCounts(s fleet.BundleSummary) (int, fleet.BundleState) {
 // isFailure reports whether a state is one this package reports as a failure.
 func isFailure(state fleet.BundleState) bool {
 	return state == fleet.ErrApplied || state == fleet.NotReady
+}
+
+// progressingCause reports whether a deployment which is not ready is merely
+// progressing. A message comes from a failed condition of the deployment, and
+// an error from a resource which Kubernetes considers failed, like a Deployment
+// past its progress deadline. A deployment without either is still on its way.
+func progressingCause(message string, resources []fleet.NonReadyStatus) bool {
+	if message != "" {
+		return false
+	}
+
+	for _, r := range resources {
+		if r.Summary.Error {
+			return false
+		}
+	}
+
+	return true
 }
 
 // recovered reports whether every bundle deployment of a bundle is ready. A
@@ -75,10 +89,12 @@ func deploymentFailureReason(state fleet.BundleState) string {
 	return ReasonBundleDeploymentFailed
 }
 
-// failureFingerprint describes the failures of a summary: how many deployments
+// failureFingerprint describes the failures of a bundle: how many deployments
 // are affected, the reason to report them under, and a fingerprint which
-// changes whenever the failures are worth reporting again.
-func failureFingerprint(s fleet.BundleSummary) (int, string, fingerprint) {
+// changes whenever the failures are worth reporting again. How many
+// deployments are failing comes from the summary's counters, which count every
+// deployment, and why from the profile.
+func failureFingerprint(s fleet.BundleSummary, p *Profile) (int, string, fingerprint) {
 	failing, state := failureCounts(s)
 	if failing == 0 {
 		return 0, "", fingerprint{}
@@ -86,32 +102,27 @@ func failureFingerprint(s fleet.BundleSummary) (int, string, fingerprint) {
 
 	reason := bundleFailureReason(state)
 
-	return failing, reason, fingerprintOf("failing", reason, magnitude(failing), causeKeys(s))
+	return failing, reason, fingerprintOf("failing", reason, magnitude(failing), p.causeKeys())
 }
 
-// failureCauses returns the failing entries of the summary's non-ready
-// resources. The summary stores at most 10 of them.
-func failureCauses(s fleet.BundleSummary) []fleet.NonReadyResource {
-	causes := make([]fleet.NonReadyResource, 0, len(s.NonReadyResources))
-	for _, r := range s.NonReadyResources {
-		if isFailure(r.State) {
-			causes = append(causes, r)
-		}
+// persistedFailureFingerprint describes the failures of a bundle as far as its
+// persisted status tells: the reason, how many deployments are failing, and the
+// causes of the deployments the summary lists, which are a sample of at most 10.
+// It is only compared with itself, to tell whether a bundle's failures changed
+// between two persisted statuses, when the emitter has no memory of the bundle.
+func persistedFailureFingerprint(s fleet.BundleSummary) fingerprint {
+	failing, state := failureCounts(s)
+	if failing == 0 {
+		return fingerprint{}
 	}
 
-	return causes
-}
-
-// causeKeys returns the distinct state and message pairs of the failing
-// resources, sorted, so that the same set of causes always produces the same
-// keys. Cluster names are deliberately left out: the same failure on more
-// clusters is not a new cause and must not produce another event.
-func causeKeys(s fleet.BundleSummary) []string {
-	seen := make(map[string]struct{})
-	keys := make([]string, 0, len(s.NonReadyResources))
-
-	for _, c := range failureCauses(s) {
-		key := string(c.State) + "|" + c.Message
+	seen := map[string]struct{}{}
+	var keys []string
+	for _, r := range s.NonReadyResources {
+		if !isFailure(r.State) {
+			continue
+		}
+		key := causeKey(r.State, r.Message, r.NonReadyStatus)
 		if _, ok := seen[key]; ok {
 			continue
 		}
@@ -120,7 +131,7 @@ func causeKeys(s fleet.BundleSummary) []string {
 	}
 	sort.Strings(keys)
 
-	return keys
+	return fingerprintOf("persisted", bundleFailureReason(state), magnitude(failing), keys)
 }
 
 // magnitude buckets a number of failures, so that a deployment failing on one
@@ -144,9 +155,10 @@ func magnitude(n int) string {
 }
 
 // failureNote describes how many bundle deployments are failing and why, for up
-// to maxCauses distinct clusters. Causes which do not fit are represented by a
-// count and a pointer to the bundle status, which holds more of them.
-func failureNote(s fleet.BundleSummary, maxCauses int) string {
+// to maxCauses causes, the most common first. A cause shared by several
+// deployments is described once, with how many share it and the cluster of the
+// first of them.
+func failureNote(s fleet.BundleSummary, p *Profile, maxCauses int) string {
 	failing, _ := failureCounts(s)
 
 	var b strings.Builder
@@ -156,7 +168,7 @@ func failureNote(s fleet.BundleSummary, maxCauses int) string {
 	}
 	b.WriteString(".")
 
-	causes := failureCauses(s)
+	causes := p.causeList()
 
 	// Leave room for the ending, which is more useful than one more cause. No
 	// more causes can be left out than there are, so this fits any count.
@@ -167,7 +179,7 @@ func failureNote(s fleet.BundleSummary, maxCauses int) string {
 			break
 		}
 
-		cause := fmt.Sprintf(" %s: %s: %s;", c.Name, c.State, truncate(c.Message, messageMaxLength))
+		cause := describeCause(c)
 		if b.Len()+len(cause) > budget {
 			break
 		}
@@ -176,16 +188,24 @@ func failureNote(s fleet.BundleSummary, maxCauses int) string {
 		written++
 	}
 
-	// The hint counts the causes left in the status, not the failing
-	// deployments: the summary records at most 10 causes for any number of
-	// them, so counting deployments would point at causes which are not
-	// there. How many deployments are failing is already in the first
-	// sentence.
 	if remaining := len(causes) - written; remaining > 0 {
 		fmt.Fprintf(&b, moreCausesFormat, remaining)
 	}
 
 	return truncate(b.String(), noteMaxLength)
+}
+
+// describeCause is how a cause reads in a note.
+func describeCause(c *cause) string {
+	where := c.example
+	if c.count > 1 {
+		where = fmt.Sprintf("%d clusters, e.g. %s", c.count, c.example)
+	}
+	if c.message == "" {
+		return fmt.Sprintf(" %s: %s;", where, c.state)
+	}
+
+	return fmt.Sprintf(" %s: %s: %s;", where, c.state, c.message)
 }
 
 // readyNote describes a bundle whose deployments are all ready again.

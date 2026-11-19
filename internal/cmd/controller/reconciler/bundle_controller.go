@@ -453,6 +453,13 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 	logger = logger.WithValues("manifestID", manifestID)
 
+	// Counted over every target, unlike the summary, which lists only 10
+	// of them, so that events can tell a rollout from a failure. It goes
+	// with the summary resetStatus computes, which every path from here on
+	// persists, including the ones returning an error, resetStatus's own
+	// among them: it sets the summary before it can fail.
+	ctx = bundleevents.WithProfile(ctx, failureProfile(matchedTargets))
+
 	if err := resetStatus(&bundle.Status, matchedTargets); err != nil {
 		err = fmt.Errorf("failed to reset bundle status from targets: %w", err)
 
@@ -1093,23 +1100,30 @@ func (r *BundleReconciler) updateStatus(ctx context.Context, orig *fleet.Bundle,
 	logger := log.FromContext(ctx).WithName("bundle - updateStatus")
 	statusPatch := client.MergeFrom(orig)
 
-	if patchData, err := statusPatch.Data(bundle); err == nil && string(patchData) == "{}" {
-		// skip update if patch is empty
-		return nil
+	// Skip the update if the patch is empty.
+	if patchData, err := statusPatch.Data(bundle); err != nil || string(patchData) != "{}" {
+		if err := r.Status().Patch(ctx, bundle, statusPatch); err != nil {
+			logger.V(1).Info("Reconcile failed update to bundle status", "status", bundle.Status, "error", err)
+			return err
+		}
+		metrics.BundleCollector.Collect(ctx, bundle)
 	}
-	if err := r.Status().Patch(ctx, bundle, statusPatch); err != nil {
-		logger.V(1).Info("Reconcile failed update to bundle status", "status", bundle.Status, "error", err)
-		return err
-	}
-	metrics.BundleCollector.Collect(ctx, bundle)
 
 	// The summary is only reported once it is persisted, and against the
 	// previously persisted one, so that the state change is detected even if
 	// the controller restarted in between. Reporting here, rather than at the
 	// end of Reconcile, covers the paths which persist a summary and then
 	// return early on an error.
+	//
+	// It is reported even when the status did not change. The summary lists
+	// only 10 deployments, so the cause of a failure can change on the
+	// others without changing the status, and after a restart a failure
+	// which is still going on would otherwise not be seen until it changes.
+	// The emitter skips what it already reported.
 	if r.Events != nil {
-		r.Events.ObserveBundle(ctx, orig, bundle)
+		// The profile is in the context once the summary has been
+		// recomputed from the targets, see Reconcile.
+		r.Events.ObserveBundle(ctx, orig, bundle, bundleevents.ProfileFrom(ctx))
 	}
 
 	return nil

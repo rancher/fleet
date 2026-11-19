@@ -36,6 +36,12 @@ type Options struct {
 	// object. It bounds how often a flapping deployment reports.
 	MinInterval time.Duration
 
+	// NotReadyGracePeriod is how long a deployment may stay not ready, with
+	// none of its resources reporting an error, before it is reported. It
+	// stands in for Debounce for such failures, which are mostly rollouts in
+	// progress. Errors are reported after the Debounce.
+	NotReadyGracePeriod time.Duration
+
 	// ReportRecovery reports bundles whose deployments all became ready
 	// again after a failure.
 	ReportRecovery bool
@@ -56,13 +62,14 @@ type Options struct {
 // DefaultOptions returns the options used when nothing is configured.
 func DefaultOptions() Options {
 	return Options{
-		Enabled:        true,
-		Debounce:       durations.BundleEventsDebounce,
-		MinInterval:    durations.BundleEventsMinInterval,
-		ReportRecovery: true,
-		PerDeployment:  false,
-		MaxCauses:      defaultMaxCauses,
-		MaxTracked:     defaultMaxTracked,
+		Enabled:             true,
+		Debounce:            durations.BundleEventsDebounce,
+		MinInterval:         durations.BundleEventsMinInterval,
+		NotReadyGracePeriod: durations.BundleEventsNotReadyGracePeriod,
+		ReportRecovery:      true,
+		PerDeployment:       false,
+		MaxCauses:           defaultMaxCauses,
+		MaxTracked:          defaultMaxTracked,
 	}
 }
 
@@ -84,6 +91,9 @@ func OptionsFromConfig(cfg *config.Config) Options {
 	}
 	if events.MinInterval.Duration > 0 {
 		opts.MinInterval = events.MinInterval.Duration
+	}
+	if events.NotReadyGracePeriod.Duration > 0 {
+		opts.NotReadyGracePeriod = events.NotReadyGracePeriod.Duration
 	}
 	if events.ReportRecovery != nil {
 		opts.ReportRecovery = *events.ReportRecovery

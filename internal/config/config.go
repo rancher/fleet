@@ -202,6 +202,12 @@ type DeploymentEvents struct {
 	// reports.
 	MinInterval metav1.Duration `json:"minInterval,omitzero"`
 
+	// NotReadyGracePeriod is how long a bundle deployment may stay not
+	// ready, with none of its resources reporting an error, before it is
+	// reported, defaults to 2m. Most such deployments are rollouts in
+	// progress. Errors are reported after the Debounce.
+	NotReadyGracePeriod metav1.Duration `json:"notReadyGracePeriod,omitzero"`
+
 	// ReportRecovery reports bundles whose deployments all became ready
 	// again after a failure, defaults to true.
 	ReportRecovery *bool `json:"reportRecovery,omitempty"`
@@ -212,7 +218,7 @@ type DeploymentEvents struct {
 	PerDeployment bool `json:"perDeployment,omitempty"`
 
 	// MaxCauses is how many distinct failure causes a single event
-	// describes, defaults to 3. The bundle status lists more of them.
+	// describes, defaults to 3. Causes beyond it are only counted.
 	MaxCauses int `json:"maxCauses,omitempty"`
 }
 
@@ -319,6 +325,7 @@ var durationConfigKeys = [][]string{
 	{"garbageCollectionInterval"},
 	{"deploymentEvents", "debounce"},
 	{"deploymentEvents", "minInterval"},
+	{"deploymentEvents", "notReadyGracePeriod"},
 }
 
 func ReadConfig(cm *v1.ConfigMap) (*Config, bool, error) {
