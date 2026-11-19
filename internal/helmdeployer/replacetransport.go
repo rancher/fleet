@@ -267,11 +267,11 @@ type objectSegments struct {
 func objectPath(path string) (objectSegments, bool) {
 	s := strings.Split(strings.Trim(path, "/"), "/")
 	n := len(s)
-	at := func(length int) []string {
-		if n < length {
+	at := func(count int) []string {
+		if n < count {
 			return nil
 		}
-		return s[n-length:]
+		return s[n-count:]
 	}
 
 	// The longest form first: a prefix may end in "api" or "apis".
