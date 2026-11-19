@@ -151,12 +151,18 @@ func (m *Manager) Targets(ctx context.Context, bundle *fleet.Bundle, manifestID 
 				opts.CreateNamespace = createNamespace
 			}
 
-			err = preprocessHelmValues(logger, &opts, &cluster)
+			templateContext := newTemplateContext(bundle, &cluster)
+			dependsOn, err := preprocessDependencies(bundle.Spec.DependsOn, templateContext)
+			if err != nil {
+				return nil, false, fmt.Errorf("bundle %s/%s, cluster %s/%s: %w", bundle.Namespace, bundle.Name, cluster.Namespace, cluster.Name, err)
+			}
+
+			err = preprocessHelmValues(logger, &opts, &cluster, templateContext)
 			if err != nil {
 				return nil, false, fmt.Errorf("cluster %s in namespace %s: %w", cluster.Name, cluster.Namespace, err)
 			}
 
-			err = preprocessNamespaceMetadata(&opts, &cluster)
+			err = preprocessNamespaceMetadata(&opts, templateContext)
 			if err != nil {
 				return nil, false, fmt.Errorf("cluster %s in namespace %s: %w", cluster.Name, cluster.Namespace, err)
 			}
@@ -172,6 +178,7 @@ func (m *Manager) Targets(ctx context.Context, bundle *fleet.Bundle, manifestID 
 				Bundle:        bundle,
 				Options:       opts,
 				DeploymentID:  deploymentID,
+				DependsOn:     dependsOn,
 			})
 		}
 	}
@@ -304,7 +311,7 @@ func templateContext(cluster *fleet.Cluster, clusterLabels, clusterAnnotations m
 
 // preprocessNamespaceMetadata renders "${ }" templates in namespaceLabels and namespaceAnnotations,
 // using the same context as helm values. It is skipped when helm.disablePreProcess is set.
-func preprocessNamespaceMetadata(opts *fleet.BundleDeploymentOptions, cluster *fleet.Cluster) (err error) {
+func preprocessNamespaceMetadata(opts *fleet.BundleDeploymentOptions, templateContext map[string]any) (err error) {
 	if opts.Helm != nil && opts.Helm.DisablePreProcess {
 		return nil
 	}
@@ -312,21 +319,18 @@ func preprocessNamespaceMetadata(opts *fleet.BundleDeploymentOptions, cluster *f
 		return nil
 	}
 
-	clusterLabels, clusterAnnotations := clusterLabelsAndAnnotations(cluster)
-	values := templateContext(cluster, clusterLabels, clusterAnnotations)
-
-	if opts.NamespaceLabels, err = processTemplateStrings(opts.NamespaceLabels, values); err != nil {
+	if opts.NamespaceLabels, err = processTemplateStrings(opts.NamespaceLabels, templateContext); err != nil {
 		return fmt.Errorf("namespaceLabels: %w", err)
 	}
-	if opts.NamespaceAnnotations, err = processTemplateStrings(opts.NamespaceAnnotations, values); err != nil {
+	if opts.NamespaceAnnotations, err = processTemplateStrings(opts.NamespaceAnnotations, templateContext); err != nil {
 		return fmt.Errorf("namespaceAnnotations: %w", err)
 	}
 
 	return nil
 }
 
-func preprocessHelmValues(logger logr.Logger, opts *fleet.BundleDeploymentOptions, cluster *fleet.Cluster) (err error) {
-	clusterLabels, clusterAnnotations := clusterLabelsAndAnnotations(cluster)
+func preprocessHelmValues(logger logr.Logger, opts *fleet.BundleDeploymentOptions, cluster *fleet.Cluster, templateContext map[string]any) (err error) {
+	clusterLabels, _ := clusterLabelsAndAnnotations(cluster)
 	if len(clusterLabels) == 0 {
 		return nil
 	}
@@ -354,14 +358,12 @@ func preprocessHelmValues(logger logr.Logger, opts *fleet.BundleDeploymentOption
 	}
 
 	if !opts.Helm.DisablePreProcess {
-		values := templateContext(cluster, clusterLabels, clusterAnnotations)
-
-		opts.Helm.Values.Data, err = processTemplateValues(opts.Helm.Values.Data, values)
+		opts.Helm.Values.Data, err = processTemplateValues(opts.Helm.Values.Data, templateContext)
 		if err != nil {
 			return err
 		}
 
-		templatedData, err := processTemplateValuesData(opts.Helm.TemplateValues, values)
+		templatedData, err := processTemplateValuesData(opts.Helm.TemplateValues, templateContext)
 		if err != nil {
 			return err
 		}
