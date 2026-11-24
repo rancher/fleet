@@ -95,6 +95,7 @@ type Options struct {
 	JobNameEnvVar                string
 	BundleCreationMaxConcurrency int
 	ImagescanEnabled             bool
+	rootPath                     string
 }
 
 type bundleWithOpts struct {
@@ -180,6 +181,8 @@ func CreateBundles(ctx context.Context, client client.Client, r record.EventReco
 						return nil
 					}
 
+					// the path passed to fleet apply bounds values files without a checkout
+					opts.rootPath = baseDir
 					// needed as opts are mutated in this loop
 					opts := opts
 					if err := readSemaphore.Acquire(ctx, 1); err != nil {
@@ -485,7 +488,7 @@ func newBundle(ctx context.Context, name, baseDir string, opts Options) (*fleet.
 			return nil, nil, fmt.Errorf("decoding bundle %s: %w", name, err)
 		}
 	} else {
-		rootDir, err := valuesRoot(baseDir)
+		rootDir, err := valuesRoot(baseDir, opts.rootPath)
 		if err != nil {
 			return nil, nil, fmt.Errorf("finding values root: %w", err)
 		}
@@ -522,9 +525,9 @@ func newBundle(ctx context.Context, name, baseDir string, opts Options) (*fleet.
 // ".git" files of submodules and linked worktrees are passed so submodule
 // bundles can share values files of the enclosing checkout, while unrelated
 // enclosing repositories, such as a versioned home directory, are not.
-// Without any ".git" entry, the working directory is returned if it contains
-// baseDir, else baseDir.
-func valuesRoot(baseDir string) (string, error) {
+// Without any ".git" entry, rootDir is returned if it contains baseDir, else
+// baseDir. The working directory never determines the root.
+func valuesRoot(baseDir, rootDir string) (string, error) {
 	base, err := filepath.Abs(baseDir)
 	if err != nil {
 		return "", err
@@ -545,23 +548,26 @@ func valuesRoot(baseDir string) (string, error) {
 		}
 		if filepath.Dir(directory) == directory {
 			if root == "" {
-				return cwdOrBase(base)
+				return bundleRootOrBase(rootDir, base)
 			}
 			return root, nil
 		}
 	}
 }
 
-func cwdOrBase(base string) (string, error) {
-	cwd, err := os.Getwd()
+func bundleRootOrBase(rootDir, base string) (string, error) {
+	if rootDir == "" {
+		return base, nil
+	}
+	root, err := filepath.Abs(rootDir)
 	if err != nil {
 		return "", err
 	}
-	if cwd, err = filepath.EvalSymlinks(cwd); err != nil {
+	if root, err = filepath.EvalSymlinks(root); err != nil {
 		return "", err
 	}
-	if rel, err := filepath.Rel(cwd, base); err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return cwd, nil
+	if rel, err := filepath.Rel(root, base); err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return root, nil
 	}
 	return base, nil
 }

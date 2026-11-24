@@ -40,8 +40,9 @@ func TestNewBundleConfinesValuesToCheckout(t *testing.T) {
 		{name: "checkout pointer cannot widen root", gitFile: true, valuesFile: "../../../outside.yaml", wantError: true},
 		{name: "shared worktree values", gitFile: true, valuesFile: "../../values.yaml"},
 		{name: "symlinked bundle", checkout: true, symlink: true, valuesFile: "../../values.yaml"},
-		{name: "no checkout marker uses working directory", valuesFile: "../../values.yaml"},
+		{name: "no checkout marker uses root directory", valuesFile: "../../values.yaml"},
 		{name: "bundle-only values", valuesFile: "values.yaml"},
+		{name: "bundle-only values uses root directory", valuesFile: "../../../values.yaml", wantError: true},
 		{name: "submodule uses enclosing checkout", checkout: true, submodule: true, valuesFile: "../../values.yaml"},
 		{name: "enclosing repository cannot widen root", checkout: true, outerRepo: true, valuesFile: "../../../outside.yaml", wantError: true},
 	} {
@@ -79,7 +80,7 @@ func TestNewBundleConfinesValuesToCheckout(t *testing.T) {
 					t.Chdir(cwd)
 					relativeBase, err := filepath.Rel(cwd, base)
 					require.NoError(t, err)
-					bundle, _, err := newBundle(context.Background(), "test", relativeBase, Options{})
+					bundle, _, err := newBundle(context.Background(), "test", relativeBase, Options{rootPath: root})
 					if test.wantError {
 						require.ErrorContains(t, err, "escapes repository directory")
 						require.Nil(t, bundle)

@@ -321,8 +321,8 @@ type GitOpsHelmOptions struct {
 	// symlinks escaping the checkout are rejected. For fleet apply, the nearest
 	// ancestor with a .git directory defines the checkout, regardless of the
 	// working directory; submodule .git files are passed. Without a .git entry,
-	// files must stay within the working directory, or the bundle directory if
-	// it is outside.
+	// files must stay within the directory argument the bundle was found in, or
+	// the bundle directory for driven scans.
 	// +nullable
 	ValuesFiles []string `json:"valuesFiles,omitempty"`
 }
