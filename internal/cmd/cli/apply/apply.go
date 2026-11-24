@@ -516,6 +516,13 @@ func newBundle(ctx context.Context, name, baseDir string, opts Options) (*fleet.
 		}
 	}
 	bundle.Namespace = opts.Namespace
+	// The repo label identifies the GitRepo owning the bundle; labels from fleet.yaml must not override it.
+	if repo, ok := opts.Labels[fleet.RepoLabel]; ok {
+		if bundle.Labels == nil {
+			bundle.Labels = map[string]string{}
+		}
+		bundle.Labels[fleet.RepoLabel] = repo
+	}
 	return bundle, scans, nil
 }
 
@@ -549,9 +556,19 @@ func writeBundle(ctx context.Context, c client.Client, r record.EventRecorder, b
 
 	// We need to exit early if the bundle is being deleted
 	tmp := &fleet.Bundle{}
-	if err := c.Get(ctx, client.ObjectKey{Name: bundle.Name, Namespace: bundle.Namespace}, tmp); err == nil {
+	exists := false
+	if err := c.Get(ctx, client.ObjectKey{Name: bundle.Name, Namespace: bundle.Namespace}, tmp); err != nil {
+		if !apierrors.IsNotFound(err) {
+			return err
+		}
+	} else {
+		exists = true
 		if tmp.DeletionTimestamp != nil {
 			return fmt.Errorf("the bundle %q is being deleted, cannot create during a delete operation", bundle.Name)
+		}
+		// Checked before pushing to the OCI registry.
+		if err := checkBundleOwner(tmp, bundle); err != nil {
+			return err
 		}
 	}
 
@@ -562,11 +579,16 @@ func writeBundle(ctx context.Context, c client.Client, r record.EventRecorder, b
 
 	// If values were found in the bundle the hash is not empty, we
 	// remove the values from the bundle. Also, delete any old
-	// secret if the values are empty.
+	// secret if the values are empty. The secret is owned by the
+	// bundle, so there is none to delete if the bundle did not exist;
+	// this also keeps the secret of a bundle created concurrently by
+	// another GitRepo, whose ownership check rejects this write.
 	if h != "" {
 		helmvalues.ClearValues(bundle)
-	} else if err := deleteSecretIfExists(ctx, c, bundle.Name, bundle.Namespace); err != nil {
-		return err
+	} else if exists {
+		if err := deleteSecretIfExists(ctx, c, bundle.Name, bundle.Namespace); err != nil {
+			return err
+		}
 	}
 	bundle.Spec.ValuesHash = h
 
@@ -661,6 +683,30 @@ func pushOCIManifest(ctx context.Context, bundle *fleet.Bundle, opts ocistorage.
 	return manifestID, nil
 }
 
+// checkBundleOwner prevents a bundle owned by a GitRepo from being overwritten by a bundle from another source, which
+// can happen when GitRepos in the same namespace use the same explicit bundle name in fleet.yaml. Overwriting would
+// transfer ownership and retarget the bundle, removing its resources from the original targets.
+func checkBundleOwner(existing, incoming *fleet.Bundle) error {
+	owner := existing.Labels[fleet.RepoLabel]
+	if owner == "" {
+		return nil
+	}
+	newOwner := incoming.Labels[fleet.RepoLabel]
+	if owner == newOwner {
+		return nil
+	}
+	if newOwner == "" {
+		return fmt.Errorf(
+			"bundle %q in namespace %q already belongs to GitRepo %q and cannot be overwritten by a bundle not belonging to that GitRepo; use a unique bundle name",
+			existing.Name, existing.Namespace, owner,
+		)
+	}
+	return fmt.Errorf(
+		"bundle %q in namespace %q already belongs to GitRepo %q and cannot be overwritten by GitRepo %q; use a unique bundle name in fleet.yaml",
+		existing.Name, existing.Namespace, owner, newOwner,
+	)
+}
+
 func save(ctx context.Context, c client.Client, bundle *fleet.Bundle) (*fleet.Bundle, error) {
 	updated := bundle.DeepCopy()
 	result, err := controllerutil.CreateOrUpdate(ctx, c, bundle, func() error {
@@ -670,6 +716,9 @@ func save(ctx context.Context, c client.Client, bundle *fleet.Bundle) (*fleet.Bu
 		// We cannot update a bundle that is going to be deleted, our update would be lost
 		if bundle.DeletionTimestamp != nil {
 			return fmt.Errorf("the bundle %q is being deleted", bundle.Name)
+		}
+		if err := checkBundleOwner(bundle, updated); err != nil {
+			return err
 		}
 
 		if bundle.Spec.ContentsID != "" {
@@ -731,6 +780,10 @@ func saveOCIBundle(ctx context.Context, c client.Client, r record.EventRecorder,
 
 		if bundle.Spec.HelmOpOptions != nil {
 			return fmt.Errorf("a helmOps bundle with name %q already exists", bundle.Name)
+		}
+
+		if err := checkBundleOwner(bundle, updated); err != nil {
+			return err
 		}
 
 		// If the current manifestID is different from the previous one,
