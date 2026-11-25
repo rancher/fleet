@@ -369,7 +369,6 @@ func downloadOCIChart(name, version, path string, auth Auth) (string, error) {
 
 		err = registryClient.Login(
 			addr,
-			registry.LoginOptInsecure(auth.InsecureSkipVerify),
 			registry.LoginOptBasicAuth(auth.Username, auth.Password),
 		)
 		if err != nil {
@@ -383,7 +382,6 @@ func downloadOCIChart(name, version, path string, auth Auth) (string, error) {
 	if auth.Username != "" && auth.Password != "" {
 		getterOptions = append(getterOptions, helmgetter.WithBasicAuth(auth.Username, auth.Password))
 	}
-	getterOptions = append(getterOptions, helmgetter.WithInsecureSkipVerifyTLS(auth.InsecureSkipVerify))
 
 	c := downloader.ChartDownloader{
 		Verify:       downloader.VerifyNever,

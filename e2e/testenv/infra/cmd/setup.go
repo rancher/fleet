@@ -160,7 +160,6 @@ var setupCmd = &cobra.Command{
 				err := OCIClient.Login(
 					OCIHost,
 					registry.LoginOptBasicAuth(os.Getenv("CI_OCI_USERNAME"), os.Getenv("CI_OCI_PASSWORD")),
-					registry.LoginOptInsecure(true),
 				)
 				if err != nil {
 					return "", fmt.Errorf("logging into OCI registry: %w", err)
