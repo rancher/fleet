@@ -3,13 +3,20 @@ package helmdeployer
 import (
 	"context"
 	"errors"
+	"io"
+	"strconv"
 	"testing"
+	"time"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"helm.sh/helm/v4/pkg/action"
+	chartv2 "helm.sh/helm/v4/pkg/chart/v2"
+	kubefake "helm.sh/helm/v4/pkg/kube/fake"
 	"helm.sh/helm/v4/pkg/release"
+	"helm.sh/helm/v4/pkg/release/common"
 	releasev1 "helm.sh/helm/v4/pkg/release/v1"
 	"helm.sh/helm/v4/pkg/storage"
+	"helm.sh/helm/v4/pkg/storage/driver"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -233,6 +240,119 @@ func TestDeleteNamespace(t *testing.T) {
 			}
 
 			assert.Equal(t, tc.failingReleaseListAttempts, storageDriver.listCalls())
+		})
+	}
+}
+
+func TestDeleteByRelease_TrustNewestReleaseFlagsForDeletion(t *testing.T) {
+	const (
+		agentNS     = "cattle-fleet-agent"
+		releaseNS   = "target"
+		bundleID    = "my-bundle"
+		releaseName = releaseNS + "/" + bundleID
+	)
+
+	type revision struct{ keepResources, deleteNamespace bool }
+
+	testCases := []struct {
+		name                   string
+		revisions              []revision
+		expectUninstalled      bool
+		expectNamespaceDeleted bool
+	}{
+		{
+			name:      "older revision does not keep resources, newest does",
+			revisions: []revision{{keepResources: false}, {keepResources: true}},
+		},
+		{
+			name:              "older revision keeps resources, newest does not",
+			revisions:         []revision{{keepResources: true}, {keepResources: false}},
+			expectUninstalled: true,
+		},
+		{
+			name:                   "older revision does not delete the namespace, newest does",
+			revisions:              []revision{{deleteNamespace: false}, {deleteNamespace: true}},
+			expectUninstalled:      true,
+			expectNamespaceDeleted: true,
+		},
+	}
+
+	populateStore := func(t *testing.T, store *storage.Storage, revisions []revision) {
+		t.Helper()
+		for i, rev := range revisions {
+			status := common.StatusSuperseded
+			if i == len(revisions)-1 {
+				status = common.StatusDeployed
+			}
+			require.NoError(t, store.Create(&releasev1.Release{
+				Name:      bundleID,
+				Namespace: releaseNS,
+				Version:   i + 1,
+				Info:      &releasev1.Info{Status: status},
+				Chart: &chartv2.Chart{Metadata: &chartv2.Metadata{
+					Name:    bundleID,
+					Version: "0.0.1",
+					Annotations: map[string]string{
+						BundleIDAnnotation:        bundleID,
+						AgentNamespaceAnnotation:  agentNS,
+						KeepResourcesAnnotation:   strconv.FormatBool(rev.keepResources),
+						DeleteNamespaceAnnotation: strconv.FormatBool(rev.deleteNamespace),
+					},
+				}},
+			}))
+		}
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+
+			store := storage.Init(driver.NewMemory())
+			populateStore(t, store, tc.revisions)
+
+			cfg := action.NewConfiguration()
+			cfg.Releases = store
+			cfg.KubeClient = &kubefake.PrintingKubeClient{Out: io.Discard, LogOutput: io.Discard}
+
+			other_resource := &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "other-cm", Namespace: releaseNS,
+					Labels: map[string]string{fleet.BundleDeploymentOwnershipLabel: bundleID},
+				},
+			}
+
+			ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: releaseNS}}
+
+			c := fake.NewClientBuilder().WithScheme(deleteScheme(t)).WithObjects(other_resource, ns).Build()
+
+			h := &Helm{
+				client:         c,
+				agentNamespace: agentNS,
+				globalCfg:      cfg,
+				useGlobalCfg:   true,
+			}
+
+			require.NoError(t, h.deleteByRelease(ctx, bundleID, releaseName))
+
+			_, err := store.History(bundleID)
+			require.ErrorIs(t, err, driver.ErrReleaseNotFound, "every revision must be removed")
+
+			err = c.Get(ctx, types.NamespacedName{Namespace: releaseNS, Name: "other-cm"}, &corev1.ConfigMap{})
+			if tc.expectUninstalled {
+				assert.True(t, apierrors.IsNotFound(err), "uninstall must delete resources")
+			} else {
+				require.NoError(t, err, "keepResources must not delete resources")
+			}
+
+			nsDeleted := func() bool {
+				return apierrors.IsNotFound(c.Get(ctx, types.NamespacedName{Name: releaseNS}, &corev1.Namespace{}))
+			}
+			if tc.expectNamespaceDeleted {
+				// purgeReleaseNamespace runs in a goroutine
+				assert.Eventually(t, nsDeleted, 5*time.Second, 50*time.Millisecond, "deleteNamespace must delete the namespace")
+			} else {
+				assert.False(t, nsDeleted(), "namespace must be kept")
+			}
 		})
 	}
 }
