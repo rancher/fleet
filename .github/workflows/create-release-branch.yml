@@ -125,7 +125,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BRANCH: ${{steps.branch.outputs.version}}
-          WORK_BRANCH: ${{steps.git_config.outputs.work_branch}}
         run: |
           if grep -q "$BRANCH" .github/renovate.json; then
             echo "Renovate config already set for $BRANCH; skipping."
@@ -227,7 +226,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.CI_PUSH_FLEET_WORKFLOWS_PRS }}
           BRANCH: ${{steps.branch.outputs.version}}
-          WORK_BRANCH: ${{steps.git_config.outputs.work_branch}}
         run: |
           if grep -Rq "$BRANCH" .github/workflows/release-against-rancher.yml; then
             echo "Candidate release branches for release against Rancher already include $BRANCH; skipping."
@@ -251,7 +249,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BRANCH: ${{steps.branch.outputs.version}}
-          WORK_BRANCH: ${{steps.git_config.outputs.work_branch}}
         run: |
           if grep -Rq "$BRANCH" benchmarks/assets; then
             echo "Benchmark assets already point to $BRANCH; skipping."
