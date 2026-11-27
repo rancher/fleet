@@ -102,6 +102,27 @@ func failureCauses(s fleet.BundleSummary) []fleet.NonReadyResource {
 	return causes
 }
 
+// causeMessage returns the reason to report for a failing resource. A bundle
+// deployment's own message is used where it has one, but a NotReady deployment
+// usually carries none: its reason sits in the per-resource statuses instead,
+// the same ones the bundle status surfaces (see summary.ReadyMessage). Falling
+// back to those keeps a BundleNotReady event from naming an empty cause.
+func causeMessage(c fleet.NonReadyResource) string {
+	if c.Message != "" {
+		return c.Message
+	}
+
+	details := make([]string, 0, len(c.NonReadyStatus)+len(c.ModifiedStatus))
+	for _, s := range c.NonReadyStatus {
+		details = append(details, s.String())
+	}
+	for _, s := range c.ModifiedStatus {
+		details = append(details, s.String())
+	}
+
+	return strings.Join(details, ", ")
+}
+
 // causeKeys returns the distinct state and message pairs of the failing
 // resources, sorted, so that the same set of causes always produces the same
 // keys. Cluster names are deliberately left out: the same failure on more
@@ -167,7 +188,15 @@ func failureNote(s fleet.BundleSummary, maxCauses int) string {
 			break
 		}
 
-		cause := fmt.Sprintf(" %s: %s: %s;", c.Name, c.State, truncate(c.Message, messageMaxLength))
+		message := truncate(causeMessage(c), messageMaxLength)
+		var cause string
+		if message == "" {
+			// Nothing to report beyond the state, so leave out the empty
+			// trailing field rather than writing "name: NotReady: ;".
+			cause = fmt.Sprintf(" %s: %s;", c.Name, c.State)
+		} else {
+			cause = fmt.Sprintf(" %s: %s: %s;", c.Name, c.State, message)
+		}
 		if b.Len()+len(cause) > budget {
 			break
 		}
