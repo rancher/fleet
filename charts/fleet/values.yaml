@@ -54,6 +54,13 @@ deploymentEvents:
   # often a flapping deployment reports: one failing and recovering every 10s
   # reports about once a minute, instead of on every transition.
   minInterval: 1m
+  # How long a bundle deployment may stay not ready, with none of its resources
+  # reporting an error, before it is reported. Most such deployments are rollouts
+  # in progress, which would otherwise each report a failure and a recovery. A
+  # Deployment which cannot become available turns into an error once its
+  # progressDeadlineSeconds (10m by default) pass, and is then reported after
+  # the debounce, even within the grace period.
+  notReadyGracePeriod: 2m
   # Report bundles whose deployments all became ready again after a failure.
   # Only bundles which were failing report, so healthy ones stay silent.
   reportRecovery: true
@@ -62,10 +69,10 @@ deploymentEvents:
   # deployment, of which there is one per cluster a bundle is deployed to: a
   # bundle failing on 500 clusters reports 501 events instead of 1.
   perDeployment: false
-  # How many distinct failure causes a single event describes. The bundle's
-  # status.summary.nonReadyResources lists more of them, up to 10, which is
-  # therefore the highest value with an effect. Causes beyond it are reported as
-  # e.g. "(+117 more, see status.summary.nonReadyResources)".
+  # How many distinct failure causes a single event describes, counted over all
+  # of a bundle's deployments. Deployments failing for the same cause are
+  # described once, e.g. "37 clusters, e.g. fleet-default/c1: ...". Causes beyond
+  # it are reported as e.g. " (+4 more causes)".
   maxCauses: 3
 # Whether an existing agent-initiated cluster can register again with a registration token other than the one it is registered with.
 allowClusterRegistrationTokenChange: false

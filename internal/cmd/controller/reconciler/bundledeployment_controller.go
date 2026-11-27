@@ -129,17 +129,18 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	// final update to bd
 	statusPatch := client.MergeFrom(orig)
-	if patchData, err := statusPatch.Data(bd); err == nil && string(patchData) == "{}" {
-		// skip update if patch is empty
-		return ctrl.Result{}, nil
-	}
-	patchErr := r.Status().Patch(ctx, bd, statusPatch)
-	if client.IgnoreNotFound(patchErr) != nil {
-		logger.V(1).Info("Reconcile failed update to bundledeployment status, requeuing", "status", bd.Status, "error", patchErr)
-		// Use explicit requeue timing instead of error backoff for predictable retry behavior
-		// Status patch failures are often transient (conflicts) and don't need exponential backoff
-		//nolint:nilerr // Intentionally using fixed requeue interval instead of error backoff
-		return ctrl.Result{RequeueAfter: durations.DefaultRequeueAfter}, nil
+	var patchErr error
+	// Skip the update if the patch is empty.
+	if patchData, err := statusPatch.Data(bd); err != nil || string(patchData) != "{}" {
+		patchErr = r.Status().Patch(ctx, bd, statusPatch)
+		if client.IgnoreNotFound(patchErr) != nil {
+			logger.V(1).Info("Reconcile failed update to bundledeployment status, requeuing", "status", bd.Status, "error", patchErr)
+			// Use explicit requeue timing instead of error backoff for predictable retry behavior
+			// Status patch failures are often transient (conflicts) and don't need exponential backoff
+			//nolint:nilerr // Intentionally using fixed requeue interval instead of error backoff
+			return ctrl.Result{RequeueAfter: durations.DefaultRequeueAfter}, nil
+		}
+		metrics.BundleDeploymentCollector.Collect(ctx, bd)
 	}
 
 	// The display state is only reported once it is persisted, and against
@@ -147,11 +148,14 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	// if the controller restarted in between. A NotFound patch persisted
 	// nothing: the bundle deployment was deleted while it was reconciled, so
 	// there is no state change to report.
+	//
+	// It is reported even when the display did not change: the agent updates
+	// the resources and conditions it is derived from, and a deployment which
+	// starts reporting an error stays NotReady. The emitter skips what it
+	// already reported.
 	if r.Events != nil && patchErr == nil {
 		r.Events.ObserveBundleDeployment(ctx, orig, bd)
 	}
-
-	metrics.BundleDeploymentCollector.Collect(ctx, bd)
 
 	return ctrl.Result{}, nil
 }
