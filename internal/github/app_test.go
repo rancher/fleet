@@ -182,14 +182,20 @@ func TestGitHubApp_GetToken_InvalidRSA(t *testing.T) {
 }
 
 func TestTransportWithTLS_Defaults_ReturnsDefaultTransportUnchanged(t *testing.T) {
-	tr := transportWithTLS(netx.TLSConfig{})
+	tr, err := transportWithTLS(netx.TLSConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
 	if tr != http.DefaultTransport {
 		t.Fatal("expected http.DefaultTransport to be returned unchanged for default netx.TLSConfig")
 	}
 }
 
 func TestTransportWithTLS_CABundleOnly_SetsRootCAs(t *testing.T) {
-	tr := transportWithTLS(netx.TLSConfig{CABundle: []byte(testCACertPEM)})
+	tr, err := transportWithTLS(netx.TLSConfig{CABundle: []byte(testCACertPEM)})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	httpTr, ok := tr.(*http.Transport)
 	if !ok {
@@ -201,7 +207,10 @@ func TestTransportWithTLS_CABundleOnly_SetsRootCAs(t *testing.T) {
 }
 
 func TestTransportWithTLS_InsecureOnly_SetsInsecureSkipVerify(t *testing.T) {
-	tr := transportWithTLS(netx.TLSConfig{InsecureSkipVerify: true})
+	tr, err := transportWithTLS(netx.TLSConfig{InsecureSkipVerify: true})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	httpTr, ok := tr.(*http.Transport)
 	if !ok {

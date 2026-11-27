@@ -75,7 +75,11 @@ func httpDownload(ctx context.Context, dst, src string, auth Auth) error {
 		req.SetBasicAuth(auth.Username, auth.Password)
 	}
 
-	resp, err := getHTTPClient(auth).Do(req)
+	client, err := getHTTPClient(auth)
+	if err != nil {
+		return err
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("downloading %q: %w", u.Redacted(), err)
 	}

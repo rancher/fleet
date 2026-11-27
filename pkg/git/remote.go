@@ -3,7 +3,6 @@ package git
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -13,9 +12,10 @@ import (
 	"github.com/go-git/go-git/v5/storage/memory"
 	"github.com/go-logr/logr"
 
+	corev1 "k8s.io/api/core/v1"
+
 	"github.com/rancher/fleet/internal/netx"
 	giturls "github.com/rancher/fleet/pkg/git-urls"
-	corev1 "k8s.io/api/core/v1"
 )
 
 type options struct {
@@ -78,17 +78,11 @@ type Remote struct {
 }
 
 func NewRemote(url string, opts *options) (*Remote, error) {
-	caBundle := append([]byte(nil), opts.CABundle...)
-	if proxyCAPEM, ok := os.LookupEnv(ProxyCABundleEnvVar); ok && proxyCAPEM != "" {
-		if len(caBundle) > 0 && caBundle[len(caBundle)-1] != '\n' {
-			caBundle = append(caBundle, '\n')
-		}
-		caBundle = append(caBundle, []byte(proxyCAPEM)...)
-	}
-	auth, err := GetAuthFromSecret(url, opts.Credential, opts.KnownHosts, netx.TLSConfig{
-		CABundle:           caBundle,
+	tlsCfg := netx.TLSConfig{
+		CABundle:           opts.CABundle,
 		InsecureSkipVerify: opts.InsecureTLSVerify,
-	})
+	}.WithProxyCA()
+	auth, err := GetAuthFromSecret(url, opts.Credential, opts.KnownHosts, tlsCfg)
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +103,7 @@ func NewRemote(url string, opts *options) (*Remote, error) {
 		Lister: &GoGitRemoteLister{
 			URL:             url,
 			Auth:            auth,
-			CABundle:        caBundle,
+			CABundle:        tlsCfg.CABundle,
 			InsecureSkipTLS: opts.InsecureTLSVerify,
 			ProxyOptions:    ProxyOptsFromEnvironment(url),
 		},

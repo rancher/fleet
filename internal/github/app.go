@@ -34,7 +34,10 @@ func (app *GitHubApp) GetToken(ctx context.Context, tlsCfg netx.TLSConfig) (stri
 		return "", err
 	}
 
-	tr := transportWithTLS(tlsCfg)
+	tr, err := transportWithTLS(tlsCfg)
+	if err != nil {
+		return "", err
+	}
 
 	itr, err := newGithubApp(tr, app.repoURL, app.appID, app.installID, app.pem)
 	if err != nil {
@@ -49,9 +52,9 @@ func (app *GitHubApp) GetToken(ctx context.Context, tlsCfg netx.TLSConfig) (stri
 	return token, nil
 }
 
-func transportWithTLS(cfg netx.TLSConfig) http.RoundTripper {
+func transportWithTLS(cfg netx.TLSConfig) (http.RoundTripper, error) {
 	if len(cfg.CABundle) == 0 && !cfg.InsecureSkipVerify {
-		return http.DefaultTransport
+		return http.DefaultTransport, nil
 	}
 
 	return netx.NewTransport(cfg)

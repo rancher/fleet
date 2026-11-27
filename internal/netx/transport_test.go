@@ -18,7 +18,10 @@ func TestNewTransport_Default(t *testing.T) {
 	def := &http.Transport{MaxIdleConns: 7}
 	http.DefaultTransport = def
 
-	tr := NewTransport(TLSConfig{InsecureSkipVerify: true})
+	tr, err := NewTransport(TLSConfig{InsecureSkipVerify: true})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if tr == def {
 		t.Fatal("expected a copy, got http.DefaultTransport itself")
@@ -39,7 +42,10 @@ func TestNewTransport_Another_Component_Replaced_Global_Default(t *testing.T) {
 	http.DefaultTransport = &fakeRT{}
 	t.Cleanup(func() { http.DefaultTransport = orig })
 
-	tr := NewTransport(TLSConfig{InsecureSkipVerify: true})
+	tr, err := NewTransport(TLSConfig{InsecureSkipVerify: true})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if tr.Proxy == nil {
 		t.Fatal("expected Proxy to be set")
