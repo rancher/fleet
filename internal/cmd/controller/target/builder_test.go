@@ -37,8 +37,14 @@ namespaceAnnotations:
   disablePreprocess: true
 namespaceLabels:
   env: "${ .ClusterLabels.testLabel }"
+  instance: "${ .GitRepo.Name }"
+namespaceAnnotations:
+  workspace: "${ .GitRepo.Namespace }"
 `,
-			expectedLabels: map[string]string{"env": "${ .ClusterLabels.testLabel }"},
+			expectedLabels: map[string]string{
+				"env": "${ .ClusterLabels.testLabel }", "instance": "${ .GitRepo.Name }",
+			},
+			expectedAnnotations: map[string]string{"workspace": "${ .GitRepo.Namespace }"},
 		},
 		{
 			name: "fails on missing cluster label",
@@ -57,7 +63,7 @@ namespaceLabels:
 			original := maps.Clone(opts.NamespaceLabels)
 			bundleLabels := opts.NamespaceLabels
 
-			err = preprocessNamespaceMetadata(opts, cluster)
+			err = preprocessNamespaceMetadata(opts, newTemplateContext(&v1alpha1.Bundle{}, cluster))
 			if tc.expectedErr != "" {
 				require.ErrorContains(t, err, tc.expectedErr)
 				return
@@ -75,7 +81,7 @@ namespaceLabels:
 func TestPreprocessNamespaceMetadata_NoMetadata(t *testing.T) {
 	opts := &v1alpha1.BundleDeploymentOptions{}
 
-	require.NoError(t, preprocessNamespaceMetadata(opts, &v1alpha1.Cluster{}))
+	require.NoError(t, preprocessNamespaceMetadata(opts, nil))
 	assert.Nil(t, opts.NamespaceLabels)
 	assert.Nil(t, opts.NamespaceAnnotations)
 }
