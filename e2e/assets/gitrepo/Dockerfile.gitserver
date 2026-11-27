@@ -8,6 +8,7 @@ RUN apk add git
 RUN apk add git-daemon
 RUN apk add fcgiwrap
 RUN apk add spawn-fcgi
+RUN apk add openssl
 
 # Set user info and enable force-push
 COPY <<-"EOT" /root/.gitconfig

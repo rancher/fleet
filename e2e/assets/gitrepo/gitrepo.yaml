@@ -24,6 +24,9 @@ spec:
   {{- if .HelmSecretNameForPaths }}
   helmSecretNameForPaths: {{.HelmSecretNameForPaths}}
   {{- end }}
+  {{- if .WebhookSecret }}
+  webhookSecret: {{.WebhookSecret}}
+  {{- end }}
   {{- if .InsecureSkipTLSVerify }}
   insecureSkipTLSVerify: {{.InsecureSkipTLSVerify}}
   {{- end }}
