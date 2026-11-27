@@ -67,8 +67,9 @@ jobs:
       - name: Read App Secrets
         uses: rancher-eio/read-vault-secrets@0da85151ad1f19ed7986c41587e45aac1ace74b6 # v3
         with:
-        secrets: |
-          github/token/rancher--fleet-test-data--contents--workflows--write token | CI_PUSH_FLEET_TEST_DATA
+          secrets: |
+            github/token/rancher--fleet-test-data--contents--workflows--write token | CI_PUSH_FLEET_TEST_DATA
+            github/token/rancher--fleet--contents--pull_requests--workflows--write token | CI_PUSH_FLEET_WORKFLOWS_PRS
 
       - name: create release branch in fleet-test-data
         id: test_branch
@@ -231,7 +232,7 @@ jobs:
       - name: add new release branch to candidates for releasing against Rancher
         if: steps.git_config.outputs.work_branch != ''
         env:
-          GITHUB_TOKEN: ${{ secrets.CI_PUSH_FLEET_WORKFLOWS_PRS }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BRANCH: ${{steps.branch.outputs.version}}
         run: |
           if grep -Rq "$BRANCH" .github/workflows/release-against-rancher.yml; then
@@ -272,7 +273,7 @@ jobs:
       - name: push work branch
         env:
           BRANCH: ${{steps.branch.outputs.version}}
-          GITHUB_TOKEN: ${{ secrets.CI_PUSH_FLEET_WORKFLOWS_PRS }}
+          GITHUB_TOKEN: ${{ env.CI_PUSH_FLEET_WORKFLOWS_PRS }}
           WORK_BRANCH: ${{steps.git_config.outputs.work_branch}}
         run: |
           if [[ "${WORK_BRANCH}" != "${BRANCH}" && -z "$(git diff ${WORK_BRANCH} ${BRANCH})" ]]; then
@@ -289,7 +290,7 @@ jobs:
         if: steps.git_config.outputs.work_branch != '' && steps.branch.outputs.version != steps.git_config.outputs.work_branch
         env:
           BRANCH: ${{steps.branch.outputs.version}}
-          GITHUB_TOKEN: ${{ secrets.CI_PUSH_FLEET_WORKFLOWS_PRS }}
+          GITHUB_TOKEN: ${{ env.CI_PUSH_FLEET_WORKFLOWS_PRS }}
           WORK_BRANCH: ${{steps.git_config.outputs.work_branch}}
         run: |
           # The branch already exists: it cannot be directly pushed to because
