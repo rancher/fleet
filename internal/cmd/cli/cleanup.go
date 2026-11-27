@@ -141,7 +141,8 @@ func (a *ClusterRegistration) Run(cmd *cobra.Command, args []string) error {
 
 type Gitjob struct {
 	FleetClient
-	BatchSize int `usage:"Number of git jobs to retrieve at once" name:"batch-size" default:"5000"`
+	BatchSize int    `usage:"Number of git jobs to retrieve at once" name:"batch-size" default:"5000"`
+	Retention string `usage:"Retention period for failed jobs (e.g., '168h', '24h'). If unset, failed jobs are kept indefinitely." name:"retention"`
 }
 
 func (r *Gitjob) PersistentPre(_ *cobra.Command, _ []string) error {
@@ -157,6 +158,18 @@ func (r *Gitjob) Run(cmd *cobra.Command, args []string) error {
 		return errors.New("factor must be greater than 1")
 	}
 
+	var retention time.Duration
+	var err error
+	if r.Retention != "" {
+		retention, err = time.ParseDuration(r.Retention)
+		if err != nil {
+			return fmt.Errorf("invalid retention duration: %w", err)
+		}
+		if retention < 0 {
+			return errors.New("retention duration cannot be negative")
+		}
+	}
+
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zopts)))
 	ctx := log.IntoContext(cmd.Context(), ctrl.Log)
 
@@ -169,7 +182,11 @@ func (r *Gitjob) Run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("Cleaning up outdated git jobs, batch size at %d\n", bs)
+	if retention > 0 {
+		fmt.Printf("Cleaning up outdated git jobs, batch size at %d, retention for failed jobs: %s\n", bs, retention)
+	} else {
+		fmt.Printf("Cleaning up outdated git jobs, batch size at %d (no retention, failed jobs kept indefinitely)\n", bs)
+	}
 
-	return cleanup.GitJobs(ctx, client, bs)
+	return cleanup.GitJobs(ctx, client, bs, retention)
 }
