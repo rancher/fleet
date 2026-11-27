@@ -11,6 +11,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
   pull-requests: write
 
 env:
@@ -63,11 +64,17 @@ jobs:
           repository: "rancher/fleet-test-data"
           path: fleet-test-data
 
+      - name: Read App Secrets
+        uses: rancher-eio/read-vault-secrets@0da85151ad1f19ed7986c41587e45aac1ace74b6 # v3
+        with:
+        secrets: |
+          github/token/rancher--fleet-test-data--contents--workflows--write token | CI_PUSH_FLEET_TEST_DATA
+
       - name: create release branch in fleet-test-data
         id: test_branch
         if: steps.branch.outputs.version != ''
         env:
-          GITHUB_TOKEN: ${{ secrets.CI_PUSH_FLEET_TEST_DATA }}
+          GITHUB_TOKEN: ${{ env.CI_PUSH_FLEET_TEST_DATA }}
           BRANCH: ${{steps.branch.outputs.version}}
         working-directory: ./fleet-test-data/
         run: |
