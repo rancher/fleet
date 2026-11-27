@@ -222,9 +222,9 @@ jobs:
         if: ${{ env.IS_HOTFIX == 'false' }}
         env:
           # renovate: datasource=github-releases depName=rancher/cargueiro
-          CARGUEIRO_VERSION: v0.2.7
-          # renovate: datasource=github-release-attachments depName=rancher/cargueiro digestVersion=v0.2.7
-          CARGUEIRO_SUM: a1922012522bc14b5813ed55ef3d68cd4b9b3d8bb2638ea9e9a7ae48a146c96b
+          CARGUEIRO_VERSION: v0.2.9
+          # renovate: datasource=github-release-attachments depName=rancher/cargueiro digestVersion=v0.2.9
+          CARGUEIRO_SUM: 55a1a779cf12c7f4ea1d06bd498c3f5e42c9a0290689e244b064138cf8e35c27
         run: |
           set -euo pipefail
           curl -sSfL \
