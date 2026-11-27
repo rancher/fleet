@@ -37,6 +37,15 @@ func NewApply() *cobra.Command {
 	cmd := command.Command(&Apply{}, cobra.Command{
 		Use:   "apply [flags] BUNDLE_NAME PATH...",
 		Short: "Create bundles from directories, and output them or apply them on a cluster",
+		Long: `Create bundles from directories, and output them or apply them on a cluster.
+
+Helm valuesFiles paths are relative to the bundle directory and must stay within
+the nearest ancestor directory containing a .git directory. Submodule .git files
+are passed, so submodules can use values files of the enclosing checkout.
+Without a .git entry, they must stay within the PATH the bundle was found under,
+or the bundle directory with --driven-scan. Absolute paths, paths into .git
+metadata, and symlinks escaping these boundaries are rejected. The working
+directory never determines the boundary.`,
 	})
 
 	registerLoggingAndKubeconfigFlags(cmd)

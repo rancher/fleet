@@ -11,6 +11,7 @@ import (
 	gogit "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"k8s.io/client-go/util/homedir"
 	"sigs.k8s.io/yaml"
 
@@ -91,7 +92,7 @@ func TestAddAuthToOpts(t *testing.T) {
 			}
 			opts := &apply.Options{}
 			err := test.apply.addAuthToOpts(opts, mockReadFile, false, test.helmInsecureSkipTLS)
-			if !cmp.Equal(opts, test.expectedOpts) {
+			if !cmp.Equal(opts, test.expectedOpts, cmpopts.IgnoreUnexported(apply.Options{})) {
 				t.Errorf("opts don't match: expected %v, got %v", test.expectedOpts, opts)
 			}
 			if !errors.Is(err, test.expectedErr) {
