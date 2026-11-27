@@ -69,6 +69,8 @@ func TestAgentWithConfig(t *testing.T) {
 		},
 	}
 
+	config.Set(config.DefaultConfig())
+
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
