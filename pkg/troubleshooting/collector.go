@@ -68,8 +68,11 @@ func (col *Collector) CollectResources(ctx context.Context, c client.Client) (*S
 	// Collect orphaned secrets - reuse bundleSecrets to avoid re-fetching
 	orphanedSecrets := col.getOrphanedSecrets(bundleSecrets, bundles, bundleDeployments)
 
+	// Collect per-bundle OCI storage secrets
+	ociSecrets := col.getOCISecrets(ctx, c)
+
 	// Check content issues
-	contentIssues := col.checkContentIssues(bundleDeployments, contents)
+	contentIssues := col.checkContentIssues(bundleDeployments, contents, ociSecrets)
 
 	// Check API consistency
 	apiConsistency, err := col.checkAPIConsistency(ctx, c)
@@ -514,6 +517,21 @@ func (col *Collector) getBundleSecrets(ctx context.Context, c client.Client) []c
 	return allSecrets
 }
 
+// getOCISecrets returns the per-bundle OCI storage secrets, by namespace/name.
+func (col *Collector) getOCISecrets(ctx context.Context, c client.Client) map[string]corev1.Secret {
+	secretList := &corev1.SecretList{}
+	err := c.List(ctx, secretList, client.MatchingFields{"type": fleet.SecretTypeOCIStorage})
+	if err != nil {
+		return nil
+	}
+
+	secrets := make(map[string]corev1.Secret, len(secretList.Items))
+	for _, secret := range secretList.Items {
+		secrets[secret.Namespace+"/"+secret.Name] = secret
+	}
+	return secrets
+}
+
 func (col *Collector) getOrphanedSecrets(bundleSecrets []corev1.Secret, bundles []fleet.Bundle, bundleDeployments []fleet.BundleDeployment) []corev1.Secret {
 	// Create UID maps
 	bundleUIDs := make(map[string]string)
@@ -556,13 +574,53 @@ func (col *Collector) getOrphanedSecrets(bundleSecrets []corev1.Secret, bundles 
 	return orphaned
 }
 
-// checkContentIssues identifies BundleDeployments with missing or problematic Content resources
-func (col *Collector) checkContentIssues(bundleDeployments []fleet.BundleDeployment, contents []fleet.Content) []ContentIssue {
+// contentStore describes where a BundleDeployment's contents are stored and
+// which issues to report when they are missing or being deleted.
+type contentStore struct {
+	lookup        func(bd fleet.BundleDeployment, contentName string) (client.Object, bool)
+	notFoundIssue string
+	deletionIssue string
+	// canCheckStaged is false when the staged deploymentID cannot be looked
+	// up, i.e. OCI secrets could not be listed.
+	canCheckStaged bool
+}
+
+// checkContentIssues identifies BundleDeployments with missing or problematic Content resources.
+// For BundleDeployments whose contents are stored in an OCI registry, there is no Content
+// resource; instead the per-bundle OCI secret in the BundleDeployment namespace is checked.
+// ociSecrets is nil when OCI secrets could not be listed, which is reported as oci_secret_not_listed.
+func (col *Collector) checkContentIssues(bundleDeployments []fleet.BundleDeployment, contents []fleet.Content, ociSecrets map[string]corev1.Secret) []ContentIssue {
 	var issues []ContentIssue
 
 	contentMap := make(map[string]fleet.Content)
 	for _, content := range contents {
 		contentMap[content.Name] = content
+	}
+
+	contentsInCluster := contentStore{
+		lookup: func(_ fleet.BundleDeployment, contentName string) (client.Object, bool) {
+			content, ok := contentMap[contentName]
+			return &content, ok
+		},
+		notFoundIssue:  "content_not_found",
+		deletionIssue:  "content_has_deletion_timestamp",
+		canCheckStaged: true,
+	}
+
+	contentsInOCI := contentStore{
+		// The OCI secret is named after the content ID and cloned into the
+		// BundleDeployment namespace. Looking up a nil map is safe.
+		lookup: func(bd fleet.BundleDeployment, contentName string) (client.Object, bool) {
+			secret, ok := ociSecrets[bd.Namespace+"/"+contentName]
+			return &secret, ok
+		},
+		notFoundIssue:  "oci_secret_not_found",
+		deletionIssue:  "oci_secret_has_deletion_timestamp",
+		canCheckStaged: ociSecrets != nil,
+	}
+	if ociSecrets == nil {
+		contentsInOCI.notFoundIssue = "oci_secret_not_listed"
+
 	}
 
 	for _, bd := range bundleDeployments {
@@ -571,30 +629,33 @@ func (col *Collector) checkContentIssues(bundleDeployments []fleet.BundleDeploym
 			Name:      bd.Name,
 			Issues:    []string{},
 		}
+		store := contentsInCluster
+		if bd.Spec.OCIContents {
+			store = contentsInOCI
+		}
 
-		// Check spec.deploymentID content
 		if bd.Spec.DeploymentID != "" {
 			contentName := extractContentName(bd.Spec.DeploymentID)
 			issue.ContentName = contentName
 
-			content, exists := contentMap[contentName]
+			content, exists := store.lookup(bd, contentName)
 			issue.ContentExists = exists
 
 			if !exists {
-				issue.Issues = append(issue.Issues, "content_not_found")
-			} else if content.DeletionTimestamp != nil {
-				ts := content.DeletionTimestamp.UTC().Format(time.RFC3339)
+				issue.Issues = append(issue.Issues, store.notFoundIssue)
+			} else if deletedAt := content.GetDeletionTimestamp(); deletedAt != nil {
+				ts := deletedAt.UTC().Format(time.RFC3339)
 				issue.ContentDeletionTimestamp = &ts
-				issue.Issues = append(issue.Issues, "content_has_deletion_timestamp")
+				issue.Issues = append(issue.Issues, store.deletionIssue)
 			}
 		}
 
 		// Check spec.stagedDeploymentID content
-		if bd.Spec.StagedDeploymentID != "" {
+		if bd.Spec.StagedDeploymentID != "" && store.canCheckStaged {
 			stagedContentName := extractContentName(bd.Spec.StagedDeploymentID)
 			if stagedContentName != issue.ContentName {
 				issue.StagedContentName = stagedContentName
-				_, exists := contentMap[stagedContentName]
+				_, exists := store.lookup(bd, stagedContentName)
 				issue.StagedContentExists = &exists
 
 				if !exists {
@@ -603,12 +664,14 @@ func (col *Collector) checkContentIssues(bundleDeployments []fleet.BundleDeploym
 			}
 		}
 
-		// Check status.appliedDeploymentID content
-		if bd.Status.AppliedDeploymentID != "" {
+		// Check status.appliedDeploymentID content. With OCI storage, the secret
+		// of the previous deploymentID is purged as soon as the deploymentID
+		// changes, so the applied one may legitimately be gone during a rollout.
+		if bd.Status.AppliedDeploymentID != "" && !bd.Spec.OCIContents {
 			appliedContentName := extractContentName(bd.Status.AppliedDeploymentID)
 			if appliedContentName != issue.ContentName {
 				issue.AppliedContentName = appliedContentName
-				_, exists := contentMap[appliedContentName]
+				_, exists := store.lookup(bd, appliedContentName)
 				issue.AppliedContentExists = &exists
 
 				if !exists {
