@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -35,21 +36,13 @@ const (
 
 // DeleteRelease deletes the release for the DeployedBundle.
 func (h *Helm) DeleteRelease(ctx context.Context, deployment DeployedBundle) error {
-	return h.deleteByRelease(
-		ctx,
-		deployment.BundleID,
-		deployment.ReleaseName,
-		deployment.KeepResources,
-		deployment.DeleteNamespace,
-	)
+	return h.deleteByRelease(ctx, deployment.BundleID, deployment.ReleaseName)
 }
 
 // Delete the release for the given bundleID. The bundleID is the name of the
 // bundledeployment.
 func (h *Helm) Delete(ctx context.Context, bundleID string) error {
 	releaseName := ""
-	deleteNamespace := false
-	keepResources := false
 	deployments, err := h.ListDeployments(h.NewListAction())
 	if err != nil {
 		return err
@@ -57,8 +50,6 @@ func (h *Helm) Delete(ctx context.Context, bundleID string) error {
 	for _, deployment := range deployments {
 		if deployment.BundleID == bundleID {
 			releaseName = deployment.ReleaseName
-			keepResources = deployment.KeepResources
-			deleteNamespace = deployment.DeleteNamespace
 			break
 		}
 	}
@@ -66,17 +57,11 @@ func (h *Helm) Delete(ctx context.Context, bundleID string) error {
 		// Never found anything to delete
 		return nil
 	}
-	return h.deleteByRelease(ctx, bundleID, releaseName, keepResources, deleteNamespace)
+	return h.deleteByRelease(ctx, bundleID, releaseName)
 }
 
-func (h *Helm) deleteByRelease(
-	ctx context.Context,
-	bundleID,
-	releaseName string,
-	keepResources,
-	deleteNamespace bool,
-) error {
-	logger := log.FromContext(ctx).WithName("delete-by-release").WithValues("releaseName", releaseName, "keepResources", keepResources)
+func (h *Helm) deleteByRelease(ctx context.Context, bundleID, releaseName string) error {
+	logger := log.FromContext(ctx).WithName("delete-by-release").WithValues("releaseName", releaseName)
 	releaseNamespace, releaseName := kv.Split(releaseName, "/")
 	rels, err := listReleases(h.globalCfg.Releases, func(r *releasev1.Release) bool {
 		return r.Namespace == releaseNamespace &&
@@ -90,6 +75,15 @@ func (h *Helm) deleteByRelease(
 	if len(rels) == 0 {
 		return nil
 	}
+	latest := rels[0]
+	for _, r := range rels {
+		if r.Version > latest.Version {
+			latest = r
+		}
+	}
+	keepResources, _ := strconv.ParseBool(latest.Chart.Metadata.Annotations[KeepResourcesAnnotation])
+	deleteNamespace, _ := strconv.ParseBool(latest.Chart.Metadata.Annotations[DeleteNamespaceAnnotation])
+	logger = logger.WithValues("keepResources", keepResources)
 
 	var (
 		serviceAccountName string
