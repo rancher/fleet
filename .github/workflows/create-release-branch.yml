@@ -85,6 +85,8 @@ jobs:
             if ! git checkout -b $BRANCH; then
               echo "Could not create branch $BRANCH."
             fi
+
+            git push -u origin $BRANCH
           fi
 
           if git checkout $BRANCH; then
